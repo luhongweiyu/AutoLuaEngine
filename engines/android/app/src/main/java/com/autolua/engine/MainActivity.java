@@ -49,7 +49,8 @@ public final class MainActivity extends Activity {
     private Button touchButton;
     private Button captureButton;
     private Button screenButton;
-    private Button rootModeButton;
+    private Button rootModeRootButton;
+    private Button rootModeAccessibilityButton;
     private Button pauseButton;
     private Button resumeButton;
     private Button stopButton;
@@ -158,13 +159,19 @@ public final class MainActivity extends Activity {
     private void addRunModeSection(LinearLayout root) {
         root.addView(createSectionTitle("运行模式"), sectionLayoutParams());
 
-        rootModeButton = createButton(
-                R.id.button_root_mode,
+        rootModeRootButton = createButton(
+                R.id.button_root_mode_root,
                 "",
-                this::toggleRootMode
+                () -> setRootMode(true)
         );
-        updateRootModeButtonText();
-        addButton(root, rootModeButton, false);
+        rootModeAccessibilityButton = createButton(
+                R.id.button_root_mode_accessibility,
+                "",
+                () -> setRootMode(false)
+        );
+        updateRootModeButtons();
+        addButton(root, rootModeRootButton, false);
+        addButton(root, rootModeAccessibilityButton, true);
 
         touchButton = createButton(
                 R.id.button_run_touch,
@@ -362,20 +369,25 @@ public final class MainActivity extends Activity {
         outputView.setText("准备运行脚本...");
     }
 
-    private void toggleRootMode() {
-        boolean enabled = !EngineSettings.isRootModeEnabled(this);
+    private void setRootMode(boolean enabled) {
         EngineSettings.setRootModeEnabled(this, enabled);
-        updateRootModeButtonText();
+        updateRootModeButtons();
         outputView.setText(enabled ? "运行模式已切换为 Root 优先" : "运行模式已切换为无障碍优先");
     }
 
-    private void updateRootModeButtonText() {
-        if (rootModeButton == null) {
+    private void updateRootModeButtons() {
+        if (rootModeRootButton == null || rootModeAccessibilityButton == null) {
             return;
         }
-        rootModeButton.setText(EngineSettings.isRootModeEnabled(this)
-                ? "运行模式：Root 优先（默认）"
-                : "运行模式：无障碍优先");
+
+        // 用两个明确选项模拟模式选择：首次安装默认 Root 优先，当前选项在文案中标记为已选。
+        boolean rootModeEnabled = EngineSettings.isRootModeEnabled(this);
+        rootModeRootButton.setText(rootModeEnabled
+                ? "Root 优先（默认，已选）"
+                : "Root 优先（默认）");
+        rootModeAccessibilityButton.setText(rootModeEnabled
+                ? "无障碍优先"
+                : "无障碍优先（已选）");
     }
 
     private void ensureAppFilesDir() {

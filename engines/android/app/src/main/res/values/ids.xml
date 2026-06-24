@@ -3,7 +3,8 @@
     <item name="button_run_lua" type="id" />
     <item name="button_run_error" type="id" />
     <item name="button_run_loop" type="id" />
-    <item name="button_root_mode" type="id" />
+    <item name="button_root_mode_root" type="id" />
+    <item name="button_root_mode_accessibility" type="id" />
     <item name="button_run_touch" type="id" />
     <item name="button_request_capture" type="id" />
     <item name="button_run_screen" type="id" />
