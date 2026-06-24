@@ -618,6 +618,67 @@ RootExecResult callStaticRootResultStringStringMethod(const char* methodName,
     return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
 }
 
+RootExecResult callStaticRootResultStringStringStringMethod(const char* methodName,
+                                                            const char* signature,
+                                                            const std::string& first,
+                                                            const std::string& second,
+                                                            const std::string& third,
+                                                            const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jstring firstString = env->NewStringUTF(first.c_str());
+    jstring secondString = env->NewStringUTF(second.c_str());
+    jstring thirdString = env->NewStringUTF(third.c_str());
+    if (firstString == nullptr || secondString == nullptr || thirdString == nullptr) {
+        if (firstString != nullptr) {
+            env->DeleteLocalRef(firstString);
+        }
+        if (secondString != nullptr) {
+            env->DeleteLocalRef(secondString);
+        }
+        if (thirdString != nullptr) {
+            env->DeleteLocalRef(thirdString);
+        }
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " string is invalid");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            firstString,
+            secondString,
+            thirdString
+    );
+    env->DeleteLocalRef(firstString);
+    env->DeleteLocalRef(secondString);
+    env->DeleteLocalRef(thirdString);
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
 RootProbeAttempt readRootProbeAttempt(JNIEnv* env, jobject attemptObject) {
     RootProbeAttempt attempt;
     if (attemptObject == nullptr) {
@@ -1161,6 +1222,60 @@ RootExecResult AndroidBridge::deviceSetRotation(int rotation, bool locked) {
     }
 
     return readRootExecResult(env, resultObject, bridgeClass, "device set rotation");
+}
+
+RootExecResult AndroidBridge::deviceSettingsGet(const std::string& namespaceName,
+                                                const std::string& key) {
+    return callStaticRootResultStringStringMethod(
+            "deviceSettingsGet",
+            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            namespaceName,
+            key,
+            "device settings get"
+    );
+}
+
+RootExecResult AndroidBridge::deviceSettingsPut(const std::string& namespaceName,
+                                                const std::string& key,
+                                                const std::string& value) {
+    return callStaticRootResultStringStringStringMethod(
+            "deviceSettingsPut",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            namespaceName,
+            key,
+            value,
+            "device settings put"
+    );
+}
+
+RootExecResult AndroidBridge::deviceSettingsDelete(const std::string& namespaceName,
+                                                   const std::string& key) {
+    return callStaticRootResultStringStringMethod(
+            "deviceSettingsDelete",
+            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            namespaceName,
+            key,
+            "device settings delete"
+    );
+}
+
+RootExecResult AndroidBridge::devicePropGet(const std::string& key) {
+    return callStaticRootResultStringMethod(
+            "devicePropGet",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            key,
+            "device prop get"
+    );
+}
+
+RootExecResult AndroidBridge::devicePropSet(const std::string& key, const std::string& value) {
+    return callStaticRootResultStringStringMethod(
+            "devicePropSet",
+            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            key,
+            value,
+            "device prop set"
+    );
 }
 
 bool AndroidBridge::appIsInstalled(const std::string& packageName) {

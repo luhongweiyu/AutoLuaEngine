@@ -122,6 +122,26 @@ public final class AndroidHostBridge {
         return DeviceControlBridge.setRotation(rotation, locked);
     }
 
+    public static RootCommandResult deviceSettingsGet(String namespace, String key) {
+        return DeviceSystemBridge.settingsGet(namespace, key);
+    }
+
+    public static RootCommandResult deviceSettingsPut(String namespace, String key, String value) {
+        return DeviceSystemBridge.settingsPut(namespace, key, value);
+    }
+
+    public static RootCommandResult deviceSettingsDelete(String namespace, String key) {
+        return DeviceSystemBridge.settingsDelete(namespace, key);
+    }
+
+    public static RootCommandResult devicePropGet(String key) {
+        return DeviceSystemBridge.propGet(key);
+    }
+
+    public static RootCommandResult devicePropSet(String key, String value) {
+        return DeviceSystemBridge.propSet(key, value);
+    }
+
     public static boolean appIsInstalled(String packageName) {
         return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
     }

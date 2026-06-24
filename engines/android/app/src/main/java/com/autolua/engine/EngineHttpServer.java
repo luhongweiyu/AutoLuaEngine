@@ -209,6 +209,74 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("device.settings.get".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceSettingsGet(
+                    requireSettingsNamespace(params),
+                    requireKey(params)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device settings get failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("value", rootResult.stdout.trim());
+            return result;
+        }
+
+        if ("device.settings.put".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceSettingsPut(
+                    requireSettingsNamespace(params),
+                    requireKey(params),
+                    requireValue(params)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device settings put failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.settings.delete".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceSettingsDelete(
+                    requireSettingsNamespace(params),
+                    requireKey(params)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device settings delete failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.prop.get".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.devicePropGet(requireKey(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device prop get failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("value", rootResult.stdout.trim());
+            return result;
+        }
+
+        if ("device.prop.set".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.devicePropSet(
+                    requireKey(params),
+                    requireValue(params)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device prop set failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
         if ("root.exec".equals(method)) {
             String command = params.optString("command", "");
             if (command.trim().isEmpty()) {
@@ -754,6 +822,29 @@ public final class EngineHttpServer {
             throw new IllegalArgumentException("path is required");
         }
         return path;
+    }
+
+    private static String requireSettingsNamespace(JSONObject params) {
+        String namespace = params.optString("namespace", "");
+        if (namespace.trim().isEmpty()) {
+            throw new IllegalArgumentException("namespace is required");
+        }
+        return namespace;
+    }
+
+    private static String requireKey(JSONObject params) {
+        String key = params.optString("key", "");
+        if (key.trim().isEmpty()) {
+            throw new IllegalArgumentException("key is required");
+        }
+        return key;
+    }
+
+    private static String requireValue(JSONObject params) {
+        if (!params.has("value")) {
+            throw new IllegalArgumentException("value is required");
+        }
+        return params.optString("value", "");
     }
 
     private static String requireProcessName(JSONObject params) {

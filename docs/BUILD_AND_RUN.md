@@ -132,6 +132,11 @@ device.sleep
 device.battery
 device.rotation
 device.setRotation
+device.settings.get
+device.settings.put
+device.settings.delete
+device.prop.get
+device.prop.set
 root.exec
 root.status
 root.file.exists

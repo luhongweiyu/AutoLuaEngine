@@ -23,6 +23,11 @@
 | 设备 | `m.device.battery()` | `m.battery()` | [查看](#api-device-battery) |
 | 设备 | `m.device.rotation()` | `m.rotation()` | [查看](#api-device-rotation) |
 | 设备 | `m.device.setRotation(rotation, locked)` | `m.setRotation(...)` | [查看](#api-device-set-rotation) |
+| 设备设置 | `m.device.settings.get(namespace, key)` | `m.getSetting(...)` | [查看](#api-device-settings) |
+| 设备设置 | `m.device.settings.put(namespace, key, value)` | `m.putSetting(...)` | [查看](#api-device-settings) |
+| 设备设置 | `m.device.settings.delete(namespace, key)` | `m.deleteSetting(...)` | [查看](#api-device-settings) |
+| 系统属性 | `m.device.prop.get(key)` | `m.getProp(...)` | [查看](#api-device-prop) |
+| 系统属性 | `m.device.prop.set(key, value)` | `m.setProp(...)` | [查看](#api-device-prop) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
 | Root | `m.root.status()` | `m.rootStatus()` | [查看](#api-root-status) |
 | Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
@@ -75,8 +80,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -626,9 +631,76 @@ m.device.setRotation(0, true)
 m.device.setRotation(0, false)
 ```
 
+<a id="api-device-settings"></a>
+
+### 6.9 `m.device.settings.*`
+
+通过 root `settings` 命令读取、写入或删除 Android 系统设置。
+
+函数：
+
+| 函数 | 返回 |
+|---|---|
+| `m.device.settings.get(namespace, key)` | 成功返回字符串，失败返回 `nil, errorMessage` |
+| `m.device.settings.put(namespace, key, value)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+| `m.device.settings.delete(namespace, key)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `namespace` | string | 只支持 `system`、`secure`、`global` |
+| `key` | string | 设置项名称，只允许常见设置键字符 |
+| `value` | string | 写入值 |
+
+示例：
+
+```lua
+local value, err = m.device.settings.get("system", "screen_brightness")
+if value then
+    print("brightness =", value)
+else
+    print("读取设置失败:", err)
+end
+```
+
+说明：
+
+- 这是显式 root 能力，不受 Root 模式开关影响。
+- 写入和删除系统设置可能影响设备行为，脚本应尽量先读取原值并在结束时恢复。
+
+<a id="api-device-prop"></a>
+
+### 6.10 `m.device.prop.*`
+
+通过 root `getprop` / `setprop` 读取或写入 Android 系统属性。
+
+函数：
+
+| 函数 | 返回 |
+|---|---|
+| `m.device.prop.get(key)` | 成功返回字符串，失败返回 `nil, errorMessage` |
+| `m.device.prop.set(key, value)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+
+示例：
+
+```lua
+local model, err = m.device.prop.get("ro.product.model")
+if model then
+    print("model =", model)
+else
+    print("读取属性失败:", err)
+end
+```
+
+说明：
+
+- `setprop` 对 `ro.*` 等只读属性通常不会成功。
+- 这是底层能力，优先用于调试和后续更明确的高级 API。
+
 <a id="api-root-exec"></a>
 
-### 6.9 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+### 6.11 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 
 通过 root shell 执行一条命令，返回结构化结果。这个接口是 root 文件、进程、系统命令能力的基础通道。
 
@@ -672,7 +744,7 @@ end
 
 <a id="api-root-file-exists"></a>
 
-### 6.10 `m.root.status()` / `m.rootStatus()`
+### 6.12 `m.root.status()` / `m.rootStatus()`
 
 返回 Android root 探测状态，用于定位 App 进程是否能拿到 root 授权、当前命中的 su 模式和每次探测失败原因。
 
@@ -726,7 +798,7 @@ end
 
 <a id="api-root-file-exists"></a>
 
-### 6.11 `m.root.file.exists(path)` / `m.rootFileExists(path)`
+### 6.13 `m.root.file.exists(path)` / `m.rootFileExists(path)`
 
 通过 root shell 判断路径是否存在。
 
@@ -757,7 +829,7 @@ end
 
 <a id="api-root-file-read-text"></a>
 
-### 6.12 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
+### 6.14 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
 
 通过 root shell 读取 UTF-8 文本文件。
 
@@ -786,7 +858,7 @@ end
 
 <a id="api-root-file-write-text"></a>
 
-### 6.13 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
+### 6.15 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
 
 通过 root shell 覆盖写入 UTF-8 文本文件。
 
@@ -821,7 +893,7 @@ end
 
 <a id="api-root-file-stat"></a>
 
-### 6.14 `m.root.file.stat(path)` / `m.rootStat(path)`
+### 6.16 `m.root.file.stat(path)` / `m.rootStat(path)`
 
 通过 root shell 获取文件或目录状态。
 
@@ -857,7 +929,7 @@ print(info.name, info.size, info.mode, info.user, info.group)
 
 <a id="api-root-file-list"></a>
 
-### 6.15 `m.root.file.list(path)` / `m.rootList(path)`
+### 6.17 `m.root.file.list(path)` / `m.rootList(path)`
 
 通过 root shell 获取目录下的文件列表。返回每一项的字段与 `m.root.file.stat` 一致。
 
@@ -875,7 +947,7 @@ end
 
 <a id="api-root-file-remove"></a>
 
-### 6.16 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
+### 6.18 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
 
 通过 root shell 删除文件或路径。
 
@@ -908,7 +980,7 @@ end
 
 <a id="api-root-file-mkdir"></a>
 
-### 6.17 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
+### 6.19 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
 
 通过 root shell 创建目录。
 
@@ -937,7 +1009,7 @@ end
 
 <a id="api-root-file-chmod"></a>
 
-### 6.18 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
+### 6.20 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
 
 通过 root shell 修改文件或目录权限。
 
@@ -970,7 +1042,7 @@ end
 
 <a id="api-root-file-chown"></a>
 
-### 6.19 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
+### 6.21 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
 
 通过 root shell 修改文件或目录所属用户。
 
@@ -999,7 +1071,7 @@ end
 
 <a id="api-root-process-pid-of"></a>
 
-### 6.20 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+### 6.22 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
 
 通过 root shell 查询进程名对应的 PID 列表。
 
@@ -1038,7 +1110,7 @@ end
 
 <a id="api-root-process-list"></a>
 
-### 6.21 `m.root.process.list()` / `m.rootProcessList()`
+### 6.23 `m.root.process.list()` / `m.rootProcessList()`
 
 通过 root shell 获取当前进程列表。返回值是结构化表，不需要脚本再解析 `ps` 文本。
 
@@ -1075,7 +1147,7 @@ end
 
 <a id="api-root-process-info"></a>
 
-### 6.22 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
+### 6.24 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
 
 通过 root shell 查询指定进程详情。`target` 可以是 PID，也可以是进程名。
 
@@ -1108,7 +1180,7 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.23 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.25 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -2177,6 +2249,11 @@ end
 | `device.battery` | 获取电池状态 |
 | `device.rotation` | 获取屏幕方向状态 |
 | `device.setRotation` | 设置屏幕方向锁定 |
+| `device.settings.get` | 读取 Android 系统设置 |
+| `device.settings.put` | 写入 Android 系统设置 |
+| `device.settings.delete` | 删除 Android 系统设置 |
+| `device.prop.get` | 读取 Android 系统属性 |
+| `device.prop.set` | 写入 Android 系统属性 |
 | `root.status` | 获取 root 探测状态 |
 | `root.exec` | 执行 root shell 命令 |
 | `root.file.exists` | 判断 root 路径是否存在 |

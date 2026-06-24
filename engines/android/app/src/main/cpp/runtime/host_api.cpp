@@ -322,6 +322,56 @@ int luaDeviceSetRotation(lua_State* state) {
     return pushRootBooleanResult(state, result, "device set rotation failed");
 }
 
+int pushRootTextResult(lua_State* state,
+                       const RootExecResult& result,
+                       const char* fallbackError) {
+    if (!result.success) {
+        std::string error = rootResultError(result, fallbackError);
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    std::string text = trimKeyValueText(result.stdoutText);
+    lua_pushlstring(state, text.data(), text.size());
+    return 1;
+}
+
+int luaDeviceSettingsGet(lua_State* state) {
+    const char* namespaceName = luaL_checkstring(state, 1);
+    const char* key = luaL_checkstring(state, 2);
+    RootExecResult result = AndroidBridge::deviceSettingsGet(namespaceName, key);
+    return pushRootTextResult(state, result, "device settings get failed");
+}
+
+int luaDeviceSettingsPut(lua_State* state) {
+    const char* namespaceName = luaL_checkstring(state, 1);
+    const char* key = luaL_checkstring(state, 2);
+    const char* value = luaL_checkstring(state, 3);
+    RootExecResult result = AndroidBridge::deviceSettingsPut(namespaceName, key, value);
+    return pushRootBooleanResult(state, result, "device settings put failed");
+}
+
+int luaDeviceSettingsDelete(lua_State* state) {
+    const char* namespaceName = luaL_checkstring(state, 1);
+    const char* key = luaL_checkstring(state, 2);
+    RootExecResult result = AndroidBridge::deviceSettingsDelete(namespaceName, key);
+    return pushRootBooleanResult(state, result, "device settings delete failed");
+}
+
+int luaDevicePropGet(lua_State* state) {
+    const char* key = luaL_checkstring(state, 1);
+    RootExecResult result = AndroidBridge::devicePropGet(key);
+    return pushRootTextResult(state, result, "device prop get failed");
+}
+
+int luaDevicePropSet(lua_State* state) {
+    const char* key = luaL_checkstring(state, 1);
+    const char* value = luaL_checkstring(state, 2);
+    RootExecResult result = AndroidBridge::devicePropSet(key, value);
+    return pushRootBooleanResult(state, result, "device prop set failed");
+}
+
 int luaRootFileExists(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     RootExecResult result = AndroidBridge::rootFileExists(path);
@@ -1406,6 +1456,20 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, deviceTableIndex, "battery", luaDeviceBattery);
     setFunctionField(state, deviceTableIndex, "rotation", luaDeviceRotation);
     setFunctionField(state, deviceTableIndex, "setRotation", luaDeviceSetRotation);
+
+    lua_newtable(state);
+    int deviceSettingsTableIndex = lua_gettop(state);
+    setFunctionField(state, deviceSettingsTableIndex, "get", luaDeviceSettingsGet);
+    setFunctionField(state, deviceSettingsTableIndex, "put", luaDeviceSettingsPut);
+    setFunctionField(state, deviceSettingsTableIndex, "delete", luaDeviceSettingsDelete);
+    lua_setfield(state, deviceTableIndex, "settings");
+
+    lua_newtable(state);
+    int devicePropTableIndex = lua_gettop(state);
+    setFunctionField(state, devicePropTableIndex, "get", luaDevicePropGet);
+    setFunctionField(state, devicePropTableIndex, "set", luaDevicePropSet);
+    lua_setfield(state, deviceTableIndex, "prop");
+
     lua_setfield(state, hostTableIndex, "device");
 
     lua_newtable(state);

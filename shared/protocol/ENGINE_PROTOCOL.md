@@ -540,7 +540,169 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.8 `root.exec`
+## 9.8 `device.settings.get`
+
+说明：
+
+- 通过 root `settings get namespace key` 读取 Android 系统设置
+- `namespace` 只支持 `system`、`secure`、`global`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "method": "device.settings.get",
+  "params": {
+    "namespace": "system",
+    "key": "screen_brightness"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "result": {
+    "value": "120"
+  }
+}
+```
+
+## 9.9 `device.settings.put`
+
+说明：
+
+- 通过 root `settings put namespace key value` 写入 Android 系统设置
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 15,
+  "method": "device.settings.put",
+  "params": {
+    "namespace": "system",
+    "key": "screen_brightness",
+    "value": "120"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 15,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.10 `device.settings.delete`
+
+说明：
+
+- 通过 root `settings delete namespace key` 删除 Android 系统设置
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 16,
+  "method": "device.settings.delete",
+  "params": {
+    "namespace": "system",
+    "key": "screen_brightness"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 16,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.11 `device.prop.get`
+
+说明：
+
+- 通过 root `getprop key` 读取 Android 系统属性
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "method": "device.prop.get",
+  "params": {
+    "key": "ro.product.model"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "result": {
+    "value": "Pixel_3a"
+  }
+}
+```
+
+## 9.12 `device.prop.set`
+
+说明：
+
+- 通过 root `setprop key value` 写入 Android 系统属性
+- `ro.*` 等只读属性通常无法写入
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 18,
+  "method": "device.prop.set",
+  "params": {
+    "key": "debug.autolua.test",
+    "value": "1"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 18,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.13 `root.exec`
 
 说明：
 
@@ -580,7 +742,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.9 `root.status`
+## 9.14 `root.status`
 
 说明：
 
@@ -632,7 +794,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 - `adb shell` 可以 root 不代表 App 进程可以 root，最终以这里的 `available` 为准。
 - `device.info` 也会返回同一份 `rootStatus` 摘要。
 
-## 9.10 `root.file.exists`
+## 9.15 `root.file.exists`
 
 说明：
 
@@ -665,7 +827,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.11 `root.file.readText`
+## 9.16 `root.file.readText`
 
 说明：
 
@@ -698,7 +860,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.12 `root.file.writeText`
+## 9.17 `root.file.writeText`
 
 说明：
 
@@ -733,7 +895,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.13 `root.file.stat`
+## 9.18 `root.file.stat`
 
 说明：
 
@@ -776,7 +938,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `root.file.list`
+## 9.19 `root.file.list`
 
 说明：
 
@@ -821,7 +983,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.15 `root.file.remove`
+## 9.20 `root.file.remove`
 
 说明：
 
@@ -855,7 +1017,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.16 `root.file.mkdir`
+## 9.21 `root.file.mkdir`
 
 说明：
 
@@ -888,7 +1050,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.17 `root.file.chmod`
+## 9.22 `root.file.chmod`
 
 说明：
 
@@ -921,7 +1083,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `root.file.chown`
+## 9.23 `root.file.chown`
 
 说明：
 
@@ -954,7 +1116,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.19 `root.process.pidOf`
+## 9.24 `root.process.pidOf`
 
 说明：
 
@@ -987,7 +1149,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.20 `root.process.kill`
+## 9.25 `root.process.kill`
 
 说明：
 
@@ -1021,7 +1183,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.21 `root.process.list`
+## 9.26 `root.process.list`
 
 说明：
 
@@ -1059,7 +1221,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.22 `root.process.info`
+## 9.27 `root.process.info`
 
 说明：
 
@@ -1100,7 +1262,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.23 `app.isInstalled`
+## 9.28 `app.isInstalled`
 
 说明：
 
@@ -1131,7 +1293,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.24 `app.open` / `app.start`
+## 9.29 `app.open` / `app.start`
 
 说明：
 
@@ -1163,7 +1325,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.25 `app.stop`
+## 9.30 `app.stop`
 
 说明：
 
@@ -1195,7 +1357,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.26 `app.clearData`
+## 9.31 `app.clearData`
 
 说明：
 
@@ -1228,7 +1390,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.27 `app.grant`
+## 9.32 `app.grant`
 
 说明：
 
@@ -1262,7 +1424,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.28 `app.revoke`
+## 9.33 `app.revoke`
 
 说明：
 
@@ -1295,7 +1457,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.29 `app.current`
+## 9.34 `app.current`
 
 说明：
 
@@ -1328,7 +1490,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.30 `app.install`
+## 9.35 `app.install`
 
 说明：
 
@@ -1364,7 +1526,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.31 `app.uninstall`
+## 9.36 `app.uninstall`
 
 说明：
 
@@ -1399,7 +1561,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.32 `app.disable`
+## 9.37 `app.disable`
 
 说明：
 
@@ -1432,7 +1594,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.33 `app.enable`
+## 9.38 `app.enable`
 
 说明：
 
@@ -1465,7 +1627,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.34 `app.disableComponent`
+## 9.39 `app.disableComponent`
 
 说明：
 
@@ -1498,7 +1660,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.35 `app.enableComponent`
+## 9.40 `app.enableComponent`
 
 说明：
 
@@ -1531,7 +1693,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.36 `key.press`
+## 9.41 `key.press`
 
 说明：
 
@@ -1565,7 +1727,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.37 `input.text`
+## 9.42 `input.text`
 
 说明：
 
@@ -1599,7 +1761,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.38 `input.pasteText`
+## 9.43 `input.pasteText`
 
 说明：
 

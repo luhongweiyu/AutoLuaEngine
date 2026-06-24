@@ -83,6 +83,15 @@ public:
     static RootExecResult deviceBattery();
     static RootExecResult deviceRotation();
     static RootExecResult deviceSetRotation(int rotation, bool locked);
+    static RootExecResult deviceSettingsGet(const std::string& namespaceName, const std::string& key);
+    static RootExecResult deviceSettingsPut(
+            const std::string& namespaceName,
+            const std::string& key,
+            const std::string& value
+    );
+    static RootExecResult deviceSettingsDelete(const std::string& namespaceName, const std::string& key);
+    static RootExecResult devicePropGet(const std::string& key);
+    static RootExecResult devicePropSet(const std::string& key, const std::string& value);
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);
