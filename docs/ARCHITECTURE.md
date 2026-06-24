@@ -92,6 +92,8 @@ engine_jni -> Engine -> LuaRuntime
 
 当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。悬浮控制使用系统 overlay 小圆点，回到 Home 或切换到其他 App 后仍会贴边显示，点击后弹出运行、暂停、继续、停止、截图等控制面板。脚本运行已经下沉到后台 `EngineService`，主界面和悬浮图标只负责发送运行/暂停/继续/停止命令并接收状态广播，不直接持有脚本执行线程。是否使用独立 Android 进程 `:engine` 后续再评估。
 
+当前 native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`：`MainActivity` 和 `FloatingControlService` 只负责确保服务启动，不再各自直接启动一套 HTTP/native 引擎。这样后续把 `EngineService` 挪到独立进程时，脚本执行入口不会分裂成多个进程副本。
+
 悬浮窗位置、隐藏状态和展开状态由 `EngineSettings` 持久化。悬浮面板已经提供运行、暂停、继续、停止、截图、日志、设置、用户事件、隐藏、关闭服务入口；日志和设置入口先回到 `MainActivity` 的状态区域承接，用户事件入口暂时只保留交互入口。
 
 旧项目参考结论：

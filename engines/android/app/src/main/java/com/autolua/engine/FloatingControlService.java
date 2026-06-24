@@ -56,8 +56,7 @@ public final class FloatingControlService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        NativeEngine.init(getApplicationContext());
-        EngineHttpServer.start(getApplicationContext());
+        EngineService.ensureStarted(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         bubbleSizePx = dp(54);
         touchSlopPx = ViewConfiguration.get(this).getScaledTouchSlop();

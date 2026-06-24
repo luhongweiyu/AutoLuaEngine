@@ -135,6 +135,14 @@ screen.capture
 image.release
 ```
 
+启动入口验证：
+
+```text
+MainActivity 启动后会确保 EngineService 启动。
+EngineService 负责 native 初始化和 HTTP JSON-RPC 服务启动。
+GET /health -> {"ok":true,"port":18380}
+```
+
 `log.drain` 当前会返回 Lua `print/log.print` 和 native 引擎日志。
 `screen.capture` 只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据；
 PC/IDE 使用完句柄后应调用 `image.release` 释放。

@@ -28,8 +28,9 @@ Android + Lua + 最小 HostApi
 2. 阅读 `docs/PROJECT_PLAN.md`
 3. 阅读当前要改动相关的架构/API 文档
 4. 如果改 Android 引擎、悬浮窗、脚本 API 或兼容层，阅读 `docs/OLD_PROJECT_REFERENCE.md`
-5. 检查工作区是否有已有文件和未完成改动
-6. 不要删除或重写用户已有改动
+5. 如果改 Android 服务进程、HTTP 服务或 NativeEngine 启动链路，阅读 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md`
+6. 检查工作区是否有已有文件和未完成改动
+7. 不要删除或重写用户已有改动
 
 ## 3. 推进顺序
 
@@ -119,7 +120,7 @@ tools/                                  PC 辅助脚本或调试工具
 
 优先顺序：
 
-1. 评估脚本执行进程是否拆为独立 `:engine` 进程。
+1. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续拆掉主进程对 `NativeEngine` 的直接依赖。
 2. 继续补基础 `m.*` API，并同步维护 `docs/SCRIPT_MANUAL.md` 顶部速查表。
 3. 后续实现 Toast、剪贴板、启动 App、输入法输入等系统 API。
 4. 找色、比色等算法继续暂缓，等基础控制和系统 API 稳定后再做。

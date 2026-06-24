@@ -20,6 +20,7 @@
 - [构建与运行](docs/BUILD_AND_RUN.md)
 - [引擎通讯协议](shared/protocol/ENGINE_PROTOCOL.md)
 - [旧项目参考记录](docs/OLD_PROJECT_REFERENCE.md)
+- [Android 引擎独立进程拆分方案](docs/ANDROID_ENGINE_PROCESS_SPLIT.md)
 - [AI 执行规范](docs/AI_EXECUTION_GUIDE.md)
 - [用户待办事项](docs/USER_TODO.md)
 

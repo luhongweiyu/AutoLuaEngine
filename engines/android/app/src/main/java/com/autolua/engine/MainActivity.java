@@ -66,8 +66,7 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         ensureAppFilesDir();
         ScreenCaptureBridge.init(getApplicationContext());
-        NativeEngine.init(getApplicationContext());
-        EngineHttpServer.start(getApplicationContext());
+        EngineService.ensureStarted(this);
         selectedScript = loadSelectedScript();
         setContentView(createContentView());
         handleIntent(getIntent());

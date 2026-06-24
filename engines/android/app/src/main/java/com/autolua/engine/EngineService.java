@@ -42,6 +42,11 @@ public final class EngineService extends Service {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
+    public static void ensureStarted(Context context) {
+        Intent intent = new Intent(context, EngineService.class);
+        context.startService(intent);
+    }
+
     public static void runAssetScript(Context context, String assetPath) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_RUN_ASSET);
