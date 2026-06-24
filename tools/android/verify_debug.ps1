@@ -1,5 +1,6 @@
 param(
-    [string]$AdbPath = "D:\soft\Android\Sdk\platform-tools\adb.exe"
+    [string]$AdbPath = "D:\soft\Android\Sdk\platform-tools\adb.exe",
+    [string]$DeviceSerial = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +11,7 @@ $apkPath = Join-Path $androidRoot "app\build\outputs\apk\debug\app-debug.apk"
 $engineHost = "127.0.0.1"
 $enginePort = 18380
 $engineRemotePort = 18380
+$script:SelectedDeviceSerial = ""
 
 function Invoke-Checked {
     param(
@@ -29,10 +31,58 @@ function Invoke-Adb {
         [string[]]$Args
     )
 
-    & $AdbPath @Args
+    $effectiveArgs = Get-AdbArgs $Args
+    & $AdbPath @effectiveArgs
     if ($LASTEXITCODE -ne 0) {
         throw "adb 命令执行失败，退出码：$LASTEXITCODE"
     }
+}
+
+function Get-AdbArgs {
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string[]]$Args
+    )
+
+    $effectiveArgs = @()
+    if (-not [string]::IsNullOrWhiteSpace($script:SelectedDeviceSerial)) {
+        $effectiveArgs += @("-s", $script:SelectedDeviceSerial)
+    }
+    $effectiveArgs += $Args
+    return $effectiveArgs
+}
+
+function Resolve-AdbDevice {
+    if (-not [string]::IsNullOrWhiteSpace($DeviceSerial)) {
+        return $DeviceSerial
+    }
+
+    $devicesOutput = & $AdbPath devices
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb devices 执行失败，退出码：$LASTEXITCODE"
+    }
+
+    $devices = @(
+        $devicesOutput |
+            Select-String -Pattern "^\S+\s+device$" |
+            ForEach-Object { ($_.Line -split "\s+")[0] }
+    )
+
+    if ($devices.Count -eq 0) {
+        throw "未找到已连接的 adb 设备"
+    }
+
+    if ($devices.Count -gt 1) {
+        $preferredDevice = $devices | Where-Object { $_ -like "emulator-*" } | Select-Object -First 1
+        if (-not [string]::IsNullOrWhiteSpace($preferredDevice)) {
+            Write-Host "检测到多台设备，默认使用模拟器：$preferredDevice"
+            return $preferredDevice
+        }
+
+        Write-Host "检测到多台设备，默认使用：$($devices[0])"
+    }
+
+    return $devices[0]
 }
 
 function Get-NodeCenterByResourceId {
@@ -49,7 +99,7 @@ function Get-NodeCenterByResourceId {
     for ($i = 0; $i -lt 5; $i++) {
         $oldErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
-        $dumpOutput = & $AdbPath @("shell", "uiautomator", "dump", $remotePath) 2>&1
+        $dumpOutput = & $AdbPath @(Get-AdbArgs @("shell", "uiautomator", "dump", $remotePath)) 2>&1
         $dumpExitCode = $LASTEXITCODE
         $ErrorActionPreference = $oldErrorActionPreference
 
@@ -66,7 +116,7 @@ function Get-NodeCenterByResourceId {
 
     $oldErrorActionPreference = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    $pullOutput = & $AdbPath @("pull", $remotePath, $localPath) 2>&1
+    $pullOutput = & $AdbPath @(Get-AdbArgs @("pull", $remotePath, $localPath)) 2>&1
     $ErrorActionPreference = $oldErrorActionPreference
     if ($LASTEXITCODE -ne 0) {
         throw "adb pull 失败：$pullOutput"
@@ -134,7 +184,11 @@ try {
 
     Invoke-Checked { .\gradlew.bat assembleDebug }
 
-    Invoke-Adb @("devices")
+    & $AdbPath devices
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb devices 执行失败，退出码：$LASTEXITCODE"
+    }
+    $script:SelectedDeviceSerial = Resolve-AdbDevice
     Invoke-Adb @("logcat", "-c")
     Invoke-Adb @("install", "-r", $apkPath)
     Invoke-Adb @("shell", "am", "start", "-n", "com.autolua.engine/.MainActivity")
@@ -209,26 +263,27 @@ try {
         }
     }
 
-    $httpResult = Invoke-EngineJsonRpc `
-        -Method "script.run" `
-        -Params @{
-            language = "lua"
-            code = @"
+    $zhVariable = "$([char]0x4E2D)$([char]0x6587)$([char]0x53D8)$([char]0x91CF)"
+    $zhFunction = "$([char]0x4E2D)$([char]0x6587)$([char]0x51FD)$([char]0x6570)"
+    $zhParam = "$([char]0x5185)$([char]0x5BB9)"
+    $zhText = "$([char]0x4E2D)$([char]0x6587)$([char]0x6807)$([char]0x8BC6)$([char]0x7B26)$([char]0x6B63)$([char]0x5E38)"
+    $zhGlobal = "$([char]0x4E2D)$([char]0x6587)$([char]0x5168)$([char]0x5C40)"
+    $httpVerifyCode = @"
 local info = m.device.info()
 print('hello from pc http verify')
 print('verify lua version =', info.luaVersion)
-local 中文变量 = '中文标识符正常'
-local function 中文函数(内容)
-    return 内容 .. ' OK'
+local $zhVariable = '$zhText'
+local function $zhFunction($zhParam)
+    return $zhParam .. ' OK'
 end
-if 中文函数(中文变量) ~= '中文标识符正常 OK' then
-    error('中文函数验证失败')
+if $zhFunction($zhVariable) ~= '$zhText OK' then
+    error('utf8 identifier function check failed')
 end
-_G.中文全局 = 456
-if _G['中文' .. '全局'] ~= 456 then
-    error('中文全局字段验证失败')
+_G.$zhGlobal = 456
+if _G['$($zhGlobal.Substring(0, 2))' .. '$($zhGlobal.Substring(2))'] ~= 456 then
+    error('utf8 global field check failed')
 end
-print('中文标识符验证通过')
+print('utf8 identifier check passed')
 if type(m) ~= 'table' or type(lr) ~= 'table' or type(cd) ~= 'table' then
     error('api namespace check failed')
 end
@@ -284,6 +339,12 @@ if m.file.exists(path) ~= false then
     error('file.exists after remove failed')
 end
 "@
+
+    $httpResult = Invoke-EngineJsonRpc `
+        -Method "script.run" `
+        -Params @{
+            language = "lua"
+            code = $httpVerifyCode
         }
 
     if ($httpResult.result.status -ne "finished") {
@@ -325,6 +386,7 @@ end
         powershell -ExecutionPolicy Bypass `
             -File $runToolPath `
             -AdbPath $AdbPath `
+            -DeviceSerial $script:SelectedDeviceSerial `
             -ConnectionHost $engineHost `
             -Port $enginePort `
             -RemotePort $engineRemotePort `
@@ -337,6 +399,7 @@ end
     powershell -ExecutionPolicy Bypass `
         -File $runToolPath `
         -AdbPath $AdbPath `
+        -DeviceSerial $script:SelectedDeviceSerial `
         -ConnectionHost $engineHost `
         -Port $enginePort `
         -RemotePort $engineRemotePort `

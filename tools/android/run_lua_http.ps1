@@ -1,5 +1,6 @@
 param(
     [string]$AdbPath = "D:\soft\Android\Sdk\platform-tools\adb.exe",
+    [string]$DeviceSerial = "",
     [string]$Code = "print('hello from pc')",
     [string]$FilePath = "",
     [string]$ConnectionHost = "127.0.0.1",
@@ -10,6 +11,20 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-AdbArgs {
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [string[]]$Args
+    )
+
+    $effectiveArgs = @()
+    if (-not [string]::IsNullOrWhiteSpace($DeviceSerial)) {
+        $effectiveArgs += @("-s", $DeviceSerial)
+    }
+    $effectiveArgs += $Args
+    return $effectiveArgs
+}
 
 function Invoke-Checked {
     param(
@@ -24,7 +39,7 @@ function Invoke-Checked {
 }
 
 if (-not $NoAdbForward) {
-    Invoke-Checked { & $AdbPath @("forward", "tcp:$Port", "tcp:$RemotePort") | Out-Null }
+    Invoke-Checked { & $AdbPath @(Get-AdbArgs @("forward", "tcp:$Port", "tcp:$RemotePort")) | Out-Null }
 }
 
 if ($FilePath -ne "") {

@@ -1,0 +1,138 @@
+package com.autolua.engine;
+
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.os.IBinder;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Android 端脚本运行服务。
+ *
+ * Activity、悬浮窗和后续其他入口都只向这里发送运行/停止命令，避免每个界面
+ * 自己创建脚本线程。当前仍与主 App 同进程运行；独立 `:engine` 进程后续再评估。
+ */
+public final class EngineService extends Service {
+    public static final String ACTION_RUN_ASSET =
+            "com.autolua.engine.action.RUN_ASSET";
+    public static final String ACTION_STOP_SCRIPT =
+            "com.autolua.engine.action.STOP_SCRIPT";
+    public static final String ACTION_STATUS =
+            "com.autolua.engine.action.STATUS";
+
+    public static final String EXTRA_ASSET_PATH = "assetPath";
+    public static final String EXTRA_STATE = "state";
+    public static final String EXTRA_MESSAGE = "message";
+
+    public static final String STATE_RUNNING = "running";
+    public static final String STATE_STOPPING = "stopping";
+    public static final String STATE_FINISHED = "finished";
+    public static final String STATE_FAILED = "failed";
+
+    private final AtomicBoolean running = new AtomicBoolean(false);
+
+    public static void runAssetScript(Context context, String assetPath) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_RUN_ASSET);
+        intent.putExtra(EXTRA_ASSET_PATH, assetPath);
+        context.startService(intent);
+    }
+
+    public static void stopScript(Context context) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_STOP_SCRIPT);
+        context.startService(intent);
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        NativeEngine.init(getApplicationContext());
+        EngineHttpServer.start(getApplicationContext());
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null || intent.getAction() == null) {
+            return START_STICKY;
+        }
+
+        if (ACTION_RUN_ASSET.equals(intent.getAction())) {
+            String assetPath = intent.getStringExtra(EXTRA_ASSET_PATH);
+            runAssetScriptInternal(assetPath);
+            return START_STICKY;
+        }
+
+        if (ACTION_STOP_SCRIPT.equals(intent.getAction())) {
+            NativeEngine.stop();
+            broadcastStatus(STATE_STOPPING, "已请求停止脚本");
+            return START_STICKY;
+        }
+
+        return START_STICKY;
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    private void runAssetScriptInternal(String assetPath) {
+        if (assetPath == null || assetPath.isEmpty()) {
+            broadcastStatus(STATE_FAILED, "脚本路径为空");
+            return;
+        }
+
+        if (!running.compareAndSet(false, true)) {
+            broadcastStatus(STATE_RUNNING, "已有脚本正在运行");
+            return;
+        }
+
+        ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(assetPath);
+        broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.title);
+
+        Thread worker = new Thread(() -> {
+            String state = STATE_FINISHED;
+            String message;
+            try {
+                message = NativeEngine.runLuaText(readAssetText(assetPath));
+                if (message.contains("failed") || message.contains("Engine is already running")) {
+                    state = STATE_FAILED;
+                }
+            } catch (IOException exception) {
+                state = STATE_FAILED;
+                message = "读取脚本失败：" + exception.getMessage();
+            } finally {
+                running.set(false);
+            }
+
+            broadcastStatus(state, message);
+        }, "EngineServiceLuaWorker");
+        worker.start();
+    }
+
+    private String readAssetText(String assetPath) throws IOException {
+        try (InputStream inputStream = getAssets().open(assetPath);
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int readCount;
+            while ((readCount = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, readCount);
+            }
+            return outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    private void broadcastStatus(String state, String message) {
+        Intent intent = new Intent(ACTION_STATUS);
+        intent.setPackage(getPackageName());
+        intent.putExtra(EXTRA_STATE, state);
+        intent.putExtra(EXTRA_MESSAGE, message == null ? "" : message);
+        sendBroadcast(intent);
+    }
+}

@@ -1,7 +1,12 @@
 package com.autolua.engine;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
@@ -11,35 +16,42 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
-import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-
 /**
- * 最小悬浮控制入口。
+ * 系统级悬浮控制入口。
  *
- * 当前只负责常用控制：运行选中脚本、停止、截图授权入口和关闭悬浮窗。
- * 脚本仍通过 NativeEngine 单任务运行；真正的后台 EngineService 和暂停能力后续再拆。
+ * 这里使用 TYPE_APPLICATION_OVERLAY 创建贴边小圆点，用户回到 Home 或切换到其他 App 后
+ * 仍然可以点开控制面板。脚本运行统一交给 EngineService，本服务只负责浮窗交互。
  */
 public final class FloatingControlService extends Service {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private WindowManager windowManager;
-    private View floatingView;
-    private LinearLayout panelView;
-    private WindowManager.LayoutParams layoutParams;
-    private boolean panelVisible;
-    private boolean scriptRunning;
+    private View bubbleView;
+    private View panelOverlayView;
+    private WindowManager.LayoutParams bubbleLayoutParams;
+    private int bubbleSizePx;
+    private int touchSlopPx;
     private int lastTouchX;
     private int lastTouchY;
     private int lastWindowX;
     private int lastWindowY;
+    private boolean draggingBubble;
+    private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String message = intent.getStringExtra(EngineService.EXTRA_MESSAGE);
+            if (message != null && !message.isEmpty()) {
+                showToast(message);
+            }
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -47,12 +59,15 @@ public final class FloatingControlService extends Service {
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        createFloatingViewIfAllowed();
+        bubbleSizePx = dp(54);
+        touchSlopPx = ViewConfiguration.get(this).getScaledTouchSlop();
+        registerEngineStatusReceiver();
+        createBubbleViewIfAllowed();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        createFloatingViewIfAllowed();
+        createBubbleViewIfAllowed();
         return START_STICKY;
     }
 
@@ -63,12 +78,14 @@ public final class FloatingControlService extends Service {
 
     @Override
     public void onDestroy() {
-        removeFloatingView();
+        unregisterReceiver(engineStatusReceiver);
+        removePanelView();
+        removeBubbleView();
         super.onDestroy();
     }
 
-    private void createFloatingViewIfAllowed() {
-        if (floatingView != null) {
+    private void createBubbleViewIfAllowed() {
+        if (bubbleView != null) {
             return;
         }
 
@@ -79,129 +96,202 @@ public final class FloatingControlService extends Service {
             return;
         }
 
-        floatingView = createFloatingView();
-        layoutParams = createLayoutParams();
-        windowManager.addView(floatingView, layoutParams);
+        bubbleView = createBubbleView();
+        bubbleLayoutParams = createBubbleLayoutParams();
+        windowManager.addView(bubbleView, bubbleLayoutParams);
     }
 
-    private View createFloatingView() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.END);
-
-        Button handleButton = createButton("引擎");
-        handleButton.setOnClickListener(view -> togglePanel());
-        handleButton.setOnTouchListener(this::handleDragTouch);
-        root.addView(handleButton);
-
-        panelView = new LinearLayout(this);
-        panelView.setOrientation(LinearLayout.VERTICAL);
-        panelView.setVisibility(View.GONE);
-
-        Button runButton = createButton("运行");
-        runButton.setOnClickListener(view -> runSelectedScript());
-        panelView.addView(runButton);
-
-        Button stopButton = createButton("停止");
-        stopButton.setOnClickListener(view -> {
-            NativeEngine.stop();
-            showToast("已请求停止脚本");
-        });
-        panelView.addView(stopButton);
-
-        Button pauseButton = createButton("暂停");
-        pauseButton.setOnClickListener(view -> showToast("暂停功能后续实现"));
-        panelView.addView(pauseButton);
-
-        Button captureButton = createButton("截图");
-        captureButton.setOnClickListener(view -> openScreenCapturePermission());
-        panelView.addView(captureButton);
-
-        Button closeButton = createButton("关闭");
-        closeButton.setOnClickListener(view -> stopSelf());
-        panelView.addView(closeButton);
-
-        root.addView(panelView);
-        return root;
+    private View createBubbleView() {
+        TextView bubble = new TextView(this);
+        bubble.setText("引擎");
+        bubble.setTextColor(Color.WHITE);
+        bubble.setTextSize(13);
+        bubble.setGravity(Gravity.CENTER);
+        bubble.setBackground(makeOvalDrawable(Color.parseColor("#159FE6"), Color.WHITE, 2));
+        bubble.setElevation(dp(8));
+        bubble.setOnTouchListener(this::handleBubbleTouch);
+        return bubble;
     }
 
-    private Button createButton(String text) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setAllCaps(false);
-        button.setMinWidth(120);
-        button.setMinHeight(72);
-        return button;
-    }
-
-    private WindowManager.LayoutParams createLayoutParams() {
+    private WindowManager.LayoutParams createBubbleLayoutParams() {
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                bubbleSizePx,
+                bubbleSizePx,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
         );
-        params.gravity = Gravity.TOP | Gravity.END;
-        params.x = 24;
-        params.y = 240;
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = Math.max(0, getResources().getDisplayMetrics().widthPixels - bubbleSizePx);
+        params.y = dp(260);
         return params;
     }
 
-    private boolean handleDragTouch(View view, MotionEvent event) {
+    private boolean handleBubbleTouch(View view, MotionEvent event) {
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 lastTouchX = (int) event.getRawX();
                 lastTouchY = (int) event.getRawY();
-                lastWindowX = layoutParams.x;
-                lastWindowY = layoutParams.y;
-                return false;
+                lastWindowX = bubbleLayoutParams.x;
+                lastWindowY = bubbleLayoutParams.y;
+                draggingBubble = false;
+                return true;
             case MotionEvent.ACTION_MOVE:
-                layoutParams.x = lastWindowX - ((int) event.getRawX() - lastTouchX);
-                layoutParams.y = lastWindowY + ((int) event.getRawY() - lastTouchY);
-                windowManager.updateViewLayout(floatingView, layoutParams);
+                int offsetX = (int) event.getRawX() - lastTouchX;
+                int offsetY = (int) event.getRawY() - lastTouchY;
+                draggingBubble = draggingBubble
+                        || Math.abs(offsetX) > touchSlopPx
+                        || Math.abs(offsetY) > touchSlopPx;
+                moveBubbleTo(lastWindowX + offsetX, lastWindowY + offsetY);
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (draggingBubble) {
+                    snapBubbleToScreenEdge();
+                } else {
+                    togglePanel();
+                }
                 return true;
             default:
-                return false;
+                return true;
         }
     }
 
     private void togglePanel() {
-        panelVisible = !panelVisible;
-        panelView.setVisibility(panelVisible ? View.VISIBLE : View.GONE);
+        if (panelOverlayView == null) {
+            showPanelView();
+        } else {
+            removePanelView();
+        }
     }
 
-    private void runSelectedScript() {
-        if (scriptRunning) {
-            showToast("脚本正在运行");
+    private void showPanelView() {
+        if (panelOverlayView != null) {
             return;
         }
 
+        panelOverlayView = createPanelOverlayView();
+        windowManager.addView(panelOverlayView, createPanelLayoutParams());
+    }
+
+    private WindowManager.LayoutParams createPanelLayoutParams() {
+        int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+        );
+        params.gravity = Gravity.TOP | Gravity.START;
+        return params;
+    }
+
+    private View createPanelOverlayView() {
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setBackgroundColor(Color.parseColor("#66000000"));
+        overlay.setClickable(true);
+        overlay.setOnClickListener(view -> removePanelView());
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(22), dp(18), dp(22), dp(18));
+        panel.setClickable(true);
+        panel.setBackground(makeRoundDrawable(Color.parseColor("#E6333333"), dp(14)));
+
+        TextView status = new TextView(this);
+        status.setText("服务状态  开启");
+        status.setTextColor(Color.WHITE);
+        status.setTextSize(18);
+        status.setGravity(Gravity.START);
+        panel.addView(status, matchWidthWrapContent());
+
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.parseColor("#66FFFFFF"));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        dividerParams.setMargins(0, dp(14), 0, dp(18));
+        panel.addView(divider, dividerParams);
+
+        LinearLayout firstRow = createActionRow();
+        firstRow.addView(createPanelAction("▶", "运行", this::runSelectedScript));
+        firstRow.addView(createPanelAction("Ⅱ", "暂停", () -> showToast("暂停功能后续实现")));
+        firstRow.addView(createPanelAction("■", "停止", () -> EngineService.stopScript(this)));
+        panel.addView(firstRow, matchWidthWrapContent());
+
+        LinearLayout secondRow = createActionRow();
+        secondRow.addView(createPanelAction("照", "截图", this::openScreenCapturePermission));
+        secondRow.addView(createPanelAction("关", "关闭服务", this::stopSelf));
+        secondRow.addView(createPanelAction("隐", "隐藏", this::removePanelView));
+        LinearLayout.LayoutParams secondRowParams = matchWidthWrapContent();
+        secondRowParams.topMargin = dp(22);
+        panel.addView(secondRow, secondRowParams);
+
+        FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
+                Math.min(dp(360), getResources().getDisplayMetrics().widthPixels - dp(32)),
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+        );
+        overlay.addView(panel, panelParams);
+        return overlay;
+    }
+
+    private LinearLayout createActionRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        return row;
+    }
+
+    private View createPanelAction(String iconText, String labelText, Runnable action) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setGravity(Gravity.CENTER);
+        item.setClickable(true);
+        item.setLayoutParams(new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        item.setOnClickListener(view -> {
+            removePanelView();
+            action.run();
+        });
+
+        TextView icon = new TextView(this);
+        icon.setText(iconText);
+        icon.setTextColor(Color.parseColor("#159FE6"));
+        icon.setTextSize(28);
+        icon.setGravity(Gravity.CENTER);
+        icon.setBackground(makeOvalDrawable(Color.WHITE, Color.TRANSPARENT, 0));
+        item.addView(icon, new LinearLayout.LayoutParams(dp(68), dp(68)));
+
+        TextView label = new TextView(this);
+        label.setText(labelText);
+        label.setTextColor(Color.WHITE);
+        label.setTextSize(15);
+        label.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams labelParams = matchWidthWrapContent();
+        labelParams.topMargin = dp(8);
+        item.addView(label, labelParams);
+
+        return item;
+    }
+
+    private void runSelectedScript() {
         String assetPath = getSharedPreferences(ScriptCatalog.PREF_NAME, MODE_PRIVATE)
                 .getString(ScriptCatalog.KEY_SELECTED_SCRIPT_PATH, ScriptCatalog.DEFAULT_SCRIPT_PATH);
         ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(assetPath);
-        scriptRunning = true;
-        showToast("开始运行：" + item.title);
-
-        Thread worker = new Thread(() -> {
-            String result;
-            try {
-                result = NativeEngine.runLuaText(readAssetText(assetPath));
-            } catch (IOException exception) {
-                result = "读取脚本失败：" + exception.getMessage();
-            }
-
-            String finalResult = result;
-            mainHandler.post(() -> {
-                scriptRunning = false;
-                showToast(finalResult);
-            });
-        }, "FloatingLuaWorker");
-        worker.start();
+        EngineService.runAssetScript(this, assetPath);
+        showToast("已发送运行命令：" + item.title);
     }
 
     private void openScreenCapturePermission() {
@@ -211,29 +301,82 @@ public final class FloatingControlService extends Service {
         startActivity(intent);
     }
 
-    private String readAssetText(String assetPath) throws IOException {
-        try (InputStream inputStream = getAssets().open(assetPath);
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int readCount;
-            while ((readCount = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, readCount);
-            }
-            return outputStream.toString(StandardCharsets.UTF_8.name());
-        }
-    }
-
-    private void removeFloatingView() {
-        if (floatingView == null || windowManager == null) {
+    private void moveBubbleTo(int x, int y) {
+        if (bubbleView == null || bubbleLayoutParams == null) {
             return;
         }
 
-        windowManager.removeView(floatingView);
-        floatingView = null;
-        panelView = null;
+        int maxX = Math.max(0, getResources().getDisplayMetrics().widthPixels - bubbleSizePx);
+        int maxY = Math.max(0, getResources().getDisplayMetrics().heightPixels - bubbleSizePx);
+        bubbleLayoutParams.x = Math.max(0, Math.min(x, maxX));
+        bubbleLayoutParams.y = Math.max(0, Math.min(y, maxY));
+        windowManager.updateViewLayout(bubbleView, bubbleLayoutParams);
+    }
+
+    private void snapBubbleToScreenEdge() {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int centerX = bubbleLayoutParams.x + bubbleSizePx / 2;
+        int targetX = centerX < screenWidth / 2 ? 0 : screenWidth - bubbleSizePx;
+        moveBubbleTo(targetX, bubbleLayoutParams.y);
+    }
+
+    private void removeBubbleView() {
+        if (bubbleView == null || windowManager == null) {
+            return;
+        }
+
+        windowManager.removeView(bubbleView);
+        bubbleView = null;
+        bubbleLayoutParams = null;
+    }
+
+    private void removePanelView() {
+        if (panelOverlayView == null || windowManager == null) {
+            return;
+        }
+
+        windowManager.removeView(panelOverlayView);
+        panelOverlayView = null;
     }
 
     private void showToast(String message) {
         mainHandler.post(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
+    }
+
+    private void registerEngineStatusReceiver() {
+        IntentFilter filter = new IntentFilter(EngineService.ACTION_STATUS);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(engineStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(engineStatusReceiver, filter);
+        }
+    }
+
+    private LinearLayout.LayoutParams matchWidthWrapContent() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private GradientDrawable makeOvalDrawable(int color, int strokeColor, int strokeDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setColor(color);
+        if (strokeDp > 0) {
+            drawable.setStroke(dp(strokeDp), strokeColor);
+        }
+        return drawable;
+    }
+
+    private GradientDrawable makeRoundDrawable(int color, int radiusPx) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radiusPx);
+        return drawable;
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }

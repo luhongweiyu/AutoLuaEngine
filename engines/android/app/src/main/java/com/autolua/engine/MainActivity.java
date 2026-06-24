@@ -1,7 +1,10 @@
 package com.autolua.engine;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -12,11 +15,6 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Android 引擎主界面。
@@ -45,6 +43,12 @@ public final class MainActivity extends Activity {
     private Button stopButton;
     private Button floatingButton;
     private ScriptCatalog.ScriptItem selectedScript;
+    private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            handleEngineStatus(intent);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +67,23 @@ public final class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleIntent(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(EngineService.ACTION_STATUS);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(engineStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(engineStatusReceiver, filter);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        unregisterReceiver(engineStatusReceiver);
+        super.onStop();
     }
 
     private void handleIntent(Intent intent) {
@@ -110,7 +131,6 @@ public final class MainActivity extends Activity {
 
             TextView descriptionView = createSmallText(item.description + "    " + item.assetPath);
             root.addView(descriptionView, matchWidthWrapContent());
-            bindKnownScriptButton(item.assetPath, button);
         }
     }
 
@@ -150,10 +170,25 @@ public final class MainActivity extends Activity {
         runButton = runSelectedButton;
         addButton(root, runSelectedButton, false);
 
-        stopButton = createButton(R.id.button_stop, "停止脚本", () -> {
-            NativeEngine.stop();
-            outputView.setText("已请求停止脚本");
-        });
+        errorButton = createButton(
+                R.id.button_run_error,
+                "错误验证",
+                () -> runScript("scripts/error.lua")
+        );
+        addButton(root, errorButton, true);
+
+        loopButton = createButton(
+                R.id.button_run_loop,
+                "循环停止验证",
+                () -> runScript("scripts/loop.lua")
+        );
+        addButton(root, loopButton, true);
+
+        stopButton = createButton(
+                R.id.button_stop,
+                "停止脚本",
+                () -> EngineService.stopScript(this)
+        );
         stopButton.setEnabled(false);
         addButton(root, stopButton, true);
 
@@ -235,10 +270,10 @@ public final class MainActivity extends Activity {
             return R.id.button_script_main;
         }
         if ("scripts/error.lua".equals(assetPath)) {
-            return R.id.button_run_error;
+            return R.id.button_script_error;
         }
         if ("scripts/loop.lua".equals(assetPath)) {
-            return R.id.button_run_loop;
+            return R.id.button_script_loop;
         }
         if ("scripts/touch.lua".equals(assetPath)) {
             return R.id.button_script_touch;
@@ -247,14 +282,6 @@ public final class MainActivity extends Activity {
             return R.id.button_script_screen;
         }
         return R.id.button_script_main;
-    }
-
-    private void bindKnownScriptButton(String assetPath, Button button) {
-        if ("scripts/error.lua".equals(assetPath)) {
-            errorButton = button;
-        } else if ("scripts/loop.lua".equals(assetPath)) {
-            loopButton = button;
-        }
     }
 
     private void selectScript(ScriptCatalog.ScriptItem item) {
@@ -286,35 +313,8 @@ public final class MainActivity extends Activity {
     }
 
     private void runScript(String assetPath) {
-        try {
-            String script = readAssetText(assetPath);
-            setRunningState(true);
-
-            // 当前仍用 Java 后台线程包装 native 同步运行，避免阻塞主界面。
-            // 后续 EngineService 落地后，脚本任务生命周期会统一放到服务层。
-            Thread worker = new Thread(() -> {
-                String message = NativeEngine.runLuaText(script);
-                runOnUiThread(() -> {
-                    outputView.setText(message);
-                    setRunningState(false);
-                });
-            }, "LuaScriptWorker");
-            worker.start();
-        } catch (IOException exception) {
-            outputView.setText("读取脚本失败：" + exception.getMessage());
-        }
-    }
-
-    private String readAssetText(String assetPath) throws IOException {
-        try (InputStream inputStream = getAssets().open(assetPath);
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int readCount;
-            while ((readCount = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, readCount);
-            }
-            return outputStream.toString(StandardCharsets.UTF_8.name());
-        }
+        EngineService.runAssetScript(this, assetPath);
+        outputView.setText("准备运行脚本...");
     }
 
     private void ensureAppFilesDir() {
@@ -348,6 +348,22 @@ public final class MainActivity extends Activity {
         }
         if (running) {
             outputView.setText("脚本运行中...");
+        }
+    }
+
+    private void handleEngineStatus(Intent intent) {
+        String state = intent.getStringExtra(EngineService.EXTRA_STATE);
+        String message = intent.getStringExtra(EngineService.EXTRA_MESSAGE);
+        if (EngineService.STATE_RUNNING.equals(state)) {
+            setRunningState(true);
+        } else if (EngineService.STATE_STOPPING.equals(state)) {
+            outputView.setText(message);
+        } else {
+            setRunningState(false);
+        }
+
+        if (message != null && !message.isEmpty()) {
+            outputView.setText(message);
         }
     }
 
