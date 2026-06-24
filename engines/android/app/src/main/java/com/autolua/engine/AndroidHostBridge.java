@@ -98,6 +98,30 @@ public final class AndroidHostBridge {
         return RootShellBridge.killProcess(pidOrName, signal);
     }
 
+    public static RootCommandResult deviceScreenState() {
+        return DeviceControlBridge.screenState();
+    }
+
+    public static RootCommandResult deviceWake() {
+        return DeviceControlBridge.wake();
+    }
+
+    public static RootCommandResult deviceSleep() {
+        return DeviceControlBridge.sleep();
+    }
+
+    public static RootCommandResult deviceBattery() {
+        return DeviceControlBridge.battery();
+    }
+
+    public static RootCommandResult deviceRotation() {
+        return DeviceControlBridge.rotation();
+    }
+
+    public static RootCommandResult deviceSetRotation(int rotation, boolean locked) {
+        return DeviceControlBridge.setRotation(rotation, locked);
+    }
+
     public static boolean appIsInstalled(String packageName) {
         return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
     }

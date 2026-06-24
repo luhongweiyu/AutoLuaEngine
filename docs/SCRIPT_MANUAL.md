@@ -17,6 +17,12 @@
 | 设备 | `m.device.info()` | 无 | [查看](#api-device-info) |
 | 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
 | 设备 | `m.device.setRootModeEnabled(enabled)` | `m.setRootModeEnabled(...)` | [查看](#api-device-root-mode) |
+| 设备 | `m.device.screenState()` | `m.screenState()` | [查看](#api-device-screen-state) |
+| 设备 | `m.device.wake()` | `m.wakeDevice()` | [查看](#api-device-wake-sleep) |
+| 设备 | `m.device.sleep()` | `m.sleepDevice()` | [查看](#api-device-wake-sleep) |
+| 设备 | `m.device.battery()` | `m.battery()` | [查看](#api-device-battery) |
+| 设备 | `m.device.rotation()` | `m.rotation()` | [查看](#api-device-rotation) |
+| 设备 | `m.device.setRotation(rotation, locked)` | `m.setRotation(...)` | [查看](#api-device-set-rotation) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
 | Root | `m.root.status()` | `m.rootStatus()` | [查看](#api-root-status) |
 | Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
@@ -67,8 +73,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -467,9 +473,160 @@ end
 - 该设置会持久化，App 按钮、脚本和 IDE 查询到的是同一份状态。
 - 显式 `m.root.exec(...)` 不受这个开关影响，它始终表示“尝试执行 root 命令”。
 
+<a id="api-device-screen-state"></a>
+
+### 6.4 `m.device.screenState()` / `m.screenState()`
+
+通过 root shell 读取屏幕亮灭、交互和锁屏状态。
+
+返回值：
+
+```lua
+{
+    interactive = true,
+    screenOn = true,
+    locked = false,
+    wakefulness = "Awake",
+    displayState = "ON"
+}
+```
+
+示例：
+
+```lua
+local state, err = m.device.screenState()
+if not state then
+    print("读取屏幕状态失败:", err)
+    return
+end
+
+print("screen on =", state.screenOn)
+print("locked =", state.locked)
+```
+
+说明：
+
+- 该接口是显式 root 设备能力，不受 Root 模式开关影响。
+- 不同 Android 版本的 `dumpsys` 字段略有差异，当前会尽量解析常见字段。
+
+<a id="api-device-wake-sleep"></a>
+
+### 6.5 `m.device.wake()` / `m.wakeDevice()`，`m.device.sleep()` / `m.sleepDevice()`
+
+通过 root `input keyevent` 唤醒或息屏。
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+m.device.wake()
+m.sleep(500)
+m.device.sleep()
+```
+
+说明：
+
+- `wake()` 使用 Android `KEYCODE_WAKEUP`。
+- `sleep()` 使用 Android `KEYCODE_SLEEP`。注意它是设备息屏，不是脚本延时；脚本延时请用 `m.sleep(ms)`。
+
+<a id="api-device-battery"></a>
+
+### 6.6 `m.device.battery()` / `m.battery()`
+
+通过 root `dumpsys battery` 读取电池状态。
+
+返回值：
+
+```lua
+{
+    level = 100,
+    scale = 100,
+    percent = 100,
+    statusCode = 5,
+    status = "full",
+    healthCode = 2,
+    health = "good",
+    present = true,
+    acPowered = false,
+    usbPowered = true,
+    wirelessPowered = false,
+    plugged = "usb",
+    voltageMv = 5000,
+    temperatureC = 30.0,
+    technology = "Li-ion"
+}
+```
+
+示例：
+
+```lua
+local battery, err = m.device.battery()
+if battery then
+    print("battery =", battery.percent, battery.status, battery.plugged)
+else
+    print("读取电量失败:", err)
+end
+```
+
+<a id="api-device-rotation"></a>
+
+### 6.7 `m.device.rotation()` / `m.rotation()`
+
+读取当前屏幕方向和自动旋转设置。
+
+返回值：
+
+```lua
+{
+    autoRotate = false,
+    locked = true,
+    userRotation = 0,
+    currentRotation = 0,
+    degrees = 0
+}
+```
+
+说明：
+
+- `currentRotation` 和 `userRotation` 取值为 `0`、`1`、`2`、`3`，分别表示 `0`、`90`、`180`、`270` 度。
+- `degrees` 是 `currentRotation * 90` 的便捷值。
+
+<a id="api-device-set-rotation"></a>
+
+### 6.8 `m.device.setRotation(rotation, locked)` / `m.setRotation(...)`
+
+设置屏幕方向锁定状态。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `rotation` | number | 支持 `0`、`1`、`2`、`3`，也支持 `90`、`180`、`270` |
+| `locked` | boolean | 可选，默认 `true`；`true` 锁定方向，`false` 恢复自动旋转 |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+m.device.setRotation(0, true)
+m.device.setRotation(0, false)
+```
+
 <a id="api-root-exec"></a>
 
-### 6.4 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+### 6.9 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 
 通过 root shell 执行一条命令，返回结构化结果。这个接口是 root 文件、进程、系统命令能力的基础通道。
 
@@ -513,7 +670,7 @@ end
 
 <a id="api-root-file-exists"></a>
 
-### 6.5 `m.root.status()` / `m.rootStatus()`
+### 6.10 `m.root.status()` / `m.rootStatus()`
 
 返回 Android root 探测状态，用于定位 App 进程是否能拿到 root 授权、当前命中的 su 模式和每次探测失败原因。
 
@@ -567,7 +724,7 @@ end
 
 <a id="api-root-file-exists"></a>
 
-### 6.6 `m.root.file.exists(path)` / `m.rootFileExists(path)`
+### 6.11 `m.root.file.exists(path)` / `m.rootFileExists(path)`
 
 通过 root shell 判断路径是否存在。
 
@@ -598,7 +755,7 @@ end
 
 <a id="api-root-file-read-text"></a>
 
-### 6.7 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
+### 6.12 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
 
 通过 root shell 读取 UTF-8 文本文件。
 
@@ -627,7 +784,7 @@ end
 
 <a id="api-root-file-write-text"></a>
 
-### 6.8 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
+### 6.13 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
 
 通过 root shell 覆盖写入 UTF-8 文本文件。
 
@@ -662,7 +819,7 @@ end
 
 <a id="api-root-file-stat"></a>
 
-### 6.9 `m.root.file.stat(path)` / `m.rootStat(path)`
+### 6.14 `m.root.file.stat(path)` / `m.rootStat(path)`
 
 通过 root shell 获取文件或目录状态。
 
@@ -698,7 +855,7 @@ print(info.name, info.size, info.mode, info.user, info.group)
 
 <a id="api-root-file-list"></a>
 
-### 6.10 `m.root.file.list(path)` / `m.rootList(path)`
+### 6.15 `m.root.file.list(path)` / `m.rootList(path)`
 
 通过 root shell 获取目录下的文件列表。返回每一项的字段与 `m.root.file.stat` 一致。
 
@@ -716,7 +873,7 @@ end
 
 <a id="api-root-file-remove"></a>
 
-### 6.11 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
+### 6.16 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
 
 通过 root shell 删除文件或路径。
 
@@ -749,7 +906,7 @@ end
 
 <a id="api-root-file-mkdir"></a>
 
-### 6.12 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
+### 6.17 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
 
 通过 root shell 创建目录。
 
@@ -778,7 +935,7 @@ end
 
 <a id="api-root-file-chmod"></a>
 
-### 6.13 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
+### 6.18 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
 
 通过 root shell 修改文件或目录权限。
 
@@ -811,7 +968,7 @@ end
 
 <a id="api-root-file-chown"></a>
 
-### 6.14 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
+### 6.19 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
 
 通过 root shell 修改文件或目录所属用户。
 
@@ -840,7 +997,7 @@ end
 
 <a id="api-root-process-pid-of"></a>
 
-### 6.15 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+### 6.20 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
 
 通过 root shell 查询进程名对应的 PID 列表。
 
@@ -879,7 +1036,7 @@ end
 
 <a id="api-root-process-list"></a>
 
-### 6.16 `m.root.process.list()` / `m.rootProcessList()`
+### 6.21 `m.root.process.list()` / `m.rootProcessList()`
 
 通过 root shell 获取当前进程列表。返回值是结构化表，不需要脚本再解析 `ps` 文本。
 
@@ -916,7 +1073,7 @@ end
 
 <a id="api-root-process-info"></a>
 
-### 6.17 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
+### 6.22 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
 
 通过 root shell 查询指定进程详情。`target` 可以是 PID，也可以是进程名。
 
@@ -949,7 +1106,7 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.18 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.23 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -1951,6 +2108,12 @@ end
 |---|---|
 | `device.info` | 获取设备和引擎信息 |
 | `device.setRootModeEnabled` | 设置 Root 模式开关 |
+| `device.screenState` | 获取屏幕亮灭和锁屏状态 |
+| `device.wake` | 唤醒设备 |
+| `device.sleep` | 息屏设备 |
+| `device.battery` | 获取电池状态 |
+| `device.rotation` | 获取屏幕方向状态 |
+| `device.setRotation` | 设置屏幕方向锁定 |
 | `root.status` | 获取 root 探测状态 |
 | `root.exec` | 执行 root shell 命令 |
 | `root.file.exists` | 判断 root 路径是否存在 |

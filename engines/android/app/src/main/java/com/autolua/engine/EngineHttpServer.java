@@ -145,6 +145,70 @@ public final class EngineHttpServer {
             return makeDeviceInfo();
         }
 
+        if ("device.screenState".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceScreenState();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device screen state failed"));
+            }
+            return parseKeyValueObject(rootResult.stdout);
+        }
+
+        if ("device.wake".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceWake();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device wake failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.sleep".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceSleep();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device sleep failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.battery".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceBattery();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device battery failed"));
+            }
+            return parseKeyValueObject(rootResult.stdout);
+        }
+
+        if ("device.rotation".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceRotation();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device rotation failed"));
+            }
+            return parseKeyValueObject(rootResult.stdout);
+        }
+
+        if ("device.setRotation".equals(method)) {
+            if (!params.has("rotation")) {
+                throw new IllegalArgumentException("rotation is required");
+            }
+
+            RootCommandResult rootResult = AndroidHostBridge.deviceSetRotation(
+                    params.optInt("rotation", 0),
+                    params.optBoolean("locked", true)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device set rotation failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
         if ("root.exec".equals(method)) {
             String command = params.optString("command", "");
             if (command.trim().isEmpty()) {
@@ -607,6 +671,57 @@ public final class EngineHttpServer {
         result.put("timedOut", rootResult.timedOut);
         result.put("error", rootResult.error);
         return result;
+    }
+
+    private static JSONObject parseKeyValueObject(String text) throws JSONException {
+        JSONObject result = new JSONObject();
+        if (text == null || text.trim().isEmpty()) {
+            return result;
+        }
+
+        String[] lines = text.split("\\r?\\n");
+        for (String line : lines) {
+            int separator = line.indexOf('=');
+            if (separator <= 0) {
+                continue;
+            }
+
+            String key = line.substring(0, separator).trim();
+            String value = line.substring(separator + 1).trim();
+            if (key.isEmpty()) {
+                continue;
+            }
+
+            putTypedValue(result, key, value);
+        }
+        return result;
+    }
+
+    private static void putTypedValue(JSONObject result, String key, String value) throws JSONException {
+        if ("true".equals(value) || "false".equals(value)) {
+            result.put(key, Boolean.parseBoolean(value));
+            return;
+        }
+
+        if (value.matches("-?\\d+")) {
+            try {
+                result.put(key, Long.parseLong(value));
+                return;
+            } catch (NumberFormatException ignored) {
+                // 极端长数字保持字符串，避免接口整体失败。
+            }
+        }
+
+        if (value.matches("-?\\d+\\.\\d+")) {
+            try {
+                result.put(key, Double.parseDouble(value));
+                return;
+            } catch (NumberFormatException ignored) {
+                // 极端小数保持字符串。
+            }
+        }
+
+        result.put(key, value);
     }
 
     private static String resolveRootCommandError(RootCommandResult rootResult, String fallback) {

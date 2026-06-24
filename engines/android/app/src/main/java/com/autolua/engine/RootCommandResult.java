@@ -52,4 +52,8 @@ public final class RootCommandResult {
     static RootCommandResult failure(String error) {
         return new RootCommandResult(false, -1, "", "", false, error);
     }
+
+    static RootCommandResult success(String stdout) {
+        return new RootCommandResult(true, 0, stdout, "", false, "");
+    }
 }

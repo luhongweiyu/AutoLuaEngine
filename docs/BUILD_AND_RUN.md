@@ -126,6 +126,12 @@ powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -FileP
 ```text
 device.info
 device.setRootModeEnabled
+device.screenState
+device.wake
+device.sleep
+device.battery
+device.rotation
+device.setRotation
 root.exec
 root.status
 root.file.exists

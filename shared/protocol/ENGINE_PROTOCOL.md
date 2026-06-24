@@ -335,7 +335,212 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.2 `root.exec`
+## 9.2 `device.screenState`
+
+说明：
+
+- 通过 Android root shell 获取屏幕亮灭、交互和锁屏状态
+- 当前返回字段来自 `dumpsys power/window` 的常见字段解析
+- root 不可用时返回 JSON-RPC 错误
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "device.screenState",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "result": {
+    "interactive": true,
+    "screenOn": true,
+    "locked": false,
+    "wakefulness": "Awake",
+    "displayState": "ON"
+  }
+}
+```
+
+## 9.3 `device.wake`
+
+说明：
+
+- 通过 root `input keyevent KEYCODE_WAKEUP` 唤醒设备
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "device.wake",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.4 `device.sleep`
+
+说明：
+
+- 通过 root `input keyevent KEYCODE_SLEEP` 息屏设备
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "device.sleep",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.5 `device.battery`
+
+说明：
+
+- 通过 root `dumpsys battery` 获取电池状态
+- `temperatureC` 单位为摄氏度
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "device.battery",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "result": {
+    "level": 100,
+    "scale": 100,
+    "percent": 100,
+    "statusCode": 5,
+    "status": "full",
+    "healthCode": 2,
+    "health": "good",
+    "present": true,
+    "acPowered": false,
+    "usbPowered": true,
+    "wirelessPowered": false,
+    "plugged": "usb",
+    "voltageMv": 5000,
+    "temperatureC": 30.0,
+    "technology": "Li-ion"
+  }
+}
+```
+
+## 9.6 `device.rotation`
+
+说明：
+
+- 读取自动旋转、方向锁定和当前屏幕方向
+- `currentRotation` / `userRotation` 取值为 `0`、`1`、`2`、`3`，分别表示 `0`、`90`、`180`、`270` 度
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "device.rotation",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "result": {
+    "autoRotate": false,
+    "locked": true,
+    "userRotation": 0,
+    "currentRotation": 0,
+    "degrees": 0
+  }
+}
+```
+
+## 9.7 `device.setRotation`
+
+说明：
+
+- 设置方向锁定状态
+- `rotation` 支持 `0`、`1`、`2`、`3`，也支持 `90`、`180`、`270`
+- `locked` 默认为 `true`；传 `false` 时恢复自动旋转
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "method": "device.setRotation",
+  "params": {
+    "rotation": 0,
+    "locked": true
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.8 `root.exec`
 
 说明：
 
@@ -375,7 +580,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.3 `root.status`
+## 9.9 `root.status`
 
 说明：
 
@@ -427,7 +632,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 - `adb shell` 可以 root 不代表 App 进程可以 root，最终以这里的 `available` 为准。
 - `device.info` 也会返回同一份 `rootStatus` 摘要。
 
-## 9.4 `root.file.exists`
+## 9.10 `root.file.exists`
 
 说明：
 
@@ -460,7 +665,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.5 `root.file.readText`
+## 9.11 `root.file.readText`
 
 说明：
 
@@ -493,7 +698,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.6 `root.file.writeText`
+## 9.12 `root.file.writeText`
 
 说明：
 
@@ -528,7 +733,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.7 `root.file.stat`
+## 9.13 `root.file.stat`
 
 说明：
 
@@ -571,7 +776,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.8 `root.file.list`
+## 9.14 `root.file.list`
 
 说明：
 
@@ -616,7 +821,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.9 `root.file.remove`
+## 9.15 `root.file.remove`
 
 说明：
 
@@ -650,7 +855,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.10 `root.file.mkdir`
+## 9.16 `root.file.mkdir`
 
 说明：
 
@@ -683,7 +888,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.11 `root.file.chmod`
+## 9.17 `root.file.chmod`
 
 说明：
 
@@ -716,7 +921,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.12 `root.file.chown`
+## 9.18 `root.file.chown`
 
 说明：
 
@@ -749,7 +954,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.13 `root.process.pidOf`
+## 9.19 `root.process.pidOf`
 
 说明：
 
@@ -782,7 +987,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `root.process.kill`
+## 9.20 `root.process.kill`
 
 说明：
 
@@ -816,7 +1021,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.15 `root.process.list`
+## 9.21 `root.process.list`
 
 说明：
 
@@ -854,7 +1059,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.16 `root.process.info`
+## 9.22 `root.process.info`
 
 说明：
 
@@ -895,7 +1100,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.17 `app.isInstalled`
+## 9.23 `app.isInstalled`
 
 说明：
 
@@ -926,7 +1131,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `app.open` / `app.start`
+## 9.24 `app.open` / `app.start`
 
 说明：
 
@@ -958,7 +1163,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.19 `app.stop`
+## 9.25 `app.stop`
 
 说明：
 
@@ -990,7 +1195,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.20 `app.clearData`
+## 9.26 `app.clearData`
 
 说明：
 
@@ -1023,7 +1228,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.21 `app.grant`
+## 9.27 `app.grant`
 
 说明：
 
@@ -1057,7 +1262,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.22 `app.revoke`
+## 9.28 `app.revoke`
 
 说明：
 
@@ -1090,7 +1295,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.23 `app.current`
+## 9.29 `app.current`
 
 说明：
 
@@ -1123,7 +1328,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.24 `app.install`
+## 9.30 `app.install`
 
 说明：
 
@@ -1159,7 +1364,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.25 `app.uninstall`
+## 9.31 `app.uninstall`
 
 说明：
 
@@ -1194,7 +1399,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.26 `app.disable`
+## 9.32 `app.disable`
 
 说明：
 
@@ -1227,7 +1432,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.27 `app.enable`
+## 9.33 `app.enable`
 
 说明：
 
@@ -1260,7 +1465,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.28 `key.press`
+## 9.34 `key.press`
 
 说明：
 
@@ -1294,7 +1499,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.29 `input.text`
+## 9.35 `input.text`
 
 说明：
 
@@ -1328,7 +1533,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.30 `input.pasteText`
+## 9.36 `input.pasteText`
 
 说明：
 

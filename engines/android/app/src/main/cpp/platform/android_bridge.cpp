@@ -1085,6 +1085,84 @@ RootExecResult AndroidBridge::rootProcessKill(const std::string& pidOrName, int 
     );
 }
 
+RootExecResult AndroidBridge::deviceScreenState() {
+    return callStaticRootResultNoArgMethod(
+            "deviceScreenState",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device screen state"
+    );
+}
+
+RootExecResult AndroidBridge::deviceWake() {
+    return callStaticRootResultNoArgMethod(
+            "deviceWake",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device wake"
+    );
+}
+
+RootExecResult AndroidBridge::deviceSleep() {
+    return callStaticRootResultNoArgMethod(
+            "deviceSleep",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device sleep"
+    );
+}
+
+RootExecResult AndroidBridge::deviceBattery() {
+    return callStaticRootResultNoArgMethod(
+            "deviceBattery",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device battery"
+    );
+}
+
+RootExecResult AndroidBridge::deviceRotation() {
+    return callStaticRootResultNoArgMethod(
+            "deviceRotation",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device rotation"
+    );
+}
+
+RootExecResult AndroidBridge::deviceSetRotation(int rotation, bool locked) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(
+            bridgeClass,
+            "deviceSetRotation",
+            "(IZ)Lcom/autolua/engine/RootCommandResult;"
+    );
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("device set rotation method is not available");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            static_cast<jint>(rotation),
+            locked ? JNI_TRUE : JNI_FALSE
+    );
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("device set rotation java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, "device set rotation");
+}
+
 bool AndroidBridge::appIsInstalled(const std::string& packageName) {
     return callStaticBooleanStringMethod("appIsInstalled", "(Ljava/lang/String;)Z", packageName);
 }

@@ -77,6 +77,12 @@ public:
     static RootExecResult rootProcessList();
     static RootExecResult rootProcessInfo(const std::string& pidOrName);
     static RootExecResult rootProcessKill(const std::string& pidOrName, int signal);
+    static RootExecResult deviceScreenState();
+    static RootExecResult deviceWake();
+    static RootExecResult deviceSleep();
+    static RootExecResult deviceBattery();
+    static RootExecResult deviceRotation();
+    static RootExecResult deviceSetRotation(int rotation, bool locked);
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);

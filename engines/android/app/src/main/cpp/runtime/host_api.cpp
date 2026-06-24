@@ -206,6 +206,122 @@ std::string rootResultError(const RootExecResult& result, const char* fallback) 
     return fallback;
 }
 
+std::string trimKeyValueText(const std::string& value) {
+    size_t start = value.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos) {
+        return "";
+    }
+
+    size_t end = value.find_last_not_of(" \t\r\n");
+    return value.substr(start, end - start + 1);
+}
+
+void pushTypedKeyValue(lua_State* state, const std::string& value) {
+    if (value == "true" || value == "false") {
+        lua_pushboolean(state, value == "true" ? 1 : 0);
+        return;
+    }
+
+    char* integerEnd = nullptr;
+    long long integerValue = std::strtoll(value.c_str(), &integerEnd, 10);
+    if (integerEnd != value.c_str() && *integerEnd == '\0') {
+        lua_pushinteger(state, static_cast<lua_Integer>(integerValue));
+        return;
+    }
+
+    char* numberEnd = nullptr;
+    double numberValue = std::strtod(value.c_str(), &numberEnd);
+    if (numberEnd != value.c_str() && *numberEnd == '\0') {
+        lua_pushnumber(state, static_cast<lua_Number>(numberValue));
+        return;
+    }
+
+    lua_pushstring(state, value.c_str());
+}
+
+void pushKeyValueTable(lua_State* state, const std::string& text) {
+    lua_newtable(state);
+    int tableIndex = lua_gettop(state);
+    std::istringstream stream(text);
+    std::string line;
+
+    while (std::getline(stream, line)) {
+        size_t separator = line.find('=');
+        if (separator == std::string::npos || separator == 0) {
+            continue;
+        }
+
+        std::string key = trimKeyValueText(line.substr(0, separator));
+        std::string value = trimKeyValueText(line.substr(separator + 1));
+        if (key.empty()) {
+            continue;
+        }
+
+        pushTypedKeyValue(state, value);
+        lua_setfield(state, tableIndex, key.c_str());
+    }
+}
+
+int pushRootKeyValueResult(lua_State* state,
+                           const RootExecResult& result,
+                           const char* fallbackError) {
+    if (!result.success) {
+        std::string error = rootResultError(result, fallbackError);
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    pushKeyValueTable(state, result.stdoutText);
+    return 1;
+}
+
+int pushRootBooleanResult(lua_State* state,
+                          const RootExecResult& result,
+                          const char* fallbackError) {
+    if (!result.success) {
+        std::string error = rootResultError(result, fallbackError);
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaDeviceScreenState(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceScreenState();
+    return pushRootKeyValueResult(state, result, "device screen state failed");
+}
+
+int luaDeviceWake(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceWake();
+    return pushRootBooleanResult(state, result, "device wake failed");
+}
+
+int luaDeviceSleep(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceSleep();
+    return pushRootBooleanResult(state, result, "device sleep failed");
+}
+
+int luaDeviceBattery(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceBattery();
+    return pushRootKeyValueResult(state, result, "device battery failed");
+}
+
+int luaDeviceRotation(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceRotation();
+    return pushRootKeyValueResult(state, result, "device rotation failed");
+}
+
+int luaDeviceSetRotation(lua_State* state) {
+    lua_Integer rotation = luaL_checkinteger(state, 1);
+    bool locked = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
+    RootExecResult result = AndroidBridge::deviceSetRotation(static_cast<int>(rotation), locked);
+    return pushRootBooleanResult(state, result, "device set rotation failed");
+}
+
 int luaRootFileExists(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     RootExecResult result = AndroidBridge::rootFileExists(path);
@@ -1260,6 +1376,12 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, deviceTableIndex, "info", luaDeviceInfo);
     setFunctionField(state, deviceTableIndex, "isRootAvailable", luaDeviceIsRootAvailable);
     setFunctionField(state, deviceTableIndex, "setRootModeEnabled", luaDeviceSetRootModeEnabled);
+    setFunctionField(state, deviceTableIndex, "screenState", luaDeviceScreenState);
+    setFunctionField(state, deviceTableIndex, "wake", luaDeviceWake);
+    setFunctionField(state, deviceTableIndex, "sleep", luaDeviceSleep);
+    setFunctionField(state, deviceTableIndex, "battery", luaDeviceBattery);
+    setFunctionField(state, deviceTableIndex, "rotation", luaDeviceRotation);
+    setFunctionField(state, deviceTableIndex, "setRotation", luaDeviceSetRotation);
     lua_setfield(state, hostTableIndex, "device");
 
     lua_newtable(state);

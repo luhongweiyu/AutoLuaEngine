@@ -196,6 +196,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.root.status()` 和 HTTP `root.status` root 探测状态诊断，记录 su 路径、命令模式和探测输出
 - [x] `m.root.file.exists/readText/writeText/stat/list/remove/mkdir/chmod/chown` root 文本文件读写、状态、列表、删除、目录创建和权限修改
 - [x] `m.root.process.pidOf/list/info/kill` root 进程查询、列表、详情和结束进程第一版
+- [x] `m.device.screenState/wake/sleep/battery/rotation/setRotation` root 设备状态、唤醒/息屏、电量和方向控制第一版
 - [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/current/install/uninstall/disable/enable` 应用控制，启动 root 优先，强停、清数据、权限控制、前台查询和包管理走 root
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
 - [x] 触控和按键优先复用常驻 root shell，失败后回退短命令和无障碍
