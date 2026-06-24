@@ -284,6 +284,29 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("app.clearData".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appClearData(packageName));
+            return result;
+        }
+
+        if ("app.grant".equals(method)) {
+            String packageName = requirePackageName(params);
+            String permissionName = requirePermissionName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appGrantPermission(packageName, permissionName));
+            return result;
+        }
+
+        if ("app.revoke".equals(method)) {
+            String packageName = requirePackageName(params);
+            String permissionName = requirePermissionName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appRevokePermission(packageName, permissionName));
+            return result;
+        }
+
         if ("key.press".equals(method)) {
             int keyCode = params.optInt("keyCode", -1);
             if (keyCode < 0) {
@@ -505,6 +528,14 @@ public final class EngineHttpServer {
             throw new IllegalArgumentException("packageName is required");
         }
         return packageName;
+    }
+
+    private static String requirePermissionName(JSONObject params) {
+        String permissionName = params.optString("permission", "");
+        if (permissionName.trim().isEmpty()) {
+            throw new IllegalArgumentException("permission is required");
+        }
+        return permissionName;
     }
 
     private static HttpRequest readRequest(InputStream inputStream) throws IOException {

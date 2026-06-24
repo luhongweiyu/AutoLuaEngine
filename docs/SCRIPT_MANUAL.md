@@ -29,6 +29,9 @@
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
 | 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
 | 应用 | `m.app.stop(packageName)` | `m.stopApp(...)` | [查看](#api-app-stop) |
+| 应用 | `m.app.clearData(packageName)` | `m.clearAppData(...)` | [查看](#api-app-clear-data) |
+| 应用 | `m.app.grant(packageName, permission)` | `m.grantAppPermission(...)` | [查看](#api-app-grant) |
+| 应用 | `m.app.revoke(packageName, permission)` | `m.revokeAppPermission(...)` | [查看](#api-app-revoke) |
 | 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
 | 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
 | 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
@@ -52,8 +55,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -797,6 +800,97 @@ if not ok then
 end
 ```
 
+<a id="api-app-clear-data"></a>
+
+### 7.4 `m.app.clearData(packageName)` / `m.clearAppData(...)`
+
+清理指定应用数据。当前通过 root `pm clear` 实现，root 不可用时会失败。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `packageName` | string | Android 包名，例如 `"com.example.target"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.clearData("com.example.target")
+if not ok then
+    print("clear data failed:", err)
+end
+```
+
+注意：
+
+- 这个操作会删除目标应用本地数据，脚本里调用前应明确确认目标包名。
+- 当前不受 Root 模式开关影响，属于显式 root 应用控制能力。
+
+<a id="api-app-grant"></a>
+
+### 7.5 `m.app.grant(packageName, permission)` / `m.grantAppPermission(...)`
+
+给指定应用授予 Android 权限。当前通过 root `pm grant` 实现，root 不可用或权限不可授予时会失败。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `packageName` | string | Android 包名 |
+| `permission` | string | Android 权限名，例如 `"android.permission.CAMERA"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.grant("com.example.target", "android.permission.CAMERA")
+if not ok then
+    print("grant failed:", err)
+end
+```
+
+<a id="api-app-revoke"></a>
+
+### 7.6 `m.app.revoke(packageName, permission)` / `m.revokeAppPermission(...)`
+
+撤销指定应用的 Android 权限。当前通过 root `pm revoke` 实现。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `packageName` | string | Android 包名 |
+| `permission` | string | Android 权限名，例如 `"android.permission.CAMERA"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.revoke("com.example.target", "android.permission.CAMERA")
+if not ok then
+    print("revoke failed:", err)
+end
+```
+
 ## 8. 文件 API
 
 文件 API 当前只做基础文本读写和存在性判断。第一版建议优先读写 App 私有目录，避免额外申请外部存储权限。
@@ -1494,6 +1588,9 @@ end
 | `log.drain` | 轮询读取日志 |
 | `key.press` | 执行 Android 通用按键码 |
 | `input.text` | 向当前焦点输入框输入文本 |
+| `app.clearData` | 清理指定 Android 应用数据 |
+| `app.grant` | 给指定 Android 应用授予权限 |
+| `app.revoke` | 撤销指定 Android 应用权限 |
 | `screen.capture` | 从协议侧请求截图句柄 |
 | `image.release` | 从协议侧释放图片句柄 |
 
@@ -1534,7 +1631,7 @@ tap(300, 500)
 | 批量取色 | `m.getPixels(img, points)` | 部分兼容 | 部分兼容 |
 | 找色 / 比色 | 后续 `m.image.findColor` 等 | 未实现 | 未实现 |
 | 控件查找 | 后续 `m.widget` 模块 | 未实现 | 未实现 |
-| 应用启动/关闭 | `m.app.open/stop` | 部分兼容 | 部分兼容 |
+| 应用启动/关闭/数据/权限 | `m.app.open/stop/clearData/grant/revoke` | 部分兼容 | 部分兼容 |
 | FFI | 后续评估 | 未实现 | 未实现 |
 | 启动线程 | 后续 `m.thread` 模块 | 未实现 | 未实现 |
 

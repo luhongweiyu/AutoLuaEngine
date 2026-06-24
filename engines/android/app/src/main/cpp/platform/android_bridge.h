@@ -54,6 +54,15 @@ public:
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);
+    static bool appClearData(const std::string& packageName);
+    static bool appGrantPermission(
+            const std::string& packageName,
+            const std::string& permissionName
+    );
+    static bool appRevokePermission(
+            const std::string& packageName,
+            const std::string& permissionName
+    );
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static bool touchTap(int x, int y);

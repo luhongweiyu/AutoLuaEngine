@@ -727,14 +727,13 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `key.press`
+## 9.14 `app.clearData`
 
 说明：
 
-- 执行 Android 通用按键码
-- Root 模式开启且 root 可用时优先使用 root `input keyevent`
-- `keyCode = 4` 和 `keyCode = 3` 可在 root 失败后回退无障碍返回/Home
-- 其他 keyCode 当前依赖 root
+- 清理指定 Android 应用数据
+- 当前通过 root `pm clear` 实现
+- root 不可用或包名无效时返回 `ok: false`
 
 请求：
 
@@ -742,9 +741,9 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 {
   "jsonrpc": "2.0",
   "id": 20,
-  "method": "key.press",
+  "method": "app.clearData",
   "params": {
-    "keyCode": 66
+    "packageName": "com.example.target"
   }
 }
 ```
@@ -761,7 +760,108 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.15 `input.text`
+## 9.15 `app.grant`
+
+说明：
+
+- 给指定 Android 应用授予权限
+- 当前通过 root `pm grant` 实现
+- root 不可用、包名无效、权限名无效或目标权限不可授予时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 21,
+  "method": "app.grant",
+  "params": {
+    "packageName": "com.example.target",
+    "permission": "android.permission.CAMERA"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 21,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.16 `app.revoke`
+
+说明：
+
+- 撤销指定 Android 应用权限
+- 当前通过 root `pm revoke` 实现
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 22,
+  "method": "app.revoke",
+  "params": {
+    "packageName": "com.example.target",
+    "permission": "android.permission.CAMERA"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 22,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.17 `key.press`
+
+说明：
+
+- 执行 Android 通用按键码
+- Root 模式开启且 root 可用时优先使用 root `input keyevent`
+- `keyCode = 4` 和 `keyCode = 3` 可在 root 失败后回退无障碍返回/Home
+- 其他 keyCode 当前依赖 root
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "method": "key.press",
+  "params": {
+    "keyCode": 66
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.18 `input.text`
 
 说明：
 
@@ -775,7 +875,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 21,
+  "id": 24,
   "method": "input.text",
   "params": {
     "text": "hello world"
@@ -788,7 +888,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 21,
+  "id": 24,
   "result": {
     "ok": true
   }

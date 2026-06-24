@@ -539,6 +539,44 @@ int luaAppStop(lua_State* state) {
     return 1;
 }
 
+int luaAppClearData(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appClearData(packageName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "clear app data failed; root is not available or package name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppGrantPermission(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    const char* permissionName = luaL_checkstring(state, 2);
+    if (!AndroidBridge::appGrantPermission(packageName, permissionName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "grant app permission failed; root is not available, package name is invalid or permission is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppRevokePermission(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    const char* permissionName = luaL_checkstring(state, 2);
+    if (!AndroidBridge::appRevokePermission(packageName, permissionName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "revoke app permission failed; root is not available, package name is invalid or permission is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaTouchTap(lua_State* state) {
     lua_Integer x = luaL_checkinteger(state, 1);
     lua_Integer y = luaL_checkinteger(state, 2);
@@ -818,6 +856,9 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, appTableIndex, "open", luaAppOpen);
     setFunctionField(state, appTableIndex, "start", luaAppOpen);
     setFunctionField(state, appTableIndex, "stop", luaAppStop);
+    setFunctionField(state, appTableIndex, "clearData", luaAppClearData);
+    setFunctionField(state, appTableIndex, "grant", luaAppGrantPermission);
+    setFunctionField(state, appTableIndex, "revoke", luaAppRevokePermission);
     lua_setfield(state, hostTableIndex, "app");
 
     lua_newtable(state);

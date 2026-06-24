@@ -216,11 +216,24 @@ public final class RootShellBridge {
     private static RootCommandMode detectRootCommandMode() {
         for (RootCommandMode mode : RootCommandMode.PROBE_ORDER) {
             CommandResult result = runCommand(mode.buildArgs("id -u"), DEFAULT_TIMEOUT_MS);
-            if (result.exitCode == 0 && "0".equals(result.stdoutText().trim())) {
+            if (result.exitCode == 0 && isRootIdentityOutput(result.stdoutText())) {
                 return mode;
             }
         }
         return RootCommandMode.NONE;
+    }
+
+    private static boolean isRootIdentityOutput(String text) {
+        if (text == null) {
+            return false;
+        }
+
+        // 部分 su 环境会把 `id -u` 展开成完整 id 输出，例如 `uid=0(root) ...`。
+        // 这里把这种格式也视为 root，避免误判 adb root 镜像或特殊 su 实现。
+        String value = text.trim();
+        return "0".equals(value)
+                || value.startsWith("uid=0(")
+                || value.startsWith("uid=0 ");
     }
 
     static CommandResult runRootCommand(String command, long timeoutMs) {

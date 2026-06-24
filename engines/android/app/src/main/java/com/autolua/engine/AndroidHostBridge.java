@@ -87,6 +87,18 @@ public final class AndroidHostBridge {
         return AppControlBridge.stop(packageName);
     }
 
+    public static boolean appClearData(String packageName) {
+        return AppControlBridge.clearData(packageName);
+    }
+
+    public static boolean appGrantPermission(String packageName, String permissionName) {
+        return AppControlBridge.grantPermission(packageName, permissionName);
+    }
+
+    public static boolean appRevokePermission(String packageName, String permissionName) {
+        return AppControlBridge.revokePermission(packageName, permissionName);
+    }
+
     public static boolean touchTap(int x, int y) {
         if (isRootModeEnabledInternal() && RootShellBridge.tap(x, y)) {
             return true;

@@ -197,6 +197,62 @@ bool callStaticBooleanStringMethod(const char* methodName,
     return result == JNI_TRUE;
 }
 
+bool callStaticBooleanStringStringMethod(const char* methodName,
+                                         const char* signature,
+                                         const std::string& first,
+                                         const std::string& second) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return false;
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return false;
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    jstring firstString = env->NewStringUTF(first.c_str());
+    jstring secondString = env->NewStringUTF(second.c_str());
+    if (firstString == nullptr || secondString == nullptr) {
+        if (firstString != nullptr) {
+            env->DeleteLocalRef(firstString);
+        }
+        if (secondString != nullptr) {
+            env->DeleteLocalRef(secondString);
+        }
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(
+            bridgeClass,
+            methodId,
+            firstString,
+            secondString
+    );
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(secondString);
+        env->DeleteLocalRef(firstString);
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    env->DeleteLocalRef(secondString);
+    env->DeleteLocalRef(firstString);
+    env->DeleteLocalRef(bridgeClass);
+    return result == JNI_TRUE;
+}
+
 std::string jStringToString(JNIEnv* env, jstring value) {
     if (value == nullptr) {
         return "";
@@ -719,6 +775,30 @@ bool AndroidBridge::appOpen(const std::string& packageName) {
 
 bool AndroidBridge::appStop(const std::string& packageName) {
     return callStaticBooleanStringMethod("appStop", "(Ljava/lang/String;)Z", packageName);
+}
+
+bool AndroidBridge::appClearData(const std::string& packageName) {
+    return callStaticBooleanStringMethod("appClearData", "(Ljava/lang/String;)Z", packageName);
+}
+
+bool AndroidBridge::appGrantPermission(const std::string& packageName,
+                                       const std::string& permissionName) {
+    return callStaticBooleanStringStringMethod(
+            "appGrantPermission",
+            "(Ljava/lang/String;Ljava/lang/String;)Z",
+            packageName,
+            permissionName
+    );
+}
+
+bool AndroidBridge::appRevokePermission(const std::string& packageName,
+                                        const std::string& permissionName) {
+    return callStaticBooleanStringStringMethod(
+            "appRevokePermission",
+            "(Ljava/lang/String;Ljava/lang/String;)Z",
+            packageName,
+            permissionName
+    );
 }
 
 bool AndroidBridge::hasScreenCapturePermission() {

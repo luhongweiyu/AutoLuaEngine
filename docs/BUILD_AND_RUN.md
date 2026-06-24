@@ -139,6 +139,9 @@ app.isInstalled
 app.open
 app.start
 app.stop
+app.clearData
+app.grant
+app.revoke
 key.press
 input.text
 script.run
