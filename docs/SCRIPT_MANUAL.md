@@ -17,6 +17,9 @@
 | 设备 | `m.device.info()` | 无 | [查看](#api-device-info) |
 | 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
+| 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
+| 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
+| 应用 | `m.app.stop(packageName)` | `m.stopApp(...)` | [查看](#api-app-stop) |
 | 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
 | 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
 | 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
@@ -38,8 +41,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -448,13 +451,55 @@ end
 - `error` 用于 root 不可用、超时、通道失败这类错误。
 - 这个显式 root API 不受界面 Root 模式开关影响；开关只影响触控、按键、截图的自动路由。
 
-## 7. 文件 API
+## 7. 应用 API
+
+应用 API 用于启动、停止和检查 Android 包。包名会做基础合法性校验。
+
+<a id="api-app-installed"></a>
+
+### 7.1 `m.app.isInstalled(packageName)` / `m.isAppInstalled(...)`
+
+判断指定包名是否已安装。
+
+```lua
+if m.app.isInstalled("com.android.settings") then
+    print("settings installed")
+end
+```
+
+<a id="api-app-open"></a>
+
+### 7.2 `m.app.open(packageName)` / `m.app.start(packageName)` / `m.openApp(...)`
+
+启动指定应用。Root 模式开启且 root 可用时，优先通过 root `monkey` 启动；失败后回退普通 Launcher Intent。
+
+```lua
+local ok, err = m.app.open("com.android.settings")
+if not ok then
+    print("open failed:", err)
+end
+```
+
+<a id="api-app-stop"></a>
+
+### 7.3 `m.app.stop(packageName)` / `m.stopApp(...)`
+
+强停指定应用。当前通过 root `am force-stop` 实现，root 不可用时会失败。
+
+```lua
+local ok, err = m.app.stop("com.example.target")
+if not ok then
+    print("stop failed:", err)
+end
+```
+
+## 8. 文件 API
 
 文件 API 当前只做基础文本读写和存在性判断。第一版建议优先读写 App 私有目录，避免额外申请外部存储权限。
 
 <a id="api-file-app-data-path"></a>
 
-### 7.1 `m.file.appDataPath(fileName)`
+### 8.1 `m.file.appDataPath(fileName)`
 
 拼出 App 私有数据目录下的文件路径。
 
@@ -484,7 +529,7 @@ print(path)
 
 <a id="api-file-write"></a>
 
-### 7.2 `m.file.write(path, content)`
+### 8.2 `m.file.write(path, content)`
 
 写入文本文件。当前是覆盖写入。
 
@@ -514,7 +559,7 @@ end
 
 <a id="api-file-read"></a>
 
-### 7.3 `m.file.read(path)`
+### 8.3 `m.file.read(path)`
 
 读取文本文件。
 
@@ -551,7 +596,7 @@ print(text)
 
 <a id="api-file-exists"></a>
 
-### 7.4 `m.file.exists(path)`
+### 8.4 `m.file.exists(path)`
 
 判断文件是否存在。
 
@@ -578,7 +623,7 @@ end
 
 <a id="api-file-remove"></a>
 
-### 7.5 `m.file.remove(path)`
+### 8.5 `m.file.remove(path)`
 
 删除文件。
 
@@ -605,7 +650,7 @@ if not ok then
 end
 ```
 
-## 8. 触控 API
+## 9. 触控 API
 
 触控 API 当前优先使用 root `input` 命令，失败后回退无障碍服务。脚本调用前可以先检查自动化状态。
 
@@ -619,7 +664,7 @@ end
 
 <a id="api-touch-tap"></a>
 
-### 8.1 `m.touch.tap(x, y)` / `m.tap(x, y)`
+### 9.1 `m.touch.tap(x, y)` / `m.tap(x, y)`
 
 点击屏幕坐标。Android 端当前优先走 root `input tap`，失败后回退无障碍服务。
 
@@ -654,7 +699,7 @@ touch tap failed; root or accessibility service is not available
 
 <a id="api-touch-swipe"></a>
 
-### 8.2 `m.touch.swipe(x1, y1, x2, y2, duration)` / `m.swipe(...)`
+### 9.2 `m.touch.swipe(x1, y1, x2, y2, duration)` / `m.swipe(...)`
 
 从一个坐标滑动到另一个坐标。Android 端当前优先走 root `input swipe`，失败后回退无障碍服务。
 
@@ -684,13 +729,13 @@ if not ok then
 end
 ```
 
-## 9. 按键 API
+## 10. 按键 API
 
 按键 API 当前优先通过 root `input keyevent` 实现，失败后回退 Android 无障碍服务。
 
 <a id="api-key-accessibility"></a>
 
-### 9.1 `m.key.isAccessibilityEnabled()`
+### 10.1 `m.key.isAccessibilityEnabled()`
 
 判断当前 App 的无障碍服务是否已开启。
 
@@ -714,7 +759,7 @@ print("accessibility =", m.key.isAccessibilityEnabled())
 
 <a id="api-key-back"></a>
 
-### 9.2 `m.key.back()` / `m.back()`
+### 10.2 `m.key.back()` / `m.back()`
 
 执行系统返回键。
 
@@ -742,7 +787,7 @@ end
 
 <a id="api-key-home"></a>
 
-### 9.3 `m.key.home()` / `m.home()`
+### 10.3 `m.key.home()` / `m.home()`
 
 执行系统 Home 键。
 
@@ -768,11 +813,11 @@ if not ok then
 end
 ```
 
-## 10. 截图 API
+## 11. 截图 API
 
 <a id="api-screen-capture"></a>
 
-### 10.1 `m.screen.capture()` / `m.capture()`
+### 11.1 `m.screen.capture()` / `m.capture()`
 
 获取当前屏幕截图，并返回 native 内存图片句柄。Android 端当前优先使用 root 原始 `screencap`，失败后回退 MediaProjection。
 
@@ -838,13 +883,13 @@ m.image.release(img)
 - 图片像素数据保留在 native 内存中。
 - 使用完必须调用 `m.image.release(img)`。
 
-## 11. 图片 API
+## 12. 图片 API
 
 图片 API 当前只处理 `m.screen.capture()` 返回的图片句柄。
 
 <a id="api-image-release"></a>
 
-### 11.1 `m.image.release(image)` / `m.releaseImage(image)`
+### 12.1 `m.image.release(image)` / `m.releaseImage(image)`
 
 释放图片句柄。
 
@@ -877,7 +922,7 @@ end
 
 <a id="api-image-get-pixel"></a>
 
-### 11.2 `m.image.getPixel(image, x, y)` / `m.getPixel(...)`
+### 12.2 `m.image.getPixel(image, x, y)` / `m.getPixel(...)`
 
 读取图片某个坐标的颜色。
 
@@ -924,7 +969,7 @@ m.image.release(img)
 
 <a id="api-image-get-pixels"></a>
 
-### 11.3 `m.image.getPixels(image, points)` / `m.getPixels(...)`
+### 12.3 `m.image.getPixels(image, points)` / `m.getPixels(...)`
 
 批量读取多个坐标的 RGB 值。
 
@@ -993,7 +1038,7 @@ m.image.release(img)
 - 批量读取比在 Lua 循环里多次调用 `m.image.getPixel` 更适合高频点阵。
 - 当前只返回 RGB 整数，不返回每个点的 RGBA 拆分值。
 
-## 12. 推荐脚本结构
+## 13. 推荐脚本结构
 
 普通自动化脚本建议写成几个小函数，便于后续迁移到 JS 或 Go 时保持 API 语义一致。
 
@@ -1043,7 +1088,7 @@ if not ok then
 end
 ```
 
-## 13. IDE/PC 调用说明
+## 14. IDE/PC 调用说明
 
 脚本侧只关心 Lua API。IDE/PC 侧通过统一协议控制引擎。
 
@@ -1063,7 +1108,7 @@ end
 
 协议细节见 [Engine Protocol](../shared/protocol/ENGINE_PROTOCOL.md)。
 
-## 14. 与懒人精灵、触动精灵的关系
+## 15. 与懒人精灵、触动精灵的关系
 
 本文档参考它们的分类方式。当前已经建立 `lr` 和 `cd` 两个兼容命名空间，但只映射已经由底层实现的基础能力，完整兼容需要后续按第三方文档逐项补齐。
 
@@ -1100,9 +1145,9 @@ tap(300, 500)
 | FFI | 后续评估 | 未实现 | 未实现 |
 | 启动线程 | 后续 `m.thread` 模块 | 未实现 | 未实现 |
 
-## 15. 常见错误
+## 16. 常见错误
 
-### 15.1 `root or accessibility service is not available`
+### 16.1 `root or accessibility service is not available`
 
 原因：
 
@@ -1123,7 +1168,7 @@ Android root 不可用，且无障碍服务未开启。
 - `m.key.back` / `m.back`
 - `m.key.home` / `m.home`
 
-### 15.2 `screen capture permission is not granted`
+### 16.2 `screen capture permission is not granted`
 
 原因：
 
@@ -1141,7 +1186,7 @@ Android root 不可用，且无障碍服务未开启。
 
 - `m.screen.capture` / `m.capture`
 
-### 15.3 `image handle is not found`
+### 16.3 `image handle is not found`
 
 原因：
 
@@ -1161,7 +1206,7 @@ Android root 不可用，且无障碍服务未开启。
 - `m.image.getPixel` / `m.getPixel`
 - `m.image.getPixels` / `m.getPixels`
 
-### 15.4 `open file failed`
+### 16.4 `open file failed`
 
 原因：
 
@@ -1179,7 +1224,7 @@ local text, err = m.file.read(path)
 
 第一版建议优先使用 `m.file.appDataPath` 得到 App 私有路径。
 
-## 16. 后续文档维护规则
+## 17. 后续文档维护规则
 
 每新增一个脚本 API，必须同步更新本文档：
 

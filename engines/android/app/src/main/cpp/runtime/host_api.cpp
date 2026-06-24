@@ -328,6 +328,36 @@ int luaFileAppDataPath(lua_State* state) {
     return 1;
 }
 
+int luaAppIsInstalled(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    lua_pushboolean(state, AndroidBridge::appIsInstalled(packageName) ? 1 : 0);
+    return 1;
+}
+
+int luaAppOpen(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appOpen(packageName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "open app failed");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppStop(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appStop(packageName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "stop app failed; root is not available or package name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaTouchTap(lua_State* state) {
     lua_Integer x = luaL_checkinteger(state, 1);
     lua_Integer y = luaL_checkinteger(state, 2);
@@ -558,6 +588,14 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, fileTableIndex, "remove", luaFileRemove);
     setFunctionField(state, fileTableIndex, "appDataPath", luaFileAppDataPath);
     lua_setfield(state, hostTableIndex, "file");
+
+    lua_newtable(state);
+    int appTableIndex = lua_gettop(state);
+    setFunctionField(state, appTableIndex, "isInstalled", luaAppIsInstalled);
+    setFunctionField(state, appTableIndex, "open", luaAppOpen);
+    setFunctionField(state, appTableIndex, "start", luaAppOpen);
+    setFunctionField(state, appTableIndex, "stop", luaAppStop);
+    lua_setfield(state, hostTableIndex, "app");
 
     lua_newtable(state);
     int touchTableIndex = lua_gettop(state);

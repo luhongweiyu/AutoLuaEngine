@@ -125,6 +125,47 @@ bool callStaticBooleanMethod5(const char* methodName,
     return result == JNI_TRUE;
 }
 
+bool callStaticBooleanStringMethod(const char* methodName,
+                                   const char* signature,
+                                   const std::string& value) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return false;
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return false;
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    jstring javaValue = env->NewStringUTF(value.c_str());
+    if (javaValue == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId, javaValue);
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(javaValue);
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    env->DeleteLocalRef(javaValue);
+    env->DeleteLocalRef(bridgeClass);
+    return result == JNI_TRUE;
+}
+
 std::string jStringToString(JNIEnv* env, jstring value) {
     if (value == nullptr) {
         return "";
@@ -274,6 +315,18 @@ RootExecResult AndroidBridge::rootExec(const std::string& command, int timeoutMs
     env->DeleteLocalRef(bridgeClass);
 
     return result;
+}
+
+bool AndroidBridge::appIsInstalled(const std::string& packageName) {
+    return callStaticBooleanStringMethod("appIsInstalled", "(Ljava/lang/String;)Z", packageName);
+}
+
+bool AndroidBridge::appOpen(const std::string& packageName) {
+    return callStaticBooleanStringMethod("appOpen", "(Ljava/lang/String;)Z", packageName);
+}
+
+bool AndroidBridge::appStop(const std::string& packageName) {
+    return callStaticBooleanStringMethod("appStop", "(Ljava/lang/String;)Z", packageName);
 }
 
 bool AndroidBridge::hasScreenCapturePermission() {

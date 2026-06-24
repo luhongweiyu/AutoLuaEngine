@@ -38,6 +38,9 @@ public:
     static bool isRootModeEnabled();
     static bool isRootAvailable();
     static RootExecResult rootExec(const std::string& command, int timeoutMs);
+    static bool appIsInstalled(const std::string& packageName);
+    static bool appOpen(const std::string& packageName);
+    static bool appStop(const std::string& packageName);
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static bool touchTap(int x, int y);

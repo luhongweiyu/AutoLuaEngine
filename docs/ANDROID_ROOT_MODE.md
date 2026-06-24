@@ -20,6 +20,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - Home：`m.key.home` / `m.home`
 - 截图：`m.screen.capture()` / `m.capture()`
 - 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+- 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 
 ## 2. 执行策略

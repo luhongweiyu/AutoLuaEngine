@@ -34,6 +34,19 @@ public final class AndroidHostBridge {
         return RootShellBridge.exec(command, timeoutMs);
     }
 
+    public static boolean appIsInstalled(String packageName) {
+        return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
+    }
+
+    public static boolean appOpen(String packageName) {
+        return appContext != null
+                && AppControlBridge.open(appContext, packageName, isRootModeEnabledInternal());
+    }
+
+    public static boolean appStop(String packageName) {
+        return AppControlBridge.stop(packageName);
+    }
+
     public static boolean touchTap(int x, int y) {
         if (isRootModeEnabledInternal() && RootShellBridge.tap(x, y)) {
             return true;

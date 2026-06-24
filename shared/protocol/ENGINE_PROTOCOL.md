@@ -321,6 +321,101 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
+## 9.2 `app.isInstalled`
+
+说明：
+
+- 判断 Android 包是否已安装
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "app.isInstalled",
+  "params": {
+    "packageName": "com.android.settings"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "result": {
+    "installed": true
+  }
+}
+```
+
+## 9.3 `app.open` / `app.start`
+
+说明：
+
+- 启动 Android 应用
+- Root 模式开启且 root 可用时优先 root 启动，失败后回退普通 Launcher Intent
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "app.open",
+  "params": {
+    "packageName": "com.android.settings"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.4 `app.stop`
+
+说明：
+
+- 强停 Android 应用
+- 当前通过 root `am force-stop` 实现
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "app.stop",
+  "params": {
+    "packageName": "com.example.target"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+    "ok": true
+  }
+}
+```
+
 ## 10. 日志事件
 
 WebSocket 事件：

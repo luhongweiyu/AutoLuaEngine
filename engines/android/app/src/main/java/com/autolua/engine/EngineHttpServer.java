@@ -145,6 +145,27 @@ public final class EngineHttpServer {
             return makeRootExecResult(RootShellBridge.exec(command, timeoutMs));
         }
 
+        if ("app.isInstalled".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("installed", AndroidHostBridge.appIsInstalled(packageName));
+            return result;
+        }
+
+        if ("app.open".equals(method) || "app.start".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appOpen(packageName));
+            return result;
+        }
+
+        if ("app.stop".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appStop(packageName));
+            return result;
+        }
+
         if ("script.run".equals(method)) {
             String language = params.optString("language", "lua");
             if (!"lua".equals(language)) {
@@ -277,6 +298,14 @@ public final class EngineHttpServer {
         result.put("timedOut", rootResult.timedOut);
         result.put("error", rootResult.error);
         return result;
+    }
+
+    private static String requirePackageName(JSONObject params) {
+        String packageName = params.optString("packageName", "");
+        if (packageName.trim().isEmpty()) {
+            throw new IllegalArgumentException("packageName is required");
+        }
+        return packageName;
     }
 
     private static HttpRequest readRequest(InputStream inputStream) throws IOException {
