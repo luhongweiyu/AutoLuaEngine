@@ -49,6 +49,7 @@
 | Root 进程 | `m.root.process.pidOf(name)` | `m.rootPidOf(name)` | [查看](#api-root-process-pid-of) |
 | Root 进程 | `m.root.process.list()` | `m.rootProcessList()` | [查看](#api-root-process-list) |
 | Root 进程 | `m.root.process.info(target)` | `m.rootProcessInfo(...)` | [查看](#api-root-process-info) |
+| Root 进程 | `m.root.process.stats(target)` | `m.rootProcessStats(...)` | [查看](#api-root-process-stats) |
 | Root 进程 | `m.root.process.kill(target, signal)` | `m.rootKill(...)` | [查看](#api-root-process-kill) |
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
 | 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
@@ -87,8 +88,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootProcessStats`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootProcessStats`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -1239,7 +1240,61 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.26 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.26 `m.root.process.stats(target)` / `m.rootProcessStats(...)`
+
+通过 root shell 读取 `/proc/<pid>/status`，返回指定进程的资源和状态字段。`target` 可以是 PID，也可以是进程名；传进程名时只读取第一个匹配 PID。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `target` | number 或 string | PID，或进程名 |
+
+返回值：
+
+```text
+成功：stats
+失败：nil, errorMessage
+```
+
+常用字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `name` | string | 进程名 |
+| `state` | string | 进程状态，例如 `S (sleeping)` |
+| `pid` | number | 进程 ID |
+| `ppid` | number | 父进程 ID |
+| `uid` | number | 实际 UID |
+| `gid` | number | 实际 GID |
+| `threads` | number | 线程数 |
+| `vmRssKb` | number | 常驻内存，单位 KB |
+| `vmSizeKb` | number | 虚拟内存，单位 KB |
+| `rssAnonKb` | number | 匿名页常驻内存，单位 KB |
+| `rssFileKb` | number | 文件页常驻内存，单位 KB |
+| `voluntaryContextSwitches` | number | 主动上下文切换次数 |
+| `nonvoluntaryContextSwitches` | number | 非主动上下文切换次数 |
+
+示例：
+
+```lua
+local stats, err = m.root.process.stats("com.android.settings")
+if not stats then
+    print("process stats failed:", err)
+    return
+end
+
+print(stats.pid, stats.name, stats.vmRssKb, stats.threads)
+```
+
+说明：
+
+- 该接口不受 Root 模式开关影响，会直接尝试 root。
+- 不同 Android 内核版本可能缺少部分 `/proc/<pid>/status` 字段，脚本应只依赖文档列出的常用字段。
+
+<a id="api-root-process-kill"></a>
+
+### 6.27 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -2339,6 +2394,7 @@ end
 | `root.process.pidOf` | 查询进程名对应 PID |
 | `root.process.list` | 获取 root 进程列表 |
 | `root.process.info` | 获取指定 root 进程详情 |
+| `root.process.stats` | 获取指定 root 进程资源统计 |
 | `root.process.kill` | 结束指定进程 |
 | `script.run` | 发送并执行脚本 |
 | `script.pause` | 请求暂停当前脚本 |

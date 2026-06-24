@@ -1246,6 +1246,15 @@ RootExecResult AndroidBridge::rootProcessInfo(const std::string& pidOrName) {
     );
 }
 
+RootExecResult AndroidBridge::rootProcessStats(const std::string& pidOrName) {
+    return callStaticRootResultStringMethod(
+            "rootProcessStats",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            pidOrName,
+            "root process stats"
+    );
+}
+
 RootExecResult AndroidBridge::rootProcessKill(const std::string& pidOrName, int signal) {
     return callStaticRootResultStringIntMethod(
             "rootProcessKill",

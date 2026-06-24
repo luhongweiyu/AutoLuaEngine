@@ -158,6 +158,7 @@ root.file.chown
 root.process.pidOf
 root.process.list
 root.process.info
+root.process.stats
 root.process.kill
 app.isInstalled
 app.open

@@ -60,6 +60,7 @@ m.rootChown = host.root.file.chown
 m.rootPidOf = host.root.process.pidOf
 m.rootProcessList = host.root.process.list
 m.rootProcessInfo = host.root.process.info
+m.rootProcessStats = host.root.process.stats
 m.rootKill = host.root.process.kill
 m.openApp = host.app.open
 m.startApp = host.app.start

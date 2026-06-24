@@ -78,6 +78,7 @@ public:
     static RootExecResult rootProcessPidOf(const std::string& processName);
     static RootExecResult rootProcessList();
     static RootExecResult rootProcessInfo(const std::string& pidOrName);
+    static RootExecResult rootProcessStats(const std::string& pidOrName);
     static RootExecResult rootProcessKill(const std::string& pidOrName, int signal);
     static RootExecResult deviceScreenState();
     static RootExecResult deviceWake();

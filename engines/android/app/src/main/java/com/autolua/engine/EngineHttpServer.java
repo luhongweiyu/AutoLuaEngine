@@ -535,6 +535,15 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("root.process.stats".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.processStats(requireProcessTarget(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root process stats failed"));
+            }
+
+            return parseProcessStats(rootResult.stdout);
+        }
+
         if ("root.process.kill".equals(method)) {
             RootCommandResult rootResult = RootShellBridge.killProcess(
                     requireProcessTarget(params),
@@ -1124,6 +1133,102 @@ public final class EngineHttpServer {
         } catch (NumberFormatException ignored) {
             // 不符合明确列格式的行直接跳过，避免设备差异导致整个响应失败。
             return null;
+        }
+    }
+
+    private static JSONObject parseProcessStats(String stdout) throws JSONException {
+        JSONObject result = new JSONObject();
+        if (stdout == null || stdout.trim().isEmpty()) {
+            throw new IllegalStateException("root process stats output is empty");
+        }
+
+        // /proc/<pid>/status 是 key:value 文本。这里只挑脚本层常用字段，
+        // 字段缺失时保持默认不写入，避免不同 Android 内核版本的差异放大成失败。
+        String[] lines = stdout.split("\\r?\\n");
+        for (String line : lines) {
+            int separator = line.indexOf(':');
+            if (separator <= 0) {
+                continue;
+            }
+
+            String key = line.substring(0, separator).trim();
+            String value = line.substring(separator + 1).trim();
+            if ("Name".equals(key)) {
+                result.put("name", value);
+            } else if ("State".equals(key)) {
+                result.put("state", value);
+            } else if ("Pid".equals(key)) {
+                result.put("pid", parseLeadingLong(value, 0));
+            } else if ("PPid".equals(key)) {
+                result.put("ppid", parseLeadingLong(value, 0));
+            } else if ("TracerPid".equals(key)) {
+                result.put("tracerPid", parseLeadingLong(value, 0));
+            } else if ("Uid".equals(key)) {
+                result.put("uid", parseLeadingLong(value, -1));
+            } else if ("Gid".equals(key)) {
+                result.put("gid", parseLeadingLong(value, -1));
+            } else if ("Threads".equals(key)) {
+                result.put("threads", parseLeadingLong(value, 0));
+            } else if ("VmPeak".equals(key)) {
+                result.put("vmPeakKb", parseLeadingLong(value, 0));
+            } else if ("VmSize".equals(key)) {
+                result.put("vmSizeKb", parseLeadingLong(value, 0));
+            } else if ("VmRSS".equals(key)) {
+                result.put("vmRssKb", parseLeadingLong(value, 0));
+            } else if ("RssAnon".equals(key)) {
+                result.put("rssAnonKb", parseLeadingLong(value, 0));
+            } else if ("RssFile".equals(key)) {
+                result.put("rssFileKb", parseLeadingLong(value, 0));
+            } else if ("RssShmem".equals(key)) {
+                result.put("rssShmemKb", parseLeadingLong(value, 0));
+            } else if ("VmData".equals(key)) {
+                result.put("vmDataKb", parseLeadingLong(value, 0));
+            } else if ("VmStk".equals(key)) {
+                result.put("vmStackKb", parseLeadingLong(value, 0));
+            } else if ("VmExe".equals(key)) {
+                result.put("vmExeKb", parseLeadingLong(value, 0));
+            } else if ("VmLib".equals(key)) {
+                result.put("vmLibKb", parseLeadingLong(value, 0));
+            } else if ("voluntary_ctxt_switches".equals(key)) {
+                result.put("voluntaryContextSwitches", parseLeadingLong(value, 0));
+            } else if ("nonvoluntary_ctxt_switches".equals(key)) {
+                result.put("nonvoluntaryContextSwitches", parseLeadingLong(value, 0));
+            }
+        }
+
+        if (!result.has("pid") && !result.has("name")) {
+            throw new IllegalStateException("root process stats output is invalid");
+        }
+        return result;
+    }
+
+    private static long parseLeadingLong(String value, long defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return defaultValue;
+        }
+
+        int end = 0;
+        while (end < trimmed.length()) {
+            char ch = trimmed.charAt(end);
+            if ((ch >= '0' && ch <= '9') || (end == 0 && ch == '-')) {
+                end++;
+                continue;
+            }
+            break;
+        }
+        if (end == 0 || (end == 1 && trimmed.charAt(0) == '-')) {
+            return defaultValue;
+        }
+
+        try {
+            return Long.parseLong(trimmed.substring(0, end));
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
         }
     }
 

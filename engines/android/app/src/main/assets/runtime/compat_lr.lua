@@ -39,6 +39,7 @@ local lr = {
     rootPidOf = host.root.process.pidOf,
     rootProcessList = host.root.process.list,
     rootProcessInfo = host.root.process.info,
+    rootProcessStats = host.root.process.stats,
     rootKill = host.root.process.kill,
     runApp = host.app.open,
     closeApp = host.app.stop,

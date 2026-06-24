@@ -25,7 +25,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 - Root 探测状态：`m.root.status()` / `m.rootStatus()` / HTTP `root.status`
 - Root 文件：`m.root.file.exists/readText/writeText/stat/list/remove/mkdir/chmod/chown`，当前是文本、状态、列表和基础权限第一版
-- Root 进程：`m.root.process.pidOf/list/info/kill`，当前是查询 PID、进程列表、进程详情和结束进程第一版
+- Root 进程：`m.root.process.pidOf/list/info/stats/kill`，当前是查询 PID、进程列表、进程详情、资源统计和结束进程第一版
 - Root 设备：`m.device.screenState/wake/sleep/battery/rotation/setRotation/settings/prop/display`，当前是屏幕状态、唤醒/息屏、电量、方向控制、系统设置、系统属性、显示参数和亮度控制第一版
 - 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke/current/install/uninstall/disable/enable/disableComponent/enableComponent` 走 root 做数据、权限、前台查询、包管理和组件启停
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
@@ -146,7 +146,7 @@ print(img.source, img.captureDurationMs)
 - root 截图虽已避开 PNG 编码和磁盘 IO，但仍不适合作最终高频找色方案。
 - 文本输入当前支持 root `input text` 和剪贴板粘贴；剪贴板路线会覆盖系统剪贴板，且依赖焦点控件支持粘贴。
 - Root 文件 API 当前只承诺 UTF-8 文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，不承诺二进制传输。
-- Root 进程 API 当前只承诺 `pidOf/list/info/kill`，不承诺资源占用统计或守护能力。
+- Root 进程 API 当前只承诺 `pidOf/list/info/stats/kill`，其中 `stats` 读取 `/proc/<pid>/status` 的常用资源字段，暂不承诺守护能力。
 - Root 设备 API 当前只承诺屏幕状态、唤醒/息屏、电量、方向读写、显示参数和亮度控制；不同系统版本的 `dumpsys`、`wm` 和 `settings` 输出可能需要继续适配。
 - Root 系统设置和属性 API 当前只承诺 `settings get/put/delete`、`getprop/setprop` 底层能力；更高层语义后续单独封装。
 - Root 显示 API 当前只承诺 `wm size`、`wm density` 和亮度 settings 的第一版封装；修改分辨率和 DPI 后建议脚本主动恢复默认值。
@@ -161,7 +161,7 @@ print(img.source, img.captureDurationMs)
 1. root 截图优化：评估常驻 root 进程直接取 framebuffer / Surface，减少每帧创建进程和复制大块 stdout 的开销。
 2. root 输入优化：继续在真实 root 设备上压测常驻 root shell，确认点击、滑动、按键连续执行稳定性。
 3. root 文件能力：当前已有文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown；后续补二进制传输。
-4. root 进程能力：当前已有 `pidOf/list/info/kill`；后续补资源占用统计和守护脚本需要的状态查询。
+4. root 进程能力：当前已有 `pidOf/list/info/stats/kill`；后续补守护脚本需要的状态查询。
 5. root 引擎进程：如果需要更强能力，再参考旧项目 root engine 做独立 root service。
 
 暂不做：

@@ -236,6 +236,25 @@ public final class RootShellBridge {
         return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
     }
 
+    public static RootCommandResult processStats(String pidOrName) {
+        if (pidOrName == null || pidOrName.trim().isEmpty()) {
+            return RootCommandResult.failure("process id or name is required");
+        }
+
+        // 资源统计直接读取 /proc/<pid>/status。传进程名时只取第一个 PID，
+        // 避免同名多进程时返回多段 status 导致 Lua/HTTP 侧解析不稳定。
+        String target = pidOrName.trim();
+        String command;
+        if (target.matches("\\d+")) {
+            command = processStatsCommand(target);
+        } else {
+            command = "pid=$(pidof " + shellQuote(target) + " 2>/dev/null | awk '{print $1}'); "
+                    + "[ -n \"$pid\" ] || exit 1; "
+                    + processStatsCommand("$pid");
+        }
+        return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
     public static RootCommandResult killProcess(String pidOrName, int signal) {
         if (pidOrName == null || pidOrName.trim().isEmpty()) {
             return RootCommandResult.failure("process id or name is required");
@@ -257,6 +276,13 @@ public final class RootShellBridge {
     private static String processListCommand() {
         // Android toybox `ps` 支持 -o 指定列；明确列顺序后，Java/HTTP 和 Lua 都可以稳定解析。
         return "ps -A -o PID,PPID,USER,NAME,ARGS";
+    }
+
+    private static String processStatsCommand(String pidExpression) {
+        // pidExpression 可以是普通数字，也可以是 shell 变量 $pid；
+        // 这里不加 shellQuote，保留变量展开能力。
+        String statusPath = "/proc/" + pidExpression + "/status";
+        return "[ -r " + statusPath + " ] || exit 1; cat " + statusPath;
     }
 
     public static boolean tap(int x, int y) {

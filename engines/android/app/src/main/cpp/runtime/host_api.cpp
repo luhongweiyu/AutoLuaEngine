@@ -708,6 +708,29 @@ struct ProcessInfo {
     std::string args;
 };
 
+struct ProcessStats {
+    std::string name;
+    std::string state;
+    int pid = 0;
+    int ppid = 0;
+    int tracerPid = 0;
+    int uid = -1;
+    int gid = -1;
+    int threads = 0;
+    long long vmPeakKb = 0;
+    long long vmSizeKb = 0;
+    long long vmRssKb = 0;
+    long long rssAnonKb = 0;
+    long long rssFileKb = 0;
+    long long rssShmemKb = 0;
+    long long vmDataKb = 0;
+    long long vmStackKb = 0;
+    long long vmExeKb = 0;
+    long long vmLibKb = 0;
+    long long voluntaryContextSwitches = 0;
+    long long nonvoluntaryContextSwitches = 0;
+};
+
 bool parseProcessLine(const std::string& line, ProcessInfo* process) {
     if (process == nullptr || line.empty()) {
         return false;
@@ -765,6 +788,87 @@ std::vector<ProcessInfo> parseProcessList(const std::string& text) {
     return processes;
 }
 
+std::string trimStatusValue(const std::string& value) {
+    return trimKeyValueText(value);
+}
+
+long long parseLeadingInteger(const std::string& value, long long defaultValue) {
+    std::string trimmed = trimStatusValue(value);
+    char* end = nullptr;
+    long long parsed = std::strtoll(trimmed.c_str(), &end, 10);
+    if (end == trimmed.c_str()) {
+        return defaultValue;
+    }
+    return parsed;
+}
+
+int parseFirstId(const std::string& value) {
+    return static_cast<int>(parseLeadingInteger(value, -1));
+}
+
+bool parseProcessStatus(const std::string& text, ProcessStats* stats) {
+    if (stats == nullptr || text.empty()) {
+        return false;
+    }
+
+    // /proc/<pid>/status 是稳定的 key:value 文本，适合作为第一版进程资源统计来源。
+    // 这里只解析常用字段，后续要补 CPU 时间或 IO 统计时再新增专门接口。
+    std::istringstream stream(text);
+    std::string line;
+    while (std::getline(stream, line)) {
+        size_t separator = line.find(':');
+        if (separator == std::string::npos || separator == 0) {
+            continue;
+        }
+
+        std::string key = trimStatusValue(line.substr(0, separator));
+        std::string value = trimStatusValue(line.substr(separator + 1));
+        if (key == "Name") {
+            stats->name = value;
+        } else if (key == "State") {
+            stats->state = value;
+        } else if (key == "Pid") {
+            stats->pid = static_cast<int>(parseLeadingInteger(value, 0));
+        } else if (key == "PPid") {
+            stats->ppid = static_cast<int>(parseLeadingInteger(value, 0));
+        } else if (key == "TracerPid") {
+            stats->tracerPid = static_cast<int>(parseLeadingInteger(value, 0));
+        } else if (key == "Uid") {
+            stats->uid = parseFirstId(value);
+        } else if (key == "Gid") {
+            stats->gid = parseFirstId(value);
+        } else if (key == "Threads") {
+            stats->threads = static_cast<int>(parseLeadingInteger(value, 0));
+        } else if (key == "VmPeak") {
+            stats->vmPeakKb = parseLeadingInteger(value, 0);
+        } else if (key == "VmSize") {
+            stats->vmSizeKb = parseLeadingInteger(value, 0);
+        } else if (key == "VmRSS") {
+            stats->vmRssKb = parseLeadingInteger(value, 0);
+        } else if (key == "RssAnon") {
+            stats->rssAnonKb = parseLeadingInteger(value, 0);
+        } else if (key == "RssFile") {
+            stats->rssFileKb = parseLeadingInteger(value, 0);
+        } else if (key == "RssShmem") {
+            stats->rssShmemKb = parseLeadingInteger(value, 0);
+        } else if (key == "VmData") {
+            stats->vmDataKb = parseLeadingInteger(value, 0);
+        } else if (key == "VmStk") {
+            stats->vmStackKb = parseLeadingInteger(value, 0);
+        } else if (key == "VmExe") {
+            stats->vmExeKb = parseLeadingInteger(value, 0);
+        } else if (key == "VmLib") {
+            stats->vmLibKb = parseLeadingInteger(value, 0);
+        } else if (key == "voluntary_ctxt_switches") {
+            stats->voluntaryContextSwitches = parseLeadingInteger(value, 0);
+        } else if (key == "nonvoluntary_ctxt_switches") {
+            stats->nonvoluntaryContextSwitches = parseLeadingInteger(value, 0);
+        }
+    }
+
+    return stats->pid > 0 || !stats->name.empty();
+}
+
 void pushProcessInfo(lua_State* state, const ProcessInfo& process) {
     lua_newtable(state);
     lua_pushinteger(state, process.pid);
@@ -777,6 +881,37 @@ void pushProcessInfo(lua_State* state, const ProcessInfo& process) {
     lua_setfield(state, -2, "name");
     lua_pushstring(state, process.args.c_str());
     lua_setfield(state, -2, "args");
+}
+
+void setIntegerField(lua_State* state, const char* name, long long value) {
+    lua_pushinteger(state, static_cast<lua_Integer>(value));
+    lua_setfield(state, -2, name);
+}
+
+void pushProcessStats(lua_State* state, const ProcessStats& stats) {
+    lua_newtable(state);
+    lua_pushstring(state, stats.name.c_str());
+    lua_setfield(state, -2, "name");
+    lua_pushstring(state, stats.state.c_str());
+    lua_setfield(state, -2, "state");
+    setIntegerField(state, "pid", stats.pid);
+    setIntegerField(state, "ppid", stats.ppid);
+    setIntegerField(state, "tracerPid", stats.tracerPid);
+    setIntegerField(state, "uid", stats.uid);
+    setIntegerField(state, "gid", stats.gid);
+    setIntegerField(state, "threads", stats.threads);
+    setIntegerField(state, "vmPeakKb", stats.vmPeakKb);
+    setIntegerField(state, "vmSizeKb", stats.vmSizeKb);
+    setIntegerField(state, "vmRssKb", stats.vmRssKb);
+    setIntegerField(state, "rssAnonKb", stats.rssAnonKb);
+    setIntegerField(state, "rssFileKb", stats.rssFileKb);
+    setIntegerField(state, "rssShmemKb", stats.rssShmemKb);
+    setIntegerField(state, "vmDataKb", stats.vmDataKb);
+    setIntegerField(state, "vmStackKb", stats.vmStackKb);
+    setIntegerField(state, "vmExeKb", stats.vmExeKb);
+    setIntegerField(state, "vmLibKb", stats.vmLibKb);
+    setIntegerField(state, "voluntaryContextSwitches", stats.voluntaryContextSwitches);
+    setIntegerField(state, "nonvoluntaryContextSwitches", stats.nonvoluntaryContextSwitches);
 }
 
 int pushProcessListResult(lua_State* state,
@@ -836,6 +971,37 @@ int luaRootProcessInfo(lua_State* state) {
 
     RootExecResult result = AndroidBridge::rootProcessInfo(target);
     return pushProcessListResult(state, result, "root process info failed");
+}
+
+int luaRootProcessStats(lua_State* state) {
+    std::string target;
+    if (lua_isinteger(state, 1)) {
+        lua_Integer pid = lua_tointeger(state, 1);
+        if (pid <= 0) {
+            return luaL_error(state, "process pid must be greater than 0");
+        }
+        target = std::to_string(static_cast<long long>(pid));
+    } else {
+        target = luaL_checkstring(state, 1);
+    }
+
+    RootExecResult result = AndroidBridge::rootProcessStats(target);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root process stats failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    ProcessStats stats;
+    if (!parseProcessStatus(result.stdoutText, &stats)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "root process stats output is invalid");
+        return 2;
+    }
+
+    pushProcessStats(state, stats);
+    return 1;
 }
 
 int luaRootProcessKill(lua_State* state) {
@@ -1557,6 +1723,7 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, rootProcessTableIndex, "pidOf", luaRootProcessPidOf);
     setFunctionField(state, rootProcessTableIndex, "list", luaRootProcessList);
     setFunctionField(state, rootProcessTableIndex, "info", luaRootProcessInfo);
+    setFunctionField(state, rootProcessTableIndex, "stats", luaRootProcessStats);
     setFunctionField(state, rootProcessTableIndex, "kill", luaRootProcessKill);
     lua_setfield(state, rootTableIndex, "process");
 
