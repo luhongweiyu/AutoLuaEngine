@@ -366,6 +366,27 @@ image.getPixels count = 3
 image.release success
 ```
 
+截图压测脚本：
+
+```text
+screen benchmark started
+first frame size = 宽 高
+first frame source = root-screencap 或 media-projection
+first frame durationMs = 单帧耗时
+sample pixels = 3
+benchmark success frames = 10
+benchmark avgDurationMs = 平均取帧耗时
+source count = 截图来源 帧数
+```
+
+说明：
+
+```text
+source 为 root-screencap 表示本帧走 root 原始截图。
+source 为 media-projection 表示本帧走系统截图授权。
+当前模拟器如果拒绝 App 的 su 授权，会回退或失败；换能给 App 授权 su 的设备后再压测 root 成功路径。
+```
+
 授权方式：
 
 ```text

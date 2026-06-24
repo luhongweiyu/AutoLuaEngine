@@ -333,6 +333,9 @@ public final class MainActivity extends Activity {
         if ("scripts/screen.lua".equals(assetPath)) {
             return R.id.button_script_screen;
         }
+        if ("scripts/screen_benchmark.lua".equals(assetPath)) {
+            return R.id.button_script_screen_benchmark;
+        }
         return R.id.button_script_main;
     }
 

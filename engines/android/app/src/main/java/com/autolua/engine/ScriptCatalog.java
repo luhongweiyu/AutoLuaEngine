@@ -17,7 +17,8 @@ public final class ScriptCatalog {
             new ScriptItem("错误验证", "scripts/error.lua", "验证脚本错误返回"),
             new ScriptItem("循环停止", "scripts/loop.lua", "验证长循环和停止"),
             new ScriptItem("触控验证", "scripts/touch.lua", "验证点击、滑动和无障碍状态"),
-            new ScriptItem("截图验证", "scripts/screen.lua", "验证截图句柄和取色")
+            new ScriptItem("截图验证", "scripts/screen.lua", "验证截图句柄和取色"),
+            new ScriptItem("截图压测", "scripts/screen_benchmark.lua", "连续截图、释放图片句柄并统计耗时")
     };
 
     private ScriptCatalog() {

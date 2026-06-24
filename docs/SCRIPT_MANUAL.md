@@ -288,6 +288,16 @@ m.image.release(img)
 
 不要在循环中反复把截图编码成文件再读取。后续找色、比色算法也会基于 native 内存图片句柄实现。
 
+App 内置 `截图压测` 脚本会连续截 10 帧，逐帧释放图片句柄，并输出：
+
+```text
+first frame source = root-screencap 或 media-projection
+benchmark avgDurationMs = 平均取帧耗时
+source count = 每种截图来源的帧数
+```
+
+换到能给 App 授权 `su` 的设备后，优先看 `source` 是否为 `root-screencap`。如果仍是 `media-projection`，说明 root 截图路径没有拿到授权或执行失败。
+
 ## 4. 全局函数
 
 <a id="api-print"></a>
@@ -2145,6 +2155,7 @@ m.image.release(img)
 - 返回的是图片句柄，不是文件路径。
 - 图片像素数据保留在 native 内存中。
 - `source` 和 `captureDurationMs` 用于判断当前是否真的走 root 截图，以及后续压测截图路径。
+- App 内置 `截图压测` 脚本可连续验证多帧截图耗时；压测脚本会主动释放每一帧图片句柄。
 - 使用完必须调用 `m.image.release(img)`。
 
 ## 13. 图片 API

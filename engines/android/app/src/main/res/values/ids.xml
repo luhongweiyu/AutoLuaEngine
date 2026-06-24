@@ -17,5 +17,6 @@
     <item name="button_script_loop" type="id" />
     <item name="button_script_touch" type="id" />
     <item name="button_script_screen" type="id" />
+    <item name="button_script_screen_benchmark" type="id" />
     <item name="text_output" type="id" />
 </resources>
