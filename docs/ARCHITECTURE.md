@@ -92,6 +92,35 @@ engine_jni -> Engine -> LuaRuntime
 
 当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。悬浮控制使用系统 overlay 小圆点，回到 Home 或切换到其他 App 后仍会贴边显示，点击后弹出运行、暂停、停止、截图等控制面板。脚本运行已经下沉到后台 `EngineService`，主界面和悬浮图标只负责发送运行/停止命令并接收状态广播，不直接持有脚本执行线程。是否使用独立 Android 进程 `:engine` 后续再评估。
 
+旧项目参考结论：
+
+```text
+MainService   主控、悬浮窗、状态管理
+NativeService 脚本执行，独立进程 :sc
+PluginService 插件扩展，独立进程 :ps
+CoreProvider  跨进程核心入口
+```
+
+当前项目不直接照搬旧项目代码，但后续 Android 引擎可以按类似方向演进：
+
+```text
+主进程
+├─ MainActivity
+├─ FloatingControlService
+├─ EngineService 或 EngineController
+└─ EngineHttpServer
+
+脚本进程 :engine
+├─ ScriptProcessService
+├─ NativeEngine
+└─ libengine.so / LuaRuntime
+
+插件进程 :plugin
+└─ 后续再做
+```
+
+拆进程前需要先保证脚本状态、日志、截图句柄、停止请求都有明确跨进程协议。
+
 当前 ScriptTask 状态：
 
 ```text
@@ -217,6 +246,8 @@ m.touch.tap / m.touch.swipe -> AccessibilityService
 m.key.back / m.key.home -> AccessibilityService performGlobalAction
 m.screen.capture -> MediaProjection + ImageReader -> native 内存图片句柄
 ```
+
+旧项目里还有 `httpGet/httpPost`、Toast、HUD、剪贴板、输入法输入、启动 App、UI 控件查找、Java 对象桥、root 引擎等能力。当前只把它们作为后续 API 候选，新增时仍然先进入 `m.*`，再由 Lua 层适配 `lr.*` 和 `cd.*`。
 
 ### 3.5 EngineProtocol
 

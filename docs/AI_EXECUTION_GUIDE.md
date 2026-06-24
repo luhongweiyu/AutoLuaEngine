@@ -27,8 +27,9 @@ Android + Lua + 最小 HostApi
 1. 阅读 `README.md`
 2. 阅读 `docs/PROJECT_PLAN.md`
 3. 阅读当前要改动相关的架构/API 文档
-4. 检查工作区是否有已有文件和未完成改动
-5. 不要删除或重写用户已有改动
+4. 如果改 Android 引擎、悬浮窗、脚本 API 或兼容层，阅读 `docs/OLD_PROJECT_REFERENCE.md`
+5. 检查工作区是否有已有文件和未完成改动
+6. 不要删除或重写用户已有改动
 
 ## 3. 推进顺序
 
@@ -114,13 +115,11 @@ tools/                                  PC 辅助脚本或调试工具
 
 ## 7. 当前下一步
 
-等待用户完成工具链准备，然后创建 Android Native 工程。
+当前已进入 Android + Lua 第一版基础闭环完善阶段。
 
-用户需要确认：
+优先顺序：
 
-- Android Studio 是否升级完成
-- SDK / NDK / CMake 是否安装
-- 项目名称
-- Android 包名
-- 最低 Android 版本
-- 测试设备或模拟器
+1. 完善悬浮控制：位置持久化、隐藏状态、日志入口、设置入口。
+2. 固化脚本任务状态和暂停语义。
+3. 评估脚本执行进程是否拆为独立 `:engine` 进程。
+4. 继续补基础 `m.*` API，并同步维护 `docs/SCRIPT_MANUAL.md` 顶部速查表。

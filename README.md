@@ -19,6 +19,7 @@
 - [引擎脚本文档](docs/SCRIPT_MANUAL.md)
 - [构建与运行](docs/BUILD_AND_RUN.md)
 - [引擎通讯协议](shared/protocol/ENGINE_PROTOCOL.md)
+- [旧项目参考记录](docs/OLD_PROJECT_REFERENCE.md)
 - [AI 执行规范](docs/AI_EXECUTION_GUIDE.md)
 - [用户待办事项](docs/USER_TODO.md)
 

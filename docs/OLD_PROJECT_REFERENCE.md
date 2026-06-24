@@ -1,0 +1,128 @@
+# 旧项目参考记录
+
+本文档记录 `E:\workspace\pc\老项目` 中可以参考的设计结论，供后续开发 AutoLuaEngine 时查阅。
+
+## 1. 来源
+
+旧项目目录：
+
+```text
+E:\workspace\pc\老项目
+```
+
+主要内容：
+
+- `script_0.apk`：早期版本，包名约为 `com.nx.nxproj`，结构相对清晰。
+- `script_1.apk`：较新版本，包名约为 `com.nx.nxprojit`，功能更多，但混淆更重。
+- `recovered_project`：已还原出的 apktool / jadx / 分析文件。
+
+使用原则：
+
+1. 只参考架构、功能拆分、交互方式和 API 能力清单。
+2. 不直接复制反编译代码、混淆类名或第三方库实现。
+3. 当前第一版仍然只做 Android + Lua，不因为旧项目功能多就提前扩散。
+
+## 2. Android 服务和进程结构
+
+旧项目新版有明显的多进程结构：
+
+```text
+MainService      主控制服务，负责悬浮窗、脚本控制、状态管理
+NativeService    脚本执行服务，manifest 中使用 android:process=":sc"
+PluginService    插件/扩展服务，manifest 中使用 android:process=":ps"
+CoreProvider     跨进程核心入口
+```
+
+可参考结论：
+
+- 主控进程负责 UI、权限、悬浮窗、状态展示。
+- 脚本执行进程单独加载引擎并运行脚本，脚本结束后可以回收进程。
+- 插件扩展进程单独隔离，避免插件影响主控。
+
+当前项目处理方式：
+
+- 第一版已经有 `EngineService` 和 `FloatingControlService`，先保持简单可运行。
+- 后续评估把真正执行 Lua 的部分拆到 `:engine` 或 `:script` 独立进程。
+- 拆进程前必须先固化脚本状态、日志、停止、截图句柄释放这些跨进程协议。
+
+## 3. 悬浮控制参考
+
+旧项目悬浮窗是“贴边小图标 + 展开控制条”的模式，展开后包含：
+
+```text
+运行
+暂停
+设置
+日志
+用户事件
+退出
+菜单
+```
+
+可参考结论：
+
+- 悬浮小图标需要在 Home 或其他 App 上继续显示。
+- 展开面板应优先放高频操作：运行、暂停、停止、截图。
+- 日志、设置、用户事件是后续必须补的入口。
+- 悬浮窗位置、展开状态、隐藏状态需要持久化。
+
+当前项目处理方式：
+
+- 已实现贴边小圆点和展开面板。
+- 已有运行、暂停入口、停止、截图、隐藏、关闭服务。
+- 后续补齐：记住位置、记住隐藏状态、日志入口、设置入口、用户事件入口。
+
+## 4. 脚本 API 能力参考
+
+旧项目中可以作为后续 API 方向参考的能力：
+
+```text
+触控：click / swipe / longClick / keyPress / dispatchGesture
+控件：findOnce / findAll / id / text / desc / className / bounds / setText / scroll
+截图：snapShot / snapShotFile / bitmap cache
+网络：httpGet / httpPost / httpPostData
+系统：Toast / HUD / 剪贴板 / 输入法输入 / 启动 App
+扩展：Lua newthread / Java 对象桥 / Java 反射调用 / loadApk
+模式：无障碍模式 / root 或激活模式
+```
+
+当前项目处理方式：
+
+- 已实现基础触控、按键、截图、图片句柄、取色、批量取点。
+- 高频截图和点阵读取继续走 native 内存句柄，不通过 HTTP 返回大像素数据。
+- 找色、比色、找图等算法后续再做，不提前塞进第一版。
+- Java 对象桥、FFI、插件加载、线程先保留架构位置，不进入当前闭环。
+
+## 5. 兼容层策略
+
+后续函数命名保持三层：
+
+```text
+m.*   AutoLuaEngine 正式 API
+lr.*  懒人精灵兼容层
+cd.*  触动精灵兼容层
+```
+
+规则：
+
+1. 底层能力统一进入 `m.*`。
+2. `lr.*` 和 `cd.*` 优先在 Lua 层适配，不写死到 C++。
+3. `useApi("lr")` 或 `useApi("cd")` 再把对应 table 暴露到 `_G`。
+4. 脚本文档只详细写 `m.*`，兼容层只记录“是否已兼容”。
+
+## 6. 后续优先级
+
+近期优先：
+
+1. 完善悬浮控制：位置持久化、隐藏状态、日志入口、设置入口。
+2. 固化脚本任务状态：运行中、暂停请求、停止请求、结束、失败。
+3. 评估脚本独立进程：先设计通信和资源释放，再拆实现。
+4. 补基础系统 API：`m.toast`、`m.clipboard`、`m.app`、`m.input`、`m.ui`。
+
+暂不实现：
+
+- root 引擎
+- Java 对象桥
+- FFI 完整库
+- Dex 插件加载
+- 多脚本并发线程
