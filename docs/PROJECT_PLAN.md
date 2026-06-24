@@ -190,6 +190,7 @@ Lua run failed: expected lua runtime error
 - [x] App 主界面 Root 模式开关，默认开启
 - [x] `m.root.exec(command, timeoutMs)` root 通用命令执行
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
+- [x] 触控和按键优先复用常驻 root shell，失败后回退短命令和无障碍
 - [x] 图片对象句柄管理，当前支持基础句柄、`m.image.release`、`m.image.getPixel`、`m.image.getPixels`
 - [ ] `m.image.findColor(...)`
 
@@ -203,7 +204,8 @@ Lua run failed: expected lua runtime error
 
 ```text
 m.touch.tap / m.touch.swipe / m.key.back / m.key.home 已注册。
-当前 Android 端优先通过 root `su input ...` 执行；root 不可用或命令失败时回退无障碍。
+当前 Android 端触控和按键优先通过常驻 root shell 执行 `input ...`；
+常驻通道不可用时回退短命令，root 不可用或命令失败时回退无障碍。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
 root 和无障碍都不可用时返回明确错误。
 m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；
@@ -314,5 +316,5 @@ ide/vscode-extension 已提供最小命令：
 1. 后续新增或修改脚本 API 时，同步维护脚本文档顶部速查表。
 2. 后续新增函数命名优先靠近懒人精灵、触动精灵的常见名称。
 3. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续确认截图授权跨进程方案。
-4. 优先补 root 截图和 root 输入优化，再补 Toast、剪贴板、启动 App、输入法输入。
+4. 优先做真实 root 设备压测和 root 截图优化，再补 Toast、剪贴板、启动 App、输入法输入。
 5. 找色、比色等算法暂缓，等 root 截图和点阵读取路径稳定后再做。

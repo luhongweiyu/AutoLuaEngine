@@ -1,18 +1,24 @@
 package com.autolua.engine;
 
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Root shell 能力桥。
  *
- * 第一版 root 模式不做常驻守护进程，先通过 su 执行短命令，覆盖点击、滑动
- * 和系统按键这类高优先级能力。不同设备的 su 参数格式不完全一致，所以这里
- * 会先探测可用格式并缓存；后续需要高频能力时，再评估常驻 root service
- * 或本地 socket，避免每次命令都创建进程。
+ * Root shell 能力先通过 su 探测设备支持的参数格式。
+ *
+ * 点击、滑动和系统按键这类无输出命令会优先复用常驻 root shell，减少频繁
+ * 创建 su 进程的开销；root.exec 和 screencap 这类需要准确 stdout/stderr 或
+ * 二进制输出的命令仍使用短命令，避免输出边界混乱。
  */
 public final class RootShellBridge {
     private static final long DEFAULT_TIMEOUT_MS = 2500;
@@ -23,6 +29,7 @@ public final class RootShellBridge {
     private static Boolean cachedRootAvailable;
     private static long rootCacheExpireAt;
     private static RootCommandMode cachedRootCommandMode = RootCommandMode.UNKNOWN;
+    private static RootShellSession rootShellSession;
 
     private RootShellBridge() {
     }
@@ -87,7 +94,11 @@ public final class RootShellBridge {
     }
 
     private static boolean runInputCommand(String inputArgs) {
-        CommandResult result = runRootCommand("input " + inputArgs, DEFAULT_TIMEOUT_MS);
+        String command = "input " + inputArgs;
+        CommandResult result = runPersistentRootCommand(command, DEFAULT_TIMEOUT_MS);
+        if (result.exitCode != 0) {
+            result = runRootCommand(command, DEFAULT_TIMEOUT_MS);
+        }
         return result.exitCode == 0;
     }
 
@@ -106,6 +117,37 @@ public final class RootShellBridge {
             return CommandResult.failure("root is not available");
         }
         return runCommand(cachedRootCommandMode.buildArgs(command), timeoutMs);
+    }
+
+    private static synchronized CommandResult runPersistentRootCommand(String command, long timeoutMs) {
+        if (!isRootAvailable()) {
+            return CommandResult.failure("root is not available");
+        }
+
+        try {
+            if (rootShellSession == null
+                    || !rootShellSession.isForMode(cachedRootCommandMode)
+                    || !rootShellSession.isAlive()) {
+                closeRootShellSession();
+                rootShellSession = RootShellSession.start(cachedRootCommandMode);
+            }
+
+            CommandResult result = rootShellSession.runNoOutputCommand(command, timeoutMs);
+            if (result.timedOut || result.exitCode < 0) {
+                closeRootShellSession();
+            }
+            return result;
+        } catch (IOException exception) {
+            closeRootShellSession();
+            return CommandResult.failure(exception.getMessage());
+        }
+    }
+
+    private static synchronized void closeRootShellSession() {
+        if (rootShellSession != null) {
+            rootShellSession.close();
+            rootShellSession = null;
+        }
     }
 
     private static int normalizeTimeoutMs(int timeoutMs) {
@@ -251,6 +293,138 @@ public final class RootShellBridge {
         }
     }
 
+    /**
+     * 常驻 root shell。
+     *
+     * 这里只用于无输出命令：命令的 stdout/stderr 会被重定向到 /dev/null，然后
+     * 额外打印一行标记读取退出码。这样可以安全处理 input tap/swipe/keyevent，
+     * 又不会和 root.exec、screencap 的输出格式互相污染。
+     */
+    private static final class RootShellSession {
+        private static final String MARKER_PREFIX = "__AEL_ROOT_RC_";
+
+        private final RootCommandMode mode;
+        private final Process process;
+        private final OutputStream stdin;
+        private final BlockingQueue<String> stdoutLines = new LinkedBlockingQueue<>();
+        private int commandSequence;
+
+        private RootShellSession(RootCommandMode mode, Process process) {
+            this.mode = mode;
+            this.process = process;
+            this.stdin = process.getOutputStream();
+            startStdoutReader(process.getInputStream());
+            startStderrDrainer(process.getErrorStream());
+        }
+
+        private static RootShellSession start(RootCommandMode mode) throws IOException {
+            return new RootShellSession(mode, new ProcessBuilder(mode.buildInteractiveArgs()).start());
+        }
+
+        private boolean isForMode(RootCommandMode currentMode) {
+            return mode == currentMode;
+        }
+
+        private boolean isAlive() {
+            try {
+                process.exitValue();
+                return false;
+            } catch (IllegalThreadStateException ignored) {
+                return true;
+            }
+        }
+
+        private CommandResult runNoOutputCommand(String command, long timeoutMs) throws IOException {
+            if (!isAlive()) {
+                return CommandResult.failure("root shell is not alive");
+            }
+
+            String marker = MARKER_PREFIX
+                    + System.currentTimeMillis()
+                    + "_"
+                    + (++commandSequence)
+                    + "__";
+            String script = command
+                    + " >/dev/null 2>&1\n"
+                    + "rc=$?\n"
+                    + "printf '"
+                    + marker
+                    + ":%s\\n' \"$rc\"\n";
+            stdin.write(script.getBytes(StandardCharsets.UTF_8));
+            stdin.flush();
+
+            long deadline = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < deadline) {
+                long waitMs = Math.max(1L, deadline - System.currentTimeMillis());
+                String line;
+                try {
+                    line = stdoutLines.poll(Math.min(waitMs, 50L), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    return CommandResult.failure("root shell command interrupted");
+                }
+
+                if (line == null || !line.startsWith(marker + ":")) {
+                    continue;
+                }
+
+                return new CommandResult(parseMarkerExitCode(line, marker), new byte[0], new byte[0]);
+            }
+
+            return CommandResult.timeout();
+        }
+
+        private int parseMarkerExitCode(String line, String marker) {
+            String value = line.substring(marker.length() + 1).trim();
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException exception) {
+                return -1;
+            }
+        }
+
+        private void startStdoutReader(InputStream inputStream) {
+            Thread thread = new Thread(() -> {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        stdoutLines.offer(line);
+                    }
+                } catch (IOException ignored) {
+                    // shell 关闭时读取线程自然结束。
+                }
+            }, "RootShellSessionStdout");
+            thread.setDaemon(true);
+            thread.start();
+        }
+
+        private void startStderrDrainer(InputStream inputStream) {
+            Thread thread = new Thread(() -> {
+                try (InputStream source = inputStream) {
+                    byte[] buffer = new byte[1024];
+                    while (source.read(buffer) != -1) {
+                        // 这里只需要排空 stderr，避免 root shell 因管道写满而阻塞。
+                    }
+                } catch (IOException ignored) {
+                    // shell 关闭时读取线程自然结束。
+                }
+            }, "RootShellSessionStderr");
+            thread.setDaemon(true);
+            thread.start();
+        }
+
+        private void close() {
+            try {
+                stdin.write("exit\n".getBytes(StandardCharsets.UTF_8));
+                stdin.flush();
+            } catch (IOException ignored) {
+                // 进程可能已经退出，直接 destroy 即可。
+            }
+            process.destroy();
+        }
+    }
+
     private enum RootCommandMode {
         UNKNOWN,
         NONE,
@@ -274,6 +448,19 @@ public final class RootShellBridge {
                     return new String[]{"su", "root", "sh", "-c", command};
                 default:
                     return new String[]{"su", "-c", command};
+            }
+        }
+
+        private String[] buildInteractiveArgs() {
+            switch (this) {
+                case SU_C:
+                    return new String[]{"su", "-c", "sh"};
+                case SU_0_SH_C:
+                    return new String[]{"su", "0", "sh"};
+                case SU_ROOT_SH_C:
+                    return new String[]{"su", "root", "sh"};
+                default:
+                    return new String[]{"su"};
             }
         }
     }
