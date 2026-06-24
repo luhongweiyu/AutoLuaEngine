@@ -15,6 +15,7 @@
 | 延时 | `m.sleep(ms)` | 兼容层可导出 `sleep(ms)` | [查看](#api-sleep) |
 | 日志 | `m.log.print(text)` | 无 | [查看](#api-log-print) |
 | 设备 | `m.device.info()` | 无 | [查看](#api-device-info) |
+| 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
 | 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
 | 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
 | 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
@@ -36,8 +37,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -201,11 +202,12 @@ y 方向：向下增加
 
 ### 3.4 权限规则
 
-触控和按键依赖 Android 无障碍服务：
+触控和按键当前优先使用 Android root `input` 命令，root 不可用或命令失败时回退无障碍服务。脚本可以按需检查当前自动化状态：
 
 ```lua
-if not m.key.isAccessibilityEnabled() then
-    print("需要先开启无障碍服务")
+local info = m.device.info()
+if info.automationMode == "none" then
+    print("需要开启 root 或无障碍服务")
     return
 end
 ```
@@ -351,7 +353,10 @@ end
 {
     platform = "android",
     engineVersion = "0.1.0",
-    luaVersion = "Lua 5.4"
+    luaVersion = "Lua 5.4",
+    rootAvailable = true,
+    accessibilityEnabled = false,
+    automationMode = "root-first"
 }
 ```
 
@@ -362,12 +367,38 @@ local info = m.device.info()
 print("platform =", info.platform)
 print("engine =", info.engineVersion)
 print("lua =", info.luaVersion)
+print("root =", info.rootAvailable)
+print("accessibility =", info.accessibilityEnabled)
+print("mode =", info.automationMode)
 ```
 
 说明：
 
-- Lua 内部调用当前返回 `platform`、`engineVersion`、`luaVersion`。
+- Lua 内部调用当前返回 `platform`、`engineVersion`、`luaVersion`、`rootAvailable`、`accessibilityEnabled`、`automationMode`。
+- `automationMode` 当前为 `root-first`、`accessibility` 或 `none`。
 - PC/IDE 通过 JSON-RPC 调用 `device.info` 时，还会包含 `apiLevel`、`packageName`、`httpPort` 等 Android 端信息。
+
+<a id="api-device-root"></a>
+
+### 6.2 `m.device.isRootAvailable()` / `m.isRootAvailable()`
+
+判断当前设备是否可以通过 `su` 获取 root shell。
+
+返回值：
+
+```lua
+true 或 false
+```
+
+示例：
+
+```lua
+if m.device.isRootAvailable() then
+    print("root 可用，触控会优先走 root input")
+else
+    print("root 不可用，会回退无障碍")
+end
+```
 
 ## 7. 文件 API
 
@@ -528,11 +559,12 @@ end
 
 ## 8. 触控 API
 
-触控 API 当前通过 Android 无障碍服务实现。脚本调用前可以先检查无障碍状态。
+触控 API 当前优先使用 root `input` 命令，失败后回退无障碍服务。脚本调用前可以先检查自动化状态。
 
 ```lua
-if not m.key.isAccessibilityEnabled() then
-    print("accessibility service is not enabled")
+local info = m.device.info()
+if info.automationMode == "none" then
+    print("root or accessibility service is not available")
     return
 end
 ```
@@ -541,7 +573,7 @@ end
 
 ### 8.1 `m.touch.tap(x, y)` / `m.tap(x, y)`
 
-点击屏幕坐标。
+点击屏幕坐标。Android 端当前优先走 root `input tap`，失败后回退无障碍服务。
 
 参数：
 
@@ -569,15 +601,14 @@ end
 常见失败：
 
 ```text
-accessibility service is not enabled
-touch tap failed
+touch tap failed; root or accessibility service is not available
 ```
 
 <a id="api-touch-swipe"></a>
 
 ### 8.2 `m.touch.swipe(x1, y1, x2, y2, duration)` / `m.swipe(...)`
 
-从一个坐标滑动到另一个坐标。
+从一个坐标滑动到另一个坐标。Android 端当前优先走 root `input swipe`，失败后回退无障碍服务。
 
 参数：
 
@@ -607,7 +638,7 @@ end
 
 ## 9. 按键 API
 
-按键 API 当前也通过 Android 无障碍服务实现。
+按键 API 当前优先通过 root `input keyevent` 实现，失败后回退 Android 无障碍服务。
 
 <a id="api-key-accessibility"></a>
 
@@ -919,16 +950,17 @@ m.image.release(img)
 普通自动化脚本建议写成几个小函数，便于后续迁移到 JS 或 Go 时保持 API 语义一致。
 
 ```lua
-local function requireAccessibility()
-    if m.key.isAccessibilityEnabled() then
+local function requireAutomation()
+    local info = m.device.info()
+    if info.automationMode ~= "none" then
         return true
     end
 
-    return nil, "accessibility service is not enabled"
+    return nil, "root or accessibility service is not available"
 end
 
 local function tapCenter()
-    local ok, err = requireAccessibility()
+    local ok, err = requireAutomation()
     if not ok then
         print(err)
         return
@@ -1022,18 +1054,18 @@ tap(300, 500)
 
 ## 15. 常见错误
 
-### 15.1 `accessibility service is not enabled`
+### 15.1 `root or accessibility service is not available`
 
 原因：
 
 ```text
-Android 无障碍服务未开启
+Android root 不可用，且无障碍服务未开启。
 ```
 
 处理：
 
 ```text
-到系统设置里开启 AutoLuaEngine 的无障碍服务
+优先确认设备是否允许 App 获取 root；无 root 时，到系统设置里开启 AutoLuaEngine 的无障碍服务。
 ```
 
 影响 API：

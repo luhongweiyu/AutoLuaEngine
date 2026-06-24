@@ -223,15 +223,30 @@ public final class EngineHttpServer {
     }
 
     private JSONObject makeDeviceInfo() throws JSONException {
+        boolean rootAvailable = RootShellBridge.isRootAvailable();
+        boolean accessibilityEnabled = AutomationAccessibilityService.isEnabled();
         JSONObject result = new JSONObject();
         result.put("platform", "android");
         result.put("engineVersion", NativeEngine.engineVersion());
         result.put("luaVersion", NativeEngine.luaVersion());
         result.put("apiLevel", Build.VERSION.SDK_INT);
         result.put("packageName", appContext.getPackageName());
+        result.put("rootAvailable", rootAvailable);
+        result.put("accessibilityEnabled", accessibilityEnabled);
+        result.put("automationMode", resolveAutomationMode(rootAvailable, accessibilityEnabled));
         result.put("httpHost", "127.0.0.1");
         result.put("httpPort", port);
         return result;
+    }
+
+    private static String resolveAutomationMode(boolean rootAvailable, boolean accessibilityEnabled) {
+        if (rootAvailable) {
+            return "root-first";
+        }
+        if (accessibilityEnabled) {
+            return "accessibility";
+        }
+        return "none";
     }
 
     private static HttpRequest readRequest(InputStream inputStream) throws IOException {

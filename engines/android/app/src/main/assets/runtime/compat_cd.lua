@@ -9,6 +9,7 @@ local cd = {
     swipe = host.touch.swipe,
     back = host.key.back,
     home = host.key.home,
+    isRootAvailable = host.device.isRootAvailable,
     capture = host.screen.capture,
     getPixel = host.image.getPixel,
     getPixels = host.image.getPixels,

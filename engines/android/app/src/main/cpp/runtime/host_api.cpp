@@ -88,6 +88,28 @@ int luaDeviceInfo(lua_State* state) {
     lua_pushstring(state, LUA_VERSION);
     lua_setfield(state, -2, "luaVersion");
 
+    bool rootAvailable = AndroidBridge::isRootAvailable();
+    bool accessibilityEnabled = AndroidBridge::isAccessibilityEnabled();
+    lua_pushboolean(state, rootAvailable ? 1 : 0);
+    lua_setfield(state, -2, "rootAvailable");
+
+    lua_pushboolean(state, accessibilityEnabled ? 1 : 0);
+    lua_setfield(state, -2, "accessibilityEnabled");
+
+    const char* automationMode = "none";
+    if (rootAvailable) {
+        automationMode = "root-first";
+    } else if (accessibilityEnabled) {
+        automationMode = "accessibility";
+    }
+    lua_pushstring(state, automationMode);
+    lua_setfield(state, -2, "automationMode");
+
+    return 1;
+}
+
+int luaDeviceIsRootAvailable(lua_State* state) {
+    lua_pushboolean(state, AndroidBridge::isRootAvailable() ? 1 : 0);
     return 1;
 }
 
@@ -283,15 +305,9 @@ int luaTouchTap(lua_State* state) {
     lua_Integer x = luaL_checkinteger(state, 1);
     lua_Integer y = luaL_checkinteger(state, 2);
 
-    if (!AndroidBridge::isAccessibilityEnabled()) {
-        lua_pushnil(state);
-        lua_pushstring(state, "accessibility service is not enabled");
-        return 2;
-    }
-
     if (!AndroidBridge::touchTap(static_cast<int>(x), static_cast<int>(y))) {
         lua_pushnil(state);
-        lua_pushstring(state, "touch tap failed");
+        lua_pushstring(state, "touch tap failed; root or accessibility service is not available");
         return 2;
     }
 
@@ -306,12 +322,6 @@ int luaTouchSwipe(lua_State* state) {
     lua_Integer y2 = luaL_checkinteger(state, 4);
     lua_Integer durationMs = luaL_optinteger(state, 5, 300);
 
-    if (!AndroidBridge::isAccessibilityEnabled()) {
-        lua_pushnil(state);
-        lua_pushstring(state, "accessibility service is not enabled");
-        return 2;
-    }
-
     if (!AndroidBridge::touchSwipe(
             static_cast<int>(x1),
             static_cast<int>(y1),
@@ -319,7 +329,7 @@ int luaTouchSwipe(lua_State* state) {
             static_cast<int>(y2),
             static_cast<int>(durationMs))) {
         lua_pushnil(state);
-        lua_pushstring(state, "touch swipe failed");
+        lua_pushstring(state, "touch swipe failed; root or accessibility service is not available");
         return 2;
     }
 
@@ -328,15 +338,9 @@ int luaTouchSwipe(lua_State* state) {
 }
 
 int luaKeyBack(lua_State* state) {
-    if (!AndroidBridge::isAccessibilityEnabled()) {
-        lua_pushnil(state);
-        lua_pushstring(state, "accessibility service is not enabled");
-        return 2;
-    }
-
     if (!AndroidBridge::keyBack()) {
         lua_pushnil(state);
-        lua_pushstring(state, "key back failed");
+        lua_pushstring(state, "key back failed; root or accessibility service is not available");
         return 2;
     }
 
@@ -345,15 +349,9 @@ int luaKeyBack(lua_State* state) {
 }
 
 int luaKeyHome(lua_State* state) {
-    if (!AndroidBridge::isAccessibilityEnabled()) {
-        lua_pushnil(state);
-        lua_pushstring(state, "accessibility service is not enabled");
-        return 2;
-    }
-
     if (!AndroidBridge::keyHome()) {
         lua_pushnil(state);
-        lua_pushstring(state, "key home failed");
+        lua_pushstring(state, "key home failed; root or accessibility service is not available");
         return 2;
     }
 
@@ -516,6 +514,7 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int deviceTableIndex = lua_gettop(state);
     setFunctionField(state, deviceTableIndex, "info", luaDeviceInfo);
+    setFunctionField(state, deviceTableIndex, "isRootAvailable", luaDeviceIsRootAvailable);
     lua_setfield(state, hostTableIndex, "device");
 
     lua_newtable(state);

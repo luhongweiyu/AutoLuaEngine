@@ -1,4 +1,5 @@
 print("touch script started")
+print("root available =", m.device.isRootAvailable())
 
 local ok, err = m.touch.tap(100, 100)
 if ok then
@@ -15,4 +16,4 @@ else
 end
 
 print("accessibility enabled =", m.key.isAccessibilityEnabled())
-print("key.back/key.home registered")
+print("root-first touch/key registered")

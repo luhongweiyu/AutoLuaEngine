@@ -19,13 +19,14 @@ struct ScreenCaptureResult {
  * Android 平台能力桥。
  *
  * Native 层需要调用 Java/Kotlin 系统能力时统一从这里进入。
- * 当前用于无障碍状态检测和触控点击。
+ * 当前用于 root / 无障碍状态检测、截图和触控按键。
  */
 class AndroidBridge {
 public:
     static void init(JavaVM* javaVm);
 
     static bool isAccessibilityEnabled();
+    static bool isRootAvailable();
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static bool touchTap(int x, int y);

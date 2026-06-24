@@ -157,6 +157,10 @@ bool AndroidBridge::isAccessibilityEnabled() {
     return callStaticBooleanMethod0("isAccessibilityEnabled", "()Z");
 }
 
+bool AndroidBridge::isRootAvailable() {
+    return callStaticBooleanMethod0("isRootAvailable", "()Z");
+}
+
 bool AndroidBridge::hasScreenCapturePermission() {
     return callStaticBooleanMethod0("hasScreenCapturePermission", "()Z");
 }

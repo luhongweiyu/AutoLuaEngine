@@ -14,19 +14,35 @@ public final class AndroidHostBridge {
         return AutomationAccessibilityService.isEnabled();
     }
 
+    public static boolean isRootAvailable() {
+        return RootShellBridge.isRootAvailable();
+    }
+
     public static boolean touchTap(int x, int y) {
+        if (RootShellBridge.tap(x, y)) {
+            return true;
+        }
         return AutomationAccessibilityService.tap(x, y);
     }
 
     public static boolean touchSwipe(int x1, int y1, int x2, int y2, int durationMs) {
+        if (RootShellBridge.swipe(x1, y1, x2, y2, durationMs)) {
+            return true;
+        }
         return AutomationAccessibilityService.swipe(x1, y1, x2, y2, durationMs);
     }
 
     public static boolean keyBack() {
+        if (RootShellBridge.keyBack()) {
+            return true;
+        }
         return AutomationAccessibilityService.back();
     }
 
     public static boolean keyHome() {
+        if (RootShellBridge.keyHome()) {
+            return true;
+        }
         return AutomationAccessibilityService.home();
     }
 

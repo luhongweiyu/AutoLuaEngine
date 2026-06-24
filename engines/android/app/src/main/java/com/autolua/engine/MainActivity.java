@@ -159,7 +159,7 @@ public final class MainActivity extends Activity {
 
         touchButton = createButton(
                 R.id.button_run_touch,
-                "测试触控和无障碍",
+                "测试触控和按键",
                 () -> runScript("scripts/touch.lua")
         );
         addButton(root, touchButton, false);
@@ -503,6 +503,8 @@ public final class MainActivity extends Activity {
                     + "\n引擎版本：" + deviceInfo.optString("engineVersion", "unknown")
                     + "\nLua 版本：" + deviceInfo.optString("luaVersion", "unknown")
                     + "\n任务状态：" + taskStatus.optString("status", "unknown")
+                    + "\nRoot 权限：" + formatEnabled(deviceInfo.optBoolean("rootAvailable", false))
+                    + "\n自动化模式：" + deviceInfo.optString("automationMode", "unknown")
                     + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
                     + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
                     + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)

@@ -195,8 +195,24 @@ m.log.print(info.platform)
 {
     platform = "android",
     engineVersion = "0.1.0",
-    luaVersion = "Lua 5.4"
+    luaVersion = "Lua 5.4",
+    rootAvailable = true,
+    accessibilityEnabled = false,
+    automationMode = "root-first"
 }
+```
+
+### 4.3.1 `m.device.isRootAvailable()`
+
+说明：
+
+- 判断当前 Android 设备是否可以通过 `su` 获取 root shell
+- 当前触控和按键能力会优先使用 root，失败后回退无障碍
+
+返回：
+
+```lua
+true 或 false
 ```
 
 ### 4.4 `m.file.read(path)`
@@ -343,8 +359,8 @@ running -> pausing -> paused -> running
 说明：
 
 - 点击屏幕坐标
-- Android 优先使用无障碍服务
-- 如果无障碍服务未开启，返回 `nil, "accessibility service is not enabled"`
+- Android 优先 root，失败后回退无障碍
+- 如果 root 和无障碍都不可用，返回 `nil, "touch tap failed; root or accessibility service is not available"`
 
 Lua 示例：
 
@@ -361,8 +377,8 @@ end
 
 - 滑动屏幕
 - `duration` 单位毫秒
-- Android 优先使用无障碍服务
-- 如果无障碍服务未开启，返回 `nil, "accessibility service is not enabled"`
+- Android 优先 root，失败后回退无障碍
+- 如果 root 和无障碍都不可用，返回 `nil, "touch swipe failed; root or accessibility service is not available"`
 
 Lua 示例：
 
@@ -399,8 +415,8 @@ true 或 false
 说明：
 
 - 执行系统返回键
-- Android 第一版使用无障碍服务的全局动作
-- 如果无障碍服务未开启，返回 `nil, "accessibility service is not enabled"`
+- Android 优先 root `input keyevent`，失败后回退无障碍全局动作
+- 如果 root 和无障碍都不可用，返回 `nil, "key back failed; root or accessibility service is not available"`
 
 Lua 示例：
 
@@ -416,8 +432,8 @@ end
 说明：
 
 - 执行系统主页键
-- Android 第一版使用无障碍服务的全局动作
-- 如果无障碍服务未开启，返回 `nil, "accessibility service is not enabled"`
+- Android 优先 root `input keyevent`，失败后回退无障碍全局动作
+- 如果 root 和无障碍都不可用，返回 `nil, "key home failed; root or accessibility service is not available"`
 
 Lua 示例：
 
@@ -573,11 +589,12 @@ end
 | `m.file.write` | 支持 | 预留 | 预留 |
 | `m.file.exists` | 支持 | 预留 | 预留 |
 | `m.file.remove` | 支持 | 预留 | 预留 |
-| `m.touch.tap` | 支持，需无障碍 | 预留 | 受限 |
-| `m.touch.swipe` | 支持，需无障碍 | 预留 | 受限 |
+| `m.touch.tap` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
+| `m.touch.swipe` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
 | `m.key.isAccessibilityEnabled` | 支持 | 预留 | 预留 |
-| `m.key.back` | 支持，需无障碍 | 预留 | 受限 |
-| `m.key.home` | 支持，需无障碍 | 预留 | 受限 |
+| `m.device.isRootAvailable` | 支持 | 预留 | 受限 |
+| `m.key.back` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
+| `m.key.home` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
 | `m.screen.capture` | 支持，需用户授权 | 预留 | 受限 |
 | `m.image.release` | 支持 | 预留 | 预留 |
 | `m.image.getPixel` | 支持 | 预留 | 预留 |

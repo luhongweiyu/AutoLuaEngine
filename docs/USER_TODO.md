@@ -133,16 +133,16 @@ minSdk：23
 
 ## 3.1 后续触控测试需要你手动开启
 
-Android 不允许 App 静默开启无障碍服务。测试真实 `touch.tap` 前，需要你在模拟器或真机中手动开启：
+Android 不允许 App 静默开启无障碍服务。无 root 或 App 不能获取 root 时，测试真实 `touch.tap` 前，需要你在模拟器或真机中手动开启：
 
 ```text
 Settings -> Accessibility -> AutoLuaEngine automation service
 ```
 
-未开启时，脚本会返回：
+root 和无障碍都不可用时，脚本会返回：
 
 ```text
-accessibility service is not enabled
+touch tap failed; root or accessibility service is not available
 ```
 
 ## 3.2 后续截图测试需要你手动授权

@@ -271,6 +271,10 @@ clientPort：IDE/PC 实际访问端口，默认 18380
     "luaVersion": "Lua 5.4",
     "apiLevel": 34,
     "packageName": "com.autolua.engine",
+    "rootAvailable": true,
+    "accessibilityEnabled": false,
+    "automationMode": "root-first",
+    "httpHost": "127.0.0.1",
     "httpPort": 18380
   }
 }

@@ -58,7 +58,7 @@ BUILD SUCCESSFUL
 运行选中脚本
 错误验证
 循环停止 + 停止脚本
-测试触控和无障碍
+测试触控和按键
 测试截图和取色
 ```
 
@@ -270,14 +270,25 @@ script.stop   -> accepted = true
 
 触控脚本验证：
 
-未开启无障碍服务时：
+无 root 且未开启无障碍服务时：
 
 ```text
 touch script started
-touch.tap failed = accessibility service is not enabled
-touch.swipe failed = accessibility service is not enabled
+root available = false
+touch.tap failed = touch tap failed; root or accessibility service is not available
+touch.swipe failed = touch swipe failed; root or accessibility service is not available
 accessibility enabled = false
-key.back/key.home registered
+root-first touch/key registered
+```
+
+root 可用时：
+
+```text
+touch script started
+root available = true
+touch.tap success
+touch.swipe success
+root-first touch/key registered
 ```
 
 截图脚本验证：

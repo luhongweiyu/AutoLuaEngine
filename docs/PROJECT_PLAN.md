@@ -183,9 +183,10 @@ Lua run failed: expected lua runtime error
 
 任务：
 
-- [x] `m.touch.tap(x, y)`，优先走无障碍
-- [x] `m.touch.swipe(x1, y1, x2, y2, duration)`
-- [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，走无障碍全局动作
+- [x] `m.touch.tap(x, y)`，优先走 root，失败后回退无障碍
+- [x] `m.touch.swipe(x1, y1, x2, y2, duration)`，优先走 root，失败后回退无障碍
+- [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，按键优先走 root，失败后回退无障碍
+- [x] `m.device.isRootAvailable()` 和 `m.device.info().rootAvailable`
 - [x] `m.screen.capture()`，优先 MediaProjection
 - [x] 图片对象句柄管理，当前支持基础句柄、`m.image.release`、`m.image.getPixel`、`m.image.getPixels`
 - [ ] `m.image.findColor(...)`
@@ -199,8 +200,9 @@ Lua run failed: expected lua runtime error
 当前状态：
 
 ```text
-m.touch.tap / m.touch.swipe / m.key.back / m.key.home 已注册。未开启无障碍服务时返回明确错误。
-真实点击需要用户在系统设置中手动开启 AutoLuaEngine 无障碍服务。
+m.touch.tap / m.touch.swipe / m.key.back / m.key.home 已注册。
+当前 Android 端优先通过 root `su input ...` 执行；root 不可用或命令失败时回退无障碍。
+root 和无障碍都不可用时返回明确错误。
 m.screen.capture 已接入 MediaProjection + ImageReader。未授权时返回明确错误；
 授权后返回 native 内存图片句柄和 width、height、rowStride、pixelStride、byteLength、format。
 当前已支持在 native 内存图片句柄上单点读取和批量读取 RGB 点阵；
@@ -309,5 +311,5 @@ ide/vscode-extension 已提供最小命令：
 1. 后续新增或修改脚本 API 时，同步维护脚本文档顶部速查表。
 2. 后续新增函数命名优先靠近懒人精灵、触动精灵的常见名称。
 3. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续确认截图授权跨进程方案。
-4. 后续补基础系统 API，如 Toast、剪贴板、启动 App、输入法输入。
-5. 找色、比色等算法暂缓，等基础通讯闭环稳定后再做。
+4. 优先补 root 截图和 root 输入优化，再补 Toast、剪贴板、启动 App、输入法输入。
+5. 找色、比色等算法暂缓，等 root 截图和点阵读取路径稳定后再做。

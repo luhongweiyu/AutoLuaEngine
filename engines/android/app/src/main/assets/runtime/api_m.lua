@@ -20,6 +20,7 @@ m.swipe = host.touch.swipe
 m.back = host.key.back
 m.home = host.key.home
 m.isAccessibilityEnabled = host.key.isAccessibilityEnabled
+m.isRootAvailable = host.device.isRootAvailable
 m.capture = host.screen.capture
 m.releaseImage = host.image.release
 m.getPixel = host.image.getPixel
