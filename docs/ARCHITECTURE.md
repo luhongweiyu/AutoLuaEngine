@@ -49,7 +49,7 @@ Android APK
 ├─ Kotlin/Java 层
 │  ├─ MainActivity
 │  ├─ EngineService（后续）
-│  ├─ FloatingControl（后续）
+│  ├─ FloatingControlService
 │  ├─ NativeEngine
 │  ├─ AndroidHostBridge
 │  ├─ AutomationAccessibilityService
@@ -90,7 +90,7 @@ engine_jni -> Engine -> LuaRuntime
 
 第一版只需要支持单任务运行。后续再扩展多任务。
 
-后续 App 控制界面会从纯调试页调整为脚本列表、运行设置和悬浮控制入口。脚本运行应逐步下沉到后台 `EngineService`，悬浮图标只负责发控制命令，不直接持有脚本执行逻辑。是否使用独立 Android 进程 `:engine` 需要在服务化后再评估。
+当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。脚本运行后续应逐步下沉到后台 `EngineService`，悬浮图标只负责发控制命令，不直接持有脚本执行逻辑。是否使用独立 Android 进程 `:engine` 需要在服务化后再评估。
 
 当前 ScriptTask 状态：
 

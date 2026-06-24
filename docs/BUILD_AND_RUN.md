@@ -55,11 +55,11 @@ BUILD SUCCESSFUL
 当前覆盖：
 
 ```text
-Run Lua Test
-Run Error Test
-Run Loop Test + Stop
-Run Touch Test
-Run Screen Test
+运行选中脚本
+错误验证
+循环停止 + 停止脚本
+测试触控和无障碍
+测试截图和取色
 ```
 
 APK 输出位置：
@@ -76,10 +76,10 @@ App 启动后会在手机本机监听：
 127.0.0.1:18380
 ```
 
-引擎端口默认是 `18380`。Android 端已预留本地设置入口，当前调试页会显示：
+引擎端口默认是 `18380`。Android 端主界面会显示：
 
 ```text
-HTTP JSON-RPC: 127.0.0.1:18380
+调试端口：127.0.0.1:18380
 ```
 
 电脑端通过 ADB 转发访问：
@@ -192,13 +192,13 @@ AutoLuaEngine: Drain Logs
 App 调试页分为：
 
 ```text
-Script Tests
-Platform Tests
-Control
-Status
+运行控制
+我的脚本
+运行模式
+状态
 ```
 
-1. 点击 `Run Lua Test`
+1. 点击 `运行选中脚本`
 2. 页面显示 `Lua script OK`
 3. Logcat 可看到：
 
@@ -284,7 +284,14 @@ image.release success
 授权方式：
 
 ```text
-点击 App 内 Request Screen Capture -> 在系统弹窗中确认
+点击 App 内 开启截图授权 -> 在系统弹窗中确认
+```
+
+悬浮控制：
+
+```text
+点击 App 内 开启悬浮控制 -> 授予悬浮窗权限 -> 屏幕右侧出现“引擎”按钮
+点开后可执行 运行、停止、暂停、截图、关闭
 ```
 
 ## 5. 已知提示

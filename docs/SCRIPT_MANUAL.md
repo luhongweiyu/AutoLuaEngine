@@ -210,7 +210,7 @@ if not m.key.isAccessibilityEnabled() then
 end
 ```
 
-截图依赖 Android MediaProjection 授权。需要先在 App 中点击 `Request Screen Capture`，并在系统弹窗中确认。
+截图依赖 Android MediaProjection 授权。需要先在 App 中点击 `开启截图授权`，并在系统弹窗中确认。
 
 ### 3.5 高频截图和点阵读取规则
 
@@ -1052,7 +1052,7 @@ Android 无障碍服务未开启
 处理：
 
 ```text
-在 App 中点击 Request Screen Capture，然后确认系统弹窗
+在 App 中点击 开启截图授权，然后确认系统弹窗
 ```
 
 影响 API：

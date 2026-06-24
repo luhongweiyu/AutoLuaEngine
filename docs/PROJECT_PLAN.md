@@ -130,7 +130,7 @@ sleep done
 验证：task#1 finished，task#2 failed。
 Java UI 层已临时使用后台线程执行 native 同步调用，避免 sleep 阻塞主线程。
 Stop 验证：Lua run failed: script stopped。
-Android 测试 Activity 已整理为脚本测试、平台测试、控制、状态四个调试区。
+Android 主界面已整理为我的脚本、运行控制、运行模式、状态四个区域。
 Lua print/m.log.print、native 初始化、任务结果、stop 日志均进入统一 log.drain 缓冲。
 ```
 
@@ -261,9 +261,9 @@ ide/vscode-extension 已提供最小命令：
 
 任务：
 
-- [ ] 调整 App 首页为脚本列表和运行入口，而不是纯调试按钮页
-- [ ] 增加运行模式设置：无障碍、截图授权、Root/激活模式预留
-- [ ] 增加小悬浮图标，点击后展开启动、停止、暂停、截图等常用控制
+- [x] 调整 App 首页为脚本列表和运行入口，而不是纯调试按钮页
+- [x] 增加运行模式入口：无障碍测试、截图授权、截图验证
+- [x] 增加小悬浮图标，点击后展开运行、停止、暂停、截图等常用控制
 - [ ] 将脚本运行从 Activity 调用整理为后台 EngineService，Activity 关闭后仍能保持运行
 - [ ] 评估是否把 EngineService 放到独立 Android 进程 `:engine`
 - [ ] 暂停脚本先按协作暂停设计，不强杀线程、不直接挂起系统线程
@@ -271,7 +271,7 @@ ide/vscode-extension 已提供最小命令：
 验收标准：
 
 - 用户可以从 App 内选择脚本并启动
-- 脚本运行时可以通过悬浮图标停止
+- 脚本运行时可以通过悬浮图标请求停止
 - 截图授权和无障碍状态在 App 设置页能看见
 - IDE/PC 协议仍然可用，不被 App UI 改造破坏
 
@@ -296,5 +296,5 @@ ide/vscode-extension 已提供最小命令：
 
 1. 后续新增或修改脚本 API 时，同步维护脚本文档顶部速查表。
 2. 后续新增函数命名优先靠近懒人精灵、触动精灵的常见名称。
-3. Android App 后续改为脚本列表 + 设置 + 悬浮控制入口。
+3. Android App 后续继续补后台 EngineService、独立进程评估和真正暂停能力。
 4. 找色、比色等算法暂缓，等基础通讯闭环稳定后再做。

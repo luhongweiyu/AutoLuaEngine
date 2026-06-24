@@ -6,6 +6,12 @@
     <item name="button_run_touch" type="id" />
     <item name="button_request_capture" type="id" />
     <item name="button_run_screen" type="id" />
+    <item name="button_start_floating" type="id" />
     <item name="button_stop" type="id" />
+    <item name="button_script_main" type="id" />
+    <item name="button_script_error" type="id" />
+    <item name="button_script_loop" type="id" />
+    <item name="button_script_touch" type="id" />
+    <item name="button_script_screen" type="id" />
     <item name="text_output" type="id" />
 </resources>

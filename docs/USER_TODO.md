@@ -150,11 +150,11 @@ accessibility service is not enabled
 Android 截图使用 MediaProjection，需要你点击 App 内：
 
 ```text
-Request Screen Capture
+开启截图授权
 ```
 
 然后在系统弹窗中确认授权。这个权限不能静默获取。
-授权后再点击 `Run Screen Test`，脚本会返回一帧内存图片句柄，并在日志中输出尺寸和字节数。
+授权后再点击 `测试截图和取色`，脚本会返回一帧内存图片句柄，并在日志中输出尺寸和字节数。
 
 ## 4. 你后续主要负责
 
