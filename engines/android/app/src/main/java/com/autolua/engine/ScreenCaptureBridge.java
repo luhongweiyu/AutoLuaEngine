@@ -121,12 +121,20 @@ public final class ScreenCaptureBridge {
             height = captureHeight;
         }
 
+        long startTime = System.nanoTime();
         Image image = acquireLatestImage(reader);
+        long captureDurationMs = elapsedMillis(startTime);
         if (image == null) {
             return ScreenCaptureResult.failure("screen capture image is not ready");
         }
 
-        ScreenCaptureResult result = ScreenCaptureResult.successFromImage(image, width, height);
+        ScreenCaptureResult result = ScreenCaptureResult.successFromImage(
+                image,
+                width,
+                height,
+                "media-projection",
+                captureDurationMs
+        );
         if (!result.success) {
             image.close();
         }
@@ -263,6 +271,11 @@ public final class ScreenCaptureBridge {
         }
 
         return ScreenCaptureForegroundService.isForegroundStarted();
+    }
+
+    private static long elapsedMillis(long startTime) {
+        long elapsedNanos = System.nanoTime() - startTime;
+        return Math.max(0L, elapsedNanos / 1_000_000L);
     }
 
     private static void releaseSessionLocked(boolean stopProjection) {

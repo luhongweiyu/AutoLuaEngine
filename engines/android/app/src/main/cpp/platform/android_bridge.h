@@ -12,6 +12,8 @@ struct ScreenCaptureResult {
     int rowStride = 0;
     int pixelStride = 0;
     std::string format;
+    std::string source;
+    long long captureDurationMs = 0;
     std::string error;
 };
 

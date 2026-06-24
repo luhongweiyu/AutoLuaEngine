@@ -226,7 +226,8 @@ Root 应用控制当前支持启动、强停、清理应用数据、授权、撤
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
 root 和无障碍都不可用时返回明确错误。
 m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；
-授权后返回 native 内存图片句柄和 width、height、rowStride、pixelStride、byteLength、format。
+授权后返回 native 内存图片句柄和 width、height、rowStride、pixelStride、byteLength、format、source、captureDurationMs。
+source 用于确认本帧实际走 root-screencap 还是 media-projection，captureDurationMs 用于后续 root 截图压测。
 当前已支持在 native 内存图片句柄上单点读取和批量读取 RGB 点阵；
 找色、比色等算法后续再做，不在这一阶段提前实现。
 ```

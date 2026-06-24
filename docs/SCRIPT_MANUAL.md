@@ -2044,7 +2044,9 @@ end
     rowStride = 4320,
     pixelStride = 4,
     byteLength = 9590400,
-    format = "rgba8888"
+    format = "rgba8888",
+    source = "root-screencap",
+    captureDurationMs = 120
 }
 ```
 
@@ -2080,11 +2082,14 @@ m.image.release(img)
 | `pixelStride` | number | 每个像素字节跨度 |
 | `byteLength` | number | native 内存像素字节数 |
 | `format` | string | 当前为 `"rgba8888"` |
+| `source` | string | 截图来源，当前为 `"root-screencap"` 或 `"media-projection"` |
+| `captureDurationMs` | number | Java 层取到这一帧的耗时，单位毫秒 |
 
 注意：
 
 - 返回的是图片句柄，不是文件路径。
 - 图片像素数据保留在 native 内存中。
+- `source` 和 `captureDurationMs` 用于判断当前是否真的走 root 截图，以及后续压测截图路径。
 - 使用完必须调用 `m.image.release(img)`。
 
 ## 13. 图片 API

@@ -64,7 +64,11 @@ std::string imageMetadataJson(const ImageMetadata& metadata) {
     output << "\"byteLength\":" << metadata.byteLength << ",";
     output << "\"format\":\"";
     appendJsonString(output, metadata.format);
-    output << "\"";
+    output << "\",";
+    output << "\"source\":\"";
+    appendJsonString(output, metadata.source);
+    output << "\",";
+    output << "\"captureDurationMs\":" << metadata.captureDurationMs;
     output << "}";
     return output.str();
 }
@@ -226,6 +230,8 @@ Java_com_autolua_engine_NativeEngine_nativeCaptureScreenJson(JNIEnv* env, jclass
     frame.rowStride = capture.rowStride;
     frame.pixelStride = capture.pixelStride;
     frame.format = capture.format;
+    frame.source = capture.source;
+    frame.captureDurationMs = capture.captureDurationMs;
     frame.pixels = std::move(capture.pixels);
 
     ImageMetadata metadata = storeImageFrame(std::move(frame));

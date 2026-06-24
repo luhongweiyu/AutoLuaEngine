@@ -1362,6 +1362,8 @@ int luaScreenCapture(lua_State* state) {
     frame.rowStride = capture.rowStride;
     frame.pixelStride = capture.pixelStride;
     frame.format = capture.format;
+    frame.source = capture.source;
+    frame.captureDurationMs = capture.captureDurationMs;
     frame.pixels = std::move(capture.pixels);
 
     ImageMetadata metadata = storeImageFrame(std::move(frame));
@@ -1383,6 +1385,10 @@ int luaScreenCapture(lua_State* state) {
     lua_setfield(state, -2, "byteLength");
     lua_pushstring(state, metadata.format.c_str());
     lua_setfield(state, -2, "format");
+    lua_pushstring(state, metadata.source.c_str());
+    lua_setfield(state, -2, "source");
+    lua_pushinteger(state, static_cast<lua_Integer>(metadata.captureDurationMs));
+    lua_setfield(state, -2, "captureDurationMs");
     return 1;
 }
 

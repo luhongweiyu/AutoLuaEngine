@@ -6,6 +6,8 @@ if img then
     print("image id =", img.id)
     print("size =", img.width, img.height)
     print("format =", img.format)
+    print("source =", img.source)
+    print("captureDurationMs =", img.captureDurationMs)
     print("byteLength =", img.byteLength)
 
     local centerX = math.floor(img.width / 2)

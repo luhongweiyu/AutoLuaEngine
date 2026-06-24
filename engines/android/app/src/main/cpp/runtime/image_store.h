@@ -17,6 +17,8 @@ struct ImageFrame {
     int rowStride = 0;
     int pixelStride = 0;
     std::string format;
+    std::string source;
+    long long captureDurationMs = 0;
     std::vector<unsigned char> pixels;
 };
 
@@ -28,6 +30,8 @@ struct ImageMetadata {
     int pixelStride = 0;
     std::size_t byteLength = 0;
     std::string format;
+    std::string source;
+    long long captureDurationMs = 0;
 };
 
 struct PixelColor {

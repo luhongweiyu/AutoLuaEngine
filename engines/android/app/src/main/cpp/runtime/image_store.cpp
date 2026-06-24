@@ -23,6 +23,8 @@ ImageMetadata makeMetadataLocked(const StoredImage& image) {
     metadata.pixelStride = image.frame.pixelStride;
     metadata.byteLength = image.frame.pixels.size();
     metadata.format = image.frame.format;
+    metadata.source = image.frame.source;
+    metadata.captureDurationMs = image.frame.captureDurationMs;
     return metadata;
 }
 

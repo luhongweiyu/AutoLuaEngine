@@ -18,6 +18,8 @@ public final class ScreenCaptureResult {
     public final int rowStride;
     public final int pixelStride;
     public final String format;
+    public final String source;
+    public final long captureDurationMs;
     public final String error;
 
     private final Image image;
@@ -32,6 +34,8 @@ public final class ScreenCaptureResult {
             int rowStride,
             int pixelStride,
             String format,
+            String source,
+            long captureDurationMs,
             String error
     ) {
         this.success = success;
@@ -42,13 +46,17 @@ public final class ScreenCaptureResult {
         this.rowStride = rowStride;
         this.pixelStride = pixelStride;
         this.format = format;
+        this.source = source;
+        this.captureDurationMs = captureDurationMs;
         this.error = error;
     }
 
     public static ScreenCaptureResult successFromImage(
             Image image,
             int width,
-            int height
+            int height,
+            String source,
+            long captureDurationMs
     ) {
         Image.Plane[] planes = image.getPlanes();
         if (planes.length == 0) {
@@ -77,11 +85,19 @@ public final class ScreenCaptureResult {
                 rowStride,
                 pixelStride,
                 "rgba8888",
+                source,
+                captureDurationMs,
                 null
         );
     }
 
-    public static ScreenCaptureResult successFromRgbaBytes(byte[] pixels, int width, int height) {
+    public static ScreenCaptureResult successFromRgbaBytes(
+            byte[] pixels,
+            int width,
+            int height,
+            String source,
+            long captureDurationMs
+    ) {
         if (pixels == null || pixels.length == 0) {
             return failure("screen capture pixel buffer is empty");
         }
@@ -114,12 +130,14 @@ public final class ScreenCaptureResult {
                 rowStride,
                 4,
                 "rgba8888",
+                source,
+                captureDurationMs,
                 null
         );
     }
 
     public static ScreenCaptureResult failure(String error) {
-        return new ScreenCaptureResult(false, null, null, 0, 0, 0, 0, null, error);
+        return new ScreenCaptureResult(false, null, null, 0, 0, 0, 0, null, "", 0, error);
     }
 
     public void close() {

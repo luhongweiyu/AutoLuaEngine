@@ -1589,6 +1589,8 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
     jfieldID rowStrideField = env->GetFieldID(resultClass, "rowStride", "I");
     jfieldID pixelStrideField = env->GetFieldID(resultClass, "pixelStride", "I");
     jfieldID formatField = env->GetFieldID(resultClass, "format", "Ljava/lang/String;");
+    jfieldID sourceField = env->GetFieldID(resultClass, "source", "Ljava/lang/String;");
+    jfieldID durationField = env->GetFieldID(resultClass, "captureDurationMs", "J");
     jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
     jmethodID closeMethod = env->GetMethodID(resultClass, "close", "()V");
 
@@ -1599,6 +1601,8 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
             || rowStrideField == nullptr
             || pixelStrideField == nullptr
             || formatField == nullptr
+            || sourceField == nullptr
+            || durationField == nullptr
             || errorField == nullptr
             || closeMethod == nullptr) {
         env->ExceptionClear();
@@ -1614,11 +1618,14 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
     result.height = env->GetIntField(resultObject, heightField);
     result.rowStride = env->GetIntField(resultObject, rowStrideField);
     result.pixelStride = env->GetIntField(resultObject, pixelStrideField);
+    result.captureDurationMs = static_cast<long long>(env->GetLongField(resultObject, durationField));
 
     jobject pixelBuffer = env->GetObjectField(resultObject, pixelBufferField);
     jstring format = static_cast<jstring>(env->GetObjectField(resultObject, formatField));
+    jstring sourceName = static_cast<jstring>(env->GetObjectField(resultObject, sourceField));
     jstring error = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
     result.format = jStringToString(env, format);
+    result.source = jStringToString(env, sourceName);
     result.error = jStringToString(env, error);
 
     if (result.success && pixelBuffer != nullptr) {
@@ -1685,6 +1692,9 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
     }
     if (format != nullptr) {
         env->DeleteLocalRef(format);
+    }
+    if (sourceName != nullptr) {
+        env->DeleteLocalRef(sourceName);
     }
     if (error != nullptr) {
         env->DeleteLocalRef(error);

@@ -1080,7 +1080,7 @@ Lua 示例：
 ```lua
 local img, err = m.screen.capture()
 if img then
-    print(img.id, img.width, img.height, img.format)
+    print(img.id, img.width, img.height, img.format, img.source, img.captureDurationMs)
     m.image.release(img)
 else
     print(err)
@@ -1098,9 +1098,16 @@ Android 第一版成功返回：
     rowStride = 4320,
     pixelStride = 4,
     byteLength = 9590400,
-    format = "rgba8888"
+    format = "rgba8888",
+    source = "root-screencap",
+    captureDurationMs = 120
 }
 ```
+
+字段说明：
+
+- `source` 当前为 `"root-screencap"` 或 `"media-projection"`，用于确认本帧实际截图路线。
+- `captureDurationMs` 是 Java 层取到这一帧的耗时，单位毫秒，用于后续 root 截图压测。
 
 ### 5.9.1 `m.image.release(image)` / `m.releaseImage(image)`
 

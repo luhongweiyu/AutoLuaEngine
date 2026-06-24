@@ -22,8 +22,10 @@ public final class RootScreenCaptureBridge {
             return ScreenCaptureResult.failure("root screen capture is not available");
         }
 
+        long startTime = System.nanoTime();
         RootShellBridge.CommandResult result =
                 RootShellBridge.runRootCommand("screencap", CAPTURE_TIMEOUT_MS);
+        long captureDurationMs = elapsedMillis(startTime);
         if (result.exitCode != 0) {
             String error = result.stderrText().trim();
             if (error.isEmpty()) {
@@ -34,10 +36,10 @@ public final class RootScreenCaptureBridge {
             );
         }
 
-        return decodeRawScreencap(result.stdout);
+        return decodeRawScreencap(result.stdout, captureDurationMs);
     }
 
-    private static ScreenCaptureResult decodeRawScreencap(byte[] rawBytes) {
+    private static ScreenCaptureResult decodeRawScreencap(byte[] rawBytes, long captureDurationMs) {
         if (rawBytes == null || rawBytes.length < LEGACY_HEADER_BYTES) {
             return ScreenCaptureResult.failure("root screencap output is empty");
         }
@@ -71,7 +73,18 @@ public final class RootScreenCaptureBridge {
             return ScreenCaptureResult.failure("root screencap format is unsupported: " + format);
         }
 
-        return ScreenCaptureResult.successFromRgbaBytes(rgbaPixels, width, height);
+        return ScreenCaptureResult.successFromRgbaBytes(
+                rgbaPixels,
+                width,
+                height,
+                "root-screencap",
+                captureDurationMs
+        );
+    }
+
+    private static long elapsedMillis(long startTime) {
+        long elapsedNanos = System.nanoTime() - startTime;
+        return Math.max(0L, elapsedNanos / 1_000_000L);
     }
 
     private static int resolvePixelOffset(int rawLength, int pixelBytes) {

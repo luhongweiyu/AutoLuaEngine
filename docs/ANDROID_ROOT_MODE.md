@@ -125,6 +125,14 @@ su ... "screencap"
 
 这里读取的是 `screencap` 原始输出：头部为宽、高、像素格式等信息，后面是像素数据。
 当前已支持 `RGBA_8888`、`RGBX_8888`、`BGRA_8888`，进入脚本前统一归一成 RGBA 内存帧。
+截图成功后会在图片句柄里返回 `source` 和 `captureDurationMs`：
+
+```lua
+local img = m.screen.capture()
+print(img.source, img.captureDurationMs)
+```
+
+`source = "root-screencap"` 表示本帧走 root 原始截图；`source = "media-projection"` 表示本帧走系统授权截图。
 
 优点：
 
