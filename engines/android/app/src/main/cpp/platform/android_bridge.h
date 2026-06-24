@@ -24,6 +24,26 @@ struct RootExecResult {
     std::string error;
 };
 
+struct RootProbeAttempt {
+    std::string commandMode;
+    std::string suPath;
+    int exitCode = -1;
+    std::string stdoutText;
+    std::string stderrText;
+    bool timedOut = false;
+    std::string error;
+};
+
+struct RootStatusResult {
+    bool available = false;
+    std::string commandMode;
+    std::string suPath;
+    bool cached = false;
+    long long cacheExpireAt = 0;
+    std::string error;
+    std::vector<RootProbeAttempt> attempts;
+};
+
 /**
  * Android 平台能力桥。
  *
@@ -38,6 +58,7 @@ public:
     static bool isRootModeEnabled();
     static bool setRootModeEnabled(bool enabled);
     static bool isRootAvailable();
+    static RootStatusResult rootStatus();
     static RootExecResult rootExec(const std::string& command, int timeoutMs);
     static RootExecResult rootFileExists(const std::string& path);
     static RootExecResult rootFileReadText(const std::string& path, int timeoutMs);

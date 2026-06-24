@@ -23,6 +23,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - Home：`m.key.home` / `m.home`
 - 截图：`m.screen.capture()` / `m.capture()`
 - 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+- Root 探测状态：`m.root.status()` / `m.rootStatus()` / HTTP `root.status`
 - Root 文件：`m.root.file.exists/readText/writeText/remove/mkdir/chmod`，当前是文本和基础权限第一版
 - Root 进程：`m.root.process.pidOf/kill`，当前是查询 PID 和结束进程第一版
 - 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke` root 清数据和权限控制
@@ -107,6 +108,13 @@ su root sh -c "input tap x y"
 ```
 
 启动时会优先探测 `su -c`，如果设备不支持，再尝试 `su 0 sh -c` 和 `su root sh -c`。
+探测会同时尝试 `su`、`/system/xbin/su`、`/system/bin/su`、`/sbin/su`、`/vendor/bin/su` 这些常见路径。
+如果 root 不可用，可以用下面的接口查看每次探测的 stdout、stderr 和退出码：
+
+```lua
+local status = m.root.status()
+print(status.available, status.commandMode, status.suPath, status.error)
+```
 
 root 截图仍使用短命令：
 

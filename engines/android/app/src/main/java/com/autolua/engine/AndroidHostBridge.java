@@ -26,6 +26,10 @@ public final class AndroidHostBridge {
         return RootShellBridge.isRootAvailable();
     }
 
+    public static RootStatus rootStatus() {
+        return RootShellBridge.status();
+    }
+
     public static boolean isRootModeEnabled() {
         return isRootModeEnabledInternal();
     }

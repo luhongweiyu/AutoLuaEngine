@@ -14,6 +14,7 @@ local lr = {
     home = host.key.home,
     isRootAvailable = host.device.isRootAvailable,
     rootExec = host.root.exec,
+    rootStatus = host.root.status,
     runApp = host.app.open,
     closeApp = host.app.stop,
     clearAppData = host.app.clearData,

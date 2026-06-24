@@ -155,6 +155,10 @@ public final class EngineHttpServer {
             return makeRootExecResult(RootShellBridge.exec(command, timeoutMs));
         }
 
+        if ("root.status".equals(method)) {
+            return makeRootStatus(RootShellBridge.status());
+        }
+
         if ("root.file.exists".equals(method)) {
             RootCommandResult rootResult = RootShellBridge.fileExists(requirePath(params));
             JSONObject result = new JSONObject();
@@ -429,7 +433,8 @@ public final class EngineHttpServer {
 
     private JSONObject makeDeviceInfo() throws JSONException {
         boolean rootModeEnabled = EngineSettings.isRootModeEnabled(appContext);
-        boolean rootAvailable = RootShellBridge.isRootAvailable();
+        RootStatus rootStatus = RootShellBridge.status();
+        boolean rootAvailable = rootStatus.available;
         boolean accessibilityEnabled = AutomationAccessibilityService.isEnabled();
         JSONObject result = new JSONObject();
         result.put("platform", "android");
@@ -439,6 +444,7 @@ public final class EngineHttpServer {
         result.put("packageName", appContext.getPackageName());
         result.put("rootModeEnabled", rootModeEnabled);
         result.put("rootAvailable", rootAvailable);
+        result.put("rootStatus", makeRootStatus(rootStatus));
         result.put("accessibilityEnabled", accessibilityEnabled);
         result.put("automationMode", resolveAutomationMode(
                 rootModeEnabled,
@@ -447,6 +453,31 @@ public final class EngineHttpServer {
         ));
         result.put("httpHost", "127.0.0.1");
         result.put("httpPort", port);
+        return result;
+    }
+
+    private static JSONObject makeRootStatus(RootStatus rootStatus) throws JSONException {
+        JSONObject result = new JSONObject();
+        result.put("available", rootStatus.available);
+        result.put("commandMode", rootStatus.commandMode);
+        result.put("suPath", rootStatus.suPath);
+        result.put("cached", rootStatus.cached);
+        result.put("cacheExpireAt", rootStatus.cacheExpireAt);
+        result.put("error", rootStatus.error);
+
+        JSONArray attempts = new JSONArray();
+        for (RootStatus.ProbeAttempt attempt : rootStatus.attempts) {
+            JSONObject item = new JSONObject();
+            item.put("commandMode", attempt.commandMode);
+            item.put("suPath", attempt.suPath);
+            item.put("exitCode", attempt.exitCode);
+            item.put("stdout", attempt.stdout);
+            item.put("stderr", attempt.stderr);
+            item.put("timedOut", attempt.timedOut);
+            item.put("error", attempt.error);
+            attempts.put(item);
+        }
+        result.put("attempts", attempts);
         return result;
     }
 

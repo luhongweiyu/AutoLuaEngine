@@ -193,6 +193,7 @@ Lua run failed: expected lua runtime error
 - [x] App 主界面 Root 模式开关，默认开启
 - [x] `m.device.setRootModeEnabled(enabled)` 和 HTTP `device.setRootModeEnabled`，脚本/IDE 可切换 Root 模式
 - [x] `m.root.exec(command, timeoutMs)` root 通用命令执行
+- [x] `m.root.status()` 和 HTTP `root.status` root 探测状态诊断，记录 su 路径、命令模式和探测输出
 - [x] `m.root.file.exists/readText/writeText/remove/mkdir/chmod` root 文本文件读写删查、目录创建和权限修改
 - [x] `m.root.process.pidOf/kill` root 进程查询和结束进程第一版
 - [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke` 应用控制，启动 root 优先，强停、清数据和权限控制走 root

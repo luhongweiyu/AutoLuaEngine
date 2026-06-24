@@ -283,6 +283,13 @@ RootExecResult makeRootExecFailure(const std::string& error) {
     return result;
 }
 
+RootStatusResult makeRootStatusFailure(const std::string& error) {
+    RootStatusResult result;
+    result.available = false;
+    result.error = error;
+    return result;
+}
+
 RootExecResult readRootExecResult(JNIEnv* env,
                                   jobject resultObject,
                                   jclass bridgeClass,
@@ -533,6 +540,73 @@ RootExecResult callStaticRootResultStringStringMethod(const char* methodName,
     return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
 }
 
+RootProbeAttempt readRootProbeAttempt(JNIEnv* env, jobject attemptObject) {
+    RootProbeAttempt attempt;
+    if (attemptObject == nullptr) {
+        attempt.error = "root probe attempt is empty";
+        return attempt;
+    }
+
+    jclass attemptClass = env->GetObjectClass(attemptObject);
+    if (attemptClass == nullptr) {
+        env->ExceptionClear();
+        attempt.error = "root probe attempt class is not available";
+        return attempt;
+    }
+
+    jfieldID commandModeField = env->GetFieldID(attemptClass, "commandMode", "Ljava/lang/String;");
+    jfieldID suPathField = env->GetFieldID(attemptClass, "suPath", "Ljava/lang/String;");
+    jfieldID exitCodeField = env->GetFieldID(attemptClass, "exitCode", "I");
+    jfieldID stdoutField = env->GetFieldID(attemptClass, "stdout", "Ljava/lang/String;");
+    jfieldID stderrField = env->GetFieldID(attemptClass, "stderr", "Ljava/lang/String;");
+    jfieldID timedOutField = env->GetFieldID(attemptClass, "timedOut", "Z");
+    jfieldID errorField = env->GetFieldID(attemptClass, "error", "Ljava/lang/String;");
+    if (commandModeField == nullptr
+            || suPathField == nullptr
+            || exitCodeField == nullptr
+            || stdoutField == nullptr
+            || stderrField == nullptr
+            || timedOutField == nullptr
+            || errorField == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(attemptClass);
+        attempt.error = "root probe attempt fields are not available";
+        return attempt;
+    }
+
+    jstring commandMode = static_cast<jstring>(env->GetObjectField(attemptObject, commandModeField));
+    jstring suPath = static_cast<jstring>(env->GetObjectField(attemptObject, suPathField));
+    jstring stdoutValue = static_cast<jstring>(env->GetObjectField(attemptObject, stdoutField));
+    jstring stderrValue = static_cast<jstring>(env->GetObjectField(attemptObject, stderrField));
+    jstring errorValue = static_cast<jstring>(env->GetObjectField(attemptObject, errorField));
+
+    attempt.commandMode = jStringToString(env, commandMode);
+    attempt.suPath = jStringToString(env, suPath);
+    attempt.exitCode = env->GetIntField(attemptObject, exitCodeField);
+    attempt.stdoutText = jStringToString(env, stdoutValue);
+    attempt.stderrText = jStringToString(env, stderrValue);
+    attempt.timedOut = env->GetBooleanField(attemptObject, timedOutField) == JNI_TRUE;
+    attempt.error = jStringToString(env, errorValue);
+
+    if (commandMode != nullptr) {
+        env->DeleteLocalRef(commandMode);
+    }
+    if (suPath != nullptr) {
+        env->DeleteLocalRef(suPath);
+    }
+    if (stdoutValue != nullptr) {
+        env->DeleteLocalRef(stdoutValue);
+    }
+    if (stderrValue != nullptr) {
+        env->DeleteLocalRef(stderrValue);
+    }
+    if (errorValue != nullptr) {
+        env->DeleteLocalRef(errorValue);
+    }
+    env->DeleteLocalRef(attemptClass);
+    return attempt;
+}
+
 } // namespace
 
 void AndroidBridge::init(JavaVM* javaVm) {
@@ -557,6 +631,128 @@ bool AndroidBridge::setRootModeEnabled(bool enabled) {
 
 bool AndroidBridge::isRootAvailable() {
     return callStaticBooleanMethod0("isRootAvailable", "()Z");
+}
+
+RootStatusResult AndroidBridge::rootStatus() {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootStatusFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootStatusFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(
+            bridgeClass,
+            "rootStatus",
+            "()Lcom/autolua/engine/RootStatus;"
+    );
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootStatusFailure("root status method is not available");
+    }
+
+    jobject statusObject = env->CallStaticObjectMethod(bridgeClass, methodId);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootStatusFailure("root status java call failed");
+    }
+
+    if (statusObject == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootStatusFailure("root status returned empty result");
+    }
+
+    jclass statusClass = env->GetObjectClass(statusObject);
+    if (statusClass == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(statusObject);
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootStatusFailure("root status class is not available");
+    }
+
+    jfieldID availableField = env->GetFieldID(statusClass, "available", "Z");
+    jfieldID commandModeField = env->GetFieldID(statusClass, "commandMode", "Ljava/lang/String;");
+    jfieldID suPathField = env->GetFieldID(statusClass, "suPath", "Ljava/lang/String;");
+    jfieldID cachedField = env->GetFieldID(statusClass, "cached", "Z");
+    jfieldID cacheExpireAtField = env->GetFieldID(statusClass, "cacheExpireAt", "J");
+    jfieldID errorField = env->GetFieldID(statusClass, "error", "Ljava/lang/String;");
+    jfieldID attemptsField = env->GetFieldID(statusClass, "attempts", "Ljava/util/List;");
+    if (availableField == nullptr
+            || commandModeField == nullptr
+            || suPathField == nullptr
+            || cachedField == nullptr
+            || cacheExpireAtField == nullptr
+            || errorField == nullptr
+            || attemptsField == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(statusClass);
+        env->DeleteLocalRef(statusObject);
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootStatusFailure("root status fields are not available");
+    }
+
+    RootStatusResult result;
+    result.available = env->GetBooleanField(statusObject, availableField) == JNI_TRUE;
+    result.cached = env->GetBooleanField(statusObject, cachedField) == JNI_TRUE;
+    result.cacheExpireAt = static_cast<long long>(env->GetLongField(statusObject, cacheExpireAtField));
+
+    jstring commandMode = static_cast<jstring>(env->GetObjectField(statusObject, commandModeField));
+    jstring suPath = static_cast<jstring>(env->GetObjectField(statusObject, suPathField));
+    jstring error = static_cast<jstring>(env->GetObjectField(statusObject, errorField));
+    result.commandMode = jStringToString(env, commandMode);
+    result.suPath = jStringToString(env, suPath);
+    result.error = jStringToString(env, error);
+
+    jobject attemptsList = env->GetObjectField(statusObject, attemptsField);
+    if (attemptsList != nullptr) {
+        jclass listClass = env->FindClass("java/util/List");
+        jmethodID sizeMethod = listClass == nullptr ? nullptr : env->GetMethodID(listClass, "size", "()I");
+        jmethodID getMethod = listClass == nullptr ? nullptr : env->GetMethodID(listClass, "get", "(I)Ljava/lang/Object;");
+        if (listClass != nullptr && sizeMethod != nullptr && getMethod != nullptr) {
+            jint size = env->CallIntMethod(attemptsList, sizeMethod);
+            if (!env->ExceptionCheck()) {
+                for (jint i = 0; i < size; ++i) {
+                    jobject attemptObject = env->CallObjectMethod(attemptsList, getMethod, i);
+                    if (env->ExceptionCheck()) {
+                        env->ExceptionClear();
+                        break;
+                    }
+                    result.attempts.push_back(readRootProbeAttempt(env, attemptObject));
+                    if (attemptObject != nullptr) {
+                        env->DeleteLocalRef(attemptObject);
+                    }
+                }
+            } else {
+                env->ExceptionClear();
+            }
+        } else {
+            env->ExceptionClear();
+        }
+        if (listClass != nullptr) {
+            env->DeleteLocalRef(listClass);
+        }
+        env->DeleteLocalRef(attemptsList);
+    }
+
+    if (commandMode != nullptr) {
+        env->DeleteLocalRef(commandMode);
+    }
+    if (suPath != nullptr) {
+        env->DeleteLocalRef(suPath);
+    }
+    if (error != nullptr) {
+        env->DeleteLocalRef(error);
+    }
+    env->DeleteLocalRef(statusClass);
+    env->DeleteLocalRef(statusObject);
+    env->DeleteLocalRef(bridgeClass);
+    return result;
 }
 
 RootExecResult AndroidBridge::rootExec(const std::string& command, int timeoutMs) {

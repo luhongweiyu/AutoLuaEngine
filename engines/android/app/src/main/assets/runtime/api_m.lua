@@ -29,6 +29,7 @@ m.isAccessibilityEnabled = host.key.isAccessibilityEnabled
 m.isRootAvailable = host.device.isRootAvailable
 m.setRootModeEnabled = host.device.setRootModeEnabled
 m.rootExec = host.root.exec
+m.rootStatus = host.root.status
 m.rootFileExists = host.root.file.exists
 m.rootReadText = host.root.file.readText
 m.rootWriteText = host.root.file.writeText

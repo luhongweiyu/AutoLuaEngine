@@ -273,6 +273,15 @@ clientPort：IDE/PC 实际访问端口，默认 18380
     "packageName": "com.autolua.engine",
     "rootModeEnabled": true,
     "rootAvailable": true,
+    "rootStatus": {
+      "available": true,
+      "commandMode": "SU_0_SH_C",
+      "suPath": "su",
+      "cached": false,
+      "cacheExpireAt": 1782280000000,
+      "error": "",
+      "attempts": []
+    },
     "accessibilityEnabled": false,
     "automationMode": "root-first",
     "httpHost": "127.0.0.1",
@@ -366,7 +375,59 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.3 `root.file.exists`
+## 9.3 `root.status`
+
+说明：
+
+- 获取 Android root 探测状态
+- 用于定位 App 进程是否能拿到 root、命中的 su 路径和 su 参数格式
+- `attempts` 会列出最近一轮探测过的 su 命令和输出
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "root.status",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "result": {
+    "available": false,
+    "commandMode": "NONE",
+    "suPath": "",
+    "cached": true,
+    "cacheExpireAt": 1782280000000,
+    "error": "root is not available",
+    "attempts": [
+      {
+        "commandMode": "SU_C",
+        "suPath": "su",
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "permission denied",
+        "timedOut": false,
+        "error": ""
+      }
+    ]
+  }
+}
+```
+
+说明：
+
+- `adb shell` 可以 root 不代表 App 进程可以 root，最终以这里的 `available` 为准。
+- `device.info` 也会返回同一份 `rootStatus` 摘要。
+
+## 9.4 `root.file.exists`
 
 说明：
 
@@ -378,7 +439,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 9,
+  "id": 10,
   "method": "root.file.exists",
   "params": {
     "path": "/data/local/tmp/demo.txt"
@@ -391,7 +452,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 9,
+  "id": 10,
   "result": {
     "exists": true,
     "error": ""
@@ -399,7 +460,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.4 `root.file.readText`
+## 9.5 `root.file.readText`
 
 说明：
 
@@ -432,7 +493,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.5 `root.file.writeText`
+## 9.6 `root.file.writeText`
 
 说明：
 
@@ -467,7 +528,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.6 `root.file.remove`
+## 9.7 `root.file.remove`
 
 说明：
 
@@ -499,7 +560,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.7 `root.file.mkdir`
+## 9.8 `root.file.mkdir`
 
 说明：
 
@@ -532,7 +593,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.8 `root.file.chmod`
+## 9.9 `root.file.chmod`
 
 说明：
 
@@ -565,7 +626,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.9 `root.process.pidOf`
+## 9.10 `root.process.pidOf`
 
 说明：
 
@@ -598,7 +659,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.10 `root.process.kill`
+## 9.11 `root.process.kill`
 
 说明：
 
@@ -632,7 +693,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.11 `app.isInstalled`
+## 9.12 `app.isInstalled`
 
 说明：
 
@@ -663,7 +724,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.12 `app.open` / `app.start`
+## 9.13 `app.open` / `app.start`
 
 说明：
 
@@ -695,7 +756,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.13 `app.stop`
+## 9.14 `app.stop`
 
 说明：
 
@@ -727,7 +788,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `app.clearData`
+## 9.15 `app.clearData`
 
 说明：
 
@@ -760,7 +821,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.15 `app.grant`
+## 9.16 `app.grant`
 
 说明：
 
@@ -794,7 +855,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.16 `app.revoke`
+## 9.17 `app.revoke`
 
 说明：
 
@@ -827,7 +888,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.17 `key.press`
+## 9.18 `key.press`
 
 说明：
 
@@ -861,7 +922,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `input.text`
+## 9.19 `input.text`
 
 说明：
 
@@ -895,7 +956,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.19 `input.pasteText`
+## 9.20 `input.pasteText`
 
 说明：
 

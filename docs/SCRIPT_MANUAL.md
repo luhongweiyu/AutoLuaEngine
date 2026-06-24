@@ -18,6 +18,7 @@
 | 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
 | 设备 | `m.device.setRootModeEnabled(enabled)` | `m.setRootModeEnabled(...)` | [查看](#api-device-root-mode) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
+| Root | `m.root.status()` | `m.rootStatus()` | [查看](#api-root-status) |
 | Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
 | Root 文件 | `m.root.file.readText(path, timeoutMs)` | `m.rootReadText(...)` | [查看](#api-root-file-read-text) |
 | Root 文件 | `m.root.file.writeText(path, content, timeoutMs)` | `m.rootWriteText(...)` | [查看](#api-root-file-write-text) |
@@ -56,8 +57,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -502,7 +503,61 @@ end
 
 <a id="api-root-file-exists"></a>
 
-### 6.5 `m.root.file.exists(path)` / `m.rootFileExists(path)`
+### 6.5 `m.root.status()` / `m.rootStatus()`
+
+返回 Android root 探测状态，用于定位 App 进程是否能拿到 root 授权、当前命中的 su 模式和每次探测失败原因。
+
+参数：
+
+```text
+无
+```
+
+返回值：
+
+```lua
+{
+    available = false,
+    commandMode = "NONE",
+    suPath = "",
+    cached = true,
+    cacheExpireAt = 1782280000000,
+    error = "root is not available",
+    attempts = {
+        {
+            commandMode = "SU_C",
+            suPath = "su",
+            exitCode = 1,
+            stdout = "",
+            stderr = "permission denied",
+            timedOut = false,
+            error = ""
+        }
+    }
+}
+```
+
+示例：
+
+```lua
+local status = m.root.status()
+print("root =", status.available, status.commandMode, status.suPath)
+if not status.available then
+    print("root error =", status.error)
+end
+```
+
+说明：
+
+- `available` 表示 App 进程是否能通过 `su` 拿到 root shell。
+- `commandMode` 是当前命中的 su 参数格式，例如 `SU_C`、`SU_0_SH_C`。
+- `suPath` 是当前命中的 su 路径，例如 `su`、`/system/xbin/su`。
+- `attempts` 会列出最近一轮探测过的 su 路径和参数格式。
+- `adb shell` 能 root 不代表 App 进程一定能 root，最终以这里的 `available` 为准。
+
+<a id="api-root-file-exists"></a>
+
+### 6.6 `m.root.file.exists(path)` / `m.rootFileExists(path)`
 
 通过 root shell 判断路径是否存在。
 
@@ -533,7 +588,7 @@ end
 
 <a id="api-root-file-read-text"></a>
 
-### 6.6 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
+### 6.7 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
 
 通过 root shell 读取 UTF-8 文本文件。
 
@@ -562,7 +617,7 @@ end
 
 <a id="api-root-file-write-text"></a>
 
-### 6.7 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
+### 6.8 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
 
 通过 root shell 覆盖写入 UTF-8 文本文件。
 
@@ -597,7 +652,7 @@ end
 
 <a id="api-root-file-remove"></a>
 
-### 6.8 `m.root.file.remove(path)` / `m.rootRemove(path)`
+### 6.9 `m.root.file.remove(path)` / `m.rootRemove(path)`
 
 通过 root shell 删除文件或路径。
 
@@ -625,7 +680,7 @@ end
 
 <a id="api-root-file-mkdir"></a>
 
-### 6.9 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
+### 6.10 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
 
 通过 root shell 创建目录。
 
@@ -654,7 +709,7 @@ end
 
 <a id="api-root-file-chmod"></a>
 
-### 6.10 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
+### 6.11 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
 
 通过 root shell 修改文件或目录权限。
 
@@ -688,7 +743,7 @@ end
 
 <a id="api-root-process-pid-of"></a>
 
-### 6.11 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+### 6.12 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
 
 通过 root shell 查询进程名对应的 PID 列表。
 
@@ -727,7 +782,7 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.12 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.13 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -1615,6 +1670,7 @@ end
 |---|---|
 | `device.info` | 获取设备和引擎信息 |
 | `device.setRootModeEnabled` | 设置 Root 模式开关 |
+| `root.status` | 获取 root 探测状态 |
 | `script.run` | 发送并执行脚本 |
 | `script.pause` | 请求暂停当前脚本 |
 | `script.resume` | 请求继续已暂停脚本 |

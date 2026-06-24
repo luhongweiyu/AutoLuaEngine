@@ -154,6 +154,48 @@ int luaRootExec(lua_State* state) {
     return 1;
 }
 
+int luaRootStatus(lua_State* state) {
+    RootStatusResult status = AndroidBridge::rootStatus();
+
+    lua_newtable(state);
+    lua_pushboolean(state, status.available ? 1 : 0);
+    lua_setfield(state, -2, "available");
+    lua_pushstring(state, status.commandMode.c_str());
+    lua_setfield(state, -2, "commandMode");
+    lua_pushstring(state, status.suPath.c_str());
+    lua_setfield(state, -2, "suPath");
+    lua_pushboolean(state, status.cached ? 1 : 0);
+    lua_setfield(state, -2, "cached");
+    lua_pushinteger(state, static_cast<lua_Integer>(status.cacheExpireAt));
+    lua_setfield(state, -2, "cacheExpireAt");
+    lua_pushstring(state, status.error.c_str());
+    lua_setfield(state, -2, "error");
+
+    lua_createtable(state, static_cast<int>(status.attempts.size()), 0);
+    for (size_t i = 0; i < status.attempts.size(); ++i) {
+        const RootProbeAttempt& attempt = status.attempts[i];
+        lua_newtable(state);
+        lua_pushstring(state, attempt.commandMode.c_str());
+        lua_setfield(state, -2, "commandMode");
+        lua_pushstring(state, attempt.suPath.c_str());
+        lua_setfield(state, -2, "suPath");
+        lua_pushinteger(state, attempt.exitCode);
+        lua_setfield(state, -2, "exitCode");
+        lua_pushstring(state, attempt.stdoutText.c_str());
+        lua_setfield(state, -2, "stdout");
+        lua_pushstring(state, attempt.stderrText.c_str());
+        lua_setfield(state, -2, "stderr");
+        lua_pushboolean(state, attempt.timedOut ? 1 : 0);
+        lua_setfield(state, -2, "timedOut");
+        lua_pushstring(state, attempt.error.c_str());
+        lua_setfield(state, -2, "error");
+        lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+    }
+    lua_setfield(state, -2, "attempts");
+
+    return 1;
+}
+
 std::string rootResultError(const RootExecResult& result, const char* fallback) {
     if (!result.error.empty()) {
         return result.error;
@@ -834,6 +876,7 @@ void registerHostApi(lua_State* state) {
     int rootTableIndex = lua_gettop(state);
     setFunctionField(state, rootTableIndex, "exec", luaRootExec);
     setFunctionField(state, rootTableIndex, "isAvailable", luaDeviceIsRootAvailable);
+    setFunctionField(state, rootTableIndex, "status", luaRootStatus);
 
     lua_newtable(state);
     int rootFileTableIndex = lua_gettop(state);
