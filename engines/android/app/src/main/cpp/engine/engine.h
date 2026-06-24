@@ -2,6 +2,7 @@
 
 #include <string>
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
 
 /**
@@ -48,15 +49,32 @@ public:
      */
     void requestStop();
 
+    /**
+     * 请求暂停当前脚本。
+     *
+     * 暂停是协作式的：Lua VM 执行到 debug hook 后进入等待，不直接挂起系统线程。
+     */
+    bool requestPause();
+
+    /**
+     * 请求恢复已暂停或正在等待暂停的脚本。
+     */
+    bool requestResume();
+
 private:
     bool initialized_;
     int nextTaskId_;
     std::atomic_bool stopRequested_;
+    std::atomic_bool pauseRequested_;
+    std::condition_variable controlCondition_;
+    std::mutex controlMutex_;
     mutable std::mutex taskMutex_;
     int lastTaskId_;
     std::string lastStatus_;
     std::string lastResult_;
     std::string lastError_;
 
-    static bool isStopRequested(void* context);
+    static bool shouldInterrupt(void* context);
+    bool waitIfPausedOrStopped();
+    bool isActiveStatusLocked() const;
 };

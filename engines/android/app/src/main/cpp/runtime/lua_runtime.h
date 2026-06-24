@@ -20,15 +20,15 @@ public:
      * 执行一段 Lua 代码。
      *
      * @param code Lua 源码文本。
-     * @param stopRequested 返回 true 时中断脚本执行。
+     * @param shouldInterrupt 返回 true 时中断脚本执行；内部也可以等待暂停恢复。
      * @return 执行成功返回结果摘要，失败返回错误信息。
      */
-    std::string runText(const char* code, bool (*stopRequested)(void*), void* stopContext);
+    std::string runText(const char* code, bool (*shouldInterrupt)(void*), void* controlContext);
 
 private:
     struct lua_State* state_;
-    bool (*stopRequested_)(void*);
-    void* stopContext_;
+    bool (*shouldInterrupt_)(void*);
+    void* controlContext_;
 
     /**
      * 注册第一版 HostApi。
@@ -39,5 +39,5 @@ private:
      */
     void registerHostApi();
 
-    static void stopHook(struct lua_State* state, struct lua_Debug* debug);
+    static void controlHook(struct lua_State* state, struct lua_Debug* debug);
 };

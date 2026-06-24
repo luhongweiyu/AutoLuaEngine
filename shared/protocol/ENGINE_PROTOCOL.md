@@ -143,7 +143,13 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 6. `script.status`
+## 6. `script.pause`
+
+说明：
+
+- 请求暂停当前脚本
+- 必须是协作暂停，不直接挂起系统线程
+- 如果脚本正在执行很长的宿主函数，暂停会等宿主函数返回 Lua VM 后生效
 
 请求：
 
@@ -151,7 +157,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 {
   "jsonrpc": "2.0",
   "id": 3,
-  "method": "script.status",
+  "method": "script.pause",
   "params": {
     "taskId": 1
   }
@@ -164,6 +170,66 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 {
   "jsonrpc": "2.0",
   "id": 3,
+  "result": {
+    "accepted": true,
+    "status": "pausing"
+  }
+}
+```
+
+## 7. `script.resume`
+
+说明：
+
+- 请求继续已暂停或正在等待暂停的脚本
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "script.resume",
+  "params": {
+    "taskId": 1
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "accepted": true,
+    "status": "running"
+  }
+}
+```
+
+## 8. `script.status`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "script.status",
+  "params": {
+    "taskId": 1
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
   "result": {
     "taskId": 1,
     "status": "finished",
@@ -178,15 +244,16 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 - `script.run` 仍是同步执行
 - `script.status` 查询当前或最后一个任务
 - `taskId = 0` 表示查询最后一个任务
+- 任务状态当前可能为：`idle`、`running`、`pausing`、`paused`、`stopping`、`finished`、`failed`
 
-## 7. `device.info`
+## 9. `device.info`
 
 请求：
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 6,
   "method": "device.info",
   "params": {}
 }
@@ -197,7 +264,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 4,
+  "id": 6,
   "result": {
     "platform": "android",
     "engineVersion": "0.1.0",
@@ -209,7 +276,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 8. 日志事件
+## 10. 日志事件
 
 WebSocket 事件：
 
@@ -225,7 +292,7 @@ WebSocket 事件：
 }
 ```
 
-## 8.1 `log.drain`
+## 10.1 `log.drain`
 
 说明：
 
@@ -265,7 +332,7 @@ WebSocket 事件：
 }
 ```
 
-## 8.2 `screen.capture`
+## 10.2 `screen.capture`
 
 说明：
 
@@ -319,7 +386,7 @@ WebSocket 事件：
 }
 ```
 
-## 8.3 `image.release`
+## 10.3 `image.release`
 
 说明：
 
@@ -352,7 +419,7 @@ WebSocket 事件：
 }
 ```
 
-## 9. 状态事件
+## 11. 状态事件
 
 WebSocket 事件：
 

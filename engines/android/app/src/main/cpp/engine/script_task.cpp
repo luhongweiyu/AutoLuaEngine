@@ -45,6 +45,12 @@ std::string ScriptTask::statusName() const {
             return "idle";
         case ScriptTaskStatus::Running:
             return "running";
+        case ScriptTaskStatus::Pausing:
+            return "pausing";
+        case ScriptTaskStatus::Paused:
+            return "paused";
+        case ScriptTaskStatus::Stopping:
+            return "stopping";
         case ScriptTaskStatus::Finished:
             return "finished";
         case ScriptTaskStatus::Failed:

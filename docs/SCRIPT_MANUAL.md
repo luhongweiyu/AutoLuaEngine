@@ -973,6 +973,8 @@ end
 |---|---|
 | `device.info` | 获取设备和引擎信息 |
 | `script.run` | 发送并执行脚本 |
+| `script.pause` | 请求暂停当前脚本 |
+| `script.resume` | 请求继续已暂停脚本 |
 | `script.stop` | 请求停止当前脚本 |
 | `script.status` | 查询脚本状态 |
 | `log.drain` | 轮询读取日志 |

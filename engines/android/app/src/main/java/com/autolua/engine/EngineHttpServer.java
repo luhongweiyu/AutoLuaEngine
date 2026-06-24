@@ -162,6 +162,20 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("script.pause".equals(method)) {
+            JSONObject result = new JSONObject();
+            result.put("accepted", NativeEngine.pause());
+            result.put("status", new JSONObject(NativeEngine.statusJson(0)).optString("status", "unknown"));
+            return result;
+        }
+
+        if ("script.resume".equals(method)) {
+            JSONObject result = new JSONObject();
+            result.put("accepted", NativeEngine.resume());
+            result.put("status", new JSONObject(NativeEngine.statusJson(0)).optString("status", "unknown"));
+            return result;
+        }
+
         if ("log.drain".equals(method)) {
             int afterId = params.optInt("afterId", 0);
             JSONArray entries = new JSONArray(NativeEngine.drainLogs(afterId));

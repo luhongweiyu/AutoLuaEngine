@@ -323,6 +323,21 @@ nil, "message"
 Lua run failed: script stopped
 ```
 
+### 5.0.1 `script.pause` / `script.resume`
+
+说明：
+
+- `script.pause` 请求暂停当前脚本
+- `script.resume` 请求继续已暂停脚本
+- 暂停通过 Lua debug hook 协作执行，不直接挂起系统线程
+- 如果脚本正在执行很长的宿主函数，暂停会等宿主函数返回 Lua VM 后生效
+
+状态：
+
+```text
+running -> pausing -> paused -> running
+```
+
 ### 5.1 `m.touch.tap(x, y)` / `m.tap(x, y)`
 
 说明：

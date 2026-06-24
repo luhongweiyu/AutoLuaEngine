@@ -126,6 +126,8 @@ powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -FileP
 ```text
 device.info
 script.run
+script.pause
+script.resume
 script.stop
 script.status
 log.drain
@@ -176,12 +178,14 @@ ide/vscode-extension
 ```text
 AutoLuaEngine: Check Connection
 AutoLuaEngine: Run Current Lua File
+AutoLuaEngine: Pause Script
+AutoLuaEngine: Resume Script
 AutoLuaEngine: Stop Script
 AutoLuaEngine: Drain Logs
 ```
 
-插件窗口底部状态栏会显示 `AutoLua`、`Run Lua`、`Stop`、`Logs`，
-可直接检查连接、发送当前 Lua 文件、停止脚本和读取日志。
+插件窗口底部状态栏会显示 `AutoLua`、`Run Lua`、`Pause`、`Resume`、`Stop`、`Logs`，
+可直接检查连接、发送当前 Lua 文件、暂停、继续、停止脚本和读取日志。
 
 插件通过 `adb forward tcp:18380 tcp:18380` 连接已经启动的 Android App。
 
@@ -246,6 +250,16 @@ stop requested
 lua result: task#1 failed: Lua run failed: script stopped
 ```
 
+暂停 / 继续验证：
+
+```text
+script.pause  -> accepted = true, status = paused
+script.status -> status = paused
+script.resume -> accepted = true, status = running
+script.stop   -> accepted = true
+最终状态      -> failed, error = Lua run failed: script stopped
+```
+
 触控脚本验证：
 
 未开启无障碍服务时：
@@ -293,7 +307,7 @@ image.release success
 点击 App 内 开启悬浮控制 -> 授予悬浮窗权限 -> 屏幕右侧出现贴边“引擎”小圆点
 回到 Home 或切换到其他 App 后，小圆点仍显示在屏幕上
 拖动小圆点后松手，会自动吸附到屏幕左边或右边，并记住当前位置
-点击小圆点会弹出半透明控制面板，可执行 运行、暂停、停止、截图、日志、设置、事件、隐藏、关闭服务
+点击小圆点会弹出半透明控制面板，可执行 运行、暂停、继续、停止、截图、日志、设置、事件、隐藏、关闭服务
 点击 日志 会回到 App 状态区域查看最近 native / Lua 日志
 点击 设置 会回到 App 状态区域查看端口、无障碍、截图授权、悬浮窗权限和当前脚本
 点击 隐藏 会隐藏悬浮按钮并记住隐藏状态；再次点击 App 内 开启悬浮控制 可恢复
@@ -304,7 +318,8 @@ image.release success
 ```text
 App 主界面和悬浮控制都会把运行/停止命令交给 EngineService。
 Activity 关闭后，当前脚本不再依赖 Activity 自己的后台线程。
-暂停按钮当前只是入口提示，真正暂停后续按协作暂停实现。
+暂停和继续走 Lua debug hook 协作控制，不强行挂起脚本线程。
+如果脚本正在执行很长的宿主函数，暂停会等宿主函数返回 Lua VM 后生效。
 ```
 
 ## 5. 已知提示

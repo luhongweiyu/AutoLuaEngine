@@ -42,6 +42,7 @@ Engine::Engine()
         : initialized_(false),
           nextTaskId_(1),
           stopRequested_(false),
+          pauseRequested_(false),
           lastTaskId_(0),
           lastStatus_("idle") {
 }
@@ -58,6 +59,8 @@ std::string Engine::runLuaText(const char* code) {
     }
 
     stopRequested_.store(false);
+    pauseRequested_.store(false);
+    controlCondition_.notify_all();
 
     int taskId;
     {
@@ -73,7 +76,10 @@ std::string Engine::runLuaText(const char* code) {
     task.markRunning();
 
     LuaRuntime runtime;
-    std::string result = runtime.runText(code, Engine::isStopRequested, this);
+    std::string result = runtime.runText(code, Engine::shouldInterrupt, this);
+    pauseRequested_.store(false);
+    controlCondition_.notify_all();
+
     if (result.rfind("Lua run failed:", 0) == 0 || result.rfind("Lua load failed:", 0) == 0) {
         task.markFailed(result);
     } else {
@@ -117,9 +123,81 @@ std::string Engine::statusJson(int taskId) const {
 
 void Engine::requestStop() {
     stopRequested_.store(true);
+    pauseRequested_.store(false);
+    controlCondition_.notify_all();
+
+    std::lock_guard<std::mutex> lock(taskMutex_);
+    if (isActiveStatusLocked()) {
+        lastStatus_ = "stopping";
+    }
 }
 
-bool Engine::isStopRequested(void* context) {
+bool Engine::requestPause() {
+    std::lock_guard<std::mutex> lock(taskMutex_);
+    if (!isActiveStatusLocked()) {
+        return false;
+    }
+
+    pauseRequested_.store(true);
+    if (lastStatus_ == "running") {
+        lastStatus_ = "pausing";
+    }
+    return true;
+}
+
+bool Engine::requestResume() {
+    bool wasPaused = pauseRequested_.exchange(false);
+    controlCondition_.notify_all();
+
+    std::lock_guard<std::mutex> lock(taskMutex_);
+    bool canResume = lastStatus_ == "pausing" || lastStatus_ == "paused";
+    if (canResume) {
+        lastStatus_ = "running";
+    }
+    return wasPaused || canResume;
+}
+
+bool Engine::shouldInterrupt(void* context) {
     Engine* engine = static_cast<Engine*>(context);
-    return engine != nullptr && engine->stopRequested_.load();
+    return engine != nullptr && engine->waitIfPausedOrStopped();
+}
+
+bool Engine::waitIfPausedOrStopped() {
+    if (stopRequested_.load()) {
+        return true;
+    }
+
+    if (!pauseRequested_.load()) {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(taskMutex_);
+        if (lastStatus_ == "running" || lastStatus_ == "pausing") {
+            lastStatus_ = "paused";
+        }
+    }
+
+    std::unique_lock<std::mutex> lock(controlMutex_);
+    controlCondition_.wait(lock, [this]() {
+        return !pauseRequested_.load() || stopRequested_.load();
+    });
+
+    if (stopRequested_.load()) {
+        return true;
+    }
+
+    {
+        std::lock_guard<std::mutex> taskLock(taskMutex_);
+        if (lastStatus_ == "paused") {
+            lastStatus_ = "running";
+        }
+    }
+    return false;
+}
+
+bool Engine::isActiveStatusLocked() const {
+    return lastStatus_ == "running"
+            || lastStatus_ == "pausing"
+            || lastStatus_ == "paused";
 }

@@ -13,6 +13,8 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('autolua.checkConnection', checkConnection),
     vscode.commands.registerCommand('autolua.runCurrentLua', runCurrentLua),
+    vscode.commands.registerCommand('autolua.pauseScript', pauseScript),
+    vscode.commands.registerCommand('autolua.resumeScript', resumeScript),
     vscode.commands.registerCommand('autolua.stopScript', stopScript),
     vscode.commands.registerCommand('autolua.drainLogs', drainLogs),
     outputChannel,
@@ -33,9 +35,11 @@ function deactivate() {
 function createStatusBarItems() {
   const checkItem = createStatusBarItem('$(plug) AutoLua', 'autolua.checkConnection', 'Check AutoLuaEngine connection', 100);
   const runItem = createStatusBarItem('$(play) Run Lua', 'autolua.runCurrentLua', 'Send current Lua file to AutoLuaEngine', 99);
-  const stopItem = createStatusBarItem('$(debug-stop) Stop', 'autolua.stopScript', 'Request current script stop', 98);
-  const logsItem = createStatusBarItem('$(output) Logs', 'autolua.drainLogs', 'Drain AutoLuaEngine logs', 97);
-  return [checkItem, runItem, stopItem, logsItem];
+  const pauseItem = createStatusBarItem('$(debug-pause) Pause', 'autolua.pauseScript', 'Request current script pause', 98);
+  const resumeItem = createStatusBarItem('$(debug-continue) Resume', 'autolua.resumeScript', 'Resume paused script', 97);
+  const stopItem = createStatusBarItem('$(debug-stop) Stop', 'autolua.stopScript', 'Request current script stop', 96);
+  const logsItem = createStatusBarItem('$(output) Logs', 'autolua.drainLogs', 'Drain AutoLuaEngine logs', 95);
+  return [checkItem, runItem, pauseItem, resumeItem, stopItem, logsItem];
 }
 
 function createStatusBarItem(text, command, tooltip, priority) {
@@ -123,6 +127,28 @@ async function stopScript() {
   } catch (error) {
     outputChannel.appendLine(`[error] ${error.message}`);
     vscode.window.showErrorMessage(`AutoLuaEngine stop failed: ${error.message}`);
+  }
+}
+
+async function pauseScript() {
+  await sendControlCommand('script.pause', '[pause] requesting script pause', 'AutoLuaEngine pause requested.', 'pause');
+}
+
+async function resumeScript() {
+  await sendControlCommand('script.resume', '[resume] requesting script resume', 'AutoLuaEngine resume requested.', 'resume');
+}
+
+async function sendControlCommand(method, logLine, okMessage, logPrefix) {
+  outputChannel.show(true);
+  outputChannel.appendLine(logLine);
+
+  try {
+    const result = await callJsonRpc(method, {});
+    outputChannel.appendLine(`[${logPrefix}] ${JSON.stringify(result)}`);
+    vscode.window.showInformationMessage(okMessage);
+  } catch (error) {
+    outputChannel.appendLine(`[error] ${error.message}`);
+    vscode.window.showErrorMessage(`AutoLuaEngine ${logPrefix} failed: ${error.message}`);
   }
 }
 

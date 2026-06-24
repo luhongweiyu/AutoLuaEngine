@@ -11,6 +11,9 @@
 enum class ScriptTaskStatus {
     Idle,
     Running,
+    Pausing,
+    Paused,
+    Stopping,
     Finished,
     Failed
 };

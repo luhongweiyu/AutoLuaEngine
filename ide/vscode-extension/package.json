@@ -14,6 +14,8 @@
     "onStartupFinished",
     "onCommand:autolua.checkConnection",
     "onCommand:autolua.runCurrentLua",
+    "onCommand:autolua.pauseScript",
+    "onCommand:autolua.resumeScript",
     "onCommand:autolua.stopScript",
     "onCommand:autolua.drainLogs"
   ],
@@ -57,6 +59,14 @@
       {
         "command": "autolua.runCurrentLua",
         "title": "AutoLuaEngine: Run Current Lua File"
+      },
+      {
+        "command": "autolua.pauseScript",
+        "title": "AutoLuaEngine: Pause Script"
+      },
+      {
+        "command": "autolua.resumeScript",
+        "title": "AutoLuaEngine: Resume Script"
       },
       {
         "command": "autolua.stopScript",

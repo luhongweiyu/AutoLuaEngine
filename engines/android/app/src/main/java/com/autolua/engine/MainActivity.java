@@ -49,6 +49,8 @@ public final class MainActivity extends Activity {
     private Button touchButton;
     private Button captureButton;
     private Button screenButton;
+    private Button pauseButton;
+    private Button resumeButton;
     private Button stopButton;
     private Button floatingButton;
     private ScriptCatalog.ScriptItem selectedScript;
@@ -188,6 +190,22 @@ public final class MainActivity extends Activity {
         );
         runButton = runSelectedButton;
         addButton(root, runSelectedButton, false);
+
+        pauseButton = createButton(
+                R.id.button_pause,
+                "暂停脚本",
+                () -> EngineService.pauseScript(this)
+        );
+        pauseButton.setEnabled(false);
+        addButton(root, pauseButton, true);
+
+        resumeButton = createButton(
+                R.id.button_resume,
+                "继续脚本",
+                () -> EngineService.resumeScript(this)
+        );
+        resumeButton.setEnabled(false);
+        addButton(root, resumeButton, true);
 
         errorButton = createButton(
                 R.id.button_run_error,
@@ -362,6 +380,12 @@ public final class MainActivity extends Activity {
         if (floatingButton != null) {
             floatingButton.setEnabled(!running);
         }
+        if (pauseButton != null) {
+            pauseButton.setEnabled(running);
+        }
+        if (resumeButton != null) {
+            resumeButton.setEnabled(false);
+        }
         if (stopButton != null) {
             stopButton.setEnabled(running);
         }
@@ -375,7 +399,23 @@ public final class MainActivity extends Activity {
         String message = intent.getStringExtra(EngineService.EXTRA_MESSAGE);
         if (EngineService.STATE_RUNNING.equals(state)) {
             setRunningState(true);
+        } else if (EngineService.STATE_PAUSING.equals(state)
+                || EngineService.STATE_PAUSED.equals(state)) {
+            setRunningState(true);
+            if (pauseButton != null) {
+                pauseButton.setEnabled(false);
+            }
+            if (resumeButton != null) {
+                resumeButton.setEnabled(true);
+            }
         } else if (EngineService.STATE_STOPPING.equals(state)) {
+            setRunningState(true);
+            if (pauseButton != null) {
+                pauseButton.setEnabled(false);
+            }
+            if (resumeButton != null) {
+                resumeButton.setEnabled(false);
+            }
             outputView.setText(message);
         } else {
             setRunningState(false);

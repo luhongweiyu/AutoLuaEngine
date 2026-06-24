@@ -22,6 +22,10 @@ public final class EngineService extends Service {
             "com.autolua.engine.action.RUN_ASSET";
     public static final String ACTION_STOP_SCRIPT =
             "com.autolua.engine.action.STOP_SCRIPT";
+    public static final String ACTION_PAUSE_SCRIPT =
+            "com.autolua.engine.action.PAUSE_SCRIPT";
+    public static final String ACTION_RESUME_SCRIPT =
+            "com.autolua.engine.action.RESUME_SCRIPT";
     public static final String ACTION_STATUS =
             "com.autolua.engine.action.STATUS";
 
@@ -30,6 +34,8 @@ public final class EngineService extends Service {
     public static final String EXTRA_MESSAGE = "message";
 
     public static final String STATE_RUNNING = "running";
+    public static final String STATE_PAUSING = "pausing";
+    public static final String STATE_PAUSED = "paused";
     public static final String STATE_STOPPING = "stopping";
     public static final String STATE_FINISHED = "finished";
     public static final String STATE_FAILED = "failed";
@@ -46,6 +52,18 @@ public final class EngineService extends Service {
     public static void stopScript(Context context) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_STOP_SCRIPT);
+        context.startService(intent);
+    }
+
+    public static void pauseScript(Context context) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_PAUSE_SCRIPT);
+        context.startService(intent);
+    }
+
+    public static void resumeScript(Context context) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_RESUME_SCRIPT);
         context.startService(intent);
     }
 
@@ -71,6 +89,24 @@ public final class EngineService extends Service {
         if (ACTION_STOP_SCRIPT.equals(intent.getAction())) {
             NativeEngine.stop();
             broadcastStatus(STATE_STOPPING, "已请求停止脚本");
+            return START_STICKY;
+        }
+
+        if (ACTION_PAUSE_SCRIPT.equals(intent.getAction())) {
+            boolean accepted = NativeEngine.pause();
+            broadcastStatus(
+                    accepted ? STATE_PAUSING : STATE_FAILED,
+                    accepted ? "已请求暂停脚本" : "当前没有可暂停的脚本"
+            );
+            return START_STICKY;
+        }
+
+        if (ACTION_RESUME_SCRIPT.equals(intent.getAction())) {
+            boolean accepted = NativeEngine.resume();
+            broadcastStatus(
+                    accepted ? STATE_RUNNING : STATE_FAILED,
+                    accepted ? "已请求继续脚本" : "当前没有已暂停的脚本"
+            );
             return START_STICKY;
         }
 

@@ -90,9 +90,9 @@ engine_jni -> Engine -> LuaRuntime
 
 第一版只需要支持单任务运行。后续再扩展多任务。
 
-当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。悬浮控制使用系统 overlay 小圆点，回到 Home 或切换到其他 App 后仍会贴边显示，点击后弹出运行、暂停、停止、截图等控制面板。脚本运行已经下沉到后台 `EngineService`，主界面和悬浮图标只负责发送运行/停止命令并接收状态广播，不直接持有脚本执行线程。是否使用独立 Android 进程 `:engine` 后续再评估。
+当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。悬浮控制使用系统 overlay 小圆点，回到 Home 或切换到其他 App 后仍会贴边显示，点击后弹出运行、暂停、继续、停止、截图等控制面板。脚本运行已经下沉到后台 `EngineService`，主界面和悬浮图标只负责发送运行/暂停/继续/停止命令并接收状态广播，不直接持有脚本执行线程。是否使用独立 Android 进程 `:engine` 后续再评估。
 
-悬浮窗位置、隐藏状态和展开状态由 `EngineSettings` 持久化。悬浮面板已经提供运行、暂停、停止、截图、日志、设置、用户事件、隐藏、关闭服务入口；日志和设置入口先回到 `MainActivity` 的状态区域承接，用户事件入口暂时只保留交互入口。
+悬浮窗位置、隐藏状态和展开状态由 `EngineSettings` 持久化。悬浮面板已经提供运行、暂停、继续、停止、截图、日志、设置、用户事件、隐藏、关闭服务入口；日志和设置入口先回到 `MainActivity` 的状态区域承接，用户事件入口暂时只保留交互入口。
 
 旧项目参考结论：
 
@@ -126,9 +126,9 @@ CoreProvider  跨进程核心入口
 当前 ScriptTask 状态：
 
 ```text
-已实现同步任务模型：idle、running、finished、failed。
-已实现 Lua debug hook 协作取消。
-待实现：stopping 状态、native 内部异步执行、任务状态查询。
+已实现同步任务模型：idle、running、pausing、paused、stopping、finished、failed。
+已实现 Lua debug hook 协作取消、协作暂停和恢复。
+待实现：native 内部异步执行、多任务历史查询。
 当前 EngineService 使用 Java Thread 调用 native 同步接口，避免阻塞 Android 主线程。
 ```
 

@@ -235,7 +235,8 @@ public final class FloatingControlService extends Service {
 
         LinearLayout firstRow = createActionRow();
         firstRow.addView(createPanelAction("▶", "运行", this::runSelectedScript));
-        firstRow.addView(createPanelAction("Ⅱ", "暂停", () -> showToast("暂停功能后续实现")));
+        firstRow.addView(createPanelAction("Ⅱ", "暂停", () -> EngineService.pauseScript(this)));
+        firstRow.addView(createPanelAction("续", "继续", () -> EngineService.resumeScript(this)));
         firstRow.addView(createPanelAction("■", "停止", () -> EngineService.stopScript(this)));
         panel.addView(firstRow, matchWidthWrapContent());
 

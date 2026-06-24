@@ -112,6 +112,26 @@ Java_com_autolua_engine_NativeEngine_nativeStop(JNIEnv* env, jclass clazz) {
     logInfo("stop requested");
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_autolua_engine_NativeEngine_nativePause(JNIEnv* env, jclass clazz) {
+    (void) env;
+    (void) clazz;
+
+    bool accepted = gEngine.requestPause();
+    logInfo(accepted ? "pause requested" : "pause ignored: no running script");
+    return accepted ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_autolua_engine_NativeEngine_nativeResume(JNIEnv* env, jclass clazz) {
+    (void) env;
+    (void) clazz;
+
+    bool accepted = gEngine.requestResume();
+    logInfo(accepted ? "resume requested" : "resume ignored: script is not paused");
+    return accepted ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_autolua_engine_NativeEngine_nativeDrainLogs(JNIEnv* env, jclass clazz, jint afterId) {
     (void) clazz;

@@ -59,6 +59,14 @@ public final class NativeEngine {
         nativeStop();
     }
 
+    public static boolean pause() {
+        return nativePause();
+    }
+
+    public static boolean resume() {
+        return nativeResume();
+    }
+
     public static String drainLogs(int afterId) {
         return nativeDrainLogs(afterId);
     }
@@ -117,6 +125,10 @@ public final class NativeEngine {
     private static native String nativeRunLuaText(String code);
 
     private static native void nativeStop();
+
+    private static native boolean nativePause();
+
+    private static native boolean nativeResume();
 
     private static native String nativeDrainLogs(int afterId);
 

@@ -6,6 +6,8 @@
 
 - `AutoLuaEngine: Check Connection`
 - `AutoLuaEngine: Run Current Lua File`
+- `AutoLuaEngine: Pause Script`
+- `AutoLuaEngine: Resume Script`
 - `AutoLuaEngine: Stop Script`
 - `AutoLuaEngine: Drain Logs`
 
@@ -13,6 +15,8 @@
 
 - `AutoLua`：检查连接
 - `Run Lua`：发送当前编辑器里的 Lua 文件并运行
+- `Pause`：请求引擎暂停当前脚本
+- `Resume`：请求引擎继续已暂停脚本
 - `Stop`：请求引擎停止当前脚本
 - `Logs`：读取引擎日志到 `AutoLuaEngine` Output 面板
 
