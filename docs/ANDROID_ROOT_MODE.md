@@ -9,7 +9,7 @@
 第一版 root 模式先落地：
 
 ```text
-RootShellBridge -> 探测可用 su 格式 -> input tap / swipe / keyevent
+RootShellBridge -> 探测可用 su 格式 -> input / screencap
 ```
 
 当前覆盖：
@@ -18,6 +18,7 @@ RootShellBridge -> 探测可用 su 格式 -> input tap / swipe / keyevent
 - 滑动：`m.touch.swipe` / `m.swipe`
 - 返回：`m.key.back` / `m.back`
 - Home：`m.key.home` / `m.home`
+- 截图：`m.screen.capture()` / `m.capture()`
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 
 ## 2. 执行策略
@@ -27,6 +28,14 @@ RootShellBridge -> 探测可用 su 格式 -> input tap / swipe / keyevent
 ```text
 root 可用 -> 优先 su input ...
 root 不可用或命令失败 -> 回退无障碍服务
+两者都不可用 -> 返回 nil, errorMessage
+```
+
+截图执行顺序：
+
+```text
+root 可用 -> 优先 su screencap 原始输出
+root 不可用或 root 截图失败 -> 回退 MediaProjection
 两者都不可用 -> 返回 nil, errorMessage
 ```
 
@@ -61,6 +70,15 @@ su root sh -c "input tap x y"
 
 启动时会优先探测 `su -c`，如果设备不支持，再尝试 `su 0 sh -c` 和 `su root sh -c`。
 
+root 截图使用：
+
+```text
+su ... "screencap"
+```
+
+这里读取的是 `screencap` 原始输出：头部为宽、高、像素格式等信息，后面是像素数据。
+当前已支持 `RGBA_8888`、`RGBX_8888`、`BGRA_8888`，进入脚本前统一归一成 RGBA 内存帧。
+
 优点：
 
 - 实现简单，可维护。
@@ -69,7 +87,7 @@ su root sh -c "input tap x y"
 
 限制：
 
-- 每次命令都会创建 `su` 进程，不适合高频点阵、截图、找色。
+- 每次命令都会创建 `su` 进程，root 截图虽已避开 PNG 编码和磁盘 IO，但仍不适合作最终高频找色方案。
 - root 授权弹窗由系统或 root 管理器控制，App 不能静默授权。
 - 部分设备的 `su` 行为可能不同，需要后续适配。
 
@@ -77,7 +95,7 @@ su root sh -c "input tap x y"
 
 优先级：
 
-1. root 截图：评估 `su screencap` 或常驻 root 进程直接取 framebuffer / Surface。
+1. root 截图优化：评估常驻 root 进程直接取 framebuffer / Surface，减少每帧创建进程和复制大块 stdout 的开销。
 2. root 输入优化：评估常驻 root shell，减少每次点击创建进程的开销。
 3. root 文件和进程能力：补 `m.root.exec`、进程列表、文件权限操作等。
 4. root 引擎进程：如果需要更强能力，再参考旧项目 root engine 做独立 root service。

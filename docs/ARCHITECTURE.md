@@ -250,7 +250,7 @@ engines/android/app/src/main/assets/runtime/bootstrap.lua
 ```text
 m.touch.tap / m.touch.swipe -> RootShellBridge 探测 su 格式后执行 input，失败后回退 AccessibilityService
 m.key.back / m.key.home -> RootShellBridge 探测 su 格式后执行 input keyevent，失败后回退 AccessibilityService
-m.screen.capture -> MediaProjection + ImageReader -> native 内存图片句柄
+m.screen.capture -> root screencap 或 MediaProjection + ImageReader -> native 内存图片句柄
 ```
 
 旧项目里还有 `httpGet/httpPost`、Toast、HUD、剪贴板、输入法输入、启动 App、UI 控件查找、Java 对象桥、root 引擎等能力。当前只把它们作为后续 API 候选，新增时仍然先进入 `m.*`，再由 Lua 层适配 `lr.*` 和 `cd.*`。

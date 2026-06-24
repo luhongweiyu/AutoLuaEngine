@@ -3,6 +3,7 @@ package com.autolua.engine;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -82,14 +83,14 @@ public final class RootShellBridge {
     private static RootCommandMode detectRootCommandMode() {
         for (RootCommandMode mode : RootCommandMode.PROBE_ORDER) {
             CommandResult result = runCommand(mode.buildArgs("id -u"), DEFAULT_TIMEOUT_MS);
-            if (result.exitCode == 0 && "0".equals(result.output.trim())) {
+            if (result.exitCode == 0 && "0".equals(result.stdoutText().trim())) {
                 return mode;
             }
         }
         return RootCommandMode.NONE;
     }
 
-    private static CommandResult runRootCommand(String command, long timeoutMs) {
+    static CommandResult runRootCommand(String command, long timeoutMs) {
         if (!isRootAvailable()) {
             return new CommandResult(-1, "root is not available");
         }
@@ -99,16 +100,29 @@ public final class RootShellBridge {
     private static CommandResult runCommand(String[] args, long timeoutMs) {
         Process process = null;
         try {
-            process = new ProcessBuilder(args)
-                    .redirectErrorStream(true)
-                    .start();
+            process = new ProcessBuilder(args).start();
+            StreamCollector stdoutCollector = new StreamCollector(process.getInputStream());
+            StreamCollector stderrCollector = new StreamCollector(process.getErrorStream());
+            Thread stdoutThread = new Thread(stdoutCollector, "RootShellStdout");
+            Thread stderrThread = new Thread(stderrCollector, "RootShellStderr");
+            stdoutThread.start();
+            stderrThread.start();
 
             if (!waitForProcess(process, timeoutMs)) {
                 process.destroy();
+                joinCollector(stdoutThread);
+                joinCollector(stderrThread);
                 return new CommandResult(-1, "root command timeout");
             }
 
-            return new CommandResult(process.exitValue(), readAllText(process.getInputStream()));
+            joinCollector(stdoutThread);
+            joinCollector(stderrThread);
+
+            return new CommandResult(
+                    process.exitValue(),
+                    stdoutCollector.toByteArray(),
+                    stderrCollector.toByteArray()
+            );
         } catch (IOException exception) {
             return new CommandResult(-1, exception.getMessage());
         } finally {
@@ -136,25 +150,68 @@ public final class RootShellBridge {
         return false;
     }
 
-    private static String readAllText(InputStream inputStream) throws IOException {
-        try (InputStream source = inputStream;
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[1024];
-            int readCount;
-            while ((readCount = source.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, readCount);
-            }
-            return outputStream.toString("UTF-8");
+    private static void joinCollector(Thread thread) {
+        try {
+            thread.join(200);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
     }
 
-    private static final class CommandResult {
-        private final int exitCode;
-        private final String output;
+    static final class CommandResult {
+        final int exitCode;
+        final byte[] stdout;
+        final byte[] stderr;
 
         private CommandResult(int exitCode, String output) {
+            this(
+                    exitCode,
+                    output == null ? new byte[0] : output.getBytes(StandardCharsets.UTF_8),
+                    new byte[0]
+            );
+        }
+
+        private CommandResult(int exitCode, byte[] stdout, byte[] stderr) {
             this.exitCode = exitCode;
-            this.output = output == null ? "" : output;
+            this.stdout = stdout == null ? new byte[0] : stdout;
+            this.stderr = stderr == null ? new byte[0] : stderr;
+        }
+
+        String stdoutText() {
+            return new String(stdout, StandardCharsets.UTF_8);
+        }
+
+        String stderrText() {
+            return new String(stderr, StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
+     * 独立线程读取进程输出，避免 `screencap` 这类大 stdout 命令把管道写满后卡死。
+     */
+    private static final class StreamCollector implements Runnable {
+        private final InputStream inputStream;
+        private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        private StreamCollector(InputStream inputStream) {
+            this.inputStream = inputStream;
+        }
+
+        @Override
+        public void run() {
+            try (InputStream source = inputStream) {
+                byte[] buffer = new byte[16 * 1024];
+                int readCount;
+                while ((readCount = source.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, readCount);
+                }
+            } catch (IOException ignored) {
+                // 命令超时或进程退出时流可能被关闭；调用方会根据 exitCode 判断结果。
+            }
+        }
+
+        private byte[] toByteArray() {
+            return outputStream.toByteArray();
         }
     }
 

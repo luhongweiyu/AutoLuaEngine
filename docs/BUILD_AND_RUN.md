@@ -144,7 +144,7 @@ GET /health -> {"ok":true,"port":18380}
 ```
 
 `log.drain` 当前会返回 Lua `print/log.print` 和 native 引擎日志。
-`screen.capture` 只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据；
+`screen.capture` 优先走 root 原始 `screencap`，失败后回退 MediaProjection；只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据；
 PC/IDE 使用完句柄后应调用 `image.release` 释放。
 
 注意：上面的 JSON-RPC 方法名是 IDE/PC 与引擎通讯协议，不等同于 Lua 脚本命名空间。

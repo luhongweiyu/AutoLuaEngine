@@ -451,8 +451,8 @@ end
 - 获取当前屏幕截图
 - Android 第一版返回内存图片句柄，不做 PNG 编码，不写磁盘
 - 句柄只暴露基础元信息；后续找色、比色直接在 native 内存上处理
-- Android 第一版使用 MediaProjection，需要用户确认截图授权
-- 未授权时返回 `nil, "screen capture permission is not granted"`
+- Android 优先使用 root 原始 `screencap`，失败后回退 MediaProjection
+- root 不可用且未授权时返回 `nil, "screen capture permission is not granted"`
 
 Lua 示例：
 

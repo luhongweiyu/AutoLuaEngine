@@ -147,7 +147,7 @@ touch tap failed; root or accessibility service is not available
 
 ## 3.2 后续截图测试需要你手动授权
 
-Android 截图使用 MediaProjection，需要你点击 App 内：
+Android 截图优先使用 root 原始 `screencap`。无 root 或 root 截图失败时会回退 MediaProjection，需要你点击 App 内：
 
 ```text
 开启截图授权

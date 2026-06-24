@@ -187,7 +187,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.touch.swipe(x1, y1, x2, y2, duration)`，优先走 root，失败后回退无障碍
 - [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，按键优先走 root，失败后回退无障碍
 - [x] `m.device.isRootAvailable()` 和 `m.device.info().rootAvailable`
-- [x] `m.screen.capture()`，优先 MediaProjection
+- [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
 - [x] 图片对象句柄管理，当前支持基础句柄、`m.image.release`、`m.image.getPixel`、`m.image.getPixels`
 - [ ] `m.image.findColor(...)`
 
@@ -203,7 +203,7 @@ Lua run failed: expected lua runtime error
 m.touch.tap / m.touch.swipe / m.key.back / m.key.home 已注册。
 当前 Android 端优先通过 root `su input ...` 执行；root 不可用或命令失败时回退无障碍。
 root 和无障碍都不可用时返回明确错误。
-m.screen.capture 已接入 MediaProjection + ImageReader。未授权时返回明确错误；
+m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；
 授权后返回 native 内存图片句柄和 width、height、rowStride、pixelStride、byteLength、format。
 当前已支持在 native 内存图片句柄上单点读取和批量读取 RGB 点阵；
 找色、比色等算法后续再做，不在这一阶段提前实现。

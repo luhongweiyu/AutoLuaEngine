@@ -212,7 +212,7 @@ if info.automationMode == "none" then
 end
 ```
 
-截图依赖 Android MediaProjection 授权。需要先在 App 中点击 `开启截图授权`，并在系统弹窗中确认。
+截图优先使用 root 原始 `screencap`，root 不可用或 root 截图失败时回退 Android MediaProjection 授权。无 root 时，需要先在 App 中点击 `开启截图授权`，并在系统弹窗中确认。
 
 ### 3.5 高频截图和点阵读取规则
 
@@ -726,7 +726,7 @@ end
 
 ### 10.1 `m.screen.capture()` / `m.capture()`
 
-获取当前屏幕截图，并返回 native 内存图片句柄。
+获取当前屏幕截图，并返回 native 内存图片句柄。Android 端当前优先使用 root 原始 `screencap`，失败后回退 MediaProjection。
 
 参数：
 

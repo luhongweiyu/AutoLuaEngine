@@ -47,10 +47,16 @@ public final class AndroidHostBridge {
     }
 
     public static boolean hasScreenCapturePermission() {
-        return ScreenCaptureBridge.hasPermission();
+        return RootShellBridge.isRootAvailable() || ScreenCaptureBridge.hasPermission();
     }
 
     public static ScreenCaptureResult captureScreen() {
+        if (RootShellBridge.isRootAvailable()) {
+            ScreenCaptureResult rootCapture = RootScreenCaptureBridge.captureFrame();
+            if (rootCapture.success || !ScreenCaptureBridge.hasPermission()) {
+                return rootCapture;
+            }
+        }
         return ScreenCaptureBridge.captureFrame();
     }
 }

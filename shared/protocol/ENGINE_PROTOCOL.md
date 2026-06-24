@@ -341,7 +341,7 @@ WebSocket 事件：
 说明：
 
 - 请求当前屏幕截图
-- Android 需要用户先完成 MediaProjection 授权
+- Android 优先使用 root 原始 `screencap`，失败后回退 MediaProjection 授权
 - 第一版返回图片句柄和基础元信息
 - 当前 Android HTTP JSON-RPC 已实现该方法
 - 像素数据保留在引擎内存中，供后续 image API 使用，不通过协议反复传输大块数据
