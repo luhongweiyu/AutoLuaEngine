@@ -208,6 +208,31 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("root.process.pidOf".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.pidOf(requireProcessName(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root process pidOf failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("pids", parsePidArray(rootResult.stdout));
+            return result;
+        }
+
+        if ("root.process.kill".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.killProcess(
+                    requireProcessTarget(params),
+                    params.optInt("signal", 15)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root process kill failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
         if ("app.isInstalled".equals(method)) {
             String packageName = requirePackageName(params);
             JSONObject result = new JSONObject();
@@ -401,6 +426,47 @@ public final class EngineHttpServer {
             throw new IllegalArgumentException("path is required");
         }
         return path;
+    }
+
+    private static String requireProcessName(JSONObject params) {
+        String processName = params.optString("name", "");
+        if (processName.trim().isEmpty()) {
+            throw new IllegalArgumentException("name is required");
+        }
+        return processName;
+    }
+
+    private static String requireProcessTarget(JSONObject params) {
+        String target = params.optString("target", "");
+        if (target.trim().isEmpty()) {
+            int pid = params.optInt("pid", 0);
+            if (pid > 0) {
+                return String.valueOf(pid);
+            }
+            String name = params.optString("name", "");
+            if (!name.trim().isEmpty()) {
+                return name;
+            }
+            throw new IllegalArgumentException("target, pid or name is required");
+        }
+        return target;
+    }
+
+    private static JSONArray parsePidArray(String stdout) {
+        JSONArray pids = new JSONArray();
+        if (stdout == null || stdout.trim().isEmpty()) {
+            return pids;
+        }
+
+        String[] parts = stdout.trim().split("\\s+");
+        for (String part : parts) {
+            try {
+                pids.put(Integer.parseInt(part));
+            } catch (NumberFormatException ignored) {
+                // pidof 输出里出现非数字时跳过，避免单个异常值影响整个响应。
+            }
+        }
+        return pids;
     }
 
     private static String requirePackageName(JSONObject params) {

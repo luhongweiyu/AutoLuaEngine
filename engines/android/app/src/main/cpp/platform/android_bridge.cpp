@@ -331,6 +331,52 @@ RootExecResult callStaticRootResultStringMethod(const char* methodName,
     return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
 }
 
+RootExecResult callStaticRootResultStringIntMethod(const char* methodName,
+                                                   const char* signature,
+                                                   const std::string& value,
+                                                   int number,
+                                                   const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jstring javaValue = env->NewStringUTF(value.c_str());
+    if (javaValue == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " string is invalid");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            javaValue,
+            static_cast<jint>(number)
+    );
+    env->DeleteLocalRef(javaValue);
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
 } // namespace
 
 void AndroidBridge::init(JavaVM* javaVm) {
@@ -521,6 +567,25 @@ RootExecResult AndroidBridge::rootFileRemove(const std::string& path) {
             "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
             path,
             "root file remove"
+    );
+}
+
+RootExecResult AndroidBridge::rootProcessPidOf(const std::string& processName) {
+    return callStaticRootResultStringMethod(
+            "rootProcessPidOf",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            processName,
+            "root process pidOf"
+    );
+}
+
+RootExecResult AndroidBridge::rootProcessKill(const std::string& pidOrName, int signal) {
+    return callStaticRootResultStringIntMethod(
+            "rootProcessKill",
+            "(Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;",
+            pidOrName,
+            signal,
+            "root process kill"
     );
 }
 

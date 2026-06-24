@@ -22,6 +22,8 @@
 | Root 文件 | `m.root.file.readText(path, timeoutMs)` | `m.rootReadText(...)` | [查看](#api-root-file-read-text) |
 | Root 文件 | `m.root.file.writeText(path, content, timeoutMs)` | `m.rootWriteText(...)` | [查看](#api-root-file-write-text) |
 | Root 文件 | `m.root.file.remove(path)` | `m.rootRemove(path)` | [查看](#api-root-file-remove) |
+| Root 进程 | `m.root.process.pidOf(name)` | `m.rootPidOf(name)` | [查看](#api-root-process-pid-of) |
+| Root 进程 | `m.root.process.kill(target, signal)` | `m.rootKill(...)` | [查看](#api-root-process-kill) |
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
 | 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
 | 应用 | `m.app.stop(packageName)` | `m.stopApp(...)` | [查看](#api-app-stop) |
@@ -614,6 +616,79 @@ if not ok then
     print("remove failed:", err)
 end
 ```
+
+<a id="api-root-process-pid-of"></a>
+
+### 6.9 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+
+通过 root shell 查询进程名对应的 PID 列表。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `name` | string | 进程名，例如包名或 native 进程名 |
+
+返回值：
+
+```text
+成功：{ pid1, pid2, ... }
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local pids, err = m.root.process.pidOf("com.android.settings")
+if not pids then
+    print("pidOf failed:", err)
+    return
+end
+
+for i, pid in ipairs(pids) do
+    print("pid =", pid)
+end
+```
+
+说明：
+
+- 第一版使用 Android 系统 `pidof`。
+- 找不到进程时返回空表，不视为错误。
+- 该接口不受 Root 模式开关影响，会直接尝试 root。
+
+<a id="api-root-process-kill"></a>
+
+### 6.10 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+
+通过 root shell 结束指定进程。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `target` | number 或 string | PID，或进程名 |
+| `signal` | number | 可选，默认 `15`。需要强杀时可传 `9` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.root.process.kill("com.example.target", 15)
+if not ok then
+    print("kill failed:", err)
+end
+```
+
+说明：
+
+- 传进程名时会先用 `pidof` 查询 PID，再对查到的 PID 执行 `kill`。
+- 找不到进程时返回失败；如果只是想检查是否存在，先用 `m.root.process.pidOf(name)`。
 
 ## 7. 应用 API
 

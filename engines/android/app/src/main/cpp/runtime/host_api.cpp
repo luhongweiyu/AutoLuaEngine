@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <cstdlib>
 
 #include "../engine/engine_config.h"
 #include "../platform/android_bridge.h"
@@ -219,6 +220,68 @@ int luaRootFileRemove(lua_State* state) {
     RootExecResult result = AndroidBridge::rootFileRemove(path);
     if (!result.success) {
         std::string error = rootResultError(result, "root file remove failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+std::vector<int> parsePidList(const std::string& text) {
+    std::vector<int> pids;
+    std::istringstream stream(text);
+    std::string part;
+    while (stream >> part) {
+        char* end = nullptr;
+        long value = std::strtol(part.c_str(), &end, 10);
+        if (end != part.c_str() && *end == '\0' && value > 0) {
+            pids.push_back(static_cast<int>(value));
+        }
+    }
+    return pids;
+}
+
+int luaRootProcessPidOf(lua_State* state) {
+    const char* processName = luaL_checkstring(state, 1);
+    RootExecResult result = AndroidBridge::rootProcessPidOf(processName);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root process pidOf failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    std::vector<int> pids = parsePidList(result.stdoutText);
+    lua_createtable(state, static_cast<int>(pids.size()), 0);
+    for (size_t i = 0; i < pids.size(); ++i) {
+        lua_pushinteger(state, pids[i]);
+        lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+    }
+    return 1;
+}
+
+int luaRootProcessKill(lua_State* state) {
+    std::string target;
+    if (lua_isinteger(state, 1)) {
+        lua_Integer pid = lua_tointeger(state, 1);
+        if (pid <= 0) {
+            return luaL_error(state, "process pid must be greater than 0");
+        }
+        target = std::to_string(static_cast<long long>(pid));
+    } else {
+        target = luaL_checkstring(state, 1);
+    }
+
+    lua_Integer signal = luaL_optinteger(state, 2, 15);
+    if (signal <= 0) {
+        return luaL_error(state, "process signal must be greater than 0");
+    }
+
+    RootExecResult result = AndroidBridge::rootProcessKill(target, static_cast<int>(signal));
+    if (!result.success) {
+        std::string error = rootResultError(result, "root process kill failed");
         lua_pushnil(state);
         lua_pushstring(state, error.c_str());
         return 2;
@@ -699,6 +762,12 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, rootFileTableIndex, "writeText", luaRootFileWriteText);
     setFunctionField(state, rootFileTableIndex, "remove", luaRootFileRemove);
     lua_setfield(state, rootTableIndex, "file");
+
+    lua_newtable(state);
+    int rootProcessTableIndex = lua_gettop(state);
+    setFunctionField(state, rootProcessTableIndex, "pidOf", luaRootProcessPidOf);
+    setFunctionField(state, rootProcessTableIndex, "kill", luaRootProcessKill);
+    lua_setfield(state, rootTableIndex, "process");
 
     lua_setfield(state, hostTableIndex, "root");
 

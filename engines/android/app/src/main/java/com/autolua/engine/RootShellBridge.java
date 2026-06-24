@@ -105,6 +105,33 @@ public final class RootShellBridge {
         );
     }
 
+    public static RootCommandResult pidOf(String processName) {
+        if (processName == null || processName.trim().isEmpty()) {
+            return RootCommandResult.failure("process name is required");
+        }
+
+        String command = "pidof " + shellQuote(processName.trim()) + " 2>/dev/null || true";
+        return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
+    public static RootCommandResult killProcess(String pidOrName, int signal) {
+        if (pidOrName == null || pidOrName.trim().isEmpty()) {
+            return RootCommandResult.failure("process id or name is required");
+        }
+
+        int safeSignal = signal <= 0 ? 15 : signal;
+        String target = pidOrName.trim();
+        String command;
+        if (target.matches("\\d+")) {
+            command = "kill -" + safeSignal + " " + target;
+        } else {
+            command = "pids=$(pidof " + shellQuote(target) + " 2>/dev/null || true); "
+                    + "[ -n \"$pids\" ] || exit 1; "
+                    + "kill -" + safeSignal + " $pids";
+        }
+        return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
     public static boolean tap(int x, int y) {
         if (!isRootAvailable()) {
             return false;

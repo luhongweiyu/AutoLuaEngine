@@ -193,6 +193,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.device.setRootModeEnabled(enabled)` 和 HTTP `device.setRootModeEnabled`，脚本/IDE 可切换 Root 模式
 - [x] `m.root.exec(command, timeoutMs)` root 通用命令执行
 - [x] `m.root.file.exists/readText/writeText/remove` root 文本文件读写删查
+- [x] `m.root.process.pidOf/kill` root 进程查询和结束进程第一版
 - [x] `m.app.isInstalled/open/start/stop` 应用控制，启动 root 优先，强停走 root
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
 - [x] 触控和按键优先复用常驻 root shell，失败后回退短命令和无障碍
@@ -214,6 +215,7 @@ m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.ho
 其中通用按键只有 Back/Home 可回退无障碍；其他 keyCode 当前依赖 root。
 文本输入当前适合简单英文、数字和空格，中文和复杂文本后续走输入法或剪贴板路线。
 Root 文件 API 当前支持文本读写删查，二进制、目录创建、递归删除后续再做。
+Root 进程 API 当前支持 pidOf/kill，完整进程列表和资源占用统计后续再做。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
 root 和无障碍都不可用时返回明确错误。
 m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；

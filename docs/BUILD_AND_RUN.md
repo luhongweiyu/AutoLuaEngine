@@ -131,6 +131,8 @@ root.file.exists
 root.file.readText
 root.file.writeText
 root.file.remove
+root.process.pidOf
+root.process.kill
 app.isInstalled
 app.open
 app.start

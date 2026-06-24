@@ -47,6 +47,8 @@ public:
             int timeoutMs
     );
     static RootExecResult rootFileRemove(const std::string& path);
+    static RootExecResult rootProcessPidOf(const std::string& processName);
+    static RootExecResult rootProcessKill(const std::string& pidOrName, int signal);
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);

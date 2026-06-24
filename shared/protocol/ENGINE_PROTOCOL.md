@@ -499,7 +499,74 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.7 `app.isInstalled`
+## 9.7 `root.process.pidOf`
+
+说明：
+
+- 通过 root shell 查询进程名对应的 PID 列表
+- 找不到进程时返回空数组
+- 显式 root 能力，不受 Root 模式开关影响
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "method": "root.process.pidOf",
+  "params": {
+    "name": "com.android.settings"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "result": {
+    "pids": [1234]
+  }
+}
+```
+
+## 9.8 `root.process.kill`
+
+说明：
+
+- 通过 root shell 结束指定进程
+- `target` 可以是 PID 字符串或进程名；也可以传 `pid` 或 `name`
+- `signal` 可选，默认 `15`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "method": "root.process.kill",
+  "params": {
+    "target": "com.example.target",
+    "signal": 15
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.9 `app.isInstalled`
 
 说明：
 
@@ -510,7 +577,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 15,
   "method": "app.isInstalled",
   "params": {
     "packageName": "com.android.settings"
@@ -523,14 +590,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 15,
   "result": {
     "installed": true
   }
 }
 ```
 
-## 9.8 `app.open` / `app.start`
+## 9.10 `app.open` / `app.start`
 
 说明：
 
@@ -542,7 +609,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 14,
+  "id": 16,
   "method": "app.open",
   "params": {
     "packageName": "com.android.settings"
@@ -555,14 +622,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 14,
+  "id": 16,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.9 `app.stop`
+## 9.11 `app.stop`
 
 说明：
 
@@ -574,7 +641,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 15,
+  "id": 17,
   "method": "app.stop",
   "params": {
     "packageName": "com.example.target"
@@ -587,14 +654,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 15,
+  "id": 17,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.10 `key.press`
+## 9.12 `key.press`
 
 说明：
 
@@ -608,7 +675,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 16,
+  "id": 18,
   "method": "key.press",
   "params": {
     "keyCode": 66
@@ -621,14 +688,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 16,
+  "id": 18,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.11 `input.text`
+## 9.13 `input.text`
 
 说明：
 
@@ -642,7 +709,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 17,
+  "id": 19,
   "method": "input.text",
   "params": {
     "text": "hello world"
@@ -655,7 +722,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 17,
+  "id": 19,
   "result": {
     "ok": true
   }

@@ -58,6 +58,14 @@ public final class AndroidHostBridge {
         return RootShellBridge.removeFile(path);
     }
 
+    public static RootCommandResult rootProcessPidOf(String processName) {
+        return RootShellBridge.pidOf(processName);
+    }
+
+    public static RootCommandResult rootProcessKill(String pidOrName, int signal) {
+        return RootShellBridge.killProcess(pidOrName, signal);
+    }
+
     public static boolean appIsInstalled(String packageName) {
         return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
     }
