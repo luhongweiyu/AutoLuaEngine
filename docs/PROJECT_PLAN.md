@@ -275,6 +275,7 @@ ide/vscode-extension 已提供最小命令：
 - [x] 悬浮面板补日志、设置、用户事件入口
 - [x] 将 native 初始化和 HTTP 服务启动入口收敛到 EngineService
 - [x] App 日志入口改为通过本地 JSON-RPC 访问引擎
+- [x] App 设置入口改为通过本地 JSON-RPC 查询引擎状态
 - [x] 记录 Android 引擎独立进程拆分方案
 - [ ] 评估是否把 EngineService 放到独立 Android 进程 `:engine`
 - [x] 暂停脚本先按协作暂停设计，不强杀线程、不直接挂起系统线程
@@ -307,6 +308,6 @@ ide/vscode-extension 已提供最小命令：
 
 1. 后续新增或修改脚本 API 时，同步维护脚本文档顶部速查表。
 2. 后续新增函数命名优先靠近懒人精灵、触动精灵的常见名称。
-3. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续拆掉主进程对 `NativeEngine` 的直接依赖。
+3. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续确认截图授权跨进程方案。
 4. 后续补基础系统 API，如 Toast、剪贴板、启动 App、输入法输入。
 5. 找色、比色等算法暂缓，等基础通讯闭环稳定后再做。

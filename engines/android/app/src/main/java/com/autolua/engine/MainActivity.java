@@ -485,18 +485,30 @@ public final class MainActivity extends Activity {
      * 显示当前引擎设置和关键权限状态。
      *
      * 第一版还没有独立设置页，先用状态区域承接悬浮窗的“设置”入口。
+     * 引擎版本和任务状态通过本地 JSON-RPC 查询，避免主进程直接读 native 状态。
      */
     private void showSettingsSummary() {
-        boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                || Settings.canDrawOverlays(this);
-        String summary = "当前设置"
-                + "\n调试地址：127.0.0.1:" + EngineSettings.getHttpPort(this)
-                + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
-                + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
-                + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
-                + "\n悬浮按钮：" + (EngineSettings.isFloatingBubbleHidden(this) ? "已隐藏" : "显示中")
-                + "\n当前脚本：" + selectedScript.title + "    " + selectedScript.assetPath;
-        outputView.setText(summary);
+        ScriptCatalog.ScriptItem currentScript = selectedScript;
+        runEngineStatusQuery("正在读取设置...", "读取设置失败：", () -> {
+            JSONObject deviceInfo = EngineLocalClient.call(this, "device.info", new JSONObject());
+            JSONObject taskStatus = EngineLocalClient.call(this, "script.status", makeTaskIdParams(0));
+            boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                    || Settings.canDrawOverlays(this);
+
+            return "当前设置"
+                    + "\n调试地址："
+                    + deviceInfo.optString("httpHost", "127.0.0.1")
+                    + ":"
+                    + deviceInfo.optInt("httpPort", EngineSettings.getHttpPort(this))
+                    + "\n引擎版本：" + deviceInfo.optString("engineVersion", "unknown")
+                    + "\nLua 版本：" + deviceInfo.optString("luaVersion", "unknown")
+                    + "\n任务状态：" + taskStatus.optString("status", "unknown")
+                    + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
+                    + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
+                    + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
+                    + "\n悬浮按钮：" + (EngineSettings.isFloatingBubbleHidden(this) ? "已隐藏" : "显示中")
+                    + "\n当前脚本：" + currentScript.title + "    " + currentScript.assetPath;
+        });
     }
 
     private String formatEnabled(boolean enabled) {
@@ -506,6 +518,12 @@ public final class MainActivity extends Activity {
     private JSONObject makeAfterIdParams(int afterId) throws JSONException {
         JSONObject params = new JSONObject();
         params.put("afterId", afterId);
+        return params;
+    }
+
+    private JSONObject makeTaskIdParams(int taskId) throws JSONException {
+        JSONObject params = new JSONObject();
+        params.put("taskId", taskId);
         return params;
     }
 
