@@ -130,6 +130,8 @@ app.isInstalled
 app.open
 app.start
 app.stop
+key.press
+input.text
 script.run
 script.pause
 script.resume

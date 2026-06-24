@@ -11,6 +11,7 @@ local m = {
     file = host.file,
     app = host.app,
     touch = host.touch,
+    input = host.input,
     key = host.key,
     screen = host.screen,
     image = host.image,
@@ -19,6 +20,8 @@ local m = {
 -- 高频自动化能力提供 m.* 快捷入口；完整模块仍保留在 m.touch/m.image 等表中。
 m.tap = host.touch.tap
 m.swipe = host.touch.swipe
+m.inputText = host.input.text
+m.pressKey = host.key.press
 m.back = host.key.back
 m.home = host.key.home
 m.isAccessibilityEnabled = host.key.isAccessibilityEnabled

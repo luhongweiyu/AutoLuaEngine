@@ -27,7 +27,9 @@
 | 文件 | `m.file.remove(path)` | 无 | [查看](#api-file-remove) |
 | 触控 | `m.touch.tap(x, y)` | `m.tap(x, y)` | [查看](#api-touch-tap) |
 | 触控 | `m.touch.swipe(x1, y1, x2, y2, duration)` | `m.swipe(...)` | [查看](#api-touch-swipe) |
+| 输入 | `m.input.text(text)` | `m.inputText(text)` | [查看](#api-input-text) |
 | 按键 | `m.key.isAccessibilityEnabled()` | 无 | [查看](#api-key-accessibility) |
+| 按键 | `m.key.press(keyCode)` | `m.pressKey(keyCode)` | [查看](#api-key-press) |
 | 按键 | `m.key.back()` | `m.back()` | [查看](#api-key-back) |
 | 按键 | `m.key.home()` | `m.home()` | [查看](#api-key-home) |
 | 截图 | `m.screen.capture()` | `m.capture()` | [查看](#api-screen-capture) |
@@ -41,8 +43,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -729,13 +731,57 @@ if not ok then
 end
 ```
 
-## 10. 按键 API
+## 10. 输入 API
+
+输入 API 当前优先面向 root 设备，底层使用 Android `input text`。它适合第一版做简单文本输入闭环，复杂中文输入、剪贴板输入和输入法联动后续单独增强。
+
+<a id="api-input-text"></a>
+
+### 10.1 `m.input.text(text)` / `m.inputText(text)`
+
+向当前焦点输入框输入文本。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `text` | string | 要输入的文本。当前不支持换行；空格会转换为 Android `input text` 需要的 `%s` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.input.text("hello world")
+if not ok then
+    print("input failed:", err)
+end
+```
+
+当前限制：
+
+- Root 模式关闭或 App 无法获取 root 时会失败。
+- Android `input text` 对中文和特殊字符支持不稳定，后续会增加输入法或剪贴板路线。
+- 多行文本暂不支持，避免 `input` 命令解析不一致。
+
+常见失败：
+
+```text
+input text failed; root is not available or text is unsupported
+```
+
+## 11. 按键 API
 
 按键 API 当前优先通过 root `input keyevent` 实现，失败后回退 Android 无障碍服务。
 
 <a id="api-key-accessibility"></a>
 
-### 10.1 `m.key.isAccessibilityEnabled()`
+### 11.1 `m.key.isAccessibilityEnabled()`
 
 判断当前 App 的无障碍服务是否已开启。
 
@@ -757,9 +803,49 @@ true 或 false
 print("accessibility =", m.key.isAccessibilityEnabled())
 ```
 
+<a id="api-key-press"></a>
+
+### 11.2 `m.key.press(keyCode)` / `m.pressKey(keyCode)`
+
+执行 Android 通用按键码。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `keyCode` | number | Android KeyEvent keyCode，例如 `4` 为返回键，`3` 为 Home 键，`66` 为 Enter |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.key.press(66)
+if not ok then
+    print("key failed:", err)
+end
+```
+
+当前路由：
+
+- Root 模式开启且 root 可用时，走 root `input keyevent`。
+- `keyCode = 4` 或 `keyCode = 3` 时，root 失败后可回退无障碍返回/Home。
+- 其他通用按键当前依赖 root；无 root 时会失败。
+
+常见失败：
+
+```text
+key press failed; root or accessibility service is not available
+```
+
 <a id="api-key-back"></a>
 
-### 10.2 `m.key.back()` / `m.back()`
+### 11.3 `m.key.back()` / `m.back()`
 
 执行系统返回键。
 
@@ -787,7 +873,7 @@ end
 
 <a id="api-key-home"></a>
 
-### 10.3 `m.key.home()` / `m.home()`
+### 11.4 `m.key.home()` / `m.home()`
 
 执行系统 Home 键。
 
@@ -813,11 +899,11 @@ if not ok then
 end
 ```
 
-## 11. 截图 API
+## 12. 截图 API
 
 <a id="api-screen-capture"></a>
 
-### 11.1 `m.screen.capture()` / `m.capture()`
+### 12.1 `m.screen.capture()` / `m.capture()`
 
 获取当前屏幕截图，并返回 native 内存图片句柄。Android 端当前优先使用 root 原始 `screencap`，失败后回退 MediaProjection。
 
@@ -883,13 +969,13 @@ m.image.release(img)
 - 图片像素数据保留在 native 内存中。
 - 使用完必须调用 `m.image.release(img)`。
 
-## 12. 图片 API
+## 13. 图片 API
 
 图片 API 当前只处理 `m.screen.capture()` 返回的图片句柄。
 
 <a id="api-image-release"></a>
 
-### 12.1 `m.image.release(image)` / `m.releaseImage(image)`
+### 13.1 `m.image.release(image)` / `m.releaseImage(image)`
 
 释放图片句柄。
 
@@ -922,7 +1008,7 @@ end
 
 <a id="api-image-get-pixel"></a>
 
-### 12.2 `m.image.getPixel(image, x, y)` / `m.getPixel(...)`
+### 13.2 `m.image.getPixel(image, x, y)` / `m.getPixel(...)`
 
 读取图片某个坐标的颜色。
 
@@ -969,7 +1055,7 @@ m.image.release(img)
 
 <a id="api-image-get-pixels"></a>
 
-### 12.3 `m.image.getPixels(image, points)` / `m.getPixels(...)`
+### 13.3 `m.image.getPixels(image, points)` / `m.getPixels(...)`
 
 批量读取多个坐标的 RGB 值。
 
@@ -1038,7 +1124,7 @@ m.image.release(img)
 - 批量读取比在 Lua 循环里多次调用 `m.image.getPixel` 更适合高频点阵。
 - 当前只返回 RGB 整数，不返回每个点的 RGBA 拆分值。
 
-## 13. 推荐脚本结构
+## 14. 推荐脚本结构
 
 普通自动化脚本建议写成几个小函数，便于后续迁移到 JS 或 Go 时保持 API 语义一致。
 
@@ -1088,7 +1174,7 @@ if not ok then
 end
 ```
 
-## 14. IDE/PC 调用说明
+## 15. IDE/PC 调用说明
 
 脚本侧只关心 Lua API。IDE/PC 侧通过统一协议控制引擎。
 
@@ -1103,12 +1189,14 @@ end
 | `script.stop` | 请求停止当前脚本 |
 | `script.status` | 查询脚本状态 |
 | `log.drain` | 轮询读取日志 |
+| `key.press` | 执行 Android 通用按键码 |
+| `input.text` | 向当前焦点输入框输入文本 |
 | `screen.capture` | 从协议侧请求截图句柄 |
 | `image.release` | 从协议侧释放图片句柄 |
 
 协议细节见 [Engine Protocol](../shared/protocol/ENGINE_PROTOCOL.md)。
 
-## 15. 与懒人精灵、触动精灵的关系
+## 16. 与懒人精灵、触动精灵的关系
 
 本文档参考它们的分类方式。当前已经建立 `lr` 和 `cd` 两个兼容命名空间，但只映射已经由底层实现的基础能力，完整兼容需要后续按第三方文档逐项补齐。
 
@@ -1134,6 +1222,8 @@ tap(300, 500)
 | 延时 | `m.sleep(ms)` | 部分兼容 | 部分兼容 |
 | 点击 | `m.tap(x, y)` | 部分兼容 | 部分兼容 |
 | 滑动 | `m.swipe(...)` | 部分兼容 | 部分兼容 |
+| 文本输入 | `m.inputText(text)` | 部分兼容 | 部分兼容 |
+| 通用按键 | `m.pressKey(keyCode)` | 部分兼容 | 部分兼容 |
 | 返回键 | `m.back()` | 部分兼容 | 部分兼容 |
 | Home 键 | `m.home()` | 部分兼容 | 部分兼容 |
 | 截图 | `m.capture()` | 部分兼容 | 部分兼容 |
@@ -1141,13 +1231,13 @@ tap(300, 500)
 | 批量取色 | `m.getPixels(img, points)` | 部分兼容 | 部分兼容 |
 | 找色 / 比色 | 后续 `m.image.findColor` 等 | 未实现 | 未实现 |
 | 控件查找 | 后续 `m.widget` 模块 | 未实现 | 未实现 |
-| 应用启动/关闭 | 后续 `m.app` 模块 | 未实现 | 未实现 |
+| 应用启动/关闭 | `m.app.open/stop` | 部分兼容 | 部分兼容 |
 | FFI | 后续评估 | 未实现 | 未实现 |
 | 启动线程 | 后续 `m.thread` 模块 | 未实现 | 未实现 |
 
-## 16. 常见错误
+## 17. 常见错误
 
-### 16.1 `root or accessibility service is not available`
+### 17.1 `root or accessibility service is not available`
 
 原因：
 
@@ -1165,10 +1255,29 @@ Android root 不可用，且无障碍服务未开启。
 
 - `m.touch.tap` / `m.tap`
 - `m.touch.swipe` / `m.swipe`
+- `m.key.press` / `m.pressKey`
 - `m.key.back` / `m.back`
 - `m.key.home` / `m.home`
 
-### 16.2 `screen capture permission is not granted`
+### 17.2 `input text failed; root is not available or text is unsupported`
+
+原因：
+
+```text
+Root 模式关闭、App 无法获取 root，或文本包含当前 Android input 命令不支持的内容。
+```
+
+处理：
+
+```text
+确认 App 主界面 Root 模式为开启，确认设备能给普通 App 授权 su；中文和复杂文本后续走输入法路线。
+```
+
+影响 API：
+
+- `m.input.text` / `m.inputText`
+
+### 17.3 `screen capture permission is not granted`
 
 原因：
 
@@ -1186,7 +1295,7 @@ Android root 不可用，且无障碍服务未开启。
 
 - `m.screen.capture` / `m.capture`
 
-### 16.3 `image handle is not found`
+### 17.4 `image handle is not found`
 
 原因：
 
@@ -1206,7 +1315,7 @@ Android root 不可用，且无障碍服务未开启。
 - `m.image.getPixel` / `m.getPixel`
 - `m.image.getPixels` / `m.getPixels`
 
-### 16.4 `open file failed`
+### 17.5 `open file failed`
 
 原因：
 
@@ -1224,7 +1333,7 @@ local text, err = m.file.read(path)
 
 第一版建议优先使用 `m.file.appDataPath` 得到 App 私有路径。
 
-## 17. 后续文档维护规则
+## 18. 后续文档维护规则
 
 每新增一个脚本 API，必须同步更新本文档：
 

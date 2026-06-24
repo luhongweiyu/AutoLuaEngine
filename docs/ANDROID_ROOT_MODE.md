@@ -16,6 +16,8 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 
 - 点击：`m.touch.tap` / `m.tap`
 - 滑动：`m.touch.swipe` / `m.swipe`
+- 文本输入：`m.input.text` / `m.inputText`
+- 通用按键：`m.key.press` / `m.pressKey`
 - 返回：`m.key.back` / `m.back`
 - Home：`m.key.home` / `m.home`
 - 截图：`m.screen.capture()` / `m.capture()`
@@ -58,6 +60,8 @@ none：root 和无障碍都不可用
 ```lua
 m.tap(300, 500)
 m.swipe(300, 800, 300, 300, 500)
+m.inputText("hello world")
+m.pressKey(66)
 m.back()
 m.home()
 ```
@@ -101,8 +105,9 @@ su ... "screencap"
 
 限制：
 
-- 触控和按键已优先复用常驻 root shell；root 截图和 `m.root.exec` 仍使用短命令。
+- 触控、文本输入和按键已优先复用常驻 root shell；root 截图和 `m.root.exec` 仍使用短命令。
 - root 截图虽已避开 PNG 编码和磁盘 IO，但仍不适合作最终高频找色方案。
+- 文本输入当前基于 Android `input text`，中文、换行和复杂特殊字符后续需要输入法或剪贴板路线。
 - root 授权弹窗由系统或 root 管理器控制，App 不能静默授权。
 - 部分设备的 `su` 行为可能不同，需要后续适配。
 

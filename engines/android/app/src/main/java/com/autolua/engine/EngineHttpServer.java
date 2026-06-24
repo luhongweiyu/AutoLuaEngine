@@ -166,6 +166,28 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("key.press".equals(method)) {
+            int keyCode = params.optInt("keyCode", -1);
+            if (keyCode < 0) {
+                throw new IllegalArgumentException("keyCode is required");
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.keyPress(keyCode));
+            return result;
+        }
+
+        if ("input.text".equals(method)) {
+            String text = params.optString("text", null);
+            if (text == null) {
+                throw new IllegalArgumentException("text is required");
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.inputText(text));
+            return result;
+        }
+
         if ("script.run".equals(method)) {
             String language = params.optString("language", "lua");
             if (!"lua".equals(language)) {

@@ -186,6 +186,8 @@ Lua run failed: expected lua runtime error
 - [x] `m.touch.tap(x, y)`，优先走 root，失败后回退无障碍
 - [x] `m.touch.swipe(x1, y1, x2, y2, duration)`，优先走 root，失败后回退无障碍
 - [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，按键优先走 root，失败后回退无障碍
+- [x] `m.key.press(keyCode)` 通用按键，root 优先，Back/Home 可回退无障碍
+- [x] `m.input.text(text)` 简单文本输入，当前走 root `input text`
 - [x] `m.device.isRootAvailable()` 和 `m.device.info().rootAvailable`
 - [x] App 主界面 Root 模式开关，默认开启
 - [x] `m.root.exec(command, timeoutMs)` root 通用命令执行
@@ -204,9 +206,11 @@ Lua run failed: expected lua runtime error
 当前状态：
 
 ```text
-m.touch.tap / m.touch.swipe / m.key.back / m.key.home 已注册。
-当前 Android 端触控和按键优先通过常驻 root shell 执行 `input ...`；
+m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.home 已注册。
+当前 Android 端触控、文本输入和按键优先通过常驻 root shell 执行 `input ...`；
 常驻通道不可用时回退短命令，root 不可用或命令失败时回退无障碍。
+其中通用按键只有 Back/Home 可回退无障碍；其他 keyCode 当前依赖 root。
+文本输入当前适合简单英文、数字和空格，中文和复杂文本后续走输入法或剪贴板路线。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
 root 和无障碍都不可用时返回明确错误。
 m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；

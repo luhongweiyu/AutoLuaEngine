@@ -75,6 +75,35 @@ public final class AndroidHostBridge {
         return AutomationAccessibilityService.home();
     }
 
+    /**
+     * 执行通用 Android 按键码。
+     *
+     * 第一版优先走 root input keyevent；Back/Home 这两个系统键在 root 不可用时
+     * 可以回退无障碍全局动作。其他 keyCode 暂不做模拟兜底，避免不同机型行为不一致。
+     */
+    public static boolean keyPress(int keyCode) {
+        if (isRootModeEnabledInternal() && RootShellBridge.keyEvent(keyCode)) {
+            return true;
+        }
+        if (keyCode == 4) {
+            return AutomationAccessibilityService.back();
+        }
+        if (keyCode == 3) {
+            return AutomationAccessibilityService.home();
+        }
+        return false;
+    }
+
+    /**
+     * 向当前焦点输入框输入文本。
+     *
+     * 当前只启用 root 路线，因为无障碍文本注入需要焦点节点、输入控件类型等额外判断。
+     * 中文、换行和复杂特殊字符后续通过输入法或剪贴板路线单独增强。
+     */
+    public static boolean inputText(String text) {
+        return isRootModeEnabledInternal() && RootShellBridge.inputText(text);
+    }
+
     public static boolean hasScreenCapturePermission() {
         return (isRootModeEnabledInternal() && RootShellBridge.isRootAvailable())
                 || ScreenCaptureBridge.hasPermission();

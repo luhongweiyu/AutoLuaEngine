@@ -394,6 +394,18 @@ int luaTouchSwipe(lua_State* state) {
     return 1;
 }
 
+int luaInputText(lua_State* state) {
+    const char* text = luaL_checkstring(state, 1);
+    if (!AndroidBridge::inputText(text)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "input text failed; root is not available or text is unsupported");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaKeyBack(lua_State* state) {
     if (!AndroidBridge::keyBack()) {
         lua_pushnil(state);
@@ -409,6 +421,18 @@ int luaKeyHome(lua_State* state) {
     if (!AndroidBridge::keyHome()) {
         lua_pushnil(state);
         lua_pushstring(state, "key home failed; root or accessibility service is not available");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaKeyPress(lua_State* state) {
+    lua_Integer keyCode = luaL_checkinteger(state, 1);
+    if (!AndroidBridge::keyPress(static_cast<int>(keyCode))) {
+        lua_pushnil(state);
+        lua_pushstring(state, "key press failed; root or accessibility service is not available");
         return 2;
     }
 
@@ -604,8 +628,14 @@ void registerHostApi(lua_State* state) {
     lua_setfield(state, hostTableIndex, "touch");
 
     lua_newtable(state);
+    int inputTableIndex = lua_gettop(state);
+    setFunctionField(state, inputTableIndex, "text", luaInputText);
+    lua_setfield(state, hostTableIndex, "input");
+
+    lua_newtable(state);
     int keyTableIndex = lua_gettop(state);
     setFunctionField(state, keyTableIndex, "isAccessibilityEnabled", luaKeyIsAccessibilityEnabled);
+    setFunctionField(state, keyTableIndex, "press", luaKeyPress);
     setFunctionField(state, keyTableIndex, "back", luaKeyBack);
     setFunctionField(state, keyTableIndex, "home", luaKeyHome);
     lua_setfield(state, hostTableIndex, "key");

@@ -416,6 +416,74 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
+## 9.5 `key.press`
+
+说明：
+
+- 执行 Android 通用按键码
+- Root 模式开启且 root 可用时优先使用 root `input keyevent`
+- `keyCode = 4` 和 `keyCode = 3` 可在 root 失败后回退无障碍返回/Home
+- 其他 keyCode 当前依赖 root
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "key.press",
+  "params": {
+    "keyCode": 66
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.6 `input.text`
+
+说明：
+
+- 向当前焦点输入框输入文本
+- Android 第一版使用 root `input text`
+- 当前不支持换行；空格会转换为 Android `input text` 使用的 `%s`
+- 中文和复杂文本后续会通过输入法或剪贴板路线增强
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "input.text",
+  "params": {
+    "text": "hello world"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "result": {
+    "ok": true
+  }
+}
+```
+
 ## 10. 日志事件
 
 WebSocket 事件：

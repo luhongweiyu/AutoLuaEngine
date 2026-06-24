@@ -86,11 +86,24 @@ public final class RootShellBridge {
         return keyEvent(3);
     }
 
-    private static boolean keyEvent(int keyCode) {
+    public static boolean keyEvent(int keyCode) {
         if (!isRootAvailable()) {
             return false;
         }
         return runInputCommand("keyevent " + keyCode);
+    }
+
+    /**
+     * 使用 Android input text 做第一版文本输入。
+     *
+     * Android input 命令把空格写成 %s；换行和复杂中文在不同系统上表现不稳定，
+     * 这里先明确拒绝，后续改为输入法或剪贴板方案时再扩展。
+     */
+    public static boolean inputText(String text) {
+        if (!isRootAvailable() || text == null || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
+            return false;
+        }
+        return runInputCommand("text " + shellQuote(text.replace(" ", "%s")));
     }
 
     private static boolean runInputCommand(String inputArgs) {
@@ -155,6 +168,10 @@ public final class RootShellBridge {
             return (int) DEFAULT_TIMEOUT_MS;
         }
         return Math.min(timeoutMs, MAX_COMMAND_TIMEOUT_MS);
+    }
+
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 
     private static CommandResult runCommand(String[] args, long timeoutMs) {
