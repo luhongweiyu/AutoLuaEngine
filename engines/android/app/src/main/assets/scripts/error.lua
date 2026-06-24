@@ -1,6 +1,6 @@
 print("about to trigger an expected error")
 
-local text, err = file.read("/path/not/exist.txt")
+local text, err = m.file.read("/path/not/exist.txt")
 if text ~= nil then
     error("unexpected file.read success")
 end

@@ -214,6 +214,11 @@ void pushPixelColor(lua_State* state, const PixelColor& color) {
     lua_pushinteger(state, color.alpha);
 }
 
+void setFunctionField(lua_State* state, int tableIndex, const char* name, lua_CFunction function) {
+    lua_pushcfunction(state, function);
+    lua_setfield(state, tableIndex, name);
+}
+
 int luaFileRead(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
 
@@ -497,62 +502,55 @@ int luaImageGetPixels(lua_State* state) {
 } // namespace
 
 void registerHostApi(lua_State* state) {
-    lua_pushcfunction(state, luaPrint);
-    lua_setglobal(state, "print");
+    lua_newtable(state);
+    int hostTableIndex = lua_gettop(state);
 
-    lua_pushcfunction(state, luaSleep);
-    lua_setglobal(state, "sleep");
+    setFunctionField(state, hostTableIndex, "print", luaPrint);
+    setFunctionField(state, hostTableIndex, "sleep", luaSleep);
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaLogPrint);
-    lua_setfield(state, -2, "print");
-    lua_setglobal(state, "log");
+    int logTableIndex = lua_gettop(state);
+    setFunctionField(state, logTableIndex, "print", luaLogPrint);
+    lua_setfield(state, hostTableIndex, "log");
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaDeviceInfo);
-    lua_setfield(state, -2, "info");
-    lua_setglobal(state, "device");
+    int deviceTableIndex = lua_gettop(state);
+    setFunctionField(state, deviceTableIndex, "info", luaDeviceInfo);
+    lua_setfield(state, hostTableIndex, "device");
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaFileRead);
-    lua_setfield(state, -2, "read");
-    lua_pushcfunction(state, luaFileWrite);
-    lua_setfield(state, -2, "write");
-    lua_pushcfunction(state, luaFileExists);
-    lua_setfield(state, -2, "exists");
-    lua_pushcfunction(state, luaFileRemove);
-    lua_setfield(state, -2, "remove");
-    lua_pushcfunction(state, luaFileAppDataPath);
-    lua_setfield(state, -2, "appDataPath");
-    lua_setglobal(state, "file");
+    int fileTableIndex = lua_gettop(state);
+    setFunctionField(state, fileTableIndex, "read", luaFileRead);
+    setFunctionField(state, fileTableIndex, "write", luaFileWrite);
+    setFunctionField(state, fileTableIndex, "exists", luaFileExists);
+    setFunctionField(state, fileTableIndex, "remove", luaFileRemove);
+    setFunctionField(state, fileTableIndex, "appDataPath", luaFileAppDataPath);
+    lua_setfield(state, hostTableIndex, "file");
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaTouchTap);
-    lua_setfield(state, -2, "tap");
-    lua_pushcfunction(state, luaTouchSwipe);
-    lua_setfield(state, -2, "swipe");
-    lua_setglobal(state, "touch");
+    int touchTableIndex = lua_gettop(state);
+    setFunctionField(state, touchTableIndex, "tap", luaTouchTap);
+    setFunctionField(state, touchTableIndex, "swipe", luaTouchSwipe);
+    lua_setfield(state, hostTableIndex, "touch");
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaKeyIsAccessibilityEnabled);
-    lua_setfield(state, -2, "isAccessibilityEnabled");
-    lua_pushcfunction(state, luaKeyBack);
-    lua_setfield(state, -2, "back");
-    lua_pushcfunction(state, luaKeyHome);
-    lua_setfield(state, -2, "home");
-    lua_setglobal(state, "key");
+    int keyTableIndex = lua_gettop(state);
+    setFunctionField(state, keyTableIndex, "isAccessibilityEnabled", luaKeyIsAccessibilityEnabled);
+    setFunctionField(state, keyTableIndex, "back", luaKeyBack);
+    setFunctionField(state, keyTableIndex, "home", luaKeyHome);
+    lua_setfield(state, hostTableIndex, "key");
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaScreenCapture);
-    lua_setfield(state, -2, "capture");
-    lua_setglobal(state, "screen");
+    int screenTableIndex = lua_gettop(state);
+    setFunctionField(state, screenTableIndex, "capture", luaScreenCapture);
+    lua_setfield(state, hostTableIndex, "screen");
 
     lua_newtable(state);
-    lua_pushcfunction(state, luaImageRelease);
-    lua_setfield(state, -2, "release");
-    lua_pushcfunction(state, luaImageGetPixel);
-    lua_setfield(state, -2, "getPixel");
-    lua_pushcfunction(state, luaImageGetPixels);
-    lua_setfield(state, -2, "getPixels");
-    lua_setglobal(state, "image");
+    int imageTableIndex = lua_gettop(state);
+    setFunctionField(state, imageTableIndex, "release", luaImageRelease);
+    setFunctionField(state, imageTableIndex, "getPixel", luaImageGetPixel);
+    setFunctionField(state, imageTableIndex, "getPixels", luaImageGetPixels);
+    lua_setfield(state, hostTableIndex, "image");
+
+    lua_setglobal(state, "_host");
 }

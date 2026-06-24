@@ -54,8 +54,11 @@ Android APK
 │  └─ AndroidPlatformApi
 │
 └─ Lua 层
-   ├─ 用户脚本
-   └─ 标准 API 包装
+   ├─ runtime/api_m.lua
+   ├─ runtime/compat_lr.lua
+   ├─ runtime/compat_cd.lua
+   ├─ runtime/bootstrap.lua
+   └─ 用户脚本
 ```
 
 ## 3. 关键模块说明
@@ -169,6 +172,7 @@ IosPlatformApi : PlatformApi
 
 - 定义脚本用户看到的统一 API
 - 把 Lua/JS/Go 调用转发到 PlatformApi
+- C++ 只暴露 native `_host`，Lua runtime 负责整理 `m/lr/cd` 命名空间
 
 当前 Android Lua 绑定位置：
 
@@ -180,17 +184,26 @@ engines/android/app/src/main/cpp/runtime/host_api.cpp
 示例：
 
 ```lua
-log.print("hello")
-sleep(1000)
-local info = device.info()
+m.log.print("hello")
+m.sleep(1000)
+local info = m.device.info()
+```
+
+Lua runtime 层位置：
+
+```text
+engines/android/app/src/main/assets/runtime/api_m.lua
+engines/android/app/src/main/assets/runtime/compat_lr.lua
+engines/android/app/src/main/assets/runtime/compat_cd.lua
+engines/android/app/src/main/assets/runtime/bootstrap.lua
 ```
 
 当前 Android 平台能力：
 
 ```text
-touch.tap / touch.swipe -> AccessibilityService
-key.back / key.home -> AccessibilityService performGlobalAction
-screen.capture -> MediaProjection + ImageReader -> native 内存图片句柄
+m.touch.tap / m.touch.swipe -> AccessibilityService
+m.key.back / m.key.home -> AccessibilityService performGlobalAction
+m.screen.capture -> MediaProjection + ImageReader -> native 内存图片句柄
 ```
 
 ### 3.5 EngineProtocol

@@ -214,37 +214,61 @@ try {
         -Params @{
             language = "lua"
             code = @"
-local info = device.info()
+local info = m.device.info()
 print('hello from pc http verify')
 print('verify lua version =', info.luaVersion)
+if type(m) ~= 'table' or type(lr) ~= 'table' or type(cd) ~= 'table' then
+    error('api namespace check failed')
+end
+local switched, switchErr = useApi('lr')
+if not switched then
+    error('useApi lr failed: ' .. tostring(switchErr))
+end
+if tap ~= lr.tap then
+    error('lr global tap export failed')
+end
+switched, switchErr = useApi('cd')
+if not switched then
+    error('useApi cd failed: ' .. tostring(switchErr))
+end
+if tap ~= cd.tap then
+    error('cd global tap export failed')
+end
+switched, switchErr = useApi('m')
+if not switched then
+    error('useApi m failed: ' .. tostring(switchErr))
+end
+if tap ~= m.tap then
+    error('m global tap export failed')
+end
 local img = {
     id = 999999,
     type = 'image',
 }
-local pixel, pixelErr = image.getPixel(img, 0, 0)
+local pixel, pixelErr = m.image.getPixel(img, 0, 0)
 if pixel ~= nil or pixelErr ~= 'image handle is not found' then
     error('image.getPixel invalid handle check failed')
 end
-local colors, colorsErr = image.getPixels(img, { 0, 0 })
+local colors, colorsErr = m.image.getPixels(img, { 0, 0 })
 if colors ~= nil or colorsErr ~= 'image handle is not found' then
     error('image.getPixels invalid handle check failed')
 end
-if type(key.isAccessibilityEnabled()) ~= 'boolean' then
+if type(m.key.isAccessibilityEnabled()) ~= 'boolean' then
     error('key.isAccessibilityEnabled check failed')
 end
-local path = file.appDataPath('http_verify_file_api.txt')
-local ok, writeErr = file.write(path, 'temporary verify text')
+local path = m.file.appDataPath('http_verify_file_api.txt')
+local ok, writeErr = m.file.write(path, 'temporary verify text')
 if not ok then
     error('file.write failed: ' .. tostring(writeErr))
 end
-if file.exists(path) ~= true then
+if m.file.exists(path) ~= true then
     error('file.exists after write failed')
 end
-local removed, removeErr = file.remove(path)
+local removed, removeErr = m.file.remove(path)
 if not removed then
     error('file.remove failed: ' .. tostring(removeErr))
 end
-if file.exists(path) ~= false then
+if m.file.exists(path) ~= false then
     error('file.exists after remove failed')
 end
 "@

@@ -1,5 +1,11 @@
 package com.autolua.engine;
 
+import android.content.Context;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -9,8 +15,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class NativeEngine {
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
+    private static final String[] LUA_RUNTIME_ASSETS = {
+            "runtime/api_m.lua",
+            "runtime/compat_lr.lua",
+            "runtime/compat_cd.lua",
+            "runtime/bootstrap.lua"
+    };
 
     private static boolean initialized;
+    private static Context appContext;
+    private static String luaRuntimeBootstrap;
 
     static {
         System.loadLibrary("engine");
@@ -19,10 +33,12 @@ public final class NativeEngine {
     private NativeEngine() {
     }
 
-    public static synchronized void init() {
+    public static synchronized void init(Context context) {
         if (initialized) {
             return;
         }
+        appContext = context.getApplicationContext();
+        luaRuntimeBootstrap = loadLuaRuntimeBootstrap(appContext);
         nativeInit();
         initialized = true;
     }
@@ -33,7 +49,7 @@ public final class NativeEngine {
         }
 
         try {
-            return nativeRunLuaText(code);
+            return nativeRunLuaText(luaRuntimeBootstrap + "\n" + code);
         } finally {
             RUNNING.set(false);
         }
@@ -65,6 +81,35 @@ public final class NativeEngine {
 
     public static boolean releaseImage(int imageId) {
         return nativeReleaseImage(imageId);
+    }
+
+    /**
+     * 从 assets/runtime 读取 Lua 运行时层。
+     *
+     * C++ 只暴露 native _host 表；m/lr/cd/useApi 这些命名空间和兼容逻辑都放在
+     * Lua 层，后续补兼容函数时不需要改 native 代码。
+     */
+    private static String loadLuaRuntimeBootstrap(Context context) {
+        StringBuilder builder = new StringBuilder();
+        for (String assetPath : LUA_RUNTIME_ASSETS) {
+            builder.append("\n-- ").append(assetPath).append("\n");
+            builder.append(readAssetText(context, assetPath)).append('\n');
+        }
+        return builder.toString();
+    }
+
+    private static String readAssetText(Context context, String assetPath) {
+        try (InputStream inputStream = context.getAssets().open(assetPath);
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int readCount;
+            while ((readCount = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, readCount);
+            }
+            return outputStream.toString(StandardCharsets.UTF_8.name());
+        } catch (IOException exception) {
+            throw new IllegalStateException("read lua runtime asset failed: " + assetPath, exception);
+        }
     }
 
     private static native void nativeInit();

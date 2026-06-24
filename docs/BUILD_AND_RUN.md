@@ -137,6 +137,9 @@ image.release
 `screen.capture` 只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据；
 PC/IDE 使用完句柄后应调用 `image.release` 释放。
 
+注意：上面的 JSON-RPC 方法名是 IDE/PC 与引擎通讯协议，不等同于 Lua 脚本命名空间。
+Lua 新脚本使用 `m.*`，兼容脚本可使用 `lr.*`、`cd.*` 或 `useApi(...)` 切换。
+
 ## 3. Android Studio 打开方式
 
 在 Android Studio 中选择：
@@ -206,7 +209,7 @@ lua test called
 hello lua 5.4
 _VERSION = Lua 5.4
 sleep result = true
-log.print works
+m.log.print works
 device platform = android
 engine version = 0.1.0
 lua version = Lua 5.4
@@ -214,6 +217,9 @@ file.read = hello from lua file api
 file.exists after write = true
 file.remove success
 file.exists after remove = false
+namespace m/lr/cd ready = table table table
+global tap after lr switch = function
+global tap after m switch = function
 ```
 
 异步 UI 验证：

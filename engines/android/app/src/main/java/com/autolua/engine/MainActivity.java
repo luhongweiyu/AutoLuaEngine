@@ -40,7 +40,7 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         ensureAppFilesDir();
         ScreenCaptureBridge.init(getApplicationContext());
-        NativeEngine.init();
+        NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
         setContentView(createContentView());
     }

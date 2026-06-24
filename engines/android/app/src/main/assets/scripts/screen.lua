@@ -1,6 +1,6 @@
 print("screen script started")
 
-local img, err = screen.capture()
+local img, err = m.screen.capture()
 if img then
     print("screen.capture success")
     print("image id =", img.id)
@@ -10,7 +10,7 @@ if img then
 
     local centerX = math.floor(img.width / 2)
     local centerY = math.floor(img.height / 2)
-    local rgb, r, g, b, a = image.getPixel(img, centerX, centerY)
+    local rgb, r, g, b, a = m.image.getPixel(img, centerX, centerY)
     if rgb then
         print("center pixel =", rgb, r, g, b, a)
     else
@@ -22,14 +22,14 @@ if img then
         { centerX, centerY },
         { x = img.width - 1, y = img.height - 1 },
     }
-    local colors, colorsErr = image.getPixels(img, points)
+    local colors, colorsErr = m.image.getPixels(img, points)
     if colors then
         print("image.getPixels count =", #colors)
     else
         print("image.getPixels failed =", colorsErr)
     end
 
-    local ok, releaseErr = image.release(img)
+    local ok, releaseErr = m.image.release(img)
     if ok then
         print("image.release success")
     else
