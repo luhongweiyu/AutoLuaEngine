@@ -4,6 +4,41 @@
 
 参考了懒人精灵、触动精灵这类自动化工具的文档组织方式：先说明运行环境，再按日志、设备、文件、触控、按键、截图、图片句柄分类。本文档详细说明 AutoLuaEngine 自己的 `m.*` API；懒人精灵、触动精灵兼容层只记录当前兼容状态，不重复第三方文档的完整用法。
 
+## 已完成功能速查
+
+### 正式 API
+
+| 分类 | 函数 | 快捷别名 | 详情 |
+|---|---|---|---|
+| 全局 | `print(...)` | 无 | [查看](#api-print) |
+| 命名空间 | `useApi(name)` | `switchApi(name)` | [查看](#api-useapi) |
+| 延时 | `m.sleep(ms)` | 兼容层可导出 `sleep(ms)` | [查看](#api-sleep) |
+| 日志 | `m.log.print(text)` | 无 | [查看](#api-log-print) |
+| 设备 | `m.device.info()` | 无 | [查看](#api-device-info) |
+| 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
+| 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
+| 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
+| 文件 | `m.file.exists(path)` | 无 | [查看](#api-file-exists) |
+| 文件 | `m.file.remove(path)` | 无 | [查看](#api-file-remove) |
+| 触控 | `m.touch.tap(x, y)` | `m.tap(x, y)` | [查看](#api-touch-tap) |
+| 触控 | `m.touch.swipe(x1, y1, x2, y2, duration)` | `m.swipe(...)` | [查看](#api-touch-swipe) |
+| 按键 | `m.key.isAccessibilityEnabled()` | 无 | [查看](#api-key-accessibility) |
+| 按键 | `m.key.back()` | `m.back()` | [查看](#api-key-back) |
+| 按键 | `m.key.home()` | `m.home()` | [查看](#api-key-home) |
+| 截图 | `m.screen.capture()` | `m.capture()` | [查看](#api-screen-capture) |
+| 图片 | `m.image.release(image)` | `m.releaseImage(image)` | [查看](#api-image-release) |
+| 图片 | `m.image.getPixel(image, x, y)` | `m.getPixel(...)` | [查看](#api-image-get-pixel) |
+| 图片 | `m.image.getPixels(image, points)` | `m.getPixels(...)` | [查看](#api-image-get-pixels) |
+
+### 兼容入口
+
+`lr` 和 `cd` 当前只映射已经由底层实现的基础能力，完整兼容后续按懒人精灵、触动精灵文档逐项补齐。
+
+| 命名空间 | 已有函数 |
+|---|---|
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+
 ## 1. 适用范围
 
 当前版本：
@@ -78,6 +113,8 @@ adb forward tcp:18380 tcp:18380
 连接手机内的引擎服务。
 
 ## 3. 通用规则
+
+<a id="api-useapi"></a>
 
 ### 3.1 API 命名空间
 
@@ -200,6 +237,8 @@ m.image.release(img)
 
 ## 4. 全局函数
 
+<a id="api-print"></a>
+
 ### 4.1 `print(...)`
 
 输出调试日志。支持多个参数，参数之间用制表符分隔。
@@ -226,6 +265,8 @@ print("hello", 123, true)
 
 - 输出会进入 Android Logcat。
 - 输出也会进入引擎日志缓冲，IDE/PC 可通过 `log.drain` 读取。
+
+<a id="api-sleep"></a>
 
 ### 4.2 `m.sleep(ms)`
 
@@ -258,6 +299,8 @@ print("after")
 
 ## 5. 日志 API
 
+<a id="api-log-print"></a>
+
 ### 5.1 `m.log.print(text)`
 
 输出一条日志。
@@ -289,6 +332,8 @@ end
 - 后续如果增加日志级别，会优先扩展 `log` 模块。
 
 ## 6. 设备 API
+
+<a id="api-device-info"></a>
 
 ### 6.1 `m.device.info()`
 
@@ -328,6 +373,8 @@ print("lua =", info.luaVersion)
 
 文件 API 当前只做基础文本读写和存在性判断。第一版建议优先读写 App 私有目录，避免额外申请外部存储权限。
 
+<a id="api-file-app-data-path"></a>
+
 ### 7.1 `m.file.appDataPath(fileName)`
 
 拼出 App 私有数据目录下的文件路径。
@@ -356,6 +403,8 @@ print(path)
 - 当前实现会把传入内容直接拼到 App 私有目录后面。
 - 建议第一版只传普通文件名，例如 `"demo.txt"`。
 
+<a id="api-file-write"></a>
+
 ### 7.2 `m.file.write(path, content)`
 
 写入文本文件。当前是覆盖写入。
@@ -383,6 +432,8 @@ if not ok then
     print("write failed:", err)
 end
 ```
+
+<a id="api-file-read"></a>
 
 ### 7.3 `m.file.read(path)`
 
@@ -419,6 +470,8 @@ print(text)
 - 当前按字节读取，不做编码转换。
 - 第一版建议写入和读取 UTF-8 文本。
 
+<a id="api-file-exists"></a>
+
 ### 7.4 `m.file.exists(path)`
 
 判断文件是否存在。
@@ -443,6 +496,8 @@ if m.file.exists(path) then
     print("file exists")
 end
 ```
+
+<a id="api-file-remove"></a>
 
 ### 7.5 `m.file.remove(path)`
 
@@ -482,6 +537,8 @@ if not m.key.isAccessibilityEnabled() then
 end
 ```
 
+<a id="api-touch-tap"></a>
+
 ### 8.1 `m.touch.tap(x, y)` / `m.tap(x, y)`
 
 点击屏幕坐标。
@@ -515,6 +572,8 @@ end
 accessibility service is not enabled
 touch tap failed
 ```
+
+<a id="api-touch-swipe"></a>
 
 ### 8.2 `m.touch.swipe(x1, y1, x2, y2, duration)` / `m.swipe(...)`
 
@@ -550,6 +609,8 @@ end
 
 按键 API 当前也通过 Android 无障碍服务实现。
 
+<a id="api-key-accessibility"></a>
+
 ### 9.1 `m.key.isAccessibilityEnabled()`
 
 判断当前 App 的无障碍服务是否已开启。
@@ -571,6 +632,8 @@ true 或 false
 ```lua
 print("accessibility =", m.key.isAccessibilityEnabled())
 ```
+
+<a id="api-key-back"></a>
 
 ### 9.2 `m.key.back()` / `m.back()`
 
@@ -597,6 +660,8 @@ if not ok then
     print("back failed:", err)
 end
 ```
+
+<a id="api-key-home"></a>
 
 ### 9.3 `m.key.home()` / `m.home()`
 
@@ -625,6 +690,8 @@ end
 ```
 
 ## 10. 截图 API
+
+<a id="api-screen-capture"></a>
 
 ### 10.1 `m.screen.capture()` / `m.capture()`
 
@@ -696,6 +763,8 @@ m.image.release(img)
 
 图片 API 当前只处理 `m.screen.capture()` 返回的图片句柄。
 
+<a id="api-image-release"></a>
+
 ### 11.1 `m.image.release(image)` / `m.releaseImage(image)`
 
 释放图片句柄。
@@ -726,6 +795,8 @@ end
 
 - 高频截图脚本必须主动释放旧图片。
 - 已释放或不存在的图片句柄会返回错误。
+
+<a id="api-image-get-pixel"></a>
 
 ### 11.2 `m.image.getPixel(image, x, y)` / `m.getPixel(...)`
 
@@ -771,6 +842,8 @@ m.image.release(img)
 - `rgb` 是整数形式的 RGB 值。
 - `r`、`g`、`b`、`a` 是拆分后的通道值。
 - 坐标越界会返回错误。
+
+<a id="api-image-get-pixels"></a>
 
 ### 11.3 `m.image.getPixels(image, points)` / `m.getPixels(...)`
 
