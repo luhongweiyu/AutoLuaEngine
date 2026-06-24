@@ -49,6 +49,7 @@ m.stopApp = host.app.stop
 m.clearAppData = host.app.clearData
 m.grantAppPermission = host.app.grant
 m.revokeAppPermission = host.app.revoke
+m.currentApp = host.app.current
 m.installApp = host.app.install
 m.uninstallApp = host.app.uninstall
 m.disableApp = host.app.disable

@@ -196,7 +196,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.root.status()` 和 HTTP `root.status` root 探测状态诊断，记录 su 路径、命令模式和探测输出
 - [x] `m.root.file.exists/readText/writeText/stat/list/remove/mkdir/chmod/chown` root 文本文件读写、状态、列表、删除、目录创建和权限修改
 - [x] `m.root.process.pidOf/list/info/kill` root 进程查询、列表、详情和结束进程第一版
-- [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/install/uninstall/disable/enable` 应用控制，启动 root 优先，强停、清数据、权限控制和包管理走 root
+- [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/current/install/uninstall/disable/enable` 应用控制，启动 root 优先，强停、清数据、权限控制、前台查询和包管理走 root
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
 - [x] 触控和按键优先复用常驻 root shell，失败后回退短命令和无障碍
 - [x] 图片对象句柄管理，当前支持基础句柄、`m.image.release`、`m.image.getPixel`、`m.image.getPixels`
@@ -218,7 +218,7 @@ m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.ho
 文本输入当前简单文本优先走 `input text`，中文、换行和复杂符号可走剪贴板粘贴路线。
 Root 文件 API 当前支持文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，二进制传输后续再做。
 Root 进程 API 当前支持 pidOf/list/info/kill，资源占用统计后续再做。
-Root 应用控制当前支持启动、强停、清理应用数据、授权、撤销权限、安装、卸载、冻结和解冻。
+Root 应用控制当前支持启动、强停、清理应用数据、授权、撤销权限、前台应用查询、安装、卸载、冻结和解冻。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
 root 和无障碍都不可用时返回明确错误。
 m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；

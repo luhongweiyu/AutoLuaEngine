@@ -38,6 +38,7 @@
 | 应用 | `m.app.clearData(packageName)` | `m.clearAppData(...)` | [查看](#api-app-clear-data) |
 | 应用 | `m.app.grant(packageName, permission)` | `m.grantAppPermission(...)` | [查看](#api-app-grant) |
 | 应用 | `m.app.revoke(packageName, permission)` | `m.revokeAppPermission(...)` | [查看](#api-app-revoke) |
+| 应用 | `m.app.current()` | `m.currentApp()` | [查看](#api-app-current) |
 | 应用 | `m.app.install(apkPath, replace)` | `m.installApp(...)` | [查看](#api-app-install) |
 | 应用 | `m.app.uninstall(packageName, keepData)` | `m.uninstallApp(...)` | [查看](#api-app-uninstall) |
 | 应用 | `m.app.disable(packageName)` | `m.disableApp(...)` | [查看](#api-app-disable) |
@@ -1113,9 +1114,34 @@ if not ok then
 end
 ```
 
+<a id="api-app-current"></a>
+
+### 7.7 `m.app.current()` / `m.currentApp()`
+
+获取当前前台应用。当前通过 root `dumpsys window` 实现，root 不可用时会失败。
+
+返回值字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `component` | string | 完整组件名，例如 `"com.android.settings/.Settings"` |
+| `packageName` | string | 前台应用包名 |
+| `activityName` | string | 前台 Activity 名 |
+
+示例：
+
+```lua
+local current, err = m.app.current()
+if not current then
+    print("current app failed:", err)
+    return
+end
+print(current.packageName, current.activityName)
+```
+
 <a id="api-app-install"></a>
 
-### 7.7 `m.app.install(apkPath, replace)` / `m.installApp(...)`
+### 7.8 `m.app.install(apkPath, replace)` / `m.installApp(...)`
 
 安装 APK。当前通过 root `pm install` 实现，root 不可用或 APK 路径无效时会失败。
 
@@ -1149,7 +1175,7 @@ end
 
 <a id="api-app-uninstall"></a>
 
-### 7.8 `m.app.uninstall(packageName, keepData)` / `m.uninstallApp(...)`
+### 7.9 `m.app.uninstall(packageName, keepData)` / `m.uninstallApp(...)`
 
 卸载指定应用。当前通过 root `pm uninstall` 实现。
 
@@ -1178,7 +1204,7 @@ end
 
 <a id="api-app-disable"></a>
 
-### 7.9 `m.app.disable(packageName)` / `m.disableApp(...)`
+### 7.10 `m.app.disable(packageName)` / `m.disableApp(...)`
 
 冻结指定应用。当前通过 root `pm disable-user --user 0` 实现。
 
@@ -1191,7 +1217,7 @@ end
 
 <a id="api-app-enable"></a>
 
-### 7.10 `m.app.enable(packageName)` / `m.enableApp(...)`
+### 7.11 `m.app.enable(packageName)` / `m.enableApp(...)`
 
 解冻指定应用。当前通过 root `pm enable` 实现。
 
@@ -1952,6 +1978,7 @@ end
 | `app.clearData` | 清理指定 Android 应用数据 |
 | `app.grant` | 给指定 Android 应用授予权限 |
 | `app.revoke` | 撤销指定 Android 应用权限 |
+| `app.current` | 获取当前前台 Android 应用 |
 | `app.install` | 安装 Android APK |
 | `app.uninstall` | 卸载指定 Android 应用 |
 | `app.disable` | 冻结指定 Android 应用 |
@@ -1996,7 +2023,7 @@ tap(300, 500)
 | 批量取色 | `m.getPixels(img, points)` | 部分兼容 | 部分兼容 |
 | 找色 / 比色 | 后续 `m.image.findColor` 等 | 未实现 | 未实现 |
 | 控件查找 | 后续 `m.widget` 模块 | 未实现 | 未实现 |
-| 应用控制 | `m.app.open/stop/clearData/grant/revoke/install/uninstall/disable/enable` | 部分兼容 | 部分兼容 |
+| 应用控制 | `m.app.open/stop/clearData/grant/revoke/current/install/uninstall/disable/enable` | 部分兼容 | 部分兼容 |
 | FFI | 后续评估 | 未实现 | 未实现 |
 | 启动线程 | 后续 `m.thread` 模块 | 未实现 | 未实现 |
 

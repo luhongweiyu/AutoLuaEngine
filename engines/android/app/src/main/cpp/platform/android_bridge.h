@@ -89,6 +89,7 @@ public:
             const std::string& packageName,
             const std::string& permissionName
     );
+    static RootExecResult appCurrent();
     static bool appInstall(const std::string& apkPath, bool replace);
     static bool appUninstall(const std::string& packageName, bool keepData);
     static bool appDisable(const std::string& packageName);

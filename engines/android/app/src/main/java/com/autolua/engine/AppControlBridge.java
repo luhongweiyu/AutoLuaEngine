@@ -87,6 +87,22 @@ public final class AppControlBridge {
         return changePermission(packageName, permissionName, false);
     }
 
+    public static RootCommandResult current() {
+        RootCommandResult result = RootShellBridge.exec(
+                "dumpsys window 2>/dev/null "
+                        + "| grep -m 1 'mCurrentFocus=' "
+                        + "| sed -n 's/.* \\([^ ]*\\/[^ ]*\\)}.*/\\1/p'",
+                DEFAULT_TIMEOUT_MS
+        );
+        if (!result.success) {
+            return result;
+        }
+        if (!isValidComponentLine(result.stdout)) {
+            return RootCommandResult.failure("current app is not available");
+        }
+        return result;
+    }
+
     public static boolean install(String apkPath, boolean replace) {
         if (!isValidAbsolutePath(apkPath)) {
             return false;
@@ -170,6 +186,18 @@ public final class AppControlBridge {
 
     private static boolean isValidPermissionName(String permissionName) {
         return permissionName != null && PERMISSION_NAME_PATTERN.matcher(permissionName).matches();
+    }
+
+    private static boolean isValidComponentLine(String value) {
+        if (value == null) {
+            return false;
+        }
+
+        String component = value.trim();
+        int separator = component.indexOf('/');
+        return separator > 0
+                && separator < component.length() - 1
+                && isValidPackageName(component.substring(0, separator));
     }
 
     private static boolean isValidAbsolutePath(String path) {

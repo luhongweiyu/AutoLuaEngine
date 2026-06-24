@@ -913,6 +913,52 @@ int luaAppRevokePermission(lua_State* state) {
     return 1;
 }
 
+std::string trimText(const std::string& value) {
+    size_t start = value.find_first_not_of(" \t\r\n");
+    if (start == std::string::npos) {
+        return "";
+    }
+
+    size_t end = value.find_last_not_of(" \t\r\n");
+    return value.substr(start, end - start + 1);
+}
+
+void pushAppComponent(lua_State* state, const std::string& component) {
+    std::string clean = trimText(component);
+    size_t separator = clean.find('/');
+    std::string packageName = separator == std::string::npos ? clean : clean.substr(0, separator);
+    std::string activityName = separator == std::string::npos ? "" : clean.substr(separator + 1);
+
+    lua_newtable(state);
+    lua_pushstring(state, clean.c_str());
+    lua_setfield(state, -2, "component");
+    lua_pushstring(state, packageName.c_str());
+    lua_setfield(state, -2, "packageName");
+    lua_pushstring(state, activityName.c_str());
+    lua_setfield(state, -2, "activityName");
+}
+
+int luaAppCurrent(lua_State* state) {
+    RootExecResult result = AndroidBridge::appCurrent();
+    if (!result.success) {
+        std::string error = rootResultError(result, "current app failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    std::string component = trimText(result.stdoutText);
+    size_t separator = component.find('/');
+    if (separator == std::string::npos || separator == 0 || separator >= component.size() - 1) {
+        lua_pushnil(state);
+        lua_pushstring(state, "current app output is invalid");
+        return 2;
+    }
+
+    pushAppComponent(state, component);
+    return 1;
+}
+
 int luaAppInstall(lua_State* state) {
     const char* apkPath = luaL_checkstring(state, 1);
     bool replace = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
@@ -1263,6 +1309,7 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, appTableIndex, "clearData", luaAppClearData);
     setFunctionField(state, appTableIndex, "grant", luaAppGrantPermission);
     setFunctionField(state, appTableIndex, "revoke", luaAppRevokePermission);
+    setFunctionField(state, appTableIndex, "current", luaAppCurrent);
     setFunctionField(state, appTableIndex, "install", luaAppInstall);
     setFunctionField(state, appTableIndex, "uninstall", luaAppUninstall);
     setFunctionField(state, appTableIndex, "disable", luaAppDisable);

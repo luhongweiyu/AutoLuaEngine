@@ -123,6 +123,10 @@ public final class AndroidHostBridge {
         return AppControlBridge.revokePermission(packageName, permissionName);
     }
 
+    public static RootCommandResult appCurrent() {
+        return AppControlBridge.current();
+    }
+
     public static boolean appInstall(String apkPath, boolean replace) {
         return AppControlBridge.install(apkPath, replace);
     }

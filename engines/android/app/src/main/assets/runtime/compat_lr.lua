@@ -27,6 +27,7 @@ local lr = {
     clearAppData = host.app.clearData,
     grantAppPermission = host.app.grant,
     revokeAppPermission = host.app.revoke,
+    currentApp = host.app.current,
     installApp = host.app.install,
     uninstallApp = host.app.uninstall,
     disableApp = host.app.disable,

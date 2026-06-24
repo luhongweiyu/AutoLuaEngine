@@ -374,6 +374,14 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("app.current".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.appCurrent();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "current app failed"));
+            }
+            return parseAppComponent(rootResult.stdout);
+        }
+
         if ("app.install".equals(method)) {
             JSONObject result = new JSONObject();
             result.put("ok", AndroidHostBridge.appInstall(
@@ -721,6 +729,20 @@ public final class EngineHttpServer {
             return "";
         }
         return path.substring(index + 1);
+    }
+
+    private static JSONObject parseAppComponent(String text) throws JSONException {
+        String component = text == null ? "" : text.trim();
+        int separator = component.indexOf('/');
+        if (separator <= 0 || separator >= component.length() - 1) {
+            throw new IllegalStateException("current app output is invalid");
+        }
+
+        JSONObject result = new JSONObject();
+        result.put("component", component);
+        result.put("packageName", component.substring(0, separator));
+        result.put("activityName", component.substring(separator + 1));
+        return result;
     }
 
     private static JSONArray parseProcessArray(String stdout) throws JSONException {

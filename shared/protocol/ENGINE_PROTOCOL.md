@@ -1090,7 +1090,40 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.23 `app.install`
+## 9.23 `app.current`
+
+说明：
+
+- 获取当前前台 Android 应用
+- 当前通过 root `dumpsys window` 实现
+- root 不可用或系统没有可解析前台窗口时返回错误
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "method": "app.current",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "result": {
+    "component": "com.autolua.engine/com.autolua.engine.MainActivity",
+    "packageName": "com.autolua.engine",
+    "activityName": "com.autolua.engine.MainActivity"
+  }
+}
+```
+
+## 9.24 `app.install`
 
 说明：
 
@@ -1126,7 +1159,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.24 `app.uninstall`
+## 9.25 `app.uninstall`
 
 说明：
 
@@ -1161,7 +1194,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.25 `app.disable`
+## 9.26 `app.disable`
 
 说明：
 
@@ -1194,7 +1227,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.26 `app.enable`
+## 9.27 `app.enable`
 
 说明：
 
@@ -1227,7 +1260,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.27 `key.press`
+## 9.28 `key.press`
 
 说明：
 
@@ -1261,7 +1294,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.28 `input.text`
+## 9.29 `input.text`
 
 说明：
 
@@ -1295,7 +1328,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.29 `input.pasteText`
+## 9.30 `input.pasteText`
 
 说明：
 

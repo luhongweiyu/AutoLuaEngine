@@ -148,6 +148,7 @@ app.stop
 app.clearData
 app.grant
 app.revoke
+app.current
 app.install
 app.uninstall
 app.disable

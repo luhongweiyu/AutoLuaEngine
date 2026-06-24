@@ -1121,6 +1121,14 @@ bool AndroidBridge::appRevokePermission(const std::string& packageName,
     );
 }
 
+RootExecResult AndroidBridge::appCurrent() {
+    return callStaticRootResultNoArgMethod(
+            "appCurrent",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "app current"
+    );
+}
+
 bool AndroidBridge::appInstall(const std::string& apkPath, bool replace) {
     return callStaticBooleanStringBooleanMethod(
             "appInstall",
