@@ -74,6 +74,14 @@ public final class AndroidHostBridge {
         return RootShellBridge.pidOf(processName);
     }
 
+    public static RootCommandResult rootProcessList() {
+        return RootShellBridge.listProcesses();
+    }
+
+    public static RootCommandResult rootProcessInfo(String pidOrName) {
+        return RootShellBridge.processInfo(pidOrName);
+    }
+
     public static RootCommandResult rootProcessKill(String pidOrName, int signal) {
         return RootShellBridge.killProcess(pidOrName, signal);
     }

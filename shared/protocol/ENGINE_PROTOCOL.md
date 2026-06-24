@@ -693,7 +693,86 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.12 `app.isInstalled`
+## 9.12 `root.process.list`
+
+说明：
+
+- 通过 root shell 获取当前进程列表
+- 返回结构化进程数组，不直接暴露 `ps` 原始文本
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "method": "root.process.list",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "result": {
+    "processes": [
+      {
+        "pid": 1,
+        "ppid": 0,
+        "user": "root",
+        "name": "init",
+        "args": "init second_stage"
+      }
+    ]
+  }
+}
+```
+
+## 9.13 `root.process.info`
+
+说明：
+
+- 通过 root shell 查询指定进程详情
+- `target` 可以是 PID 字符串或进程名；也可以传 `pid` 或 `name`
+- 进程名对应多个 PID 时，返回多个进程对象
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 18,
+  "method": "root.process.info",
+  "params": {
+    "name": "com.android.settings"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 18,
+  "result": {
+    "processes": [
+      {
+        "pid": 1234,
+        "ppid": 999,
+        "user": "u0_a123",
+        "name": "com.android.settings",
+        "args": "com.android.settings"
+      }
+    ]
+  }
+}
+```
+
+## 9.14 `app.isInstalled`
 
 说明：
 
@@ -724,7 +803,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.13 `app.open` / `app.start`
+## 9.15 `app.open` / `app.start`
 
 说明：
 
@@ -756,7 +835,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `app.stop`
+## 9.16 `app.stop`
 
 说明：
 
@@ -788,7 +867,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.15 `app.clearData`
+## 9.17 `app.clearData`
 
 说明：
 
@@ -821,7 +900,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.16 `app.grant`
+## 9.18 `app.grant`
 
 说明：
 
@@ -855,7 +934,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.17 `app.revoke`
+## 9.19 `app.revoke`
 
 说明：
 
@@ -888,7 +967,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `app.install`
+## 9.20 `app.install`
 
 说明：
 
@@ -924,7 +1003,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.19 `app.uninstall`
+## 9.21 `app.uninstall`
 
 说明：
 
@@ -959,7 +1038,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.20 `app.disable`
+## 9.22 `app.disable`
 
 说明：
 
@@ -992,7 +1071,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.21 `app.enable`
+## 9.23 `app.enable`
 
 说明：
 
@@ -1025,7 +1104,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.22 `key.press`
+## 9.24 `key.press`
 
 说明：
 
@@ -1059,7 +1138,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.23 `input.text`
+## 9.25 `input.text`
 
 说明：
 
@@ -1093,7 +1172,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.24 `input.pasteText`
+## 9.26 `input.pasteText`
 
 说明：
 

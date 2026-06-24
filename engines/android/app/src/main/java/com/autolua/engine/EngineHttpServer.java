@@ -253,6 +253,28 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("root.process.list".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.listProcesses();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root process list failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("processes", parseProcessArray(rootResult.stdout));
+            return result;
+        }
+
+        if ("root.process.info".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.processInfo(requireProcessTarget(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root process info failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("processes", parseProcessArray(rootResult.stdout));
+            return result;
+        }
+
         if ("root.process.kill".equals(method)) {
             RootCommandResult rootResult = RootShellBridge.killProcess(
                     requireProcessTarget(params),
@@ -595,6 +617,51 @@ public final class EngineHttpServer {
             }
         }
         return pids;
+    }
+
+    private static JSONArray parseProcessArray(String stdout) throws JSONException {
+        JSONArray processes = new JSONArray();
+        if (stdout == null || stdout.trim().isEmpty()) {
+            return processes;
+        }
+
+        String[] lines = stdout.split("\\r?\\n");
+        for (String line : lines) {
+            JSONObject process = parseProcessLine(line);
+            if (process != null) {
+                processes.put(process);
+            }
+        }
+        return processes;
+    }
+
+    private static JSONObject parseProcessLine(String line) throws JSONException {
+        if (line == null || line.trim().isEmpty()) {
+            return null;
+        }
+
+        String trimmed = line.trim();
+        if (trimmed.startsWith("PID ") || trimmed.contains(" PID ")) {
+            return null;
+        }
+
+        String[] parts = trimmed.split("\\s+", 5);
+        if (parts.length < 4) {
+            return null;
+        }
+
+        try {
+            JSONObject process = new JSONObject();
+            process.put("pid", Integer.parseInt(parts[0]));
+            process.put("ppid", Integer.parseInt(parts[1]));
+            process.put("user", parts[2]);
+            process.put("name", parts[3]);
+            process.put("args", parts.length >= 5 ? parts[4] : "");
+            return process;
+        } catch (NumberFormatException ignored) {
+            // 不符合明确列格式的行直接跳过，避免设备差异导致整个响应失败。
+            return null;
+        }
     }
 
     private static String requirePackageName(JSONObject params) {

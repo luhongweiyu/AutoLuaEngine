@@ -401,6 +401,37 @@ RootExecResult readRootExecResult(JNIEnv* env,
     return result;
 }
 
+RootExecResult callStaticRootResultNoArgMethod(const char* methodName,
+                                               const char* signature,
+                                               const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(bridgeClass, methodId);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
 RootExecResult callStaticRootResultStringMethod(const char* methodName,
                                                 const char* signature,
                                                 const std::string& path,
@@ -995,6 +1026,23 @@ RootExecResult AndroidBridge::rootProcessPidOf(const std::string& processName) {
             "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
             processName,
             "root process pidOf"
+    );
+}
+
+RootExecResult AndroidBridge::rootProcessList() {
+    return callStaticRootResultNoArgMethod(
+            "rootProcessList",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "root process list"
+    );
+}
+
+RootExecResult AndroidBridge::rootProcessInfo(const std::string& pidOrName) {
+    return callStaticRootResultStringMethod(
+            "rootProcessInfo",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            pidOrName,
+            "root process info"
     );
 }
 

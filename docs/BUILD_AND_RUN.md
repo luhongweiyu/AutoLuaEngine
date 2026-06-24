@@ -135,6 +135,8 @@ root.file.remove
 root.file.mkdir
 root.file.chmod
 root.process.pidOf
+root.process.list
+root.process.info
 root.process.kill
 app.isInstalled
 app.open

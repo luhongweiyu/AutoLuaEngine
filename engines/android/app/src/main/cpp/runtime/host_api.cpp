@@ -315,6 +315,104 @@ std::vector<int> parsePidList(const std::string& text) {
     return pids;
 }
 
+struct ProcessInfo {
+    int pid = 0;
+    int ppid = 0;
+    std::string user;
+    std::string name;
+    std::string args;
+};
+
+bool parseProcessLine(const std::string& line, ProcessInfo* process) {
+    if (process == nullptr || line.empty()) {
+        return false;
+    }
+
+    std::istringstream stream(line);
+    std::string pidText;
+    std::string ppidText;
+    std::string user;
+    std::string name;
+    if (!(stream >> pidText >> ppidText >> user >> name)) {
+        return false;
+    }
+
+    char* pidEnd = nullptr;
+    char* ppidEnd = nullptr;
+    long pid = std::strtol(pidText.c_str(), &pidEnd, 10);
+    long ppid = std::strtol(ppidText.c_str(), &ppidEnd, 10);
+    if (pidEnd == pidText.c_str()
+            || *pidEnd != '\0'
+            || ppidEnd == ppidText.c_str()
+            || *ppidEnd != '\0'
+            || pid <= 0
+            || ppid < 0) {
+        return false;
+    }
+
+    std::string args;
+    std::getline(stream, args);
+    size_t firstVisible = args.find_first_not_of(" \t");
+    if (firstVisible != std::string::npos) {
+        args = args.substr(firstVisible);
+    } else {
+        args.clear();
+    }
+
+    process->pid = static_cast<int>(pid);
+    process->ppid = static_cast<int>(ppid);
+    process->user = user;
+    process->name = name;
+    process->args = args;
+    return true;
+}
+
+std::vector<ProcessInfo> parseProcessList(const std::string& text) {
+    std::vector<ProcessInfo> processes;
+    std::istringstream stream(text);
+    std::string line;
+    while (std::getline(stream, line)) {
+        ProcessInfo process;
+        if (parseProcessLine(line, &process)) {
+            processes.push_back(process);
+        }
+    }
+    return processes;
+}
+
+void pushProcessInfo(lua_State* state, const ProcessInfo& process) {
+    lua_newtable(state);
+    lua_pushinteger(state, process.pid);
+    lua_setfield(state, -2, "pid");
+    lua_pushinteger(state, process.ppid);
+    lua_setfield(state, -2, "ppid");
+    lua_pushstring(state, process.user.c_str());
+    lua_setfield(state, -2, "user");
+    lua_pushstring(state, process.name.c_str());
+    lua_setfield(state, -2, "name");
+    lua_pushstring(state, process.args.c_str());
+    lua_setfield(state, -2, "args");
+}
+
+int pushProcessListResult(lua_State* state,
+                          const RootExecResult& result,
+                          const char* fallbackError) {
+    if (!result.success) {
+        std::string error = rootResultError(result, fallbackError);
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    std::vector<ProcessInfo> processes = parseProcessList(result.stdoutText);
+    lua_createtable(state, static_cast<int>(processes.size()), 0);
+    for (size_t i = 0; i < processes.size(); ++i) {
+        pushProcessInfo(state, processes[i]);
+        lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+    }
+    return 1;
+}
+
 int luaRootProcessPidOf(lua_State* state) {
     const char* processName = luaL_checkstring(state, 1);
     RootExecResult result = AndroidBridge::rootProcessPidOf(processName);
@@ -332,6 +430,27 @@ int luaRootProcessPidOf(lua_State* state) {
         lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
     }
     return 1;
+}
+
+int luaRootProcessList(lua_State* state) {
+    RootExecResult result = AndroidBridge::rootProcessList();
+    return pushProcessListResult(state, result, "root process list failed");
+}
+
+int luaRootProcessInfo(lua_State* state) {
+    std::string target;
+    if (lua_isinteger(state, 1)) {
+        lua_Integer pid = lua_tointeger(state, 1);
+        if (pid <= 0) {
+            return luaL_error(state, "process pid must be greater than 0");
+        }
+        target = std::to_string(static_cast<long long>(pid));
+    } else {
+        target = luaL_checkstring(state, 1);
+    }
+
+    RootExecResult result = AndroidBridge::rootProcessInfo(target);
+    return pushProcessListResult(state, result, "root process info failed");
 }
 
 int luaRootProcessKill(lua_State* state) {
@@ -941,6 +1060,8 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int rootProcessTableIndex = lua_gettop(state);
     setFunctionField(state, rootProcessTableIndex, "pidOf", luaRootProcessPidOf);
+    setFunctionField(state, rootProcessTableIndex, "list", luaRootProcessList);
+    setFunctionField(state, rootProcessTableIndex, "info", luaRootProcessInfo);
     setFunctionField(state, rootProcessTableIndex, "kill", luaRootProcessKill);
     lua_setfield(state, rootTableIndex, "process");
 

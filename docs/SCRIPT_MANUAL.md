@@ -26,6 +26,8 @@
 | Root 文件 | `m.root.file.mkdir(path, recursive)` | `m.rootMkdir(...)` | [查看](#api-root-file-mkdir) |
 | Root 文件 | `m.root.file.chmod(path, mode)` | `m.rootChmod(...)` | [查看](#api-root-file-chmod) |
 | Root 进程 | `m.root.process.pidOf(name)` | `m.rootPidOf(name)` | [查看](#api-root-process-pid-of) |
+| Root 进程 | `m.root.process.list()` | `m.rootProcessList()` | [查看](#api-root-process-list) |
+| Root 进程 | `m.root.process.info(target)` | `m.rootProcessInfo(...)` | [查看](#api-root-process-info) |
 | Root 进程 | `m.root.process.kill(target, signal)` | `m.rootKill(...)` | [查看](#api-root-process-kill) |
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
 | 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
@@ -61,8 +63,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -784,9 +786,79 @@ end
 - 找不到进程时返回空表，不视为错误。
 - 该接口不受 Root 模式开关影响，会直接尝试 root。
 
+<a id="api-root-process-list"></a>
+
+### 6.13 `m.root.process.list()` / `m.rootProcessList()`
+
+通过 root shell 获取当前进程列表。返回值是结构化表，不需要脚本再解析 `ps` 文本。
+
+返回值：
+
+```text
+成功：{ process1, process2, ... }
+失败：nil, errorMessage
+```
+
+进程字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `pid` | number | 进程 ID |
+| `ppid` | number | 父进程 ID |
+| `user` | string | 进程所属用户 |
+| `name` | string | 进程名 |
+| `args` | string | 启动参数或命令行 |
+
+示例：
+
+```lua
+local processes, err = m.root.process.list()
+if not processes then
+    print("process list failed:", err)
+    return
+end
+
+for i, p in ipairs(processes) do
+    print(p.pid, p.user, p.name, p.args)
+end
+```
+
+<a id="api-root-process-info"></a>
+
+### 6.14 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
+
+通过 root shell 查询指定进程详情。`target` 可以是 PID，也可以是进程名。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `target` | number 或 string | PID，或进程名 |
+
+返回值：
+
+```text
+成功：{ process1, process2, ... }
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local items, err = m.root.process.info("com.android.settings")
+if not items then
+    print("process info failed:", err)
+    return
+end
+
+for i, p in ipairs(items) do
+    print(p.pid, p.name, p.args)
+end
+```
+
 <a id="api-root-process-kill"></a>
 
-### 6.13 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.15 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -1764,6 +1836,17 @@ end
 | `device.info` | 获取设备和引擎信息 |
 | `device.setRootModeEnabled` | 设置 Root 模式开关 |
 | `root.status` | 获取 root 探测状态 |
+| `root.exec` | 执行 root shell 命令 |
+| `root.file.exists` | 判断 root 路径是否存在 |
+| `root.file.readText` | 读取 root 路径文本 |
+| `root.file.writeText` | 写入 root 路径文本 |
+| `root.file.remove` | 删除 root 路径文件 |
+| `root.file.mkdir` | 创建 root 路径目录 |
+| `root.file.chmod` | 修改 root 路径权限 |
+| `root.process.pidOf` | 查询进程名对应 PID |
+| `root.process.list` | 获取 root 进程列表 |
+| `root.process.info` | 获取指定 root 进程详情 |
+| `root.process.kill` | 结束指定进程 |
 | `script.run` | 发送并执行脚本 |
 | `script.pause` | 请求暂停当前脚本 |
 | `script.resume` | 请求继续已暂停脚本 |

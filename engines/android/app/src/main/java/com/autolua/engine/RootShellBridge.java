@@ -160,6 +160,30 @@ public final class RootShellBridge {
         return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
     }
 
+    public static RootCommandResult listProcesses() {
+        return RootCommandResult.fromCommandResult(
+                runRootCommand(processListCommand(), DEFAULT_TIMEOUT_MS)
+        );
+    }
+
+    public static RootCommandResult processInfo(String pidOrName) {
+        if (pidOrName == null || pidOrName.trim().isEmpty()) {
+            return RootCommandResult.failure("process id or name is required");
+        }
+
+        String target = pidOrName.trim();
+        String command;
+        if (target.matches("\\d+")) {
+            command = "ps -p " + target + " -o PID,PPID,USER,NAME,ARGS";
+        } else {
+            command = "pids=$(pidof " + shellQuote(target) + " 2>/dev/null || true); "
+                    + "[ -n \"$pids\" ] || exit 1; "
+                    + "pid_args=$(printf '%s' \"$pids\" | tr ' ' ','); "
+                    + "ps -p \"$pid_args\" -o PID,PPID,USER,NAME,ARGS";
+        }
+        return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
     public static RootCommandResult killProcess(String pidOrName, int signal) {
         if (pidOrName == null || pidOrName.trim().isEmpty()) {
             return RootCommandResult.failure("process id or name is required");
@@ -176,6 +200,11 @@ public final class RootShellBridge {
                     + "kill -" + safeSignal + " $pids";
         }
         return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
+    private static String processListCommand() {
+        // Android toybox `ps` 支持 -o 指定列；明确列顺序后，Java/HTTP 和 Lua 都可以稳定解析。
+        return "ps -A -o PID,PPID,USER,NAME,ARGS";
     }
 
     public static boolean tap(int x, int y) {

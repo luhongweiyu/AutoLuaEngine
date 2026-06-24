@@ -25,7 +25,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 - Root 探测状态：`m.root.status()` / `m.rootStatus()` / HTTP `root.status`
 - Root 文件：`m.root.file.exists/readText/writeText/remove/mkdir/chmod`，当前是文本和基础权限第一版
-- Root 进程：`m.root.process.pidOf/kill`，当前是查询 PID 和结束进程第一版
+- Root 进程：`m.root.process.pidOf/list/info/kill`，当前是查询 PID、进程列表、进程详情和结束进程第一版
 - 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke/install/uninstall/disable/enable` 走 root 做数据、权限和包管理
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 - 设置：`m.device.setRootModeEnabled(enabled)` / HTTP `device.setRootModeEnabled`
@@ -137,7 +137,7 @@ su ... "screencap"
 - root 截图虽已避开 PNG 编码和磁盘 IO，但仍不适合作最终高频找色方案。
 - 文本输入当前支持 root `input text` 和剪贴板粘贴；剪贴板路线会覆盖系统剪贴板，且依赖焦点控件支持粘贴。
 - Root 文件 API 当前只承诺 UTF-8 文本读写删查、目录创建和 chmod，不承诺二进制传输、递归删除或 chown。
-- Root 进程 API 当前只承诺 `pidOf` 和 `kill`，不承诺完整进程列表、资源占用统计或守护能力。
+- Root 进程 API 当前只承诺 `pidOf/list/info/kill`，不承诺资源占用统计或守护能力。
 - Root 应用控制当前只承诺启动、强停、清数据、权限授予和撤销、安装、卸载、冻结、解冻；组件级启停后续按需要再补。
 - root 授权弹窗由系统或 root 管理器控制，App 不能静默授权。
 - 部分设备的 `su` 行为可能不同，需要后续适配。
@@ -149,7 +149,7 @@ su ... "screencap"
 1. root 截图优化：评估常驻 root 进程直接取 framebuffer / Surface，减少每帧创建进程和复制大块 stdout 的开销。
 2. root 输入优化：继续在真实 root 设备上压测常驻 root shell，确认点击、滑动、按键连续执行稳定性。
 3. root 文件能力：当前已有文本读写删查、目录创建和 chmod；后续补二进制传输、递归删除和 chown。
-4. root 进程能力：当前已有 `pidOf/kill`；后续补完整进程列表、资源占用统计和守护脚本需要的状态查询。
+4. root 进程能力：当前已有 `pidOf/list/info/kill`；后续补资源占用统计和守护脚本需要的状态查询。
 5. root 引擎进程：如果需要更强能力，再参考旧项目 root engine 做独立 root service。
 
 暂不做：

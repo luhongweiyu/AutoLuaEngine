@@ -71,6 +71,8 @@ public:
     static RootExecResult rootFileMkdir(const std::string& path, bool recursive);
     static RootExecResult rootFileChmod(const std::string& path, const std::string& mode);
     static RootExecResult rootProcessPidOf(const std::string& processName);
+    static RootExecResult rootProcessList();
+    static RootExecResult rootProcessInfo(const std::string& pidOrName);
     static RootExecResult rootProcessKill(const std::string& pidOrName, int signal);
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
