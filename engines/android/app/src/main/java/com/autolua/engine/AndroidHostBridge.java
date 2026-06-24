@@ -58,6 +58,14 @@ public final class AndroidHostBridge {
         return RootShellBridge.removeFile(path);
     }
 
+    public static RootCommandResult rootFileMkdir(String path, boolean recursive) {
+        return RootShellBridge.makeDirectory(path, recursive);
+    }
+
+    public static RootCommandResult rootFileChmod(String path, String mode) {
+        return RootShellBridge.chmod(path, mode);
+    }
+
     public static RootCommandResult rootProcessPidOf(String processName) {
         return RootShellBridge.pidOf(processName);
     }

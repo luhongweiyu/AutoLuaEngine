@@ -229,6 +229,36 @@ int luaRootFileRemove(lua_State* state) {
     return 1;
 }
 
+int luaRootFileMkdir(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    bool recursive = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
+    RootExecResult result = AndroidBridge::rootFileMkdir(path, recursive);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file mkdir failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaRootFileChmod(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    const char* mode = luaL_checkstring(state, 2);
+    RootExecResult result = AndroidBridge::rootFileChmod(path, mode);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file chmod failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 std::vector<int> parsePidList(const std::string& text) {
     std::vector<int> pids;
     std::istringstream stream(text);
@@ -761,6 +791,8 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, rootFileTableIndex, "readText", luaRootFileReadText);
     setFunctionField(state, rootFileTableIndex, "writeText", luaRootFileWriteText);
     setFunctionField(state, rootFileTableIndex, "remove", luaRootFileRemove);
+    setFunctionField(state, rootFileTableIndex, "mkdir", luaRootFileMkdir);
+    setFunctionField(state, rootFileTableIndex, "chmod", luaRootFileChmod);
     lua_setfield(state, rootTableIndex, "file");
 
     lua_newtable(state);

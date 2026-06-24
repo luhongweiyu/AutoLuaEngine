@@ -499,7 +499,73 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.7 `root.process.pidOf`
+## 9.7 `root.file.mkdir`
+
+说明：
+
+- 通过 root shell 创建目录
+- `recursive` 可选，默认 `true`，等同 `mkdir -p`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "method": "root.file.mkdir",
+  "params": {
+    "path": "/data/local/tmp/autolua",
+    "recursive": true
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.8 `root.file.chmod`
+
+说明：
+
+- 通过 root shell 修改文件或目录权限
+- `mode` 必须是 3 或 4 位八进制字符串，例如 `"755"`、`"0644"`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "method": "root.file.chmod",
+  "params": {
+    "path": "/data/local/tmp/autolua/run.sh",
+    "mode": "755"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.9 `root.process.pidOf`
 
 说明：
 
@@ -512,7 +578,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 15,
   "method": "root.process.pidOf",
   "params": {
     "name": "com.android.settings"
@@ -525,14 +591,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 15,
   "result": {
     "pids": [1234]
   }
 }
 ```
 
-## 9.8 `root.process.kill`
+## 9.10 `root.process.kill`
 
 说明：
 
@@ -545,7 +611,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 14,
+  "id": 16,
   "method": "root.process.kill",
   "params": {
     "target": "com.example.target",
@@ -559,14 +625,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 14,
+  "id": 16,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.9 `app.isInstalled`
+## 9.11 `app.isInstalled`
 
 说明：
 
@@ -577,7 +643,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 15,
+  "id": 17,
   "method": "app.isInstalled",
   "params": {
     "packageName": "com.android.settings"
@@ -590,14 +656,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 15,
+  "id": 17,
   "result": {
     "installed": true
   }
 }
 ```
 
-## 9.10 `app.open` / `app.start`
+## 9.12 `app.open` / `app.start`
 
 说明：
 
@@ -609,7 +675,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 16,
+  "id": 18,
   "method": "app.open",
   "params": {
     "packageName": "com.android.settings"
@@ -622,14 +688,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 16,
+  "id": 18,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.11 `app.stop`
+## 9.13 `app.stop`
 
 说明：
 
@@ -641,7 +707,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 17,
+  "id": 19,
   "method": "app.stop",
   "params": {
     "packageName": "com.example.target"
@@ -654,14 +720,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 17,
+  "id": 19,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.12 `key.press`
+## 9.14 `key.press`
 
 说明：
 
@@ -675,7 +741,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 18,
+  "id": 20,
   "method": "key.press",
   "params": {
     "keyCode": 66
@@ -688,14 +754,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 18,
+  "id": 20,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.13 `input.text`
+## 9.15 `input.text`
 
 说明：
 
@@ -709,7 +775,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 19,
+  "id": 21,
   "method": "input.text",
   "params": {
     "text": "hello world"
@@ -722,7 +788,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 19,
+  "id": 21,
   "result": {
     "ok": true
   }

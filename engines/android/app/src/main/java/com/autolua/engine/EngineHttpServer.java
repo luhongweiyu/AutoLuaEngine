@@ -208,6 +208,36 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("root.file.mkdir".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.makeDirectory(
+                    requirePath(params),
+                    params.optBoolean("recursive", true)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file mkdir failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("root.file.chmod".equals(method)) {
+            String mode = params.optString("mode", "");
+            if (mode.isEmpty()) {
+                throw new IllegalArgumentException("mode is required");
+            }
+
+            RootCommandResult rootResult = RootShellBridge.chmod(requirePath(params), mode);
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file chmod failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
         if ("root.process.pidOf".equals(method)) {
             RootCommandResult rootResult = RootShellBridge.pidOf(requireProcessName(params));
             if (!rootResult.success) {

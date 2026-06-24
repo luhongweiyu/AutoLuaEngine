@@ -22,6 +22,8 @@
 | Root 文件 | `m.root.file.readText(path, timeoutMs)` | `m.rootReadText(...)` | [查看](#api-root-file-read-text) |
 | Root 文件 | `m.root.file.writeText(path, content, timeoutMs)` | `m.rootWriteText(...)` | [查看](#api-root-file-write-text) |
 | Root 文件 | `m.root.file.remove(path)` | `m.rootRemove(path)` | [查看](#api-root-file-remove) |
+| Root 文件 | `m.root.file.mkdir(path, recursive)` | `m.rootMkdir(...)` | [查看](#api-root-file-mkdir) |
+| Root 文件 | `m.root.file.chmod(path, mode)` | `m.rootChmod(...)` | [查看](#api-root-file-chmod) |
 | Root 进程 | `m.root.process.pidOf(name)` | `m.rootPidOf(name)` | [查看](#api-root-process-pid-of) |
 | Root 进程 | `m.root.process.kill(target, signal)` | `m.rootKill(...)` | [查看](#api-root-process-kill) |
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
@@ -617,9 +619,72 @@ if not ok then
 end
 ```
 
+<a id="api-root-file-mkdir"></a>
+
+### 6.9 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
+
+通过 root shell 创建目录。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+| `recursive` | boolean | 可选，默认 `true`。为 `true` 时等同 `mkdir -p` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.root.file.mkdir("/data/local/tmp/autolua", true)
+if not ok then
+    print("mkdir failed:", err)
+end
+```
+
+<a id="api-root-file-chmod"></a>
+
+### 6.10 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
+
+通过 root shell 修改文件或目录权限。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+| `mode` | string | 3 或 4 位八进制权限字符串，例如 `"755"`、`"0644"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.root.file.chmod("/data/local/tmp/autolua/run.sh", "755")
+if not ok then
+    print("chmod failed:", err)
+end
+```
+
+说明：
+
+- `mode` 必须写成字符串，避免 Lua 数字进制和前导零产生歧义。
+- 当前不提供 `chown`，后续按实际脚本部署需求再补。
+
 <a id="api-root-process-pid-of"></a>
 
-### 6.9 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+### 6.11 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
 
 通过 root shell 查询进程名对应的 PID 列表。
 
@@ -658,7 +723,7 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.10 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.12 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 

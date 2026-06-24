@@ -105,6 +105,30 @@ public final class RootShellBridge {
         );
     }
 
+    public static RootCommandResult makeDirectory(String path, boolean recursive) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+
+        String command = recursive
+                ? "mkdir -p -- " + shellQuote(path)
+                : "mkdir -- " + shellQuote(path);
+        return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
+    public static RootCommandResult chmod(String path, String mode) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+        if (mode == null || !mode.matches("[0-7]{3,4}")) {
+            return RootCommandResult.failure("chmod mode must be 3 or 4 octal digits");
+        }
+
+        return RootCommandResult.fromCommandResult(
+                runRootCommand("chmod " + mode + " -- " + shellQuote(path), DEFAULT_TIMEOUT_MS)
+        );
+    }
+
     public static RootCommandResult pidOf(String processName) {
         if (processName == null || processName.trim().isEmpty()) {
             return RootCommandResult.failure("process name is required");

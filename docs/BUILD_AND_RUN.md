@@ -131,6 +131,8 @@ root.file.exists
 root.file.readText
 root.file.writeText
 root.file.remove
+root.file.mkdir
+root.file.chmod
 root.process.pidOf
 root.process.kill
 app.isInstalled
