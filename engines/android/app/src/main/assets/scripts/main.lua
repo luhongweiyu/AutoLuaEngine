@@ -45,3 +45,18 @@ if not switchOk then
     error("useApi m failed: " .. tostring(switchErr))
 end
 print("global tap after m switch =", type(tap))
+
+local 中文变量 = "中文标识符正常"
+local function 中文函数(内容)
+    print("中文函数参数 =", 内容)
+    return 内容 .. " OK"
+end
+
+print("中文变量 =", 中文变量)
+print("中文函数返回 =", 中文函数("测试"))
+
+_G.中文全局 = 123
+if _G["中文" .. "全局"] ~= 123 then
+    error("中文全局字段访问失败")
+end
+print("中文全局字段访问正常 =", _G["中文全局"])

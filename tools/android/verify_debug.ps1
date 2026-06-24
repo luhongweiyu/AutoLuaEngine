@@ -217,6 +217,18 @@ try {
 local info = m.device.info()
 print('hello from pc http verify')
 print('verify lua version =', info.luaVersion)
+local 中文变量 = '中文标识符正常'
+local function 中文函数(内容)
+    return 内容 .. ' OK'
+end
+if 中文函数(中文变量) ~= '中文标识符正常 OK' then
+    error('中文函数验证失败')
+end
+_G.中文全局 = 456
+if _G['中文' .. '全局'] ~= 456 then
+    error('中文全局字段验证失败')
+end
+print('中文标识符验证通过')
 if type(m) ~= 'table' or type(lr) ~= 'table' or type(cd) ~= 'table' then
     error('api namespace check failed')
 end

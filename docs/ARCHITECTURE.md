@@ -34,6 +34,14 @@ LuaRuntime -> HostApi -> AndroidPlatform
 Lua 5.4.8
 ```
 
+Lua 源码补丁：
+
+```text
+engines/android/third_party/lua-5.4.8/src/llex.c
+```
+
+当前只改了词法器标识符识别：允许 UTF-8 非 ASCII 字节序列作为变量名、函数名和字段名的一部分，用于支持 `_G.中文` 这类写法。
+
 ## 2. Android 第一版结构
 
 ```text

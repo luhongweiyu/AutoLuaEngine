@@ -15,6 +15,18 @@
 通讯方式：ADB forward + HTTP JSON-RPC
 ```
 
+引擎已支持 UTF-8 中文标识符，可以写中文变量名、函数名和字段名：
+
+```lua
+local 中文变量 = "正常"
+local function 中文函数()
+    return 中文变量
+end
+
+_G.中文字段 = 123
+print(_G["中文" .. "字段"])
+```
+
 当前脚本在 Android 引擎内运行。VS Code 插件或 PC 工具负责把脚本文本发送到 App，App 内部通过 native 引擎执行 Lua。
 
 当前不支持：
