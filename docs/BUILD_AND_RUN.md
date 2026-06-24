@@ -1,0 +1,292 @@
+# 构建与运行
+
+## 1. 当前工程状态
+
+当前已完成最小 Android Native 工程，工程位置：
+
+```text
+engines/android
+```
+
+当前链路：
+
+```text
+Android APK -> JNI -> libengine.so -> Lua 5.4.8
+```
+
+当前已接入 Lua 5.4.8，可执行内置 Lua 测试脚本，并已注册基础 HostApi。
+
+## 2. 已验证构建命令
+
+本机可使用 Android Studio 自带 JBR 和已有 Gradle 8.4 构建：
+
+```powershell
+$env:JAVA_HOME='D:\soft\Android\Android Studio\jbr'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+& 'C:\Users\Ly\.gradle\wrapper\dists\gradle-8.4-bin\1w5dpkrfk8irigvoxmyhowfim\gradle-8.4\bin\gradle.bat' assembleDebug
+```
+
+执行目录：
+
+```text
+E:\workspace\pc\ide\engines\android
+```
+
+构建结果：
+
+```text
+BUILD SUCCESSFUL
+```
+
+## 2.1 自动验证脚本
+
+仓库提供 Android debug 自动验证脚本：
+
+```powershell
+.\tools\android\verify_debug.ps1
+```
+
+脚本会执行：
+
+```text
+构建 APK -> 安装到当前 adb 设备 -> 启动 App -> 点击测试按钮 -> 输出 AutoLuaEngine 日志
+```
+
+当前覆盖：
+
+```text
+Run Lua Test
+Run Error Test
+Run Loop Test + Stop
+Run Touch Test
+Run Screen Test
+```
+
+APK 输出位置：
+
+```text
+engines/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+## 2.2 PC 调用 Android 引擎
+
+App 启动后会在手机本机监听：
+
+```text
+127.0.0.1:18380
+```
+
+引擎端口默认是 `18380`。Android 端已预留本地设置入口，当前调试页会显示：
+
+```text
+HTTP JSON-RPC: 127.0.0.1:18380
+```
+
+电脑端通过 ADB 转发访问：
+
+```powershell
+adb forward tcp:18380 tcp:18380
+```
+
+IDE/PC 端连接配置含义：
+
+```text
+host：IDE 访问地址，默认 127.0.0.1
+port：IDE 本机端口，默认 18380
+remotePort：Android 引擎端口，默认 18380
+useAdbForward：是否自动执行 adb forward，默认 true
+```
+
+运行一段 Lua：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -Code "print('hello from pc')"
+```
+
+指定连接参数：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -ConnectionHost 127.0.0.1 -Port 18380 -RemotePort 18380 -Code "print('hello')"
+```
+
+运行本地 Lua 文件：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -FilePath .\my_script.lua
+```
+
+运行后同时输出脚本日志：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -FilePath .\my_script.lua -ShowLogs
+```
+
+当前支持的 JSON-RPC 方法：
+
+```text
+device.info
+script.run
+script.stop
+script.status
+log.drain
+screen.capture
+image.release
+```
+
+`log.drain` 当前会返回 Lua `print/log.print` 和 native 引擎日志。
+`screen.capture` 只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据；
+PC/IDE 使用完句柄后应调用 `image.release` 释放。
+
+## 3. Android Studio 打开方式
+
+在 Android Studio 中选择：
+
+```text
+File -> Open
+```
+
+打开仓库根目录：
+
+```text
+E:\workspace\pc\ide\engines\android
+```
+
+同步完成后运行 `app`。
+
+## 3.1 VS Code 插件雏形
+
+插件目录：
+
+```text
+ide/vscode-extension
+```
+
+调试方式：
+
+```text
+用 VS Code 打开 ide/vscode-extension
+按 F5 启动 Extension Development Host
+```
+
+当前命令：
+
+```text
+AutoLuaEngine: Check Connection
+AutoLuaEngine: Run Current Lua File
+AutoLuaEngine: Stop Script
+AutoLuaEngine: Drain Logs
+```
+
+插件窗口底部状态栏会显示 `AutoLua`、`Run Lua`、`Stop`、`Logs`，
+可直接检查连接、发送当前 Lua 文件、停止脚本和读取日志。
+
+插件通过 `adb forward tcp:18380 tcp:18380` 连接已经启动的 Android App。
+
+## 4. 当前验证方式
+
+安装并打开 App 后：
+
+App 调试页分为：
+
+```text
+Script Tests
+Platform Tests
+Control
+Status
+```
+
+1. 点击 `Run Lua Test`
+2. 页面显示 `Lua script OK`
+3. Logcat 可看到：
+
+```text
+native engine initialized
+engine http server started on 127.0.0.1:18380
+lua test called
+hello lua 5.4
+_VERSION = Lua 5.4
+sleep result = true
+log.print works
+device platform = android
+engine version = 0.1.0
+lua version = Lua 5.4
+file.read = hello from lua file api
+file.exists after write = true
+file.remove success
+file.exists after remove = false
+```
+
+异步 UI 验证：
+
+```text
+native engine initialized  主线程
+lua test called            后台线程
+sleep result = true        后台线程，约 1 秒后输出
+```
+
+错误脚本验证：
+
+```text
+about to trigger an expected error
+expected file.read error = open file failed
+lua result: Lua run failed: expected lua runtime error
+```
+
+停止脚本验证：
+
+```text
+loop script started
+stop requested
+lua result: task#1 failed: Lua run failed: script stopped
+```
+
+触控脚本验证：
+
+未开启无障碍服务时：
+
+```text
+touch script started
+touch.tap failed = accessibility service is not enabled
+touch.swipe failed = accessibility service is not enabled
+accessibility enabled = false
+key.back/key.home registered
+```
+
+截图脚本验证：
+
+未授权截图时：
+
+```text
+screen script started
+screen.capture failed = screen capture permission is not granted
+```
+
+授权截图后：
+
+```text
+screen script started
+screen.capture success
+image id = 1
+size = 宽 高
+format = rgba8888
+byteLength = 像素字节数
+center pixel = RGB R G B A
+image.getPixels count = 3
+image.release success
+```
+
+授权方式：
+
+```text
+点击 App 内 Request Screen Capture -> 在系统弹窗中确认
+```
+
+## 5. 已知提示
+
+当前构建可能出现 SDK XML 版本提示：
+
+```text
+This version only understands SDK XML versions up to 3 but an SDK XML file of version 4 was encountered.
+```
+
+当前不影响构建。后续升级 Android Gradle Plugin / Gradle 后可消除。

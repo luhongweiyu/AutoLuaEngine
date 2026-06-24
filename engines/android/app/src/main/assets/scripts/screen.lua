@@ -1,0 +1,40 @@
+print("screen script started")
+
+local img, err = screen.capture()
+if img then
+    print("screen.capture success")
+    print("image id =", img.id)
+    print("size =", img.width, img.height)
+    print("format =", img.format)
+    print("byteLength =", img.byteLength)
+
+    local centerX = math.floor(img.width / 2)
+    local centerY = math.floor(img.height / 2)
+    local rgb, r, g, b, a = image.getPixel(img, centerX, centerY)
+    if rgb then
+        print("center pixel =", rgb, r, g, b, a)
+    else
+        print("image.getPixel failed =", r)
+    end
+
+    local points = {
+        { x = 0, y = 0 },
+        { centerX, centerY },
+        { x = img.width - 1, y = img.height - 1 },
+    }
+    local colors, colorsErr = image.getPixels(img, points)
+    if colors then
+        print("image.getPixels count =", #colors)
+    else
+        print("image.getPixels failed =", colorsErr)
+    end
+
+    local ok, releaseErr = image.release(img)
+    if ok then
+        print("image.release success")
+    else
+        print("image.release failed =", releaseErr)
+    end
+else
+    print("screen.capture failed =", err)
+end

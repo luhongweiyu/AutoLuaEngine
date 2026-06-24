@@ -1,0 +1,14 @@
+# Android / Gradle
+**/.gradle/
+**/build/
+**/.cxx/
+**/local.properties
+**/third_party/*.tar.gz
+
+# IDE
+.idea/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,71 @@
+{
+  "name": "autolua-vscode",
+  "displayName": "AutoLuaEngine",
+  "description": "Run Lua scripts on AutoLuaEngine through the local JSON-RPC protocol.",
+  "version": "0.1.0",
+  "publisher": "autolua",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:autolua.checkConnection",
+    "onCommand:autolua.runCurrentLua",
+    "onCommand:autolua.stopScript",
+    "onCommand:autolua.drainLogs"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "AutoLuaEngine",
+      "properties": {
+        "autolua.adbPath": {
+          "type": "string",
+          "default": "D:\\soft\\Android\\Sdk\\platform-tools\\adb.exe",
+          "description": "Path to adb executable."
+        },
+        "autolua.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Host used by the IDE to connect to AutoLuaEngine."
+        },
+        "autolua.port": {
+          "type": "number",
+          "default": 18380,
+          "description": "Local JSON-RPC port used by the IDE."
+        },
+        "autolua.useAdbForward": {
+          "type": "boolean",
+          "default": true,
+          "description": "Forward local port to the Android engine through adb before each request."
+        },
+        "autolua.remotePort": {
+          "type": "number",
+          "default": 18380,
+          "description": "Android engine JSON-RPC port used as the adb forward target."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "autolua.checkConnection",
+        "title": "AutoLuaEngine: Check Connection"
+      },
+      {
+        "command": "autolua.runCurrentLua",
+        "title": "AutoLuaEngine: Run Current Lua File"
+      },
+      {
+        "command": "autolua.stopScript",
+        "title": "AutoLuaEngine: Stop Script"
+      },
+      {
+        "command": "autolua.drainLogs",
+        "title": "AutoLuaEngine: Drain Logs"
+      }
+    ]
+  }
+}

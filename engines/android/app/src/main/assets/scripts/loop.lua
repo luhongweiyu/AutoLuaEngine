@@ -1,0 +1,11 @@
+print("loop script started")
+
+local total = 0
+for i = 1, 100000000 do
+    total = total + i
+    if i % 10000000 == 0 then
+        print("loop progress =", i)
+    end
+end
+
+print("loop script finished", total)
