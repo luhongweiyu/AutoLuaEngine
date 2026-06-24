@@ -16,6 +16,7 @@
 | 日志 | `m.log.print(text)` | 无 | [查看](#api-log-print) |
 | 设备 | `m.device.info()` | 无 | [查看](#api-device-info) |
 | 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
+| Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
 | 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
 | 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
 | 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
@@ -37,8 +38,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`back`、`home`、`isRootAvailable`、`rootExec`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -354,6 +355,7 @@ end
     platform = "android",
     engineVersion = "0.1.0",
     luaVersion = "Lua 5.4",
+    rootModeEnabled = true,
     rootAvailable = true,
     accessibilityEnabled = false,
     automationMode = "root-first"
@@ -367,6 +369,7 @@ local info = m.device.info()
 print("platform =", info.platform)
 print("engine =", info.engineVersion)
 print("lua =", info.luaVersion)
+print("root mode =", info.rootModeEnabled)
 print("root =", info.rootAvailable)
 print("accessibility =", info.accessibilityEnabled)
 print("mode =", info.automationMode)
@@ -374,8 +377,9 @@ print("mode =", info.automationMode)
 
 说明：
 
-- Lua 内部调用当前返回 `platform`、`engineVersion`、`luaVersion`、`rootAvailable`、`accessibilityEnabled`、`automationMode`。
+- Lua 内部调用当前返回 `platform`、`engineVersion`、`luaVersion`、`rootModeEnabled`、`rootAvailable`、`accessibilityEnabled`、`automationMode`。
 - `automationMode` 当前为 `root-first`、`accessibility` 或 `none`。
+- `rootModeEnabled` 表示 App 当前是否启用 Root 模式；默认开启。关闭后触控、按键、截图不再优先走 root。
 - PC/IDE 通过 JSON-RPC 调用 `device.info` 时，还会包含 `apiLevel`、`packageName`、`httpPort` 等 Android 端信息。
 
 <a id="api-device-root"></a>
@@ -399,6 +403,50 @@ else
     print("root 不可用，会回退无障碍")
 end
 ```
+
+<a id="api-root-exec"></a>
+
+### 6.3 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+
+通过 root shell 执行一条命令，返回结构化结果。这个接口是 root 文件、进程、系统命令能力的基础通道。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `command` | string | 要执行的 shell 命令 |
+| `timeoutMs` | number | 可选，超时时间，默认 2500，最大 30000 |
+
+返回值：
+
+```lua
+{
+    ok = true,
+    exitCode = 0,
+    stdout = "0\n",
+    stderr = "",
+    timedOut = false,
+    error = ""
+}
+```
+
+示例：
+
+```lua
+local result = m.root.exec("id -u", 2000)
+if result.ok then
+    print("uid =", result.stdout)
+else
+    print("root exec failed:", result.error, result.stderr)
+end
+```
+
+说明：
+
+- `ok` 表示命令退出码是否为 0。
+- `exitCode` 非 0 时，命令已经执行完成，但命令本身失败。
+- `error` 用于 root 不可用、超时、通道失败这类错误。
+- 这个显式 root API 不受界面 Root 模式开关影响；开关只影响触控、按键、截图的自动路由。
 
 ## 7. 文件 API
 

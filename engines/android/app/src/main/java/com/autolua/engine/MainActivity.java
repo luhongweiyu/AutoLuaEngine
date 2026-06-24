@@ -49,6 +49,7 @@ public final class MainActivity extends Activity {
     private Button touchButton;
     private Button captureButton;
     private Button screenButton;
+    private Button rootModeButton;
     private Button pauseButton;
     private Button resumeButton;
     private Button stopButton;
@@ -157,12 +158,20 @@ public final class MainActivity extends Activity {
     private void addRunModeSection(LinearLayout root) {
         root.addView(createSectionTitle("运行模式"), sectionLayoutParams());
 
+        rootModeButton = createButton(
+                R.id.button_root_mode,
+                "",
+                this::toggleRootMode
+        );
+        updateRootModeButtonText();
+        addButton(root, rootModeButton, false);
+
         touchButton = createButton(
                 R.id.button_run_touch,
                 "测试触控和按键",
                 () -> runScript("scripts/touch.lua")
         );
-        addButton(root, touchButton, false);
+        addButton(root, touchButton, true);
 
         captureButton = createButton(
                 R.id.button_request_capture,
@@ -353,6 +362,22 @@ public final class MainActivity extends Activity {
         outputView.setText("准备运行脚本...");
     }
 
+    private void toggleRootMode() {
+        boolean enabled = !EngineSettings.isRootModeEnabled(this);
+        EngineSettings.setRootModeEnabled(this, enabled);
+        updateRootModeButtonText();
+        outputView.setText(enabled ? "Root 模式已开启" : "Root 模式已关闭");
+    }
+
+    private void updateRootModeButtonText() {
+        if (rootModeButton == null) {
+            return;
+        }
+        rootModeButton.setText(EngineSettings.isRootModeEnabled(this)
+                ? "Root 模式：开启"
+                : "Root 模式：关闭");
+    }
+
     private void ensureAppFilesDir() {
         getFilesDir();
     }
@@ -503,6 +528,7 @@ public final class MainActivity extends Activity {
                     + "\n引擎版本：" + deviceInfo.optString("engineVersion", "unknown")
                     + "\nLua 版本：" + deviceInfo.optString("luaVersion", "unknown")
                     + "\n任务状态：" + taskStatus.optString("status", "unknown")
+                    + "\nRoot 模式：" + formatEnabled(deviceInfo.optBoolean("rootModeEnabled", true))
                     + "\nRoot 权限：" + formatEnabled(deviceInfo.optBoolean("rootAvailable", false))
                     + "\n自动化模式：" + deviceInfo.optString("automationMode", "unknown")
                     + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())

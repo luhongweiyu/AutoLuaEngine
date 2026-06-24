@@ -88,8 +88,11 @@ int luaDeviceInfo(lua_State* state) {
     lua_pushstring(state, LUA_VERSION);
     lua_setfield(state, -2, "luaVersion");
 
+    bool rootModeEnabled = AndroidBridge::isRootModeEnabled();
     bool rootAvailable = AndroidBridge::isRootAvailable();
     bool accessibilityEnabled = AndroidBridge::isAccessibilityEnabled();
+    lua_pushboolean(state, rootModeEnabled ? 1 : 0);
+    lua_setfield(state, -2, "rootModeEnabled");
     lua_pushboolean(state, rootAvailable ? 1 : 0);
     lua_setfield(state, -2, "rootAvailable");
 
@@ -97,7 +100,7 @@ int luaDeviceInfo(lua_State* state) {
     lua_setfield(state, -2, "accessibilityEnabled");
 
     const char* automationMode = "none";
-    if (rootAvailable) {
+    if (rootModeEnabled && rootAvailable) {
         automationMode = "root-first";
     } else if (accessibilityEnabled) {
         automationMode = "accessibility";
@@ -110,6 +113,30 @@ int luaDeviceInfo(lua_State* state) {
 
 int luaDeviceIsRootAvailable(lua_State* state) {
     lua_pushboolean(state, AndroidBridge::isRootAvailable() ? 1 : 0);
+    return 1;
+}
+
+int luaRootExec(lua_State* state) {
+    const char* command = luaL_checkstring(state, 1);
+    lua_Integer timeoutMs = luaL_optinteger(state, 2, 2500);
+    if (timeoutMs < 0) {
+        return luaL_error(state, "root exec timeout must be greater than or equal to 0");
+    }
+
+    RootExecResult result = AndroidBridge::rootExec(command, static_cast<int>(timeoutMs));
+    lua_newtable(state);
+    lua_pushboolean(state, result.success ? 1 : 0);
+    lua_setfield(state, -2, "ok");
+    lua_pushinteger(state, result.exitCode);
+    lua_setfield(state, -2, "exitCode");
+    lua_pushstring(state, result.stdoutText.c_str());
+    lua_setfield(state, -2, "stdout");
+    lua_pushstring(state, result.stderrText.c_str());
+    lua_setfield(state, -2, "stderr");
+    lua_pushboolean(state, result.timedOut ? 1 : 0);
+    lua_setfield(state, -2, "timedOut");
+    lua_pushstring(state, result.error.c_str());
+    lua_setfield(state, -2, "error");
     return 1;
 }
 
@@ -516,6 +543,12 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, deviceTableIndex, "info", luaDeviceInfo);
     setFunctionField(state, deviceTableIndex, "isRootAvailable", luaDeviceIsRootAvailable);
     lua_setfield(state, hostTableIndex, "device");
+
+    lua_newtable(state);
+    int rootTableIndex = lua_gettop(state);
+    setFunctionField(state, rootTableIndex, "exec", luaRootExec);
+    setFunctionField(state, rootTableIndex, "isAvailable", luaDeviceIsRootAvailable);
+    lua_setfield(state, hostTableIndex, "root");
 
     lua_newtable(state);
     int fileTableIndex = lua_gettop(state);

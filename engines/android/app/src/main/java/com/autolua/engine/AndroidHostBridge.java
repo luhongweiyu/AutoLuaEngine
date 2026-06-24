@@ -1,5 +1,7 @@
 package com.autolua.engine;
 
+import android.content.Context;
+
 /**
  * Java 平台能力桥。
  *
@@ -7,7 +9,13 @@ package com.autolua.engine;
  * 这样 JNI 只依赖一个稳定类，不直接散落调用 Activity 或 Service。
  */
 public final class AndroidHostBridge {
+    private static Context appContext;
+
     private AndroidHostBridge() {
+    }
+
+    public static void init(Context context) {
+        appContext = context.getApplicationContext();
     }
 
     public static boolean isAccessibilityEnabled() {
@@ -18,45 +26,58 @@ public final class AndroidHostBridge {
         return RootShellBridge.isRootAvailable();
     }
 
+    public static boolean isRootModeEnabled() {
+        return isRootModeEnabledInternal();
+    }
+
+    public static RootCommandResult rootExec(String command, int timeoutMs) {
+        return RootShellBridge.exec(command, timeoutMs);
+    }
+
     public static boolean touchTap(int x, int y) {
-        if (RootShellBridge.tap(x, y)) {
+        if (isRootModeEnabledInternal() && RootShellBridge.tap(x, y)) {
             return true;
         }
         return AutomationAccessibilityService.tap(x, y);
     }
 
     public static boolean touchSwipe(int x1, int y1, int x2, int y2, int durationMs) {
-        if (RootShellBridge.swipe(x1, y1, x2, y2, durationMs)) {
+        if (isRootModeEnabledInternal() && RootShellBridge.swipe(x1, y1, x2, y2, durationMs)) {
             return true;
         }
         return AutomationAccessibilityService.swipe(x1, y1, x2, y2, durationMs);
     }
 
     public static boolean keyBack() {
-        if (RootShellBridge.keyBack()) {
+        if (isRootModeEnabledInternal() && RootShellBridge.keyBack()) {
             return true;
         }
         return AutomationAccessibilityService.back();
     }
 
     public static boolean keyHome() {
-        if (RootShellBridge.keyHome()) {
+        if (isRootModeEnabledInternal() && RootShellBridge.keyHome()) {
             return true;
         }
         return AutomationAccessibilityService.home();
     }
 
     public static boolean hasScreenCapturePermission() {
-        return RootShellBridge.isRootAvailable() || ScreenCaptureBridge.hasPermission();
+        return (isRootModeEnabledInternal() && RootShellBridge.isRootAvailable())
+                || ScreenCaptureBridge.hasPermission();
     }
 
     public static ScreenCaptureResult captureScreen() {
-        if (RootShellBridge.isRootAvailable()) {
+        if (isRootModeEnabledInternal() && RootShellBridge.isRootAvailable()) {
             ScreenCaptureResult rootCapture = RootScreenCaptureBridge.captureFrame();
             if (rootCapture.success || !ScreenCaptureBridge.hasPermission()) {
                 return rootCapture;
             }
         }
         return ScreenCaptureBridge.captureFrame();
+    }
+
+    private static boolean isRootModeEnabledInternal() {
+        return appContext == null || EngineSettings.isRootModeEnabled(appContext);
     }
 }

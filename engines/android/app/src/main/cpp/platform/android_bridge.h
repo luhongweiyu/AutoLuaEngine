@@ -15,6 +15,15 @@ struct ScreenCaptureResult {
     std::string error;
 };
 
+struct RootExecResult {
+    bool success = false;
+    int exitCode = -1;
+    std::string stdoutText;
+    std::string stderrText;
+    bool timedOut = false;
+    std::string error;
+};
+
 /**
  * Android 平台能力桥。
  *
@@ -26,7 +35,9 @@ public:
     static void init(JavaVM* javaVm);
 
     static bool isAccessibilityEnabled();
+    static bool isRootModeEnabled();
     static bool isRootAvailable();
+    static RootExecResult rootExec(const std::string& command, int timeoutMs);
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static bool touchTap(int x, int y);

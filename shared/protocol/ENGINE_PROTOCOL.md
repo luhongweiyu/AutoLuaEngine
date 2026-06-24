@@ -271,11 +271,52 @@ clientPort：IDE/PC 实际访问端口，默认 18380
     "luaVersion": "Lua 5.4",
     "apiLevel": 34,
     "packageName": "com.autolua.engine",
+    "rootModeEnabled": true,
     "rootAvailable": true,
     "accessibilityEnabled": false,
     "automationMode": "root-first",
     "httpHost": "127.0.0.1",
     "httpPort": 18380
+  }
+}
+```
+
+## 9.1 `root.exec`
+
+说明：
+
+- 通过 Android root shell 执行命令
+- 第一版用于调试和后续 root 文件、进程能力的基础通道
+- `timeoutMs` 默认 2500，最大 30000
+- 该方法是显式 root 能力，不受界面 Root 模式开关影响
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "root.exec",
+  "params": {
+    "command": "id -u",
+    "timeoutMs": 2000
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "ok": true,
+    "exitCode": 0,
+    "stdout": "0\n",
+    "stderr": "",
+    "timedOut": false,
+    "error": ""
   }
 }
 ```

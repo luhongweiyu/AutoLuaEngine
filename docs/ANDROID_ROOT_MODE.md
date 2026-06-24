@@ -19,14 +19,15 @@ RootShellBridge -> 探测可用 su 格式 -> input / screencap
 - 返回：`m.key.back` / `m.back`
 - Home：`m.key.home` / `m.home`
 - 截图：`m.screen.capture()` / `m.capture()`
-- 状态：`m.device.isRootAvailable()`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
+- 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+- 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 
 ## 2. 执行策略
 
 当前 Android 平台自动化执行顺序：
 
 ```text
-root 可用 -> 优先 su input ...
+Root 模式开启且 root 可用 -> 优先 su input ...
 root 不可用或命令失败 -> 回退无障碍服务
 两者都不可用 -> 返回 nil, errorMessage
 ```
@@ -34,10 +35,13 @@ root 不可用或命令失败 -> 回退无障碍服务
 截图执行顺序：
 
 ```text
-root 可用 -> 优先 su screencap 原始输出
+Root 模式开启且 root 可用 -> 优先 su screencap 原始输出
 root 不可用或 root 截图失败 -> 回退 MediaProjection
 两者都不可用 -> 返回 nil, errorMessage
 ```
+
+Root 模式默认开启，可在 App 主界面的“Root 模式：开启/关闭”按钮切换。
+关闭后，触控、按键、截图不再优先走 root；显式调用 `m.root.exec` 仍然会尝试 root 命令。
 
 `m.device.info().automationMode` 当前取值为：
 
@@ -97,7 +101,7 @@ su ... "screencap"
 
 1. root 截图优化：评估常驻 root 进程直接取 framebuffer / Surface，减少每帧创建进程和复制大块 stdout 的开销。
 2. root 输入优化：评估常驻 root shell，减少每次点击创建进程的开销。
-3. root 文件和进程能力：补 `m.root.exec`、进程列表、文件权限操作等。
+3. root 文件和进程能力：基于 `m.root.exec` 补进程列表、文件权限操作等。
 4. root 引擎进程：如果需要更强能力，再参考旧项目 root engine 做独立 root service。
 
 暂不做：

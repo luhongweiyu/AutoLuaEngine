@@ -38,6 +38,7 @@ public final class NativeEngine {
             return;
         }
         appContext = context.getApplicationContext();
+        AndroidHostBridge.init(appContext);
         luaRuntimeBootstrap = loadLuaRuntimeBootstrap(appContext);
         nativeInit();
         initialized = true;

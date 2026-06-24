@@ -135,6 +135,16 @@ public final class EngineHttpServer {
             return makeDeviceInfo();
         }
 
+        if ("root.exec".equals(method)) {
+            String command = params.optString("command", "");
+            if (command.trim().isEmpty()) {
+                throw new IllegalArgumentException("command is required");
+            }
+
+            int timeoutMs = params.optInt("timeoutMs", 2500);
+            return makeRootExecResult(RootShellBridge.exec(command, timeoutMs));
+        }
+
         if ("script.run".equals(method)) {
             String language = params.optString("language", "lua");
             if (!"lua".equals(language)) {
@@ -223,6 +233,7 @@ public final class EngineHttpServer {
     }
 
     private JSONObject makeDeviceInfo() throws JSONException {
+        boolean rootModeEnabled = EngineSettings.isRootModeEnabled(appContext);
         boolean rootAvailable = RootShellBridge.isRootAvailable();
         boolean accessibilityEnabled = AutomationAccessibilityService.isEnabled();
         JSONObject result = new JSONObject();
@@ -231,22 +242,41 @@ public final class EngineHttpServer {
         result.put("luaVersion", NativeEngine.luaVersion());
         result.put("apiLevel", Build.VERSION.SDK_INT);
         result.put("packageName", appContext.getPackageName());
+        result.put("rootModeEnabled", rootModeEnabled);
         result.put("rootAvailable", rootAvailable);
         result.put("accessibilityEnabled", accessibilityEnabled);
-        result.put("automationMode", resolveAutomationMode(rootAvailable, accessibilityEnabled));
+        result.put("automationMode", resolveAutomationMode(
+                rootModeEnabled,
+                rootAvailable,
+                accessibilityEnabled
+        ));
         result.put("httpHost", "127.0.0.1");
         result.put("httpPort", port);
         return result;
     }
 
-    private static String resolveAutomationMode(boolean rootAvailable, boolean accessibilityEnabled) {
-        if (rootAvailable) {
+    private static String resolveAutomationMode(
+            boolean rootModeEnabled,
+            boolean rootAvailable,
+            boolean accessibilityEnabled) {
+        if (rootModeEnabled && rootAvailable) {
             return "root-first";
         }
         if (accessibilityEnabled) {
             return "accessibility";
         }
         return "none";
+    }
+
+    private static JSONObject makeRootExecResult(RootCommandResult rootResult) throws JSONException {
+        JSONObject result = new JSONObject();
+        result.put("ok", rootResult.success);
+        result.put("exitCode", rootResult.exitCode);
+        result.put("stdout", rootResult.stdout);
+        result.put("stderr", rootResult.stderr);
+        result.put("timedOut", rootResult.timedOut);
+        result.put("error", rootResult.error);
+        return result;
     }
 
     private static HttpRequest readRequest(InputStream inputStream) throws IOException {

@@ -125,6 +125,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -FileP
 
 ```text
 device.info
+root.exec
 script.run
 script.pause
 script.resume

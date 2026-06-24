@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
  * 第一版先只保存 HTTP JSON-RPC 端口。监听地址仍固定为 127.0.0.1，
  * PC 端通过 adb forward 访问，避免调试服务意外暴露到局域网。
  * 悬浮窗位置和显示状态也放在这里，方便 MainActivity、悬浮窗服务共享同一份状态。
+ * Root 模式默认开启；用户可在界面切到非 root 路线做兼容测试。
  */
 public final class EngineSettings {
     public static final int DEFAULT_HTTP_PORT = 18380;
@@ -19,6 +20,7 @@ public final class EngineSettings {
     private static final String KEY_FLOATING_BUBBLE_Y = "floating_bubble_y";
     private static final String KEY_FLOATING_BUBBLE_HIDDEN = "floating_bubble_hidden";
     private static final String KEY_FLOATING_PANEL_EXPANDED = "floating_panel_expanded";
+    private static final String KEY_ROOT_MODE_ENABLED = "root_mode_enabled";
     private static final int MIN_PORT = 1024;
     private static final int MAX_PORT = 65535;
 
@@ -39,6 +41,17 @@ public final class EngineSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putInt(KEY_HTTP_PORT, port)
+                .apply();
+    }
+
+    public static boolean isRootModeEnabled(Context context) {
+        return preferences(context).getBoolean(KEY_ROOT_MODE_ENABLED, true);
+    }
+
+    public static void setRootModeEnabled(Context context, boolean enabled) {
+        preferences(context)
+                .edit()
+                .putBoolean(KEY_ROOT_MODE_ENABLED, enabled)
                 .apply();
     }
 

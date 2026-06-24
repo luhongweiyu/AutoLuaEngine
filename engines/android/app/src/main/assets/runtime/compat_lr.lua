@@ -10,6 +10,7 @@ local lr = {
     back = host.key.back,
     home = host.key.home,
     isRootAvailable = host.device.isRootAvailable,
+    rootExec = host.root.exec,
     capture = host.screen.capture,
     getPixel = host.image.getPixel,
     getPixels = host.image.getPixels,

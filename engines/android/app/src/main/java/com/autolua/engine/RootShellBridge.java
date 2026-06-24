@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class RootShellBridge {
     private static final long DEFAULT_TIMEOUT_MS = 2500;
+    private static final int MAX_COMMAND_TIMEOUT_MS = 30_000;
     private static final long ROOT_CACHE_TRUE_MS = 60_000;
     private static final long ROOT_CACHE_FALSE_MS = 3_000;
 
@@ -38,6 +39,16 @@ public final class RootShellBridge {
         cachedRootCommandMode = rootCommandMode;
         rootCacheExpireAt = now + (available ? ROOT_CACHE_TRUE_MS : ROOT_CACHE_FALSE_MS);
         return available;
+    }
+
+    public static RootCommandResult exec(String command, int timeoutMs) {
+        if (command == null || command.trim().isEmpty()) {
+            return RootCommandResult.failure("root command is required");
+        }
+
+        int safeTimeoutMs = normalizeTimeoutMs(timeoutMs);
+        CommandResult result = runRootCommand(command, safeTimeoutMs);
+        return RootCommandResult.fromCommandResult(result);
     }
 
     public static boolean tap(int x, int y) {
@@ -92,9 +103,16 @@ public final class RootShellBridge {
 
     static CommandResult runRootCommand(String command, long timeoutMs) {
         if (!isRootAvailable()) {
-            return new CommandResult(-1, "root is not available");
+            return CommandResult.failure("root is not available");
         }
         return runCommand(cachedRootCommandMode.buildArgs(command), timeoutMs);
+    }
+
+    private static int normalizeTimeoutMs(int timeoutMs) {
+        if (timeoutMs <= 0) {
+            return (int) DEFAULT_TIMEOUT_MS;
+        }
+        return Math.min(timeoutMs, MAX_COMMAND_TIMEOUT_MS);
     }
 
     private static CommandResult runCommand(String[] args, long timeoutMs) {
@@ -112,7 +130,7 @@ public final class RootShellBridge {
                 process.destroy();
                 joinCollector(stdoutThread);
                 joinCollector(stderrThread);
-                return new CommandResult(-1, "root command timeout");
+                return CommandResult.timeout();
             }
 
             joinCollector(stdoutThread);
@@ -124,7 +142,7 @@ public final class RootShellBridge {
                     stderrCollector.toByteArray()
             );
         } catch (IOException exception) {
-            return new CommandResult(-1, exception.getMessage());
+            return CommandResult.failure(exception.getMessage());
         } finally {
             if (process != null) {
                 process.destroy();
@@ -162,19 +180,37 @@ public final class RootShellBridge {
         final int exitCode;
         final byte[] stdout;
         final byte[] stderr;
+        final boolean timedOut;
 
-        private CommandResult(int exitCode, String output) {
+        private CommandResult(int exitCode, byte[] stdout, byte[] stderr) {
             this(
                     exitCode,
-                    output == null ? new byte[0] : output.getBytes(StandardCharsets.UTF_8),
-                    new byte[0]
+                    stdout,
+                    stderr,
+                    false
             );
         }
 
-        private CommandResult(int exitCode, byte[] stdout, byte[] stderr) {
+        private CommandResult(int exitCode, byte[] stdout, byte[] stderr, boolean timedOut) {
             this.exitCode = exitCode;
             this.stdout = stdout == null ? new byte[0] : stdout;
             this.stderr = stderr == null ? new byte[0] : stderr;
+            this.timedOut = timedOut;
+        }
+
+        private static CommandResult failure(String error) {
+            return new CommandResult(-1, new byte[0], stringToBytes(error), false);
+        }
+
+        private static CommandResult timeout() {
+            return new CommandResult(-1, new byte[0], stringToBytes("root command timeout"), true);
+        }
+
+        private static byte[] stringToBytes(String text) {
+            if (text == null || text.isEmpty()) {
+                return new byte[0];
+            }
+            return text.getBytes(StandardCharsets.UTF_8);
         }
 
         String stdoutText() {
