@@ -103,6 +103,22 @@ public final class AndroidHostBridge {
         return AppControlBridge.revokePermission(packageName, permissionName);
     }
 
+    public static boolean appInstall(String apkPath, boolean replace) {
+        return AppControlBridge.install(apkPath, replace);
+    }
+
+    public static boolean appUninstall(String packageName, boolean keepData) {
+        return AppControlBridge.uninstall(packageName, keepData);
+    }
+
+    public static boolean appDisable(String packageName) {
+        return AppControlBridge.disable(packageName);
+    }
+
+    public static boolean appEnable(String packageName) {
+        return AppControlBridge.enable(packageName);
+    }
+
     public static boolean touchTap(int x, int y) {
         if (isRootModeEnabledInternal() && RootShellBridge.tap(x, y)) {
             return true;

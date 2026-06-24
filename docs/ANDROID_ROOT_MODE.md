@@ -26,7 +26,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - Root 探测状态：`m.root.status()` / `m.rootStatus()` / HTTP `root.status`
 - Root 文件：`m.root.file.exists/readText/writeText/remove/mkdir/chmod`，当前是文本和基础权限第一版
 - Root 进程：`m.root.process.pidOf/kill`，当前是查询 PID 和结束进程第一版
-- 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke` root 清数据和权限控制
+- 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke/install/uninstall/disable/enable` 走 root 做数据、权限和包管理
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 - 设置：`m.device.setRootModeEnabled(enabled)` / HTTP `device.setRootModeEnabled`
 
@@ -49,7 +49,7 @@ root 不可用或 root 截图失败 -> 回退 MediaProjection
 两者都不可用 -> 返回 nil, errorMessage
 ```
 
-Root 模式默认开启，可在 App 主界面的“Root 模式：开启/关闭”按钮切换。
+Root 模式默认开启，可在 App 主界面的“运行模式：Root 优先（默认）/无障碍优先”按钮切换。
 也可以通过脚本或 IDE/PC 协议切换：
 
 ```lua
@@ -138,7 +138,7 @@ su ... "screencap"
 - 文本输入当前支持 root `input text` 和剪贴板粘贴；剪贴板路线会覆盖系统剪贴板，且依赖焦点控件支持粘贴。
 - Root 文件 API 当前只承诺 UTF-8 文本读写删查、目录创建和 chmod，不承诺二进制传输、递归删除或 chown。
 - Root 进程 API 当前只承诺 `pidOf` 和 `kill`，不承诺完整进程列表、资源占用统计或守护能力。
-- Root 应用控制当前只承诺启动、强停、清数据、权限授予和权限撤销；安装、卸载、冻结、组件启停后续按需要再补。
+- Root 应用控制当前只承诺启动、强停、清数据、权限授予和撤销、安装、卸载、冻结、解冻；组件级启停后续按需要再补。
 - root 授权弹窗由系统或 root 管理器控制，App 不能静默授权。
 - 部分设备的 `su` 行为可能不同，需要后续适配。
 

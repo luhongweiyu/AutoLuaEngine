@@ -370,7 +370,7 @@ public final class RootShellBridge {
         return Math.min(timeoutMs, MAX_COMMAND_TIMEOUT_MS);
     }
 
-    private static String shellQuote(String value) {
+    static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
     }
 

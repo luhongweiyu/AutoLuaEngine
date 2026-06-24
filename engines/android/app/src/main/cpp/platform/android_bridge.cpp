@@ -253,6 +253,53 @@ bool callStaticBooleanStringStringMethod(const char* methodName,
     return result == JNI_TRUE;
 }
 
+bool callStaticBooleanStringBooleanMethod(const char* methodName,
+                                          const char* signature,
+                                          const std::string& value,
+                                          bool flag) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return false;
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return false;
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    jstring javaValue = env->NewStringUTF(value.c_str());
+    if (javaValue == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(
+            bridgeClass,
+            methodId,
+            javaValue,
+            flag ? JNI_TRUE : JNI_FALSE
+    );
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(javaValue);
+        env->DeleteLocalRef(bridgeClass);
+        return false;
+    }
+
+    env->DeleteLocalRef(javaValue);
+    env->DeleteLocalRef(bridgeClass);
+    return result == JNI_TRUE;
+}
+
 std::string jStringToString(JNIEnv* env, jstring value) {
     if (value == nullptr) {
         return "";
@@ -995,6 +1042,32 @@ bool AndroidBridge::appRevokePermission(const std::string& packageName,
             packageName,
             permissionName
     );
+}
+
+bool AndroidBridge::appInstall(const std::string& apkPath, bool replace) {
+    return callStaticBooleanStringBooleanMethod(
+            "appInstall",
+            "(Ljava/lang/String;Z)Z",
+            apkPath,
+            replace
+    );
+}
+
+bool AndroidBridge::appUninstall(const std::string& packageName, bool keepData) {
+    return callStaticBooleanStringBooleanMethod(
+            "appUninstall",
+            "(Ljava/lang/String;Z)Z",
+            packageName,
+            keepData
+    );
+}
+
+bool AndroidBridge::appDisable(const std::string& packageName) {
+    return callStaticBooleanStringMethod("appDisable", "(Ljava/lang/String;)Z", packageName);
+}
+
+bool AndroidBridge::appEnable(const std::string& packageName) {
+    return callStaticBooleanStringMethod("appEnable", "(Ljava/lang/String;)Z", packageName);
 }
 
 bool AndroidBridge::hasScreenCapturePermission() {

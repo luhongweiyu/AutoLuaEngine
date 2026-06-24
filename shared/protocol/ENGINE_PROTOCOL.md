@@ -888,7 +888,144 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `key.press`
+## 9.18 `app.install`
+
+说明：
+
+- 安装 Android APK
+- 当前通过 root `pm install` 实现
+- `path` 和 `apkPath` 二选一，推荐使用 `path`
+- `replace` 默认 `true`，表示覆盖安装
+- root 不可用、APK 路径无效或安装失败时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "method": "app.install",
+  "params": {
+    "path": "/sdcard/Download/demo.apk",
+    "replace": true
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.19 `app.uninstall`
+
+说明：
+
+- 卸载指定 Android 应用
+- 当前通过 root `pm uninstall` 实现
+- `keepData` 默认 `false`；为 `true` 时保留应用数据
+- root 不可用、包名无效或卸载失败时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 24,
+  "method": "app.uninstall",
+  "params": {
+    "packageName": "com.example.target",
+    "keepData": false
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 24,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.20 `app.disable`
+
+说明：
+
+- 冻结指定 Android 应用
+- 当前通过 root `pm disable-user --user 0` 实现
+- root 不可用、包名无效或冻结失败时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 25,
+  "method": "app.disable",
+  "params": {
+    "packageName": "com.example.target"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 25,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.21 `app.enable`
+
+说明：
+
+- 解冻指定 Android 应用
+- 当前通过 root `pm enable` 实现
+- root 不可用、包名无效或解冻失败时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 26,
+  "method": "app.enable",
+  "params": {
+    "packageName": "com.example.target"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 26,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.22 `key.press`
 
 说明：
 
@@ -902,7 +1039,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 23,
+  "id": 27,
   "method": "key.press",
   "params": {
     "keyCode": 66
@@ -915,14 +1052,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 23,
+  "id": 27,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.19 `input.text`
+## 9.23 `input.text`
 
 说明：
 
@@ -936,7 +1073,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 24,
+  "id": 28,
   "method": "input.text",
   "params": {
     "text": "hello world"
@@ -949,14 +1086,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 24,
+  "id": 28,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.20 `input.pasteText`
+## 9.24 `input.pasteText`
 
 说明：
 
@@ -970,7 +1107,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 25,
+  "id": 29,
   "method": "input.pasteText",
   "params": {
     "text": "中文输入\n第二行"
@@ -983,7 +1120,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 25,
+  "id": 29,
   "result": {
     "ok": true
   }

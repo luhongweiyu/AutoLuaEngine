@@ -366,7 +366,7 @@ public final class MainActivity extends Activity {
         boolean enabled = !EngineSettings.isRootModeEnabled(this);
         EngineSettings.setRootModeEnabled(this, enabled);
         updateRootModeButtonText();
-        outputView.setText(enabled ? "Root 模式已开启" : "Root 模式已关闭");
+        outputView.setText(enabled ? "运行模式已切换为 Root 优先" : "运行模式已切换为无障碍优先");
     }
 
     private void updateRootModeButtonText() {
@@ -374,8 +374,8 @@ public final class MainActivity extends Activity {
             return;
         }
         rootModeButton.setText(EngineSettings.isRootModeEnabled(this)
-                ? "Root 模式：开启"
-                : "Root 模式：关闭");
+                ? "运行模式：Root 优先（默认）"
+                : "运行模式：无障碍优先");
     }
 
     private void ensureAppFilesDir() {

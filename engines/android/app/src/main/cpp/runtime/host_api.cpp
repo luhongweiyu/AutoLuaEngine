@@ -619,6 +619,56 @@ int luaAppRevokePermission(lua_State* state) {
     return 1;
 }
 
+int luaAppInstall(lua_State* state) {
+    const char* apkPath = luaL_checkstring(state, 1);
+    bool replace = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
+    if (!AndroidBridge::appInstall(apkPath, replace)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "install app failed; root is not available or apk path is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppUninstall(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    bool keepData = !lua_isnoneornil(state, 2) && lua_toboolean(state, 2) != 0;
+    if (!AndroidBridge::appUninstall(packageName, keepData)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "uninstall app failed; root is not available or package name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppDisable(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appDisable(packageName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "disable app failed; root is not available or package name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppEnable(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appEnable(packageName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "enable app failed; root is not available or package name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaTouchTap(lua_State* state) {
     lua_Integer x = luaL_checkinteger(state, 1);
     lua_Integer y = luaL_checkinteger(state, 2);
@@ -914,6 +964,10 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, appTableIndex, "clearData", luaAppClearData);
     setFunctionField(state, appTableIndex, "grant", luaAppGrantPermission);
     setFunctionField(state, appTableIndex, "revoke", luaAppRevokePermission);
+    setFunctionField(state, appTableIndex, "install", luaAppInstall);
+    setFunctionField(state, appTableIndex, "uninstall", luaAppUninstall);
+    setFunctionField(state, appTableIndex, "disable", luaAppDisable);
+    setFunctionField(state, appTableIndex, "enable", luaAppEnable);
     lua_setfield(state, hostTableIndex, "app");
 
     lua_newtable(state);

@@ -143,6 +143,10 @@ app.stop
 app.clearData
 app.grant
 app.revoke
+app.install
+app.uninstall
+app.disable
+app.enable
 key.press
 input.text
 input.pasteText

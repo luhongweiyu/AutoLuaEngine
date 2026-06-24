@@ -33,6 +33,10 @@
 | 应用 | `m.app.clearData(packageName)` | `m.clearAppData(...)` | [查看](#api-app-clear-data) |
 | 应用 | `m.app.grant(packageName, permission)` | `m.grantAppPermission(...)` | [查看](#api-app-grant) |
 | 应用 | `m.app.revoke(packageName, permission)` | `m.revokeAppPermission(...)` | [查看](#api-app-revoke) |
+| 应用 | `m.app.install(apkPath, replace)` | `m.installApp(...)` | [查看](#api-app-install) |
+| 应用 | `m.app.uninstall(packageName, keepData)` | `m.uninstallApp(...)` | [查看](#api-app-uninstall) |
+| 应用 | `m.app.disable(packageName)` | `m.disableApp(...)` | [查看](#api-app-disable) |
+| 应用 | `m.app.enable(packageName)` | `m.enableApp(...)` | [查看](#api-app-enable) |
 | 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
 | 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
 | 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
@@ -57,8 +61,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -453,7 +457,7 @@ end
 
 说明：
 
-- 默认值为 `true`，和 App 主界面“Root 模式：开启”一致。
+- 默认值为 `true`，和 App 主界面“运行模式：Root 优先（默认）”一致。
 - 该设置会持久化，App 按钮、脚本和 IDE 查询到的是同一份状态。
 - 显式 `m.root.exec(...)` 不受这个开关影响，它始终表示“尝试执行 root 命令”。
 
@@ -944,6 +948,95 @@ end
 local ok, err = m.app.revoke("com.example.target", "android.permission.CAMERA")
 if not ok then
     print("revoke failed:", err)
+end
+```
+
+<a id="api-app-install"></a>
+
+### 7.7 `m.app.install(apkPath, replace)` / `m.installApp(...)`
+
+安装 APK。当前通过 root `pm install` 实现，root 不可用或 APK 路径无效时会失败。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `apkPath` | string | Android 设备上的 APK 绝对路径，例如 `"/sdcard/Download/demo.apk"` |
+| `replace` | boolean | 可选，默认 `true`；为 `true` 时使用 `pm install -r` 覆盖安装 |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.install("/sdcard/Download/demo.apk")
+if not ok then
+    print("install failed:", err)
+end
+```
+
+注意：
+
+- 这里的路径是手机/模拟器内部路径，不是电脑上的文件路径。
+- 当前不受 Root 模式开关影响，属于显式 root 包管理能力。
+
+<a id="api-app-uninstall"></a>
+
+### 7.8 `m.app.uninstall(packageName, keepData)` / `m.uninstallApp(...)`
+
+卸载指定应用。当前通过 root `pm uninstall` 实现。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `packageName` | string | Android 包名 |
+| `keepData` | boolean | 可选，默认 `false`；为 `true` 时使用 `pm uninstall -k` 保留数据 |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.uninstall("com.example.target")
+if not ok then
+    print("uninstall failed:", err)
+end
+```
+
+<a id="api-app-disable"></a>
+
+### 7.9 `m.app.disable(packageName)` / `m.disableApp(...)`
+
+冻结指定应用。当前通过 root `pm disable-user --user 0` 实现。
+
+```lua
+local ok, err = m.app.disable("com.example.target")
+if not ok then
+    print("disable failed:", err)
+end
+```
+
+<a id="api-app-enable"></a>
+
+### 7.10 `m.app.enable(packageName)` / `m.enableApp(...)`
+
+解冻指定应用。当前通过 root `pm enable` 实现。
+
+```lua
+local ok, err = m.app.enable("com.example.target")
+if not ok then
+    print("enable failed:", err)
 end
 ```
 
@@ -1683,6 +1776,10 @@ end
 | `app.clearData` | 清理指定 Android 应用数据 |
 | `app.grant` | 给指定 Android 应用授予权限 |
 | `app.revoke` | 撤销指定 Android 应用权限 |
+| `app.install` | 安装 Android APK |
+| `app.uninstall` | 卸载指定 Android 应用 |
+| `app.disable` | 冻结指定 Android 应用 |
+| `app.enable` | 解冻指定 Android 应用 |
 | `screen.capture` | 从协议侧请求截图句柄 |
 | `image.release` | 从协议侧释放图片句柄 |
 
@@ -1723,7 +1820,7 @@ tap(300, 500)
 | 批量取色 | `m.getPixels(img, points)` | 部分兼容 | 部分兼容 |
 | 找色 / 比色 | 后续 `m.image.findColor` 等 | 未实现 | 未实现 |
 | 控件查找 | 后续 `m.widget` 模块 | 未实现 | 未实现 |
-| 应用启动/关闭/数据/权限 | `m.app.open/stop/clearData/grant/revoke` | 部分兼容 | 部分兼容 |
+| 应用控制 | `m.app.open/stop/clearData/grant/revoke/install/uninstall/disable/enable` | 部分兼容 | 部分兼容 |
 | FFI | 后续评估 | 未实现 | 未实现 |
 | 启动线程 | 后续 `m.thread` 模块 | 未实现 | 未实现 |
 

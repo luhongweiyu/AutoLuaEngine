@@ -10,10 +10,11 @@ import java.util.regex.Pattern;
  * Android 应用控制桥。
  *
  * 启动应用优先走 root `monkey`，失败后回退普通 launcher Intent；
- * 停止、清理数据和授权管理都属于系统级操作，需要 root。
+ * 停止、清理数据、授权管理和包管理都属于系统级操作，需要 root。
  */
 public final class AppControlBridge {
     private static final int DEFAULT_TIMEOUT_MS = 2500;
+    private static final int PACKAGE_OPERATION_TIMEOUT_MS = 30_000;
     private static final Pattern PACKAGE_NAME_PATTERN =
             Pattern.compile("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
     private static final Pattern PERMISSION_NAME_PATTERN =
@@ -86,6 +87,51 @@ public final class AppControlBridge {
         return changePermission(packageName, permissionName, false);
     }
 
+    public static boolean install(String apkPath, boolean replace) {
+        if (!isValidAbsolutePath(apkPath)) {
+            return false;
+        }
+
+        // 安装 APK 可能触发包校验和 dex 优化，不能复用点击/强停类操作的短超时。
+        String command = replace ? "pm install -r " : "pm install ";
+        RootCommandResult result = RootShellBridge.exec(
+                command + RootShellBridge.shellQuote(apkPath),
+                PACKAGE_OPERATION_TIMEOUT_MS
+        );
+        return result.success;
+    }
+
+    public static boolean uninstall(String packageName, boolean keepData) {
+        if (!isValidPackageName(packageName)) {
+            return false;
+        }
+
+        String command = keepData ? "pm uninstall -k " : "pm uninstall ";
+        RootCommandResult result = RootShellBridge.exec(
+                command + packageName,
+                PACKAGE_OPERATION_TIMEOUT_MS
+        );
+        return result.success;
+    }
+
+    public static boolean disable(String packageName) {
+        return setEnabledState(packageName, false);
+    }
+
+    public static boolean enable(String packageName) {
+        return setEnabledState(packageName, true);
+    }
+
+    private static boolean setEnabledState(String packageName, boolean enabled) {
+        if (!isValidPackageName(packageName)) {
+            return false;
+        }
+
+        String command = enabled ? "pm enable " : "pm disable-user --user 0 ";
+        RootCommandResult result = RootShellBridge.exec(command + packageName, DEFAULT_TIMEOUT_MS);
+        return result.success;
+    }
+
     private static boolean changePermission(
             String packageName,
             String permissionName,
@@ -124,5 +170,9 @@ public final class AppControlBridge {
 
     private static boolean isValidPermissionName(String permissionName) {
         return permissionName != null && PERMISSION_NAME_PATTERN.matcher(permissionName).matches();
+    }
+
+    private static boolean isValidAbsolutePath(String path) {
+        return path != null && path.startsWith("/") && !path.contains("\u0000");
     }
 }

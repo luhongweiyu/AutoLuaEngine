@@ -311,6 +311,39 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("app.install".equals(method)) {
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appInstall(
+                    requireApkPath(params),
+                    params.optBoolean("replace", true)
+            ));
+            return result;
+        }
+
+        if ("app.uninstall".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appUninstall(
+                    packageName,
+                    params.optBoolean("keepData", false)
+            ));
+            return result;
+        }
+
+        if ("app.disable".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appDisable(packageName));
+            return result;
+        }
+
+        if ("app.enable".equals(method)) {
+            String packageName = requirePackageName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appEnable(packageName));
+            return result;
+        }
+
         if ("key.press".equals(method)) {
             int keyCode = params.optInt("keyCode", -1);
             if (keyCode < 0) {
@@ -578,6 +611,17 @@ public final class EngineHttpServer {
             throw new IllegalArgumentException("permission is required");
         }
         return permissionName;
+    }
+
+    private static String requireApkPath(JSONObject params) {
+        String path = params.optString("path", "");
+        if (path.trim().isEmpty()) {
+            path = params.optString("apkPath", "");
+        }
+        if (path.trim().isEmpty()) {
+            throw new IllegalArgumentException("path is required");
+        }
+        return path;
     }
 
     private static HttpRequest readRequest(InputStream inputStream) throws IOException {
