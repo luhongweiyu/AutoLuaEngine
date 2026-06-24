@@ -16,6 +16,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 /**
  * Android 引擎主界面。
  *
@@ -25,12 +29,17 @@ import android.widget.TextView;
 public final class MainActivity extends Activity {
     public static final String ACTION_REQUEST_SCREEN_CAPTURE =
             "com.autolua.engine.action.REQUEST_SCREEN_CAPTURE";
+    public static final String ACTION_SHOW_LOGS =
+            "com.autolua.engine.action.SHOW_LOGS";
+    public static final String ACTION_SHOW_SETTINGS =
+            "com.autolua.engine.action.SHOW_SETTINGS";
 
     private static final int REQUEST_SCREEN_CAPTURE = 1001;
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
     private static final int ROOT_PADDING = 32;
     private static final int SECTION_MARGIN = 24;
     private static final int ITEM_MARGIN = 10;
+    private static final int MAX_LOG_LINES = 30;
 
     private TextView outputView;
     private TextView selectedScriptView;
@@ -89,6 +98,16 @@ public final class MainActivity extends Activity {
     private void handleIntent(Intent intent) {
         if (intent != null && ACTION_REQUEST_SCREEN_CAPTURE.equals(intent.getAction())) {
             requestScreenCapture();
+            return;
+        }
+
+        if (intent != null && ACTION_SHOW_LOGS.equals(intent.getAction())) {
+            showRecentLogs();
+            return;
+        }
+
+        if (intent != null && ACTION_SHOW_SETTINGS.equals(intent.getAction())) {
+            showSettingsSummary();
         }
     }
 
@@ -388,9 +407,63 @@ public final class MainActivity extends Activity {
             return;
         }
 
+        EngineSettings.setFloatingBubbleHidden(this, false);
+        EngineSettings.setFloatingPanelExpanded(this, false);
         Intent serviceIntent = new Intent(this, FloatingControlService.class);
         startService(serviceIntent);
         outputView.setText("悬浮控制已启动");
+    }
+
+    /**
+     * 从 native 日志缓冲读取最近日志并显示在 App 状态区域。
+     *
+     * 悬浮窗的“日志”入口会回到这里，先满足手机端快速查看；IDE 侧仍通过 log.drain 读取。
+     */
+    private void showRecentLogs() {
+        try {
+            JSONArray entries = new JSONArray(NativeEngine.drainLogs(0));
+            if (entries.length() == 0) {
+                outputView.setText("暂无脚本日志");
+                return;
+            }
+
+            int startIndex = Math.max(0, entries.length() - MAX_LOG_LINES);
+            StringBuilder builder = new StringBuilder("最近日志：");
+            for (int i = startIndex; i < entries.length(); i++) {
+                JSONObject entry = entries.getJSONObject(i);
+                builder.append('\n')
+                        .append(entry.optInt("id"))
+                        .append(" [")
+                        .append(entry.optString("level", "info"))
+                        .append("] ")
+                        .append(entry.optString("message", ""));
+            }
+            outputView.setText(builder.toString());
+        } catch (JSONException exception) {
+            outputView.setText("读取日志失败：" + exception.getMessage());
+        }
+    }
+
+    /**
+     * 显示当前引擎设置和关键权限状态。
+     *
+     * 第一版还没有独立设置页，先用状态区域承接悬浮窗的“设置”入口。
+     */
+    private void showSettingsSummary() {
+        boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || Settings.canDrawOverlays(this);
+        String summary = "当前设置"
+                + "\n调试地址：127.0.0.1:" + EngineSettings.getHttpPort(this)
+                + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
+                + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
+                + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
+                + "\n悬浮按钮：" + (EngineSettings.isFloatingBubbleHidden(this) ? "已隐藏" : "显示中")
+                + "\n当前脚本：" + selectedScript.title + "    " + selectedScript.assetPath;
+        outputView.setText(summary);
+    }
+
+    private String formatEnabled(boolean enabled) {
+        return enabled ? "已开启" : "未开启";
     }
 
     @Override

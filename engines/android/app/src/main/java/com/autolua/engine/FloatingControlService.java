@@ -89,6 +89,10 @@ public final class FloatingControlService extends Service {
             return;
         }
 
+        if (EngineSettings.isFloatingBubbleHidden(this)) {
+            return;
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
             showToast("请先开启悬浮窗权限");
@@ -99,6 +103,10 @@ public final class FloatingControlService extends Service {
         bubbleView = createBubbleView();
         bubbleLayoutParams = createBubbleLayoutParams();
         windowManager.addView(bubbleView, bubbleLayoutParams);
+
+        if (EngineSettings.isFloatingPanelExpanded(this)) {
+            showPanelView();
+        }
     }
 
     private View createBubbleView() {
@@ -126,8 +134,11 @@ public final class FloatingControlService extends Service {
                 PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = Math.max(0, getResources().getDisplayMetrics().widthPixels - bubbleSizePx);
-        params.y = dp(260);
+        int defaultX = Math.max(0, getResources().getDisplayMetrics().widthPixels - bubbleSizePx);
+        int defaultY = dp(260);
+        params.x = EngineSettings.getFloatingBubbleX(this, defaultX);
+        params.y = EngineSettings.getFloatingBubbleY(this, defaultY);
+        clampBubbleLayoutParams(params);
         return params;
     }
 
@@ -175,6 +186,7 @@ public final class FloatingControlService extends Service {
 
         panelOverlayView = createPanelOverlayView();
         windowManager.addView(panelOverlayView, createPanelLayoutParams());
+        EngineSettings.setFloatingPanelExpanded(this, true);
     }
 
     private WindowManager.LayoutParams createPanelLayoutParams() {
@@ -229,11 +241,19 @@ public final class FloatingControlService extends Service {
 
         LinearLayout secondRow = createActionRow();
         secondRow.addView(createPanelAction("照", "截图", this::openScreenCapturePermission));
-        secondRow.addView(createPanelAction("关", "关闭服务", this::stopSelf));
-        secondRow.addView(createPanelAction("隐", "隐藏", this::removePanelView));
+        secondRow.addView(createPanelAction("志", "日志", this::openLogPanel));
+        secondRow.addView(createPanelAction("设", "设置", this::openSettingsPanel));
         LinearLayout.LayoutParams secondRowParams = matchWidthWrapContent();
         secondRowParams.topMargin = dp(22);
         panel.addView(secondRow, secondRowParams);
+
+        LinearLayout thirdRow = createActionRow();
+        thirdRow.addView(createPanelAction("事", "事件", this::showUserEventPlaceholder));
+        thirdRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
+        thirdRow.addView(createPanelAction("关", "关闭服务", this::stopSelf));
+        LinearLayout.LayoutParams thirdRowParams = matchWidthWrapContent();
+        thirdRowParams.topMargin = dp(22);
+        panel.addView(thirdRow, thirdRowParams);
 
         FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
                 Math.min(dp(360), getResources().getDisplayMetrics().widthPixels - dp(32)),
@@ -295,10 +315,41 @@ public final class FloatingControlService extends Service {
     }
 
     private void openScreenCapturePermission() {
+        EngineSettings.setFloatingPanelExpanded(this, false);
         Intent intent = new Intent(this, MainActivity.class);
         intent.setAction(MainActivity.ACTION_REQUEST_SCREEN_CAPTURE);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
+    }
+
+    private void openLogPanel() {
+        openMainActivity(MainActivity.ACTION_SHOW_LOGS);
+    }
+
+    private void openSettingsPanel() {
+        openMainActivity(MainActivity.ACTION_SHOW_SETTINGS);
+    }
+
+    private void openMainActivity(String action) {
+        EngineSettings.setFloatingPanelExpanded(this, false);
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setAction(action);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+    }
+
+    private void showUserEventPlaceholder() {
+        showToast("用户事件入口已预留");
+    }
+
+    private void hideBubbleAndRemember() {
+        EngineSettings.setFloatingBubbleHidden(this, true);
+        EngineSettings.setFloatingPanelExpanded(this, false);
+        removePanelView();
+        removeBubbleView();
+        showToast("悬浮按钮已隐藏，可在 App 内重新开启");
     }
 
     private void moveBubbleTo(int x, int y) {
@@ -318,6 +369,18 @@ public final class FloatingControlService extends Service {
         int centerX = bubbleLayoutParams.x + bubbleSizePx / 2;
         int targetX = centerX < screenWidth / 2 ? 0 : screenWidth - bubbleSizePx;
         moveBubbleTo(targetX, bubbleLayoutParams.y);
+        EngineSettings.setFloatingBubblePosition(
+                this,
+                bubbleLayoutParams.x,
+                bubbleLayoutParams.y
+        );
+    }
+
+    private void clampBubbleLayoutParams(WindowManager.LayoutParams params) {
+        int maxX = Math.max(0, getResources().getDisplayMetrics().widthPixels - bubbleSizePx);
+        int maxY = Math.max(0, getResources().getDisplayMetrics().heightPixels - bubbleSizePx);
+        params.x = Math.max(0, Math.min(params.x, maxX));
+        params.y = Math.max(0, Math.min(params.y, maxY));
     }
 
     private void removeBubbleView() {
@@ -337,6 +400,7 @@ public final class FloatingControlService extends Service {
 
         windowManager.removeView(panelOverlayView);
         panelOverlayView = null;
+        EngineSettings.setFloatingPanelExpanded(this, false);
     }
 
     private void showToast(String message) {
