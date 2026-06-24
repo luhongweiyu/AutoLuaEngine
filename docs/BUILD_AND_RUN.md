@@ -144,6 +144,7 @@ app.grant
 app.revoke
 key.press
 input.text
+input.pasteText
 script.run
 script.pause
 script.resume

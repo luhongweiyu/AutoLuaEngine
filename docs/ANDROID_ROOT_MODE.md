@@ -16,7 +16,8 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 
 - 点击：`m.touch.tap` / `m.tap`
 - 滑动：`m.touch.swipe` / `m.swipe`
-- 文本输入：`m.input.text` / `m.inputText`
+- 文本输入：`m.input.text` / `m.inputText`，先走 root `input text`，失败后回退剪贴板粘贴
+- 剪贴板粘贴：`m.input.pasteText` / `m.pasteText`
 - 通用按键：`m.key.press` / `m.pressKey`
 - 返回：`m.key.back` / `m.back`
 - Home：`m.key.home` / `m.home`
@@ -79,6 +80,7 @@ none：root 和无障碍都不可用
 m.tap(300, 500)
 m.swipe(300, 800, 300, 300, 500)
 m.inputText("hello world")
+m.pasteText("中文输入\n第二行")
 m.pressKey(66)
 m.back()
 m.home()
@@ -125,7 +127,7 @@ su ... "screencap"
 
 - 触控、文本输入和按键已优先复用常驻 root shell；root 截图、`m.root.exec` 和 root 文件 API 仍使用短命令。
 - root 截图虽已避开 PNG 编码和磁盘 IO，但仍不适合作最终高频找色方案。
-- 文本输入当前基于 Android `input text`，中文、换行和复杂特殊字符后续需要输入法或剪贴板路线。
+- 文本输入当前支持 root `input text` 和剪贴板粘贴；剪贴板路线会覆盖系统剪贴板，且依赖焦点控件支持粘贴。
 - Root 文件 API 当前只承诺 UTF-8 文本读写删查、目录创建和 chmod，不承诺二进制传输、递归删除或 chown。
 - Root 进程 API 当前只承诺 `pidOf` 和 `kill`，不承诺完整进程列表、资源占用统计或守护能力。
 - Root 应用控制当前只承诺启动、强停、清数据、权限授予和权限撤销；安装、卸载、冻结、组件启停后续按需要再补。

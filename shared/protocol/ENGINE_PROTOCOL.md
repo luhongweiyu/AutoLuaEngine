@@ -866,9 +866,9 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 说明：
 
 - 向当前焦点输入框输入文本
-- Android 第一版使用 root `input text`
-- 当前不支持换行；空格会转换为 Android `input text` 使用的 `%s`
-- 中文和复杂文本后续会通过输入法或剪贴板路线增强
+- Android 第一版先使用 root `input text`
+- root `input text` 失败后自动回退剪贴板 + root 粘贴
+- Root 模式关闭、root 不可用或当前焦点控件无法接收输入时返回 `ok: false`
 
 请求：
 
@@ -889,6 +889,40 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 {
   "jsonrpc": "2.0",
   "id": 24,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.19 `input.pasteText`
+
+说明：
+
+- 通过剪贴板向当前焦点控件粘贴文本
+- 适合中文、换行和复杂符号
+- 该方法会覆盖系统剪贴板内容
+- 依赖 root `KEYCODE_PASTE` 和当前焦点控件的粘贴能力
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 25,
+  "method": "input.pasteText",
+  "params": {
+    "text": "中文输入\n第二行"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 25,
   "result": {
     "ok": true
   }

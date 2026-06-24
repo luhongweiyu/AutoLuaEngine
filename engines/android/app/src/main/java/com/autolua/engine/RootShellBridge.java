@@ -25,6 +25,7 @@ public final class RootShellBridge {
     private static final int MAX_COMMAND_TIMEOUT_MS = 30_000;
     private static final long ROOT_CACHE_TRUE_MS = 60_000;
     private static final long ROOT_CACHE_FALSE_MS = 3_000;
+    private static final int KEYCODE_PASTE = 279;
 
     private static Boolean cachedRootAvailable;
     private static long rootCacheExpireAt;
@@ -182,6 +183,10 @@ public final class RootShellBridge {
 
     public static boolean keyHome() {
         return keyEvent(3);
+    }
+
+    public static boolean paste() {
+        return keyEvent(KEYCODE_PASTE);
     }
 
     public static boolean keyEvent(int keyCode) {

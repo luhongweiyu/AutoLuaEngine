@@ -68,6 +68,7 @@ public:
     static bool touchTap(int x, int y);
     static bool touchSwipe(int x1, int y1, int x2, int y2, int durationMs);
     static bool inputText(const std::string& text);
+    static bool pasteText(const std::string& text);
     static bool keyPress(int keyCode);
     static bool keyBack();
     static bool keyHome();

@@ -978,6 +978,10 @@ bool AndroidBridge::inputText(const std::string& text) {
     return callStaticBooleanStringMethod("inputText", "(Ljava/lang/String;)Z", text);
 }
 
+bool AndroidBridge::pasteText(const std::string& text) {
+    return callStaticBooleanStringMethod("pasteText", "(Ljava/lang/String;)Z", text);
+}
+
 bool AndroidBridge::keyPress(int keyCode) {
     return callStaticBooleanMethod1("keyPress", "(I)Z", static_cast<jint>(keyCode));
 }

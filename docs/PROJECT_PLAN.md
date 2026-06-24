@@ -187,7 +187,8 @@ Lua run failed: expected lua runtime error
 - [x] `m.touch.swipe(x1, y1, x2, y2, duration)`，优先走 root，失败后回退无障碍
 - [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，按键优先走 root，失败后回退无障碍
 - [x] `m.key.press(keyCode)` 通用按键，root 优先，Back/Home 可回退无障碍
-- [x] `m.input.text(text)` 简单文本输入，当前走 root `input text`
+- [x] `m.input.text(text)` 简单文本输入，先走 root `input text`，失败后回退剪贴板粘贴
+- [x] `m.input.pasteText(text)` 复杂文本输入，当前走剪贴板 + root 粘贴键
 - [x] `m.device.isRootAvailable()` 和 `m.device.info().rootAvailable`
 - [x] App 主界面 Root 模式开关，默认开启
 - [x] `m.device.setRootModeEnabled(enabled)` 和 HTTP `device.setRootModeEnabled`，脚本/IDE 可切换 Root 模式
@@ -213,7 +214,7 @@ m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.ho
 当前 Android 端触控、文本输入和按键优先通过常驻 root shell 执行 `input ...`；
 常驻通道不可用时回退短命令，root 不可用或命令失败时回退无障碍。
 其中通用按键只有 Back/Home 可回退无障碍；其他 keyCode 当前依赖 root。
-文本输入当前适合简单英文、数字和空格，中文和复杂文本后续走输入法或剪贴板路线。
+文本输入当前简单文本优先走 `input text`，中文、换行和复杂符号可走剪贴板粘贴路线。
 Root 文件 API 当前支持文本读写删查、目录创建和 chmod，二进制、递归删除、chown 后续再做。
 Root 进程 API 当前支持 pidOf/kill，完整进程列表和资源占用统计后续再做。
 Root 应用控制当前支持启动、强停、清理应用数据、授权和撤销权限，安装卸载等能力后续再做。

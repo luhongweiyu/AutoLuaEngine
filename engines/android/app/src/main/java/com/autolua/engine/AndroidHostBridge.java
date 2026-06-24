@@ -149,11 +149,30 @@ public final class AndroidHostBridge {
     /**
      * 向当前焦点输入框输入文本。
      *
-     * 当前只启用 root 路线，因为无障碍文本注入需要焦点节点、输入控件类型等额外判断。
-     * 中文、换行和复杂特殊字符后续通过输入法或剪贴板路线单独增强。
+     * 第一优先级仍然是 root `input text`，它对英文、数字和简单空格最快；
+     * 失败后回退剪贴板 + root 粘贴，覆盖中文、换行和复杂符号。
      */
     public static boolean inputText(String text) {
-        return isRootModeEnabledInternal() && RootShellBridge.inputText(text);
+        if (!isRootModeEnabledInternal() || text == null) {
+            return false;
+        }
+        if (RootShellBridge.inputText(text)) {
+            return true;
+        }
+        return pasteText(text);
+    }
+
+    /**
+     * 通过剪贴板向当前焦点输入文本。
+     *
+     * 该路线会修改系统剪贴板内容，并依赖当前焦点控件支持粘贴。它比 `input text`
+     * 更适合中文、换行和特殊字符，但不适合需要保留用户剪贴板内容的场景。
+     */
+    public static boolean pasteText(String text) {
+        return appContext != null
+                && isRootModeEnabledInternal()
+                && ClipboardBridge.setText(appContext, text)
+                && RootShellBridge.paste();
     }
 
     public static boolean hasScreenCapturePermission() {

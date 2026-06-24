@@ -8,6 +8,7 @@ local cd = {
     tap = host.touch.tap,
     swipe = host.touch.swipe,
     inputText = host.input.text,
+    pasteText = host.input.pasteText,
     pressKey = host.key.press,
     back = host.key.back,
     home = host.key.home,

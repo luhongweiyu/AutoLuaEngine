@@ -329,6 +329,17 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("input.pasteText".equals(method)) {
+            String text = params.optString("text", null);
+            if (text == null) {
+                throw new IllegalArgumentException("text is required");
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.pasteText(text));
+            return result;
+        }
+
         if ("script.run".equals(method)) {
             String language = params.optString("language", "lua");
             if (!"lua".equals(language)) {

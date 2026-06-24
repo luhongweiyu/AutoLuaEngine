@@ -40,6 +40,7 @@
 | 触控 | `m.touch.tap(x, y)` | `m.tap(x, y)` | [查看](#api-touch-tap) |
 | 触控 | `m.touch.swipe(x1, y1, x2, y2, duration)` | `m.swipe(...)` | [查看](#api-touch-swipe) |
 | 输入 | `m.input.text(text)` | `m.inputText(text)` | [查看](#api-input-text) |
+| 输入 | `m.input.pasteText(text)` | `m.pasteText(text)` | [查看](#api-input-paste-text) |
 | 按键 | `m.key.isAccessibilityEnabled()` | 无 | [查看](#api-key-accessibility) |
 | 按键 | `m.key.press(keyCode)` | `m.pressKey(keyCode)` | [查看](#api-key-press) |
 | 按键 | `m.key.back()` | `m.back()` | [查看](#api-key-back) |
@@ -55,8 +56,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -1129,7 +1130,7 @@ end
 
 ## 10. 输入 API
 
-输入 API 当前优先面向 root 设备，底层使用 Android `input text`。它适合第一版做简单文本输入闭环，复杂中文输入、剪贴板输入和输入法联动后续单独增强。
+输入 API 当前优先面向 root 设备。`m.input.text` 会先尝试 Android `input text`，失败后自动回退剪贴板粘贴；`m.input.pasteText` 可以显式使用剪贴板路线。
 
 <a id="api-input-text"></a>
 
@@ -1141,7 +1142,7 @@ end
 
 | 名称 | 类型 | 说明 |
 |---|---|---|
-| `text` | string | 要输入的文本。当前不支持换行；空格会转换为 Android `input text` 需要的 `%s` |
+| `text` | string | 要输入的文本。简单文本优先走 root `input text`，复杂文本自动回退剪贴板粘贴 |
 
 返回值：
 
@@ -1162,14 +1163,48 @@ end
 当前限制：
 
 - Root 模式关闭或 App 无法获取 root 时会失败。
-- Android `input text` 对中文和特殊字符支持不稳定，后续会增加输入法或剪贴板路线。
-- 多行文本暂不支持，避免 `input` 命令解析不一致。
+- 剪贴板回退会覆盖系统当前剪贴板内容。
+- 当前焦点控件必须能接收输入或粘贴文本。
 
 常见失败：
 
 ```text
-input text failed; root is not available or text is unsupported
+input text failed; root is not available or focused control cannot receive text
 ```
+
+<a id="api-input-paste-text"></a>
+
+### 10.2 `m.input.pasteText(text)` / `m.pasteText(text)`
+
+通过剪贴板和 root 粘贴键向当前焦点输入文本，适合中文、换行和复杂符号。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `text` | string | 要写入剪贴板并粘贴的 UTF-8 文本 |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.input.pasteText("中文输入\n第二行")
+if not ok then
+    print("paste failed:", err)
+end
+```
+
+注意：
+
+- 该接口会覆盖系统剪贴板内容。
+- 底层会设置剪贴板，然后通过 root `KEYCODE_PASTE` 触发粘贴。
+- 当前焦点控件不支持粘贴时会失败或无实际输入效果。
 
 ## 11. 按键 API
 
@@ -1588,6 +1623,7 @@ end
 | `log.drain` | 轮询读取日志 |
 | `key.press` | 执行 Android 通用按键码 |
 | `input.text` | 向当前焦点输入框输入文本 |
+| `input.pasteText` | 通过剪贴板向当前焦点粘贴文本 |
 | `app.clearData` | 清理指定 Android 应用数据 |
 | `app.grant` | 给指定 Android 应用授予权限 |
 | `app.revoke` | 撤销指定 Android 应用权限 |
@@ -1622,7 +1658,7 @@ tap(300, 500)
 | 延时 | `m.sleep(ms)` | 部分兼容 | 部分兼容 |
 | 点击 | `m.tap(x, y)` | 部分兼容 | 部分兼容 |
 | 滑动 | `m.swipe(...)` | 部分兼容 | 部分兼容 |
-| 文本输入 | `m.inputText(text)` | 部分兼容 | 部分兼容 |
+| 文本输入 | `m.inputText(text)` / `m.pasteText(text)` | 部分兼容 | 部分兼容 |
 | 通用按键 | `m.pressKey(keyCode)` | 部分兼容 | 部分兼容 |
 | 返回键 | `m.back()` | 部分兼容 | 部分兼容 |
 | Home 键 | `m.home()` | 部分兼容 | 部分兼容 |
@@ -1659,23 +1695,24 @@ Android root 不可用，且无障碍服务未开启。
 - `m.key.back` / `m.back`
 - `m.key.home` / `m.home`
 
-### 17.2 `input text failed; root is not available or text is unsupported`
+### 17.2 `input text failed; root is not available or focused control cannot receive text`
 
 原因：
 
 ```text
-Root 模式关闭、App 无法获取 root，或文本包含当前 Android input 命令不支持的内容。
+Root 模式关闭、App 无法获取 root，或当前焦点控件无法接收输入/粘贴文本。
 ```
 
 处理：
 
 ```text
-确认 App 主界面 Root 模式为开启，确认设备能给普通 App 授权 su；中文和复杂文本后续走输入法路线。
+确认 App 主界面 Root 模式为开启，确认设备能给普通 App 授权 su；复杂文本可直接使用 `m.input.pasteText(text)`。
 ```
 
 影响 API：
 
 - `m.input.text` / `m.inputText`
+- `m.input.pasteText` / `m.pasteText`
 
 ### 17.3 `screen capture permission is not granted`
 

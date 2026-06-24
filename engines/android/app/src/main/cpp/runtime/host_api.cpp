@@ -617,7 +617,19 @@ int luaInputText(lua_State* state) {
     const char* text = luaL_checkstring(state, 1);
     if (!AndroidBridge::inputText(text)) {
         lua_pushnil(state);
-        lua_pushstring(state, "input text failed; root is not available or text is unsupported");
+        lua_pushstring(state, "input text failed; root is not available or focused control cannot receive text");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaInputPasteText(lua_State* state) {
+    const char* text = luaL_checkstring(state, 1);
+    if (!AndroidBridge::pasteText(text)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "paste text failed; root is not available or focused control cannot paste text");
         return 2;
     }
 
@@ -870,6 +882,7 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int inputTableIndex = lua_gettop(state);
     setFunctionField(state, inputTableIndex, "text", luaInputText);
+    setFunctionField(state, inputTableIndex, "pasteText", luaInputPasteText);
     lua_setfield(state, hostTableIndex, "input");
 
     lua_newtable(state);

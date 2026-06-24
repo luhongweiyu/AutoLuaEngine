@@ -21,6 +21,7 @@ local m = {
 m.tap = host.touch.tap
 m.swipe = host.touch.swipe
 m.inputText = host.input.text
+m.pasteText = host.input.pasteText
 m.pressKey = host.key.press
 m.back = host.key.back
 m.home = host.key.home
