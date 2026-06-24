@@ -1125,6 +1125,30 @@ int luaAppEnable(lua_State* state) {
     return 1;
 }
 
+int luaAppDisableComponent(lua_State* state) {
+    const char* componentName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appDisableComponent(componentName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "disable app component failed; root is not available or component name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaAppEnableComponent(lua_State* state) {
+    const char* componentName = luaL_checkstring(state, 1);
+    if (!AndroidBridge::appEnableComponent(componentName)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "enable app component failed; root is not available or component name is invalid");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaTouchTap(lua_State* state) {
     lua_Integer x = luaL_checkinteger(state, 1);
     lua_Integer y = luaL_checkinteger(state, 2);
@@ -1436,6 +1460,8 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, appTableIndex, "uninstall", luaAppUninstall);
     setFunctionField(state, appTableIndex, "disable", luaAppDisable);
     setFunctionField(state, appTableIndex, "enable", luaAppEnable);
+    setFunctionField(state, appTableIndex, "disableComponent", luaAppDisableComponent);
+    setFunctionField(state, appTableIndex, "enableComponent", luaAppEnableComponent);
     lua_setfield(state, hostTableIndex, "app");
 
     lua_newtable(state);

@@ -49,6 +49,8 @@
 | 应用 | `m.app.uninstall(packageName, keepData)` | `m.uninstallApp(...)` | [查看](#api-app-uninstall) |
 | 应用 | `m.app.disable(packageName)` | `m.disableApp(...)` | [查看](#api-app-disable) |
 | 应用 | `m.app.enable(packageName)` | `m.enableApp(...)` | [查看](#api-app-enable) |
+| 应用 | `m.app.disableComponent(component)` | `m.disableAppComponent(...)` | [查看](#api-app-disable-component) |
+| 应用 | `m.app.enableComponent(component)` | `m.enableAppComponent(...)` | [查看](#api-app-enable-component) |
 | 文件 | `m.file.appDataPath(fileName)` | 无 | [查看](#api-file-app-data-path) |
 | 文件 | `m.file.write(path, content)` | 无 | [查看](#api-file-write) |
 | 文件 | `m.file.read(path)` | 无 | [查看](#api-file-read) |
@@ -1385,6 +1387,67 @@ if not ok then
 end
 ```
 
+<a id="api-app-disable-component"></a>
+
+### 7.12 `m.app.disableComponent(component)` / `m.disableAppComponent(...)`
+
+冻结指定 Android 组件。当前通过 root `pm disable-user --user 0 package/component` 实现。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `component` | string | 完整组件名，例如 `"com.example.target/.MainActivity"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.disableComponent("com.example.target/.MainActivity")
+if not ok then
+    print("disable component failed:", err)
+end
+```
+
+说明：
+
+- 该接口是显式 root 能力，不受 Root 模式开关影响。
+- 组件名会做格式校验，只接受 `package/class` 形式，避免 shell 参数污染。
+
+<a id="api-app-enable-component"></a>
+
+### 7.13 `m.app.enableComponent(component)` / `m.enableAppComponent(...)`
+
+解冻指定 Android 组件。当前通过 root `pm enable package/component` 实现。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `component` | string | 完整组件名，例如 `"com.example.target/.MainActivity"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.app.enableComponent("com.example.target/.MainActivity")
+if not ok then
+    print("enable component failed:", err)
+end
+```
+
 ## 8. 文件 API
 
 文件 API 当前只做基础文本读写和存在性判断。第一版建议优先读写 App 私有目录，避免额外申请外部存储权限。
@@ -2146,6 +2209,8 @@ end
 | `app.uninstall` | 卸载指定 Android 应用 |
 | `app.disable` | 冻结指定 Android 应用 |
 | `app.enable` | 解冻指定 Android 应用 |
+| `app.disableComponent` | 冻结指定 Android 组件 |
+| `app.enableComponent` | 解冻指定 Android 组件 |
 | `screen.capture` | 从协议侧请求截图句柄 |
 | `image.release` | 从协议侧释放图片句柄 |
 

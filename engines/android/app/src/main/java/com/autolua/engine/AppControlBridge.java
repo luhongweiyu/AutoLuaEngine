@@ -19,6 +19,8 @@ public final class AppControlBridge {
             Pattern.compile("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
     private static final Pattern PERMISSION_NAME_PATTERN =
             Pattern.compile("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
+    private static final Pattern CLASS_NAME_PATTERN =
+            Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)*");
 
     private AppControlBridge() {
     }
@@ -138,6 +140,14 @@ public final class AppControlBridge {
         return setEnabledState(packageName, true);
     }
 
+    public static boolean disableComponent(String componentName) {
+        return setComponentEnabledState(componentName, false);
+    }
+
+    public static boolean enableComponent(String componentName) {
+        return setComponentEnabledState(componentName, true);
+    }
+
     private static boolean setEnabledState(String packageName, boolean enabled) {
         if (!isValidPackageName(packageName)) {
             return false;
@@ -145,6 +155,18 @@ public final class AppControlBridge {
 
         String command = enabled ? "pm enable " : "pm disable-user --user 0 ";
         RootCommandResult result = RootShellBridge.exec(command + packageName, DEFAULT_TIMEOUT_MS);
+        return result.success;
+    }
+
+    private static boolean setComponentEnabledState(String componentName, boolean enabled) {
+        String normalized = normalizeComponentName(componentName);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        // 组件启停属于显式 root 能力。组件名通过严格校验后不再 shellQuote，保持 pm 原生命令格式。
+        String command = enabled ? "pm enable " : "pm disable-user --user 0 ";
+        RootCommandResult result = RootShellBridge.exec(command + normalized, DEFAULT_TIMEOUT_MS);
         return result.success;
     }
 
@@ -186,6 +208,39 @@ public final class AppControlBridge {
 
     private static boolean isValidPermissionName(String permissionName) {
         return permissionName != null && PERMISSION_NAME_PATTERN.matcher(permissionName).matches();
+    }
+
+    private static String normalizeComponentName(String componentName) {
+        if (componentName == null) {
+            return "";
+        }
+
+        String value = componentName.trim();
+        int separator = value.indexOf('/');
+        if (separator <= 0 || separator >= value.length() - 1) {
+            return "";
+        }
+
+        String packageName = value.substring(0, separator);
+        String className = value.substring(separator + 1);
+        if (!isValidPackageName(packageName) || !isValidComponentClassName(packageName, className)) {
+            return "";
+        }
+
+        return packageName + "/" + className;
+    }
+
+    private static boolean isValidComponentClassName(String packageName, String className) {
+        if (className == null || className.isEmpty()) {
+            return false;
+        }
+        if (className.charAt(0) == '.') {
+            return className.length() > 1 && CLASS_NAME_PATTERN.matcher(className.substring(1)).matches();
+        }
+        if (className.startsWith(packageName + ".")) {
+            return CLASS_NAME_PATTERN.matcher(className).matches();
+        }
+        return CLASS_NAME_PATTERN.matcher(className).matches();
     }
 
     private static boolean isValidComponentLine(String value) {

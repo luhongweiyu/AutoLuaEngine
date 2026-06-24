@@ -479,6 +479,20 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("app.disableComponent".equals(method)) {
+            String componentName = requireComponentName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appDisableComponent(componentName));
+            return result;
+        }
+
+        if ("app.enableComponent".equals(method)) {
+            String componentName = requireComponentName(params);
+            JSONObject result = new JSONObject();
+            result.put("ok", AndroidHostBridge.appEnableComponent(componentName));
+            return result;
+        }
+
         if ("key.press".equals(method)) {
             int keyCode = params.optInt("keyCode", -1);
             if (keyCode < 0) {
@@ -930,6 +944,17 @@ public final class EngineHttpServer {
             throw new IllegalArgumentException("path is required");
         }
         return path;
+    }
+
+    private static String requireComponentName(JSONObject params) {
+        String componentName = params.optString("component", "");
+        if (componentName.trim().isEmpty()) {
+            componentName = params.optString("componentName", "");
+        }
+        if (componentName.trim().isEmpty()) {
+            throw new IllegalArgumentException("component is required");
+        }
+        return componentName;
     }
 
     private static HttpRequest readRequest(InputStream inputStream) throws IOException {

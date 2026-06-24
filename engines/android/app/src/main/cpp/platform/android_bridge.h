@@ -100,6 +100,8 @@ public:
     static bool appUninstall(const std::string& packageName, bool keepData);
     static bool appDisable(const std::string& packageName);
     static bool appEnable(const std::string& packageName);
+    static bool appDisableComponent(const std::string& componentName);
+    static bool appEnableComponent(const std::string& componentName);
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static bool touchTap(int x, int y);

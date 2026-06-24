@@ -1233,6 +1233,22 @@ bool AndroidBridge::appEnable(const std::string& packageName) {
     return callStaticBooleanStringMethod("appEnable", "(Ljava/lang/String;)Z", packageName);
 }
 
+bool AndroidBridge::appDisableComponent(const std::string& componentName) {
+    return callStaticBooleanStringMethod(
+            "appDisableComponent",
+            "(Ljava/lang/String;)Z",
+            componentName
+    );
+}
+
+bool AndroidBridge::appEnableComponent(const std::string& componentName) {
+    return callStaticBooleanStringMethod(
+            "appEnableComponent",
+            "(Ljava/lang/String;)Z",
+            componentName
+    );
+}
+
 bool AndroidBridge::hasScreenCapturePermission() {
     return callStaticBooleanMethod0("hasScreenCapturePermission", "()Z");
 }

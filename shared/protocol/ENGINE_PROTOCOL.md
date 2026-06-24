@@ -1465,7 +1465,73 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.34 `key.press`
+## 9.34 `app.disableComponent`
+
+说明：
+
+- 冻结指定 Android 组件
+- 当前通过 root `pm disable-user --user 0 package/component` 实现
+- root 不可用、组件名无效或冻结失败时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 27,
+  "method": "app.disableComponent",
+  "params": {
+    "component": "com.example.target/.MainActivity"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 27,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.35 `app.enableComponent`
+
+说明：
+
+- 解冻指定 Android 组件
+- 当前通过 root `pm enable package/component` 实现
+- root 不可用、组件名无效或解冻失败时返回 `ok: false`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 28,
+  "method": "app.enableComponent",
+  "params": {
+    "component": "com.example.target/.MainActivity"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 28,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.36 `key.press`
 
 说明：
 
@@ -1499,7 +1565,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.35 `input.text`
+## 9.37 `input.text`
 
 说明：
 
@@ -1533,7 +1599,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.36 `input.pasteText`
+## 9.38 `input.pasteText`
 
 说明：
 

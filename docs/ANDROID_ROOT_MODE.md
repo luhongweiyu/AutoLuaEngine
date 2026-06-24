@@ -27,7 +27,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - Root 文件：`m.root.file.exists/readText/writeText/stat/list/remove/mkdir/chmod/chown`，当前是文本、状态、列表和基础权限第一版
 - Root 进程：`m.root.process.pidOf/list/info/kill`，当前是查询 PID、进程列表、进程详情和结束进程第一版
 - Root 设备：`m.device.screenState/wake/sleep/battery/rotation/setRotation`，当前是屏幕状态、唤醒/息屏、电量和方向控制第一版
-- 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke/current/install/uninstall/disable/enable` 走 root 做数据、权限、前台查询和包管理
+- 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停，`m.app.clearData/grant/revoke/current/install/uninstall/disable/enable/disableComponent/enableComponent` 走 root 做数据、权限、前台查询、包管理和组件启停
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 - 设置：`m.device.setRootModeEnabled(enabled)` / HTTP `device.setRootModeEnabled`
 
@@ -140,7 +140,7 @@ su ... "screencap"
 - Root 文件 API 当前只承诺 UTF-8 文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，不承诺二进制传输。
 - Root 进程 API 当前只承诺 `pidOf/list/info/kill`，不承诺资源占用统计或守护能力。
 - Root 设备 API 当前只承诺屏幕状态、唤醒/息屏、电量和方向读写；不同系统版本的 `dumpsys` 输出可能需要继续适配。
-- Root 应用控制当前只承诺启动、强停、清数据、权限授予和撤销、前台应用查询、安装、卸载、冻结、解冻；组件级启停后续按需要再补。
+- Root 应用控制当前只承诺启动、强停、清数据、权限授予和撤销、前台应用查询、安装、卸载、冻结、解冻和组件级启停。
 - root 授权弹窗由系统或 root 管理器控制，App 不能静默授权。
 - 部分设备的 `su` 行为可能不同，需要后续适配。
 

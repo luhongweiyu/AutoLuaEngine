@@ -167,6 +167,14 @@ public final class AndroidHostBridge {
         return AppControlBridge.enable(packageName);
     }
 
+    public static boolean appDisableComponent(String componentName) {
+        return AppControlBridge.disableComponent(componentName);
+    }
+
+    public static boolean appEnableComponent(String componentName) {
+        return AppControlBridge.enableComponent(componentName);
+    }
+
     public static boolean touchTap(int x, int y) {
         if (isRootModeEnabledInternal() && RootShellBridge.tap(x, y)) {
             return true;

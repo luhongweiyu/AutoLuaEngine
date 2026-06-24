@@ -159,6 +159,8 @@ app.install
 app.uninstall
 app.disable
 app.enable
+app.disableComponent
+app.enableComponent
 key.press
 input.text
 input.pasteText
