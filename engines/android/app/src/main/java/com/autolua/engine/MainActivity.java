@@ -454,16 +454,16 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * 从 native 日志缓冲读取最近日志并显示在 App 状态区域。
+     * 通过本地 JSON-RPC 读取最近日志并显示在 App 状态区域。
      *
-     * 悬浮窗的“日志”入口会回到这里，先满足手机端快速查看；IDE 侧仍通过 log.drain 读取。
+     * 悬浮窗的“日志”入口会回到这里，先满足手机端快速查看；IDE 侧同样通过 log.drain 读取。
      */
     private void showRecentLogs() {
-        try {
-            JSONArray entries = new JSONArray(NativeEngine.drainLogs(0));
-            if (entries.length() == 0) {
-                outputView.setText("暂无脚本日志");
-                return;
+        runEngineStatusQuery("正在读取日志...", "读取日志失败：", () -> {
+            JSONObject result = EngineLocalClient.call(this, "log.drain", makeAfterIdParams(0));
+            JSONArray entries = result.optJSONArray("entries");
+            if (entries == null || entries.length() == 0) {
+                return "暂无脚本日志";
             }
 
             int startIndex = Math.max(0, entries.length() - MAX_LOG_LINES);
@@ -477,10 +477,8 @@ public final class MainActivity extends Activity {
                         .append("] ")
                         .append(entry.optString("message", ""));
             }
-            outputView.setText(builder.toString());
-        } catch (JSONException exception) {
-            outputView.setText("读取日志失败：" + exception.getMessage());
-        }
+            return builder.toString();
+        });
     }
 
     /**
@@ -503,6 +501,34 @@ public final class MainActivity extends Activity {
 
     private String formatEnabled(boolean enabled) {
         return enabled ? "已开启" : "未开启";
+    }
+
+    private JSONObject makeAfterIdParams(int afterId) throws JSONException {
+        JSONObject params = new JSONObject();
+        params.put("afterId", afterId);
+        return params;
+    }
+
+    private void runEngineStatusQuery(
+            String loadingText,
+            String errorPrefix,
+            EngineStatusTextLoader loader) {
+        outputView.setText(loadingText);
+        new Thread(() -> {
+            String text;
+            try {
+                text = loader.load();
+            } catch (Exception exception) {
+                text = errorPrefix + exception.getMessage();
+            }
+
+            String finalText = text;
+            runOnUiThread(() -> outputView.setText(finalText));
+        }, "MainActivityEngineStatusQuery").start();
+    }
+
+    private interface EngineStatusTextLoader {
+        String load() throws Exception;
     }
 
     @Override

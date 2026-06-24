@@ -274,6 +274,7 @@ ide/vscode-extension 已提供最小命令：
 - [x] 悬浮窗记住位置、隐藏状态和展开状态
 - [x] 悬浮面板补日志、设置、用户事件入口
 - [x] 将 native 初始化和 HTTP 服务启动入口收敛到 EngineService
+- [x] App 日志入口改为通过本地 JSON-RPC 访问引擎
 - [x] 记录 Android 引擎独立进程拆分方案
 - [ ] 评估是否把 EngineService 放到独立 Android 进程 `:engine`
 - [x] 暂停脚本先按协作暂停设计，不强杀线程、不直接挂起系统线程

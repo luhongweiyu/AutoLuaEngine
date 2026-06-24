@@ -52,9 +52,11 @@ android:process=":engine"
 MainActivity             -> EngineService.ensureStarted()
 FloatingControlService   -> EngineService.ensureStarted()
 EngineService.onCreate() -> NativeEngine.init() + EngineHttpServer.start()
+MainActivity 日志入口    -> EngineLocalClient -> log.drain
 ```
 
 也就是说，native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`。
+App 主界面查看日志时，也已经通过本地 JSON-RPC 访问引擎，不再直接读取主进程 native 日志。
 
 验证记录：
 
@@ -72,8 +74,8 @@ GET http://127.0.0.1:18382/health -> {"ok":true,"port":18380}
 需要逐项替换：
 
 ```text
-MainActivity.showRecentLogs() -> 通过 EngineHttpServer 的 log.drain 查询
-MainActivity 设置页状态        -> 通过 device.info / script.status 查询
+MainActivity.showRecentLogs() -> 已通过 EngineLocalClient 调用 log.drain
+MainActivity 设置页状态        -> 待改为通过 device.info / script.status 查询
 ```
 
 替换后，主进程只通过协议或 Service 控制引擎。

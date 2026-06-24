@@ -94,6 +94,8 @@ engine_jni -> Engine -> LuaRuntime
 
 当前 native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`：`MainActivity` 和 `FloatingControlService` 只负责确保服务启动，不再各自直接启动一套 HTTP/native 引擎。这样后续把 `EngineService` 挪到独立进程时，脚本执行入口不会分裂成多个进程副本。
 
+App 主界面读取引擎日志时已经通过 `EngineLocalClient -> log.drain` 访问本地 JSON-RPC，不再直接调用 `NativeEngine.drainLogs`。后续设置页里的引擎状态也要继续迁移到协议查询。
+
 悬浮窗位置、隐藏状态和展开状态由 `EngineSettings` 持久化。悬浮面板已经提供运行、暂停、继续、停止、截图、日志、设置、用户事件、隐藏、关闭服务入口；日志和设置入口先回到 `MainActivity` 的状态区域承接，用户事件入口暂时只保留交互入口。
 
 旧项目参考结论：
