@@ -153,6 +153,81 @@ int luaRootExec(lua_State* state) {
     return 1;
 }
 
+std::string rootResultError(const RootExecResult& result, const char* fallback) {
+    if (!result.error.empty()) {
+        return result.error;
+    }
+    if (!result.stderrText.empty()) {
+        return result.stderrText;
+    }
+    return fallback;
+}
+
+int luaRootFileExists(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    RootExecResult result = AndroidBridge::rootFileExists(path);
+    lua_pushboolean(state, result.success ? 1 : 0);
+    return 1;
+}
+
+int luaRootFileReadText(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    lua_Integer timeoutMs = luaL_optinteger(state, 2, 2500);
+    if (timeoutMs < 0) {
+        return luaL_error(state, "root file read timeout must be greater than or equal to 0");
+    }
+
+    RootExecResult result = AndroidBridge::rootFileReadText(path, static_cast<int>(timeoutMs));
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file read failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushlstring(state, result.stdoutText.data(), result.stdoutText.size());
+    return 1;
+}
+
+int luaRootFileWriteText(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    size_t contentLength = 0;
+    const char* content = luaL_checklstring(state, 2, &contentLength);
+    lua_Integer timeoutMs = luaL_optinteger(state, 3, 2500);
+    if (timeoutMs < 0) {
+        return luaL_error(state, "root file write timeout must be greater than or equal to 0");
+    }
+
+    RootExecResult result = AndroidBridge::rootFileWriteText(
+            path,
+            std::string(content, contentLength),
+            static_cast<int>(timeoutMs)
+    );
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file write failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaRootFileRemove(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    RootExecResult result = AndroidBridge::rootFileRemove(path);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file remove failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 std::string readAllText(const char* path, std::string* error) {
     FILE* file = std::fopen(path, "rb");
     if (file == nullptr) {
@@ -616,6 +691,15 @@ void registerHostApi(lua_State* state) {
     int rootTableIndex = lua_gettop(state);
     setFunctionField(state, rootTableIndex, "exec", luaRootExec);
     setFunctionField(state, rootTableIndex, "isAvailable", luaDeviceIsRootAvailable);
+
+    lua_newtable(state);
+    int rootFileTableIndex = lua_gettop(state);
+    setFunctionField(state, rootFileTableIndex, "exists", luaRootFileExists);
+    setFunctionField(state, rootFileTableIndex, "readText", luaRootFileReadText);
+    setFunctionField(state, rootFileTableIndex, "writeText", luaRootFileWriteText);
+    setFunctionField(state, rootFileTableIndex, "remove", luaRootFileRemove);
+    lua_setfield(state, rootTableIndex, "file");
+
     lua_setfield(state, hostTableIndex, "root");
 
     lua_newtable(state);

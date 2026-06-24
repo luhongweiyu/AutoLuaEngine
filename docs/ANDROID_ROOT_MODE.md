@@ -22,6 +22,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - Home：`m.key.home` / `m.home`
 - 截图：`m.screen.capture()` / `m.capture()`
 - 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+- Root 文件：`m.root.file.exists/readText/writeText/remove`，当前是文本文件第一版
 - 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
 - 设置：`m.device.setRootModeEnabled(enabled)` / HTTP `device.setRootModeEnabled`
@@ -121,9 +122,10 @@ su ... "screencap"
 
 限制：
 
-- 触控、文本输入和按键已优先复用常驻 root shell；root 截图和 `m.root.exec` 仍使用短命令。
+- 触控、文本输入和按键已优先复用常驻 root shell；root 截图、`m.root.exec` 和 root 文件 API 仍使用短命令。
 - root 截图虽已避开 PNG 编码和磁盘 IO，但仍不适合作最终高频找色方案。
 - 文本输入当前基于 Android `input text`，中文、换行和复杂特殊字符后续需要输入法或剪贴板路线。
+- Root 文件 API 当前只承诺 UTF-8 文本读写删查，不承诺二进制传输、目录创建或递归删除。
 - root 授权弹窗由系统或 root 管理器控制，App 不能静默授权。
 - 部分设备的 `su` 行为可能不同，需要后续适配。
 
@@ -133,8 +135,9 @@ su ... "screencap"
 
 1. root 截图优化：评估常驻 root 进程直接取 framebuffer / Surface，减少每帧创建进程和复制大块 stdout 的开销。
 2. root 输入优化：继续在真实 root 设备上压测常驻 root shell，确认点击、滑动、按键连续执行稳定性。
-3. root 文件和进程能力：基于 `m.root.exec` 补进程列表、文件权限操作等。
-4. root 引擎进程：如果需要更强能力，再参考旧项目 root engine 做独立 root service。
+3. root 文件能力：当前已有文本读写删查；后续补目录创建、权限修改和二进制传输。
+4. root 进程能力：基于 `m.root.exec` 补进程列表、杀进程等。
+5. root 引擎进程：如果需要更强能力，再参考旧项目 root engine 做独立 root service。
 
 暂不做：
 

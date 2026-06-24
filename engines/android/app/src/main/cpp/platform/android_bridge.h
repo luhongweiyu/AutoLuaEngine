@@ -39,6 +39,14 @@ public:
     static bool setRootModeEnabled(bool enabled);
     static bool isRootAvailable();
     static RootExecResult rootExec(const std::string& command, int timeoutMs);
+    static RootExecResult rootFileExists(const std::string& path);
+    static RootExecResult rootFileReadText(const std::string& path, int timeoutMs);
+    static RootExecResult rootFileWriteText(
+            const std::string& path,
+            const std::string& content,
+            int timeoutMs
+    );
+    static RootExecResult rootFileRemove(const std::string& path);
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);

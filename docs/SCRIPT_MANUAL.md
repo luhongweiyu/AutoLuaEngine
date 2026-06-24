@@ -18,6 +18,10 @@
 | 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
 | 设备 | `m.device.setRootModeEnabled(enabled)` | `m.setRootModeEnabled(...)` | [查看](#api-device-root-mode) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
+| Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
+| Root 文件 | `m.root.file.readText(path, timeoutMs)` | `m.rootReadText(...)` | [查看](#api-root-file-read-text) |
+| Root 文件 | `m.root.file.writeText(path, content, timeoutMs)` | `m.rootWriteText(...)` | [查看](#api-root-file-write-text) |
+| Root 文件 | `m.root.file.remove(path)` | `m.rootRemove(path)` | [查看](#api-root-file-remove) |
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
 | 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
 | 应用 | `m.app.stop(packageName)` | `m.stopApp(...)` | [查看](#api-app-stop) |
@@ -487,6 +491,129 @@ end
 - `exitCode` 非 0 时，命令已经执行完成，但命令本身失败。
 - `error` 用于 root 不可用、超时、通道失败这类错误。
 - 这个显式 root API 不受界面 Root 模式开关影响；开关只影响触控、按键、截图的自动路由。
+
+<a id="api-root-file-exists"></a>
+
+### 6.5 `m.root.file.exists(path)` / `m.rootFileExists(path)`
+
+通过 root shell 判断路径是否存在。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+
+返回值：
+
+```lua
+true 或 false
+```
+
+示例：
+
+```lua
+if m.root.file.exists("/data/local/tmp/demo.txt") then
+    print("root file exists")
+end
+```
+
+说明：
+
+- 该接口不受 Root 模式开关影响，会直接尝试 root。
+- root 不可用、路径不存在、无权限都会返回 `false`；需要错误详情时用 `m.root.exec`。
+
+<a id="api-root-file-read-text"></a>
+
+### 6.6 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
+
+通过 root shell 读取 UTF-8 文本文件。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+| `timeoutMs` | number | 可选，超时时间，默认 2500，最大 30000 |
+
+返回值：
+
+```text
+成功：content
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local text, err = m.root.file.readText("/data/local/tmp/demo.txt")
+if not text then
+    print("read failed:", err)
+end
+```
+
+<a id="api-root-file-write-text"></a>
+
+### 6.7 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
+
+通过 root shell 覆盖写入 UTF-8 文本文件。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+| `content` | string | 要写入的 UTF-8 文本 |
+| `timeoutMs` | number | 可选，超时时间，默认 2500，最大 30000 |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.root.file.writeText("/data/local/tmp/demo.txt", "hello\n中文")
+if not ok then
+    print("write failed:", err)
+end
+```
+
+说明：
+
+- 第一版内部用 base64 传输文本，避免空格、换行、引号和中文被 shell 解析破坏。
+- 当前只承诺文本文件；二进制文件、目录创建、递归删除后续单独做。
+
+<a id="api-root-file-remove"></a>
+
+### 6.8 `m.root.file.remove(path)` / `m.rootRemove(path)`
+
+通过 root shell 删除文件或路径。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.root.file.remove("/data/local/tmp/demo.txt")
+if not ok then
+    print("remove failed:", err)
+end
+```
 
 ## 7. 应用 API
 

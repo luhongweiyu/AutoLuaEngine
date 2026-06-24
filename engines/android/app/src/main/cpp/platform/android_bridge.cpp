@@ -227,6 +227,110 @@ RootExecResult makeRootExecFailure(const std::string& error) {
     return result;
 }
 
+RootExecResult readRootExecResult(JNIEnv* env,
+                                  jobject resultObject,
+                                  jclass bridgeClass,
+                                  const std::string& failurePrefix) {
+    if (resultObject == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " returned empty result");
+    }
+
+    jclass resultClass = env->GetObjectClass(resultObject);
+    if (resultClass == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(resultObject);
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " result class is not available");
+    }
+
+    jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
+    jfieldID exitCodeField = env->GetFieldID(resultClass, "exitCode", "I");
+    jfieldID stdoutField = env->GetFieldID(resultClass, "stdout", "Ljava/lang/String;");
+    jfieldID stderrField = env->GetFieldID(resultClass, "stderr", "Ljava/lang/String;");
+    jfieldID timedOutField = env->GetFieldID(resultClass, "timedOut", "Z");
+    jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
+    if (successField == nullptr
+            || exitCodeField == nullptr
+            || stdoutField == nullptr
+            || stderrField == nullptr
+            || timedOutField == nullptr
+            || errorField == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(resultClass);
+        env->DeleteLocalRef(resultObject);
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " result fields are not available");
+    }
+
+    RootExecResult result;
+    result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
+    result.exitCode = env->GetIntField(resultObject, exitCodeField);
+    result.timedOut = env->GetBooleanField(resultObject, timedOutField) == JNI_TRUE;
+
+    jstring stdoutValue = static_cast<jstring>(env->GetObjectField(resultObject, stdoutField));
+    jstring stderrValue = static_cast<jstring>(env->GetObjectField(resultObject, stderrField));
+    jstring errorValue = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
+    result.stdoutText = jStringToString(env, stdoutValue);
+    result.stderrText = jStringToString(env, stderrValue);
+    result.error = jStringToString(env, errorValue);
+
+    if (stdoutValue != nullptr) {
+        env->DeleteLocalRef(stdoutValue);
+    }
+    if (stderrValue != nullptr) {
+        env->DeleteLocalRef(stderrValue);
+    }
+    if (errorValue != nullptr) {
+        env->DeleteLocalRef(errorValue);
+    }
+    env->DeleteLocalRef(resultClass);
+    env->DeleteLocalRef(resultObject);
+    env->DeleteLocalRef(bridgeClass);
+
+    return result;
+}
+
+RootExecResult callStaticRootResultStringMethod(const char* methodName,
+                                                const char* signature,
+                                                const std::string& path,
+                                                const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jstring pathString = env->NewStringUTF(path.c_str());
+    if (pathString == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("root file path string is invalid");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(bridgeClass, methodId, pathString);
+    env->DeleteLocalRef(pathString);
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
 } // namespace
 
 void AndroidBridge::init(JavaVM* javaVm) {
@@ -296,64 +400,128 @@ RootExecResult AndroidBridge::rootExec(const std::string& command, int timeoutMs
         return makeRootExecFailure("root exec java call failed");
     }
 
-    if (resultObject == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root exec returned empty result");
+    return readRootExecResult(env, resultObject, bridgeClass, "root exec");
+}
+
+RootExecResult AndroidBridge::rootFileExists(const std::string& path) {
+    return callStaticRootResultStringMethod(
+            "rootFileExists",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            path,
+            "root file exists"
+    );
+}
+
+RootExecResult AndroidBridge::rootFileReadText(const std::string& path, int timeoutMs) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
     }
 
-    jclass resultClass = env->GetObjectClass(resultObject);
-    if (resultClass == nullptr) {
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
         env->ExceptionClear();
-        env->DeleteLocalRef(resultObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root exec result class is not available");
+        return makeRootExecFailure("android host bridge is not available");
     }
 
-    jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
-    jfieldID exitCodeField = env->GetFieldID(resultClass, "exitCode", "I");
-    jfieldID stdoutField = env->GetFieldID(resultClass, "stdout", "Ljava/lang/String;");
-    jfieldID stderrField = env->GetFieldID(resultClass, "stderr", "Ljava/lang/String;");
-    jfieldID timedOutField = env->GetFieldID(resultClass, "timedOut", "Z");
-    jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
-    if (successField == nullptr
-            || exitCodeField == nullptr
-            || stdoutField == nullptr
-            || stderrField == nullptr
-            || timedOutField == nullptr
-            || errorField == nullptr) {
+    jmethodID methodId = env->GetStaticMethodID(
+            bridgeClass,
+            "rootFileReadText",
+            "(Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;"
+    );
+    if (methodId == nullptr) {
         env->ExceptionClear();
-        env->DeleteLocalRef(resultClass);
-        env->DeleteLocalRef(resultObject);
         env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root exec result fields are not available");
+        return makeRootExecFailure("root file read method is not available");
     }
 
-    RootExecResult result;
-    result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
-    result.exitCode = env->GetIntField(resultObject, exitCodeField);
-    result.timedOut = env->GetBooleanField(resultObject, timedOutField) == JNI_TRUE;
-
-    jstring stdoutValue = static_cast<jstring>(env->GetObjectField(resultObject, stdoutField));
-    jstring stderrValue = static_cast<jstring>(env->GetObjectField(resultObject, stderrField));
-    jstring errorValue = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
-    result.stdoutText = jStringToString(env, stdoutValue);
-    result.stderrText = jStringToString(env, stderrValue);
-    result.error = jStringToString(env, errorValue);
-
-    if (stdoutValue != nullptr) {
-        env->DeleteLocalRef(stdoutValue);
+    jstring pathString = env->NewStringUTF(path.c_str());
+    if (pathString == nullptr) {
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("root file path string is invalid");
     }
-    if (stderrValue != nullptr) {
-        env->DeleteLocalRef(stderrValue);
-    }
-    if (errorValue != nullptr) {
-        env->DeleteLocalRef(errorValue);
-    }
-    env->DeleteLocalRef(resultClass);
-    env->DeleteLocalRef(resultObject);
-    env->DeleteLocalRef(bridgeClass);
 
-    return result;
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            pathString,
+            static_cast<jint>(timeoutMs)
+    );
+    env->DeleteLocalRef(pathString);
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("root file read java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, "root file read");
+}
+
+RootExecResult AndroidBridge::rootFileWriteText(const std::string& path,
+                                                const std::string& content,
+                                                int timeoutMs) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(
+            bridgeClass,
+            "rootFileWriteText",
+            "(Ljava/lang/String;Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;"
+    );
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("root file write method is not available");
+    }
+
+    jstring pathString = env->NewStringUTF(path.c_str());
+    jstring contentString = env->NewStringUTF(content.c_str());
+    if (pathString == nullptr || contentString == nullptr) {
+        if (pathString != nullptr) {
+            env->DeleteLocalRef(pathString);
+        }
+        if (contentString != nullptr) {
+            env->DeleteLocalRef(contentString);
+        }
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("root file write string is invalid");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            pathString,
+            contentString,
+            static_cast<jint>(timeoutMs)
+    );
+    env->DeleteLocalRef(pathString);
+    env->DeleteLocalRef(contentString);
+
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure("root file write java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, "root file write");
+}
+
+RootExecResult AndroidBridge::rootFileRemove(const std::string& path) {
+    return callStaticRootResultStringMethod(
+            "rootFileRemove",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            path,
+            "root file remove"
+    );
 }
 
 bool AndroidBridge::appIsInstalled(const std::string& packageName) {

@@ -58,6 +58,53 @@ public final class RootShellBridge {
         return RootCommandResult.fromCommandResult(result);
     }
 
+    public static RootCommandResult fileExists(String path) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+        return RootCommandResult.fromCommandResult(
+                runRootCommand("[ -e " + shellQuote(path) + " ]", DEFAULT_TIMEOUT_MS)
+        );
+    }
+
+    public static RootCommandResult readTextFile(String path, int timeoutMs) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+
+        int safeTimeoutMs = normalizeTimeoutMs(timeoutMs);
+        return RootCommandResult.fromCommandResult(
+                runRootCommand("cat " + shellQuote(path), safeTimeoutMs)
+        );
+    }
+
+    public static RootCommandResult writeTextFile(String path, String content, int timeoutMs) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+        if (content == null) {
+            return RootCommandResult.failure("root file content is required");
+        }
+
+        int safeTimeoutMs = normalizeTimeoutMs(timeoutMs);
+        String base64 = android.util.Base64.encodeToString(
+                content.getBytes(StandardCharsets.UTF_8),
+                android.util.Base64.NO_WRAP
+        );
+        String command = "printf %s " + shellQuote(base64)
+                + " | base64 -d > " + shellQuote(path);
+        return RootCommandResult.fromCommandResult(runRootCommand(command, safeTimeoutMs));
+    }
+
+    public static RootCommandResult removeFile(String path) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+        return RootCommandResult.fromCommandResult(
+                runRootCommand("rm -f -- " + shellQuote(path), DEFAULT_TIMEOUT_MS)
+        );
+    }
+
     public static boolean tap(int x, int y) {
         if (!isRootAvailable()) {
             return false;

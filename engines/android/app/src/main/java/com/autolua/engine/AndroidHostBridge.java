@@ -42,6 +42,22 @@ public final class AndroidHostBridge {
         return RootShellBridge.exec(command, timeoutMs);
     }
 
+    public static RootCommandResult rootFileExists(String path) {
+        return RootShellBridge.fileExists(path);
+    }
+
+    public static RootCommandResult rootFileReadText(String path, int timeoutMs) {
+        return RootShellBridge.readTextFile(path, timeoutMs);
+    }
+
+    public static RootCommandResult rootFileWriteText(String path, String content, int timeoutMs) {
+        return RootShellBridge.writeTextFile(path, content, timeoutMs);
+    }
+
+    public static RootCommandResult rootFileRemove(String path) {
+        return RootShellBridge.removeFile(path);
+    }
+
     public static boolean appIsInstalled(String packageName) {
         return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
     }

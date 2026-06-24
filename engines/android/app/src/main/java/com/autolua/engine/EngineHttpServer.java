@@ -155,6 +155,59 @@ public final class EngineHttpServer {
             return makeRootExecResult(RootShellBridge.exec(command, timeoutMs));
         }
 
+        if ("root.file.exists".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.fileExists(requirePath(params));
+            JSONObject result = new JSONObject();
+            result.put("exists", rootResult.success);
+            result.put("error", rootResult.error);
+            return result;
+        }
+
+        if ("root.file.readText".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.readTextFile(
+                    requirePath(params),
+                    params.optInt("timeoutMs", 2500)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file read failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("content", rootResult.stdout);
+            return result;
+        }
+
+        if ("root.file.writeText".equals(method)) {
+            String content = params.optString("content", null);
+            if (content == null) {
+                throw new IllegalArgumentException("content is required");
+            }
+
+            RootCommandResult rootResult = RootShellBridge.writeTextFile(
+                    requirePath(params),
+                    content,
+                    params.optInt("timeoutMs", 2500)
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file write failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("root.file.remove".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.removeFile(requirePath(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file remove failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
         if ("app.isInstalled".equals(method)) {
             String packageName = requirePackageName(params);
             JSONObject result = new JSONObject();
@@ -330,6 +383,24 @@ public final class EngineHttpServer {
         result.put("timedOut", rootResult.timedOut);
         result.put("error", rootResult.error);
         return result;
+    }
+
+    private static String resolveRootCommandError(RootCommandResult rootResult, String fallback) {
+        if (!rootResult.error.isEmpty()) {
+            return rootResult.error;
+        }
+        if (!rootResult.stderr.isEmpty()) {
+            return rootResult.stderr;
+        }
+        return fallback;
+    }
+
+    private static String requirePath(JSONObject params) {
+        String path = params.optString("path", "");
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path is required");
+        }
+        return path;
     }
 
     private static String requirePackageName(JSONObject params) {

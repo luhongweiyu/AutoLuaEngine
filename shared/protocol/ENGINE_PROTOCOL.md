@@ -366,7 +366,140 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.3 `app.isInstalled`
+## 9.3 `root.file.exists`
+
+说明：
+
+- 通过 root shell 判断路径是否存在
+- 显式 root 能力，不受 Root 模式开关影响
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "root.file.exists",
+  "params": {
+    "path": "/data/local/tmp/demo.txt"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "result": {
+    "exists": true,
+    "error": ""
+  }
+}
+```
+
+## 9.4 `root.file.readText`
+
+说明：
+
+- 通过 root shell 读取 UTF-8 文本文件
+- `timeoutMs` 默认 2500，最大 30000
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "method": "root.file.readText",
+  "params": {
+    "path": "/data/local/tmp/demo.txt",
+    "timeoutMs": 2000
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+    "content": "hello\n"
+  }
+}
+```
+
+## 9.5 `root.file.writeText`
+
+说明：
+
+- 通过 root shell 覆盖写入 UTF-8 文本文件
+- `timeoutMs` 默认 2500，最大 30000
+- 第一版内部使用 base64 传输文本，减少 shell 转义问题
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "method": "root.file.writeText",
+  "params": {
+    "path": "/data/local/tmp/demo.txt",
+    "content": "hello\n中文",
+    "timeoutMs": 2000
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 11,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.6 `root.file.remove`
+
+说明：
+
+- 通过 root shell 删除指定路径
+- 第一版用于文件删除，不承诺递归目录删除
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "method": "root.file.remove",
+  "params": {
+    "path": "/data/local/tmp/demo.txt"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 12,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.7 `app.isInstalled`
 
 说明：
 
@@ -377,7 +510,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 9,
+  "id": 13,
   "method": "app.isInstalled",
   "params": {
     "packageName": "com.android.settings"
@@ -390,14 +523,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 9,
+  "id": 13,
   "result": {
     "installed": true
   }
 }
 ```
 
-## 9.4 `app.open` / `app.start`
+## 9.8 `app.open` / `app.start`
 
 说明：
 
@@ -409,7 +542,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 10,
+  "id": 14,
   "method": "app.open",
   "params": {
     "packageName": "com.android.settings"
@@ -422,14 +555,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 10,
+  "id": 14,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.5 `app.stop`
+## 9.9 `app.stop`
 
 说明：
 
@@ -441,7 +574,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 11,
+  "id": 15,
   "method": "app.stop",
   "params": {
     "packageName": "com.example.target"
@@ -454,14 +587,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 11,
+  "id": 15,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.6 `key.press`
+## 9.10 `key.press`
 
 说明：
 
@@ -475,7 +608,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 12,
+  "id": 16,
   "method": "key.press",
   "params": {
     "keyCode": 66
@@ -488,14 +621,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 12,
+  "id": 16,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.7 `input.text`
+## 9.11 `input.text`
 
 说明：
 
@@ -509,7 +642,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 17,
   "method": "input.text",
   "params": {
     "text": "hello world"
@@ -522,7 +655,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 17,
   "result": {
     "ok": true
   }
