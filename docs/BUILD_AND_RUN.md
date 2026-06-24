@@ -131,9 +131,12 @@ root.status
 root.file.exists
 root.file.readText
 root.file.writeText
+root.file.stat
+root.file.list
 root.file.remove
 root.file.mkdir
 root.file.chmod
+root.file.chown
 root.process.pidOf
 root.process.list
 root.process.info

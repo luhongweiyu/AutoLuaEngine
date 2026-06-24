@@ -528,12 +528,12 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.7 `root.file.remove`
+## 9.7 `root.file.stat`
 
 说明：
 
-- 通过 root shell 删除指定路径
-- 第一版用于文件删除，不承诺递归目录删除
+- 通过 root shell 获取文件或目录状态
+- 返回结构化文件信息
 
 请求：
 
@@ -541,7 +541,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 {
   "jsonrpc": "2.0",
   "id": 12,
-  "method": "root.file.remove",
+  "method": "root.file.stat",
   "params": {
     "path": "/data/local/tmp/demo.txt"
   }
@@ -555,12 +555,102 @@ clientPort：IDE/PC 实际访问端口，默认 18380
   "jsonrpc": "2.0",
   "id": 12,
   "result": {
+    "file": {
+      "type": "regular file",
+      "size": 12,
+      "mode": "644",
+      "user": "root",
+      "group": "shell",
+      "uid": 0,
+      "gid": 2000,
+      "modifiedAt": 1782330000,
+      "path": "/data/local/tmp/demo.txt",
+      "name": "demo.txt"
+    }
+  }
+}
+```
+
+## 9.8 `root.file.list`
+
+说明：
+
+- 通过 root shell 获取目录下的文件列表
+- 每一项字段与 `root.file.stat` 的 `file` 一致
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "method": "root.file.list",
+  "params": {
+    "path": "/data/local/tmp"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 13,
+  "result": {
+    "entries": [
+      {
+        "type": "directory",
+        "size": 4096,
+        "mode": "755",
+        "user": "shell",
+        "group": "shell",
+        "uid": 2000,
+        "gid": 2000,
+        "modifiedAt": 1782330000,
+        "path": "/data/local/tmp/autolua",
+        "name": "autolua"
+      }
+    ]
+  }
+}
+```
+
+## 9.9 `root.file.remove`
+
+说明：
+
+- 通过 root shell 删除指定路径
+- `recursive` 可选，默认 `false`；为 `true` 时使用 `rm -rf`
+- 递归删除会拒绝空路径、`/`、`.`、`..` 这类危险目标
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "method": "root.file.remove",
+  "params": {
+    "path": "/data/local/tmp/demo.txt",
+    "recursive": false
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 14,
+  "result": {
     "ok": true
   }
 }
 ```
 
-## 9.8 `root.file.mkdir`
+## 9.10 `root.file.mkdir`
 
 说明：
 
@@ -572,7 +662,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 15,
   "method": "root.file.mkdir",
   "params": {
     "path": "/data/local/tmp/autolua",
@@ -586,14 +676,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 13,
+  "id": 15,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.9 `root.file.chmod`
+## 9.11 `root.file.chmod`
 
 说明：
 
@@ -605,7 +695,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 14,
+  "id": 16,
   "method": "root.file.chmod",
   "params": {
     "path": "/data/local/tmp/autolua/run.sh",
@@ -619,14 +709,47 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 14,
+  "id": 16,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.10 `root.process.pidOf`
+## 9.12 `root.file.chown`
+
+说明：
+
+- 通过 root shell 修改文件或目录所属用户
+- `owner` 为用户或用户组，例如 `"root"`、`"root:shell"`、`"2000:2000"`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "method": "root.file.chown",
+  "params": {
+    "path": "/data/local/tmp/autolua/run.sh",
+    "owner": "root:shell"
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 17,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.13 `root.process.pidOf`
 
 说明：
 
@@ -659,7 +782,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.11 `root.process.kill`
+## 9.14 `root.process.kill`
 
 说明：
 
@@ -693,7 +816,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.12 `root.process.list`
+## 9.15 `root.process.list`
 
 说明：
 
@@ -731,7 +854,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.13 `root.process.info`
+## 9.16 `root.process.info`
 
 说明：
 
@@ -772,7 +895,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `app.isInstalled`
+## 9.17 `app.isInstalled`
 
 说明：
 
@@ -803,7 +926,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.15 `app.open` / `app.start`
+## 9.18 `app.open` / `app.start`
 
 说明：
 
@@ -835,7 +958,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.16 `app.stop`
+## 9.19 `app.stop`
 
 说明：
 
@@ -867,7 +990,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.17 `app.clearData`
+## 9.20 `app.clearData`
 
 说明：
 
@@ -900,7 +1023,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `app.grant`
+## 9.21 `app.grant`
 
 说明：
 
@@ -934,7 +1057,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.19 `app.revoke`
+## 9.22 `app.revoke`
 
 说明：
 
@@ -967,7 +1090,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.20 `app.install`
+## 9.23 `app.install`
 
 说明：
 
@@ -1003,7 +1126,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.21 `app.uninstall`
+## 9.24 `app.uninstall`
 
 说明：
 
@@ -1038,7 +1161,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.22 `app.disable`
+## 9.25 `app.disable`
 
 说明：
 
@@ -1071,7 +1194,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.23 `app.enable`
+## 9.26 `app.enable`
 
 说明：
 
@@ -1104,7 +1227,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.24 `key.press`
+## 9.27 `key.press`
 
 说明：
 
@@ -1138,7 +1261,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.25 `input.text`
+## 9.28 `input.text`
 
 说明：
 
@@ -1172,7 +1295,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.26 `input.pasteText`
+## 9.29 `input.pasteText`
 
 说明：
 

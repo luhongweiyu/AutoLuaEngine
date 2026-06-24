@@ -194,7 +194,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.device.setRootModeEnabled(enabled)` 和 HTTP `device.setRootModeEnabled`，脚本/IDE 可切换 Root 模式
 - [x] `m.root.exec(command, timeoutMs)` root 通用命令执行
 - [x] `m.root.status()` 和 HTTP `root.status` root 探测状态诊断，记录 su 路径、命令模式和探测输出
-- [x] `m.root.file.exists/readText/writeText/remove/mkdir/chmod` root 文本文件读写删查、目录创建和权限修改
+- [x] `m.root.file.exists/readText/writeText/stat/list/remove/mkdir/chmod/chown` root 文本文件读写、状态、列表、删除、目录创建和权限修改
 - [x] `m.root.process.pidOf/list/info/kill` root 进程查询、列表、详情和结束进程第一版
 - [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/install/uninstall/disable/enable` 应用控制，启动 root 优先，强停、清数据、权限控制和包管理走 root
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
@@ -216,7 +216,7 @@ m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.ho
 常驻通道不可用时回退短命令，root 不可用或命令失败时回退无障碍。
 其中通用按键只有 Back/Home 可回退无障碍；其他 keyCode 当前依赖 root。
 文本输入当前简单文本优先走 `input text`，中文、换行和复杂符号可走剪贴板粘贴路线。
-Root 文件 API 当前支持文本读写删查、目录创建和 chmod，二进制、递归删除、chown 后续再做。
+Root 文件 API 当前支持文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，二进制传输后续再做。
 Root 进程 API 当前支持 pidOf/list/info/kill，资源占用统计后续再做。
 Root 应用控制当前支持启动、强停、清理应用数据、授权、撤销权限、安装、卸载、冻结和解冻。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。

@@ -22,9 +22,12 @@
 | Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
 | Root 文件 | `m.root.file.readText(path, timeoutMs)` | `m.rootReadText(...)` | [查看](#api-root-file-read-text) |
 | Root 文件 | `m.root.file.writeText(path, content, timeoutMs)` | `m.rootWriteText(...)` | [查看](#api-root-file-write-text) |
-| Root 文件 | `m.root.file.remove(path)` | `m.rootRemove(path)` | [查看](#api-root-file-remove) |
+| Root 文件 | `m.root.file.stat(path)` | `m.rootStat(path)` | [查看](#api-root-file-stat) |
+| Root 文件 | `m.root.file.list(path)` | `m.rootList(path)` | [查看](#api-root-file-list) |
+| Root 文件 | `m.root.file.remove(path, recursive)` | `m.rootRemove(...)` | [查看](#api-root-file-remove) |
 | Root 文件 | `m.root.file.mkdir(path, recursive)` | `m.rootMkdir(...)` | [查看](#api-root-file-mkdir) |
 | Root 文件 | `m.root.file.chmod(path, mode)` | `m.rootChmod(...)` | [查看](#api-root-file-chmod) |
+| Root 文件 | `m.root.file.chown(path, owner)` | `m.rootChown(...)` | [查看](#api-root-file-chown) |
 | Root 进程 | `m.root.process.pidOf(name)` | `m.rootPidOf(name)` | [查看](#api-root-process-pid-of) |
 | Root 进程 | `m.root.process.list()` | `m.rootProcessList()` | [查看](#api-root-process-list) |
 | Root 进程 | `m.root.process.info(target)` | `m.rootProcessInfo(...)` | [查看](#api-root-process-info) |
@@ -63,8 +66,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -654,11 +657,65 @@ end
 说明：
 
 - 第一版内部用 base64 传输文本，避免空格、换行、引号和中文被 shell 解析破坏。
-- 当前只承诺文本文件；二进制文件、目录创建、递归删除后续单独做。
+- 当前只承诺文本文件；二进制文件传输后续单独做。
+
+<a id="api-root-file-stat"></a>
+
+### 6.9 `m.root.file.stat(path)` / `m.rootStat(path)`
+
+通过 root shell 获取文件或目录状态。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+
+返回值字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `type` | string | Android `stat` 返回的类型，例如 `regular file`、`directory` |
+| `size` | number | 字节数 |
+| `mode` | string | 八进制权限，例如 `"755"` |
+| `user` / `group` | string | 所属用户和用户组 |
+| `uid` / `gid` | number | 所属用户和用户组 ID |
+| `modifiedAt` | number | 修改时间，Unix 秒 |
+| `path` | string | 完整路径 |
+| `name` | string | 文件名 |
+
+示例：
+
+```lua
+local info, err = m.root.file.stat("/data/local/tmp/demo.txt")
+if not info then
+    print("stat failed:", err)
+    return
+end
+print(info.name, info.size, info.mode, info.user, info.group)
+```
+
+<a id="api-root-file-list"></a>
+
+### 6.10 `m.root.file.list(path)` / `m.rootList(path)`
+
+通过 root shell 获取目录下的文件列表。返回每一项的字段与 `m.root.file.stat` 一致。
+
+```lua
+local entries, err = m.root.file.list("/data/local/tmp")
+if not entries then
+    print("list failed:", err)
+    return
+end
+
+for i, item in ipairs(entries) do
+    print(item.name, item.type, item.size)
+end
+```
 
 <a id="api-root-file-remove"></a>
 
-### 6.9 `m.root.file.remove(path)` / `m.rootRemove(path)`
+### 6.11 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
 
 通过 root shell 删除文件或路径。
 
@@ -667,6 +724,7 @@ end
 | 名称 | 类型 | 说明 |
 |---|---|---|
 | `path` | string | Android 设备上的绝对路径 |
+| `recursive` | boolean | 可选，默认 `false`。为 `true` 时使用 `rm -rf` 递归删除 |
 
 返回值：
 
@@ -684,9 +742,13 @@ if not ok then
 end
 ```
 
+说明：
+
+- 递归删除会拒绝空路径、`/`、`.`、`..` 这类危险目标。
+
 <a id="api-root-file-mkdir"></a>
 
-### 6.10 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
+### 6.12 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
 
 通过 root shell 创建目录。
 
@@ -715,7 +777,7 @@ end
 
 <a id="api-root-file-chmod"></a>
 
-### 6.11 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
+### 6.13 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
 
 通过 root shell 修改文件或目录权限。
 
@@ -745,11 +807,39 @@ end
 说明：
 
 - `mode` 必须写成字符串，避免 Lua 数字进制和前导零产生歧义。
-- 当前不提供 `chown`，后续按实际脚本部署需求再补。
+
+<a id="api-root-file-chown"></a>
+
+### 6.14 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
+
+通过 root shell 修改文件或目录所属用户。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `path` | string | Android 设备上的绝对路径 |
+| `owner` | string | 用户或用户组，例如 `"root"`、`"root:shell"`、`"2000:2000"` |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.root.file.chown("/data/local/tmp/autolua/run.sh", "root:shell")
+if not ok then
+    print("chown failed:", err)
+end
+```
 
 <a id="api-root-process-pid-of"></a>
 
-### 6.12 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+### 6.15 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
 
 通过 root shell 查询进程名对应的 PID 列表。
 
@@ -788,7 +878,7 @@ end
 
 <a id="api-root-process-list"></a>
 
-### 6.13 `m.root.process.list()` / `m.rootProcessList()`
+### 6.16 `m.root.process.list()` / `m.rootProcessList()`
 
 通过 root shell 获取当前进程列表。返回值是结构化表，不需要脚本再解析 `ps` 文本。
 
@@ -825,7 +915,7 @@ end
 
 <a id="api-root-process-info"></a>
 
-### 6.14 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
+### 6.17 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
 
 通过 root shell 查询指定进程详情。`target` 可以是 PID，也可以是进程名。
 
@@ -858,7 +948,7 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.15 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.18 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -1840,9 +1930,12 @@ end
 | `root.file.exists` | 判断 root 路径是否存在 |
 | `root.file.readText` | 读取 root 路径文本 |
 | `root.file.writeText` | 写入 root 路径文本 |
+| `root.file.stat` | 获取 root 路径状态 |
+| `root.file.list` | 获取 root 目录列表 |
 | `root.file.remove` | 删除 root 路径文件 |
 | `root.file.mkdir` | 创建 root 路径目录 |
 | `root.file.chmod` | 修改 root 路径权限 |
+| `root.file.chown` | 修改 root 路径所属用户 |
 | `root.process.pidOf` | 查询进程名对应 PID |
 | `root.process.list` | 获取 root 进程列表 |
 | `root.process.info` | 获取指定 root 进程详情 |

@@ -201,8 +201,33 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("root.file.stat".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.statFile(requirePath(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file stat failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("file", parseRootFileInfo(rootResult.stdout));
+            return result;
+        }
+
+        if ("root.file.list".equals(method)) {
+            RootCommandResult rootResult = RootShellBridge.listFiles(requirePath(params));
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file list failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("entries", parseRootFileInfoArray(rootResult.stdout));
+            return result;
+        }
+
         if ("root.file.remove".equals(method)) {
-            RootCommandResult rootResult = RootShellBridge.removeFile(requirePath(params));
+            RootCommandResult rootResult = RootShellBridge.removeFile(
+                    requirePath(params),
+                    params.optBoolean("recursive", false)
+            );
             if (!rootResult.success) {
                 throw new IllegalStateException(resolveRootCommandError(rootResult, "root file remove failed"));
             }
@@ -235,6 +260,22 @@ public final class EngineHttpServer {
             RootCommandResult rootResult = RootShellBridge.chmod(requirePath(params), mode);
             if (!rootResult.success) {
                 throw new IllegalStateException(resolveRootCommandError(rootResult, "root file chmod failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("root.file.chown".equals(method)) {
+            String owner = params.optString("owner", "");
+            if (owner.isEmpty()) {
+                throw new IllegalArgumentException("owner is required");
+            }
+
+            RootCommandResult rootResult = RootShellBridge.chown(requirePath(params), owner);
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "root file chown failed"));
             }
 
             JSONObject result = new JSONObject();
@@ -617,6 +658,69 @@ public final class EngineHttpServer {
             }
         }
         return pids;
+    }
+
+    private static JSONArray parseRootFileInfoArray(String stdout) throws JSONException {
+        JSONArray entries = new JSONArray();
+        if (stdout == null || stdout.trim().isEmpty()) {
+            return entries;
+        }
+
+        String[] lines = stdout.split("\\r?\\n");
+        for (String line : lines) {
+            JSONObject file = parseRootFileInfoOrNull(line);
+            if (file != null) {
+                entries.put(file);
+            }
+        }
+        return entries;
+    }
+
+    private static JSONObject parseRootFileInfo(String stdout) throws JSONException {
+        JSONObject file = parseRootFileInfoOrNull(stdout);
+        if (file == null) {
+            throw new IllegalStateException("root file stat output is invalid");
+        }
+        return file;
+    }
+
+    private static JSONObject parseRootFileInfoOrNull(String line) throws JSONException {
+        if (line == null || line.trim().isEmpty()) {
+            return null;
+        }
+
+        String[] parts = line.trim().split("\\|", 9);
+        if (parts.length != 9) {
+            return null;
+        }
+
+        try {
+            JSONObject file = new JSONObject();
+            file.put("type", parts[0]);
+            file.put("size", Long.parseLong(parts[1]));
+            file.put("mode", parts[2]);
+            file.put("user", parts[3]);
+            file.put("group", parts[4]);
+            file.put("uid", Integer.parseInt(parts[5]));
+            file.put("gid", Integer.parseInt(parts[6]));
+            file.put("modifiedAt", Long.parseLong(parts[7]));
+            file.put("path", parts[8]);
+            file.put("name", rootFileBaseName(parts[8]));
+            return file;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static String rootFileBaseName(String path) {
+        int index = path.lastIndexOf('/');
+        if (index < 0) {
+            return path;
+        }
+        if (index + 1 >= path.length()) {
+            return "";
+        }
+        return path.substring(index + 1);
     }
 
     private static JSONArray parseProcessArray(String stdout) throws JSONException {

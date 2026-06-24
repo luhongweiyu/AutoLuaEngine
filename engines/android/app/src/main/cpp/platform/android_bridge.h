@@ -67,9 +67,12 @@ public:
             const std::string& content,
             int timeoutMs
     );
-    static RootExecResult rootFileRemove(const std::string& path);
+    static RootExecResult rootFileStat(const std::string& path);
+    static RootExecResult rootFileList(const std::string& path);
+    static RootExecResult rootFileRemove(const std::string& path, bool recursive);
     static RootExecResult rootFileMkdir(const std::string& path, bool recursive);
     static RootExecResult rootFileChmod(const std::string& path, const std::string& mode);
+    static RootExecResult rootFileChown(const std::string& path, const std::string& owner);
     static RootExecResult rootProcessPidOf(const std::string& processName);
     static RootExecResult rootProcessList();
     static RootExecResult rootProcessInfo(const std::string& pidOrName);

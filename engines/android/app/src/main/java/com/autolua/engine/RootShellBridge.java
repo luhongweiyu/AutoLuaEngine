@@ -118,13 +118,48 @@ public final class RootShellBridge {
         return RootCommandResult.fromCommandResult(runRootCommand(command, safeTimeoutMs));
     }
 
-    public static RootCommandResult removeFile(String path) {
+    public static RootCommandResult statFile(String path) {
         if (path == null || path.isEmpty()) {
             return RootCommandResult.failure("root file path is required");
         }
+
         return RootCommandResult.fromCommandResult(
-                runRootCommand("rm -f -- " + shellQuote(path), DEFAULT_TIMEOUT_MS)
+                runRootCommand(statCommand(shellQuote(path)), DEFAULT_TIMEOUT_MS)
         );
+    }
+
+    public static RootCommandResult listFiles(String path) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+
+        String quotedPath = shellQuote(path);
+        String command = "for item in " + quotedPath + "/* " + quotedPath + "/.[!.]* " + quotedPath + "/..?*; do "
+                + "[ -e \"$item\" ] || continue; "
+                + statCommand("\"$item\"") + "; "
+                + "done";
+        return RootCommandResult.fromCommandResult(runRootCommand(command, DEFAULT_TIMEOUT_MS));
+    }
+
+    public static RootCommandResult removeFile(String path, boolean recursive) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+        if (recursive && isUnsafeRecursiveDeletePath(path)) {
+            return RootCommandResult.failure("recursive remove path is unsafe");
+        }
+
+        String command = recursive
+                ? "rm -rf -- " + shellQuote(path)
+                : "rm -f -- " + shellQuote(path);
+        return RootCommandResult.fromCommandResult(
+                runRootCommand(command, DEFAULT_TIMEOUT_MS)
+        );
+    }
+
+    private static boolean isUnsafeRecursiveDeletePath(String path) {
+        String value = path.trim();
+        return value.isEmpty() || "/".equals(value) || ".".equals(value) || "..".equals(value);
     }
 
     public static RootCommandResult makeDirectory(String path, boolean recursive) {
@@ -149,6 +184,23 @@ public final class RootShellBridge {
         return RootCommandResult.fromCommandResult(
                 runRootCommand("chmod " + mode + " -- " + shellQuote(path), DEFAULT_TIMEOUT_MS)
         );
+    }
+
+    public static RootCommandResult chown(String path, String owner) {
+        if (path == null || path.isEmpty()) {
+            return RootCommandResult.failure("root file path is required");
+        }
+        if (owner == null || !owner.matches("[A-Za-z0-9_.-]+(:[A-Za-z0-9_.-]+)?")) {
+            return RootCommandResult.failure("chown owner must be user or user:group");
+        }
+
+        return RootCommandResult.fromCommandResult(
+                runRootCommand("chown " + owner + " -- " + shellQuote(path), DEFAULT_TIMEOUT_MS)
+        );
+    }
+
+    private static String statCommand(String quotedPath) {
+        return "stat -c '%F|%s|%a|%U|%G|%u|%g|%Y|%n' -- " + quotedPath;
     }
 
     public static RootCommandResult pidOf(String processName) {

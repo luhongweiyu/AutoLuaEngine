@@ -991,11 +991,30 @@ RootExecResult AndroidBridge::rootFileWriteText(const std::string& path,
     return readRootExecResult(env, resultObject, bridgeClass, "root file write");
 }
 
-RootExecResult AndroidBridge::rootFileRemove(const std::string& path) {
+RootExecResult AndroidBridge::rootFileStat(const std::string& path) {
     return callStaticRootResultStringMethod(
-            "rootFileRemove",
+            "rootFileStat",
             "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
             path,
+            "root file stat"
+    );
+}
+
+RootExecResult AndroidBridge::rootFileList(const std::string& path) {
+    return callStaticRootResultStringMethod(
+            "rootFileList",
+            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            path,
+            "root file list"
+    );
+}
+
+RootExecResult AndroidBridge::rootFileRemove(const std::string& path, bool recursive) {
+    return callStaticRootResultStringBooleanMethod(
+            "rootFileRemove",
+            "(Ljava/lang/String;Z)Lcom/autolua/engine/RootCommandResult;",
+            path,
+            recursive,
             "root file remove"
     );
 }
@@ -1017,6 +1036,16 @@ RootExecResult AndroidBridge::rootFileChmod(const std::string& path, const std::
             path,
             mode,
             "root file chmod"
+    );
+}
+
+RootExecResult AndroidBridge::rootFileChown(const std::string& path, const std::string& owner) {
+    return callStaticRootResultStringStringMethod(
+            "rootFileChown",
+            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
+            path,
+            owner,
+            "root file chown"
     );
 }
 

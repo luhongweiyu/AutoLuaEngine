@@ -257,9 +257,169 @@ int luaRootFileWriteText(lua_State* state) {
     return 1;
 }
 
+struct RootFileInfo {
+    std::string type;
+    long long size = 0;
+    std::string mode;
+    std::string user;
+    std::string group;
+    int uid = 0;
+    int gid = 0;
+    long long modifiedAt = 0;
+    std::string path;
+    std::string name;
+};
+
+std::string baseName(const std::string& path) {
+    size_t pos = path.find_last_of('/');
+    if (pos == std::string::npos) {
+        return path;
+    }
+    if (pos + 1 >= path.size()) {
+        return "";
+    }
+    return path.substr(pos + 1);
+}
+
+std::vector<std::string> splitStatLine(const std::string& line) {
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (parts.size() < 8) {
+        size_t pos = line.find('|', start);
+        if (pos == std::string::npos) {
+            return {};
+        }
+        parts.push_back(line.substr(start, pos - start));
+        start = pos + 1;
+    }
+    parts.push_back(line.substr(start));
+    return parts;
+}
+
+bool parseRootFileInfoLine(const std::string& line, RootFileInfo* info) {
+    if (info == nullptr || line.empty()) {
+        return false;
+    }
+
+    std::string cleanLine = line;
+    while (!cleanLine.empty() && (cleanLine.back() == '\n' || cleanLine.back() == '\r')) {
+        cleanLine.pop_back();
+    }
+
+    std::vector<std::string> parts = splitStatLine(cleanLine);
+    if (parts.size() != 9) {
+        return false;
+    }
+
+    char* sizeEnd = nullptr;
+    char* uidEnd = nullptr;
+    char* gidEnd = nullptr;
+    char* modifiedEnd = nullptr;
+    long long size = std::strtoll(parts[1].c_str(), &sizeEnd, 10);
+    long uid = std::strtol(parts[5].c_str(), &uidEnd, 10);
+    long gid = std::strtol(parts[6].c_str(), &gidEnd, 10);
+    long long modifiedAt = std::strtoll(parts[7].c_str(), &modifiedEnd, 10);
+    if (sizeEnd == parts[1].c_str()
+            || *sizeEnd != '\0'
+            || uidEnd == parts[5].c_str()
+            || *uidEnd != '\0'
+            || gidEnd == parts[6].c_str()
+            || *gidEnd != '\0'
+            || modifiedEnd == parts[7].c_str()
+            || *modifiedEnd != '\0') {
+        return false;
+    }
+
+    info->type = parts[0];
+    info->size = size;
+    info->mode = parts[2];
+    info->user = parts[3];
+    info->group = parts[4];
+    info->uid = static_cast<int>(uid);
+    info->gid = static_cast<int>(gid);
+    info->modifiedAt = modifiedAt;
+    info->path = parts[8];
+    info->name = baseName(info->path);
+    return true;
+}
+
+void pushRootFileInfo(lua_State* state, const RootFileInfo& info) {
+    lua_newtable(state);
+    lua_pushstring(state, info.type.c_str());
+    lua_setfield(state, -2, "type");
+    lua_pushinteger(state, static_cast<lua_Integer>(info.size));
+    lua_setfield(state, -2, "size");
+    lua_pushstring(state, info.mode.c_str());
+    lua_setfield(state, -2, "mode");
+    lua_pushstring(state, info.user.c_str());
+    lua_setfield(state, -2, "user");
+    lua_pushstring(state, info.group.c_str());
+    lua_setfield(state, -2, "group");
+    lua_pushinteger(state, info.uid);
+    lua_setfield(state, -2, "uid");
+    lua_pushinteger(state, info.gid);
+    lua_setfield(state, -2, "gid");
+    lua_pushinteger(state, static_cast<lua_Integer>(info.modifiedAt));
+    lua_setfield(state, -2, "modifiedAt");
+    lua_pushstring(state, info.path.c_str());
+    lua_setfield(state, -2, "path");
+    lua_pushstring(state, info.name.c_str());
+    lua_setfield(state, -2, "name");
+}
+
+int luaRootFileStat(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    RootExecResult result = AndroidBridge::rootFileStat(path);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file stat failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    RootFileInfo info;
+    if (!parseRootFileInfoLine(result.stdoutText, &info)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "root file stat output is invalid");
+        return 2;
+    }
+
+    pushRootFileInfo(state, info);
+    return 1;
+}
+
+int luaRootFileList(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    RootExecResult result = AndroidBridge::rootFileList(path);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file list failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    std::vector<RootFileInfo> entries;
+    std::istringstream stream(result.stdoutText);
+    std::string line;
+    while (std::getline(stream, line)) {
+        RootFileInfo info;
+        if (parseRootFileInfoLine(line, &info)) {
+            entries.push_back(info);
+        }
+    }
+
+    lua_createtable(state, static_cast<int>(entries.size()), 0);
+    for (size_t i = 0; i < entries.size(); ++i) {
+        pushRootFileInfo(state, entries[i]);
+        lua_rawseti(state, -2, static_cast<lua_Integer>(i + 1));
+    }
+    return 1;
+}
+
 int luaRootFileRemove(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
-    RootExecResult result = AndroidBridge::rootFileRemove(path);
+    bool recursive = !lua_isnoneornil(state, 2) && lua_toboolean(state, 2) != 0;
+    RootExecResult result = AndroidBridge::rootFileRemove(path, recursive);
     if (!result.success) {
         std::string error = rootResultError(result, "root file remove failed");
         lua_pushnil(state);
@@ -292,6 +452,21 @@ int luaRootFileChmod(lua_State* state) {
     RootExecResult result = AndroidBridge::rootFileChmod(path, mode);
     if (!result.success) {
         std::string error = rootResultError(result, "root file chmod failed");
+        lua_pushnil(state);
+        lua_pushstring(state, error.c_str());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaRootFileChown(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    const char* owner = luaL_checkstring(state, 2);
+    RootExecResult result = AndroidBridge::rootFileChown(path, owner);
+    if (!result.success) {
+        std::string error = rootResultError(result, "root file chown failed");
         lua_pushnil(state);
         lua_pushstring(state, error.c_str());
         return 2;
@@ -1052,9 +1227,12 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, rootFileTableIndex, "exists", luaRootFileExists);
     setFunctionField(state, rootFileTableIndex, "readText", luaRootFileReadText);
     setFunctionField(state, rootFileTableIndex, "writeText", luaRootFileWriteText);
+    setFunctionField(state, rootFileTableIndex, "stat", luaRootFileStat);
+    setFunctionField(state, rootFileTableIndex, "list", luaRootFileList);
     setFunctionField(state, rootFileTableIndex, "remove", luaRootFileRemove);
     setFunctionField(state, rootFileTableIndex, "mkdir", luaRootFileMkdir);
     setFunctionField(state, rootFileTableIndex, "chmod", luaRootFileChmod);
+    setFunctionField(state, rootFileTableIndex, "chown", luaRootFileChown);
     lua_setfield(state, rootTableIndex, "file");
 
     lua_newtable(state);
