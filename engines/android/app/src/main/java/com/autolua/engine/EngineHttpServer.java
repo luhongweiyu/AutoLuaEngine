@@ -135,6 +135,16 @@ public final class EngineHttpServer {
             return makeDeviceInfo();
         }
 
+        if ("device.setRootModeEnabled".equals(method)) {
+            if (!params.has("enabled")) {
+                throw new IllegalArgumentException("enabled is required");
+            }
+
+            boolean enabled = params.optBoolean("enabled", true);
+            EngineSettings.setRootModeEnabled(appContext, enabled);
+            return makeDeviceInfo();
+        }
+
         if ("root.exec".equals(method)) {
             String command = params.optString("command", "");
             if (command.trim().isEmpty()) {

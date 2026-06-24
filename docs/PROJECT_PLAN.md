@@ -190,6 +190,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.input.text(text)` 简单文本输入，当前走 root `input text`
 - [x] `m.device.isRootAvailable()` 和 `m.device.info().rootAvailable`
 - [x] App 主界面 Root 模式开关，默认开启
+- [x] `m.device.setRootModeEnabled(enabled)` 和 HTTP `device.setRootModeEnabled`，脚本/IDE 可切换 Root 模式
 - [x] `m.root.exec(command, timeoutMs)` root 通用命令执行
 - [x] `m.app.isInstalled/open/start/stop` 应用控制，启动 root 优先，强停走 root
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection

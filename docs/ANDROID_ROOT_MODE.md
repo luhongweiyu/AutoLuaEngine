@@ -24,6 +24,7 @@ RootShellBridge -> 探测可用 su 格式 -> 常驻 root shell / 短命令
 - 通用命令：`m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 - 应用控制：`m.app.open(packageName)` root 优先启动，`m.app.stop(packageName)` root 强停
 - 状态：`m.device.isRootAvailable()`、`m.device.info().rootModeEnabled`、`m.device.info().rootAvailable`、`m.device.info().automationMode`
+- 设置：`m.device.setRootModeEnabled(enabled)` / HTTP `device.setRootModeEnabled`
 
 ## 2. 执行策略
 
@@ -45,6 +46,21 @@ root 不可用或 root 截图失败 -> 回退 MediaProjection
 ```
 
 Root 模式默认开启，可在 App 主界面的“Root 模式：开启/关闭”按钮切换。
+也可以通过脚本或 IDE/PC 协议切换：
+
+```lua
+m.device.setRootModeEnabled(true)
+```
+
+```json
+{
+  "method": "device.setRootModeEnabled",
+  "params": {
+    "enabled": true
+  }
+}
+```
+
 关闭后，触控、按键、截图不再优先走 root；显式调用 `m.root.exec` 仍然会尝试 root 命令。
 
 `m.device.info().automationMode` 当前取值为：

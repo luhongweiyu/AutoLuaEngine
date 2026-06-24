@@ -241,6 +241,14 @@ bool AndroidBridge::isRootModeEnabled() {
     return callStaticBooleanMethod0("isRootModeEnabled", "()Z");
 }
 
+bool AndroidBridge::setRootModeEnabled(bool enabled) {
+    return callStaticBooleanMethod1(
+            "setRootModeEnabled",
+            "(Z)Z",
+            enabled ? JNI_TRUE : JNI_FALSE
+    );
+}
+
 bool AndroidBridge::isRootAvailable() {
     return callStaticBooleanMethod0("isRootAvailable", "()Z");
 }

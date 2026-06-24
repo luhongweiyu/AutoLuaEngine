@@ -26,6 +26,7 @@ m.back = host.key.back
 m.home = host.key.home
 m.isAccessibilityEnabled = host.key.isAccessibilityEnabled
 m.isRootAvailable = host.device.isRootAvailable
+m.setRootModeEnabled = host.device.setRootModeEnabled
 m.rootExec = host.root.exec
 m.openApp = host.app.open
 m.startApp = host.app.start

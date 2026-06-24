@@ -116,6 +116,19 @@ int luaDeviceIsRootAvailable(lua_State* state) {
     return 1;
 }
 
+int luaDeviceSetRootModeEnabled(lua_State* state) {
+    luaL_checktype(state, 1, LUA_TBOOLEAN);
+    bool enabled = lua_toboolean(state, 1) != 0;
+    if (!AndroidBridge::setRootModeEnabled(enabled)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "set root mode failed");
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaRootExec(lua_State* state) {
     const char* command = luaL_checkstring(state, 1);
     lua_Integer timeoutMs = luaL_optinteger(state, 2, 2500);
@@ -596,6 +609,7 @@ void registerHostApi(lua_State* state) {
     int deviceTableIndex = lua_gettop(state);
     setFunctionField(state, deviceTableIndex, "info", luaDeviceInfo);
     setFunctionField(state, deviceTableIndex, "isRootAvailable", luaDeviceIsRootAvailable);
+    setFunctionField(state, deviceTableIndex, "setRootModeEnabled", luaDeviceSetRootModeEnabled);
     lua_setfield(state, hostTableIndex, "device");
 
     lua_newtable(state);

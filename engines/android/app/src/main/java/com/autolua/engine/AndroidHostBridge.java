@@ -30,6 +30,14 @@ public final class AndroidHostBridge {
         return isRootModeEnabledInternal();
     }
 
+    public static boolean setRootModeEnabled(boolean enabled) {
+        if (appContext == null) {
+            return false;
+        }
+        EngineSettings.setRootModeEnabled(appContext, enabled);
+        return true;
+    }
+
     public static RootCommandResult rootExec(String command, int timeoutMs) {
         return RootShellBridge.exec(command, timeoutMs);
     }

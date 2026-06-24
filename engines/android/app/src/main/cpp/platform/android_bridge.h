@@ -36,6 +36,7 @@ public:
 
     static bool isAccessibilityEnabled();
     static bool isRootModeEnabled();
+    static bool setRootModeEnabled(bool enabled);
     static bool isRootAvailable();
     static RootExecResult rootExec(const std::string& command, int timeoutMs);
     static bool appIsInstalled(const std::string& packageName);

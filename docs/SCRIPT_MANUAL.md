@@ -16,6 +16,7 @@
 | 日志 | `m.log.print(text)` | 无 | [查看](#api-log-print) |
 | 设备 | `m.device.info()` | 无 | [查看](#api-device-info) |
 | 设备 | `m.device.isRootAvailable()` | `m.isRootAvailable()` | [查看](#api-device-root) |
+| 设备 | `m.device.setRootModeEnabled(enabled)` | `m.setRootModeEnabled(...)` | [查看](#api-device-root-mode) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
 | 应用 | `m.app.isInstalled(packageName)` | `m.isAppInstalled(...)` | [查看](#api-app-installed) |
 | 应用 | `m.app.open(packageName)` | `m.openApp(...)` | [查看](#api-app-open) |
@@ -409,9 +410,43 @@ else
 end
 ```
 
+<a id="api-device-root-mode"></a>
+
+### 6.3 `m.device.setRootModeEnabled(enabled)` / `m.setRootModeEnabled(enabled)`
+
+设置当前 App 的 Root 模式开关。
+
+参数：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `enabled` | boolean | `true` 表示启用 Root 优先；`false` 表示不主动走 root，触控和按键尽量走无障碍 fallback |
+
+返回值：
+
+```text
+成功：true
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local ok, err = m.device.setRootModeEnabled(true)
+if not ok then
+    print("set root mode failed:", err)
+end
+```
+
+说明：
+
+- 默认值为 `true`，和 App 主界面“Root 模式：开启”一致。
+- 该设置会持久化，App 按钮、脚本和 IDE 查询到的是同一份状态。
+- 显式 `m.root.exec(...)` 不受这个开关影响，它始终表示“尝试执行 root 命令”。
+
 <a id="api-root-exec"></a>
 
-### 6.3 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+### 6.4 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 
 通过 root shell 执行一条命令，返回结构化结果。这个接口是 root 文件、进程、系统命令能力的基础通道。
 
@@ -1183,6 +1218,7 @@ end
 | 方法 | 说明 |
 |---|---|
 | `device.info` | 获取设备和引擎信息 |
+| `device.setRootModeEnabled` | 设置 Root 模式开关 |
 | `script.run` | 发送并执行脚本 |
 | `script.pause` | 请求暂停当前脚本 |
 | `script.resume` | 请求继续已暂停脚本 |

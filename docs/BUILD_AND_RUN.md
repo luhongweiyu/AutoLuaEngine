@@ -125,6 +125,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\android\run_lua_http.ps1 -FileP
 
 ```text
 device.info
+device.setRootModeEnabled
 root.exec
 app.isInstalled
 app.open

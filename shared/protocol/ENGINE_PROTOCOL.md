@@ -281,7 +281,52 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.1 `root.exec`
+## 9.1 `device.setRootModeEnabled`
+
+说明：
+
+- 设置 Android Root 模式开关
+- 默认开启
+- 该设置会持久化，App 界面、脚本和 IDE 查询的是同一份状态
+- 关闭后触控、按键、截图不再主动走 root；显式 `root.exec` 仍会尝试 root 命令
+- 响应返回设置后的完整 `device.info`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "device.setRootModeEnabled",
+  "params": {
+    "enabled": true
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "result": {
+    "platform": "android",
+    "engineVersion": "0.1.0",
+    "luaVersion": "Lua 5.4",
+    "apiLevel": 34,
+    "packageName": "com.autolua.engine",
+    "rootModeEnabled": true,
+    "rootAvailable": true,
+    "accessibilityEnabled": false,
+    "automationMode": "root-first",
+    "httpHost": "127.0.0.1",
+    "httpPort": 18380
+  }
+}
+```
+
+## 9.2 `root.exec`
 
 说明：
 
@@ -295,7 +340,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 7,
+  "id": 8,
   "method": "root.exec",
   "params": {
     "command": "id -u",
@@ -309,7 +354,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 7,
+  "id": 8,
   "result": {
     "ok": true,
     "exitCode": 0,
@@ -321,7 +366,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.2 `app.isInstalled`
+## 9.3 `app.isInstalled`
 
 说明：
 
@@ -332,7 +377,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 8,
+  "id": 9,
   "method": "app.isInstalled",
   "params": {
     "packageName": "com.android.settings"
@@ -345,14 +390,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 8,
+  "id": 9,
   "result": {
     "installed": true
   }
 }
 ```
 
-## 9.3 `app.open` / `app.start`
+## 9.4 `app.open` / `app.start`
 
 说明：
 
@@ -364,7 +409,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 9,
+  "id": 10,
   "method": "app.open",
   "params": {
     "packageName": "com.android.settings"
@@ -377,14 +422,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 9,
+  "id": 10,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.4 `app.stop`
+## 9.5 `app.stop`
 
 说明：
 
@@ -396,7 +441,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 10,
+  "id": 11,
   "method": "app.stop",
   "params": {
     "packageName": "com.example.target"
@@ -409,14 +454,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 10,
+  "id": 11,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.5 `key.press`
+## 9.6 `key.press`
 
 说明：
 
@@ -430,7 +475,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 11,
+  "id": 12,
   "method": "key.press",
   "params": {
     "keyCode": 66
@@ -443,14 +488,14 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 11,
+  "id": 12,
   "result": {
     "ok": true
   }
 }
 ```
 
-## 9.6 `input.text`
+## 9.7 `input.text`
 
 说明：
 
@@ -464,7 +509,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 12,
+  "id": 13,
   "method": "input.text",
   "params": {
     "text": "hello world"
@@ -477,7 +522,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 12,
+  "id": 13,
   "result": {
     "ok": true
   }
