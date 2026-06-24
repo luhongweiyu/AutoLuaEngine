@@ -142,6 +142,34 @@ public final class AndroidHostBridge {
         return DeviceSystemBridge.propSet(key, value);
     }
 
+    public static RootCommandResult deviceDisplayInfo() {
+        return DeviceDisplayBridge.info();
+    }
+
+    public static RootCommandResult deviceDisplaySetSize(int width, int height) {
+        return DeviceDisplayBridge.setSize(width, height);
+    }
+
+    public static RootCommandResult deviceDisplayResetSize() {
+        return DeviceDisplayBridge.resetSize();
+    }
+
+    public static RootCommandResult deviceDisplaySetDensity(int density) {
+        return DeviceDisplayBridge.setDensity(density);
+    }
+
+    public static RootCommandResult deviceDisplayResetDensity() {
+        return DeviceDisplayBridge.resetDensity();
+    }
+
+    public static RootCommandResult deviceDisplaySetBrightness(int brightness) {
+        return DeviceDisplayBridge.setBrightness(brightness);
+    }
+
+    public static RootCommandResult deviceDisplaySetAutoBrightness(boolean enabled) {
+        return DeviceDisplayBridge.setAutoBrightness(enabled);
+    }
+
     public static boolean appIsInstalled(String packageName) {
         return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
     }

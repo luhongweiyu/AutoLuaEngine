@@ -137,6 +137,13 @@ device.settings.put
 device.settings.delete
 device.prop.get
 device.prop.set
+device.display.info
+device.display.setSize
+device.display.resetSize
+device.display.setDensity
+device.display.resetDensity
+device.display.setBrightness
+device.display.setAutoBrightness
 root.exec
 root.status
 root.file.exists

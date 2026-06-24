@@ -28,6 +28,13 @@
 | 设备设置 | `m.device.settings.delete(namespace, key)` | `m.deleteSetting(...)` | [查看](#api-device-settings) |
 | 系统属性 | `m.device.prop.get(key)` | `m.getProp(...)` | [查看](#api-device-prop) |
 | 系统属性 | `m.device.prop.set(key, value)` | `m.setProp(...)` | [查看](#api-device-prop) |
+| 显示 | `m.device.display.info()` | `m.displayInfo()` | [查看](#api-device-display) |
+| 显示 | `m.device.display.setSize(width, height)` | `m.setDisplaySize(...)` | [查看](#api-device-display) |
+| 显示 | `m.device.display.resetSize()` | `m.resetDisplaySize()` | [查看](#api-device-display) |
+| 显示 | `m.device.display.setDensity(density)` | `m.setDisplayDensity(...)` | [查看](#api-device-display) |
+| 显示 | `m.device.display.resetDensity()` | `m.resetDisplayDensity()` | [查看](#api-device-display) |
+| 亮度 | `m.device.display.setBrightness(brightness)` | `m.setBrightness(...)` | [查看](#api-device-display) |
+| 亮度 | `m.device.display.setAutoBrightness(enabled)` | `m.setAutoBrightness(...)` | [查看](#api-device-display) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
 | Root | `m.root.status()` | `m.rootStatus()` | [查看](#api-root-status) |
 | Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
@@ -80,8 +87,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -698,9 +705,61 @@ end
 - `setprop` 对 `ro.*` 等只读属性通常不会成功。
 - 这是底层能力，优先用于调试和后续更明确的高级 API。
 
+<a id="api-device-display"></a>
+
+### 6.11 `m.device.display.*`
+
+通过 root `wm` 和 `settings` 命令读取或修改显示参数、亮度参数。
+
+函数：
+
+| 函数 | 返回 |
+|---|---|
+| `m.device.display.info()` | 成功返回显示信息表，失败返回 `nil, errorMessage` |
+| `m.device.display.setSize(width, height)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+| `m.device.display.resetSize()` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+| `m.device.display.setDensity(density)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+| `m.device.display.resetDensity()` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+| `m.device.display.setBrightness(brightness)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+| `m.device.display.setAutoBrightness(enabled)` | 成功返回 `true`，失败返回 `nil, errorMessage` |
+
+`info()` 返回字段：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `physicalWidth` / `physicalHeight` | number | 设备物理分辨率 |
+| `overrideWidth` / `overrideHeight` | number | 通过 `wm size` 设置的覆盖分辨率，未设置时不存在 |
+| `effectiveWidth` / `effectiveHeight` | number | 当前脚本应优先参考的有效分辨率 |
+| `physicalDensity` | number | 设备物理 DPI |
+| `overrideDensity` | number | 通过 `wm density` 设置的覆盖 DPI，未设置时不存在 |
+| `effectiveDensity` | number | 当前有效 DPI |
+| `brightness` | number | 当前亮度，范围 `0..255` |
+| `brightnessMode` | number | `0` 手动亮度，`1` 自动亮度 |
+| `autoBrightness` | boolean | 是否开启自动亮度 |
+
+示例：
+
+```lua
+local info, err = m.device.display.info()
+if not info then
+    print("读取显示信息失败:", err)
+    return
+end
+
+print(info.effectiveWidth, info.effectiveHeight, info.effectiveDensity)
+m.device.display.setBrightness(180)
+m.device.display.setAutoBrightness(false)
+```
+
+说明：
+
+- 这是显式 root 能力，不受 Root 模式开关影响。
+- `setSize` 和 `setDensity` 会影响系统显示比例，测试后建议调用 `resetSize()`、`resetDensity()` 恢复。
+- `setBrightness` 会先关闭自动亮度，再写入 `screen_brightness`。
+
 <a id="api-root-exec"></a>
 
-### 6.11 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
+### 6.12 `m.root.exec(command, timeoutMs)` / `m.rootExec(...)`
 
 通过 root shell 执行一条命令，返回结构化结果。这个接口是 root 文件、进程、系统命令能力的基础通道。
 
@@ -742,9 +801,9 @@ end
 - `error` 用于 root 不可用、超时、通道失败这类错误。
 - 这个显式 root API 不受界面 Root 模式开关影响；开关只影响触控、按键、截图的自动路由。
 
-<a id="api-root-file-exists"></a>
+<a id="api-root-status"></a>
 
-### 6.12 `m.root.status()` / `m.rootStatus()`
+### 6.13 `m.root.status()` / `m.rootStatus()`
 
 返回 Android root 探测状态，用于定位 App 进程是否能拿到 root 授权、当前命中的 su 模式和每次探测失败原因。
 
@@ -798,7 +857,7 @@ end
 
 <a id="api-root-file-exists"></a>
 
-### 6.13 `m.root.file.exists(path)` / `m.rootFileExists(path)`
+### 6.14 `m.root.file.exists(path)` / `m.rootFileExists(path)`
 
 通过 root shell 判断路径是否存在。
 
@@ -829,7 +888,7 @@ end
 
 <a id="api-root-file-read-text"></a>
 
-### 6.14 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
+### 6.15 `m.root.file.readText(path, timeoutMs)` / `m.rootReadText(...)`
 
 通过 root shell 读取 UTF-8 文本文件。
 
@@ -858,7 +917,7 @@ end
 
 <a id="api-root-file-write-text"></a>
 
-### 6.15 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
+### 6.16 `m.root.file.writeText(path, content, timeoutMs)` / `m.rootWriteText(...)`
 
 通过 root shell 覆盖写入 UTF-8 文本文件。
 
@@ -893,7 +952,7 @@ end
 
 <a id="api-root-file-stat"></a>
 
-### 6.16 `m.root.file.stat(path)` / `m.rootStat(path)`
+### 6.17 `m.root.file.stat(path)` / `m.rootStat(path)`
 
 通过 root shell 获取文件或目录状态。
 
@@ -929,7 +988,7 @@ print(info.name, info.size, info.mode, info.user, info.group)
 
 <a id="api-root-file-list"></a>
 
-### 6.17 `m.root.file.list(path)` / `m.rootList(path)`
+### 6.18 `m.root.file.list(path)` / `m.rootList(path)`
 
 通过 root shell 获取目录下的文件列表。返回每一项的字段与 `m.root.file.stat` 一致。
 
@@ -947,7 +1006,7 @@ end
 
 <a id="api-root-file-remove"></a>
 
-### 6.18 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
+### 6.19 `m.root.file.remove(path, recursive)` / `m.rootRemove(...)`
 
 通过 root shell 删除文件或路径。
 
@@ -980,7 +1039,7 @@ end
 
 <a id="api-root-file-mkdir"></a>
 
-### 6.19 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
+### 6.20 `m.root.file.mkdir(path, recursive)` / `m.rootMkdir(...)`
 
 通过 root shell 创建目录。
 
@@ -1009,7 +1068,7 @@ end
 
 <a id="api-root-file-chmod"></a>
 
-### 6.20 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
+### 6.21 `m.root.file.chmod(path, mode)` / `m.rootChmod(...)`
 
 通过 root shell 修改文件或目录权限。
 
@@ -1042,7 +1101,7 @@ end
 
 <a id="api-root-file-chown"></a>
 
-### 6.21 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
+### 6.22 `m.root.file.chown(path, owner)` / `m.rootChown(...)`
 
 通过 root shell 修改文件或目录所属用户。
 
@@ -1071,7 +1130,7 @@ end
 
 <a id="api-root-process-pid-of"></a>
 
-### 6.22 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
+### 6.23 `m.root.process.pidOf(name)` / `m.rootPidOf(name)`
 
 通过 root shell 查询进程名对应的 PID 列表。
 
@@ -1110,7 +1169,7 @@ end
 
 <a id="api-root-process-list"></a>
 
-### 6.23 `m.root.process.list()` / `m.rootProcessList()`
+### 6.24 `m.root.process.list()` / `m.rootProcessList()`
 
 通过 root shell 获取当前进程列表。返回值是结构化表，不需要脚本再解析 `ps` 文本。
 
@@ -1147,7 +1206,7 @@ end
 
 <a id="api-root-process-info"></a>
 
-### 6.24 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
+### 6.25 `m.root.process.info(target)` / `m.rootProcessInfo(...)`
 
 通过 root shell 查询指定进程详情。`target` 可以是 PID，也可以是进程名。
 
@@ -1180,7 +1239,7 @@ end
 
 <a id="api-root-process-kill"></a>
 
-### 6.25 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
+### 6.26 `m.root.process.kill(target, signal)` / `m.rootKill(...)`
 
 通过 root shell 结束指定进程。
 
@@ -2254,6 +2313,13 @@ end
 | `device.settings.delete` | 删除 Android 系统设置 |
 | `device.prop.get` | 读取 Android 系统属性 |
 | `device.prop.set` | 写入 Android 系统属性 |
+| `device.display.info` | 获取显示参数和亮度状态 |
+| `device.display.setSize` | 设置覆盖分辨率 |
+| `device.display.resetSize` | 恢复系统默认分辨率 |
+| `device.display.setDensity` | 设置覆盖 DPI |
+| `device.display.resetDensity` | 恢复系统默认 DPI |
+| `device.display.setBrightness` | 设置屏幕亮度 |
+| `device.display.setAutoBrightness` | 设置自动亮度开关 |
 | `root.status` | 获取 root 探测状态 |
 | `root.exec` | 执行 root shell 命令 |
 | `root.file.exists` | 判断 root 路径是否存在 |

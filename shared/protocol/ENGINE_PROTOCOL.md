@@ -702,7 +702,232 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.13 `root.exec`
+## 9.13 `device.display.info`
+
+说明：
+
+- 通过 root `wm size`、`wm density` 和亮度 settings 获取显示信息
+- 返回物理分辨率、覆盖分辨率、有效分辨率、DPI、亮度和自动亮度状态
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 19,
+  "method": "device.display.info",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 19,
+  "result": {
+    "physicalWidth": 1080,
+    "physicalHeight": 2220,
+    "effectiveWidth": 1080,
+    "effectiveHeight": 2220,
+    "physicalDensity": 440,
+    "effectiveDensity": 440,
+    "brightness": 180,
+    "brightnessMode": 0,
+    "autoBrightness": false
+  }
+}
+```
+
+## 9.14 `device.display.setSize`
+
+说明：
+
+- 通过 root `wm size WIDTHxHEIGHT` 设置覆盖分辨率
+- `width`、`height` 必须大于 0
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "method": "device.display.setSize",
+  "params": {
+    "width": 1080,
+    "height": 2220
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 20,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.15 `device.display.resetSize`
+
+说明：
+
+- 通过 root `wm size reset` 恢复系统默认分辨率
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 21,
+  "method": "device.display.resetSize",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 21,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.16 `device.display.setDensity`
+
+说明：
+
+- 通过 root `wm density DENSITY` 设置覆盖 DPI
+- 当前限制范围为 `72..1000`
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 22,
+  "method": "device.display.setDensity",
+  "params": {
+    "density": 440
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 22,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.17 `device.display.resetDensity`
+
+说明：
+
+- 通过 root `wm density reset` 恢复系统默认 DPI
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "method": "device.display.resetDensity",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 23,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.18 `device.display.setBrightness`
+
+说明：
+
+- 通过 root settings 设置屏幕亮度
+- `brightness` 范围为 `0..255`
+- 写入亮度前会先关闭自动亮度
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 24,
+  "method": "device.display.setBrightness",
+  "params": {
+    "brightness": 180
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 24,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.19 `device.display.setAutoBrightness`
+
+说明：
+
+- 通过 root settings 设置自动亮度开关
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 25,
+  "method": "device.display.setAutoBrightness",
+  "params": {
+    "enabled": false
+  }
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 25,
+  "result": {
+    "ok": true
+  }
+}
+```
+
+## 9.20 `root.exec`
 
 说明：
 
@@ -742,7 +967,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.14 `root.status`
+## 9.21 `root.status`
 
 说明：
 
@@ -794,7 +1019,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 - `adb shell` 可以 root 不代表 App 进程可以 root，最终以这里的 `available` 为准。
 - `device.info` 也会返回同一份 `rootStatus` 摘要。
 
-## 9.15 `root.file.exists`
+## 9.22 `root.file.exists`
 
 说明：
 
@@ -827,7 +1052,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.16 `root.file.readText`
+## 9.23 `root.file.readText`
 
 说明：
 
@@ -860,7 +1085,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.17 `root.file.writeText`
+## 9.24 `root.file.writeText`
 
 说明：
 
@@ -895,7 +1120,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.18 `root.file.stat`
+## 9.25 `root.file.stat`
 
 说明：
 
@@ -938,7 +1163,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.19 `root.file.list`
+## 9.26 `root.file.list`
 
 说明：
 
@@ -983,7 +1208,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.20 `root.file.remove`
+## 9.27 `root.file.remove`
 
 说明：
 
@@ -1017,7 +1242,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.21 `root.file.mkdir`
+## 9.28 `root.file.mkdir`
 
 说明：
 
@@ -1050,7 +1275,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.22 `root.file.chmod`
+## 9.29 `root.file.chmod`
 
 说明：
 
@@ -1083,7 +1308,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.23 `root.file.chown`
+## 9.30 `root.file.chown`
 
 说明：
 
@@ -1116,7 +1341,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.24 `root.process.pidOf`
+## 9.31 `root.process.pidOf`
 
 说明：
 
@@ -1149,7 +1374,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.25 `root.process.kill`
+## 9.32 `root.process.kill`
 
 说明：
 
@@ -1183,7 +1408,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.26 `root.process.list`
+## 9.33 `root.process.list`
 
 说明：
 
@@ -1221,7 +1446,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.27 `root.process.info`
+## 9.34 `root.process.info`
 
 说明：
 
@@ -1262,7 +1487,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.28 `app.isInstalled`
+## 9.35 `app.isInstalled`
 
 说明：
 
@@ -1293,7 +1518,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.29 `app.open` / `app.start`
+## 9.36 `app.open` / `app.start`
 
 说明：
 
@@ -1325,7 +1550,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.30 `app.stop`
+## 9.37 `app.stop`
 
 说明：
 
@@ -1357,7 +1582,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.31 `app.clearData`
+## 9.38 `app.clearData`
 
 说明：
 
@@ -1390,7 +1615,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.32 `app.grant`
+## 9.39 `app.grant`
 
 说明：
 
@@ -1424,7 +1649,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.33 `app.revoke`
+## 9.40 `app.revoke`
 
 说明：
 
@@ -1457,7 +1682,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.34 `app.current`
+## 9.41 `app.current`
 
 说明：
 
@@ -1490,7 +1715,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.35 `app.install`
+## 9.42 `app.install`
 
 说明：
 
@@ -1526,7 +1751,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.36 `app.uninstall`
+## 9.43 `app.uninstall`
 
 说明：
 
@@ -1561,7 +1786,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.37 `app.disable`
+## 9.44 `app.disable`
 
 说明：
 
@@ -1594,7 +1819,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.38 `app.enable`
+## 9.45 `app.enable`
 
 说明：
 
@@ -1627,7 +1852,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.39 `app.disableComponent`
+## 9.46 `app.disableComponent`
 
 说明：
 
@@ -1660,7 +1885,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.40 `app.enableComponent`
+## 9.47 `app.enableComponent`
 
 说明：
 
@@ -1693,7 +1918,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.41 `key.press`
+## 9.48 `key.press`
 
 说明：
 
@@ -1727,7 +1952,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.42 `input.text`
+## 9.49 `input.text`
 
 说明：
 
@@ -1761,7 +1986,7 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 }
 ```
 
-## 9.43 `input.pasteText`
+## 9.50 `input.pasteText`
 
 说明：
 

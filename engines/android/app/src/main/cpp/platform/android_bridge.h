@@ -92,6 +92,13 @@ public:
     static RootExecResult deviceSettingsDelete(const std::string& namespaceName, const std::string& key);
     static RootExecResult devicePropGet(const std::string& key);
     static RootExecResult devicePropSet(const std::string& key, const std::string& value);
+    static RootExecResult deviceDisplayInfo();
+    static RootExecResult deviceDisplaySetSize(int width, int height);
+    static RootExecResult deviceDisplayResetSize();
+    static RootExecResult deviceDisplaySetDensity(int density);
+    static RootExecResult deviceDisplayResetDensity();
+    static RootExecResult deviceDisplaySetBrightness(int brightness);
+    static RootExecResult deviceDisplaySetAutoBrightness(bool enabled);
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);

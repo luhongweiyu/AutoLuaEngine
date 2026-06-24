@@ -198,6 +198,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.root.process.pidOf/list/info/kill` root 进程查询、列表、详情和结束进程第一版
 - [x] `m.device.screenState/wake/sleep/battery/rotation/setRotation` root 设备状态、唤醒/息屏、电量和方向控制第一版
 - [x] `m.device.settings.get/put/delete`、`m.device.prop.get/set` root 系统设置和系统属性底座能力
+- [x] `m.device.display.info/setSize/resetSize/setDensity/resetDensity/setBrightness/setAutoBrightness` root 显示参数和亮度控制第一版
 - [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/current/install/uninstall/disable/enable/disableComponent/enableComponent` 应用控制，启动 root 优先，强停、清数据、权限控制、前台查询、包管理和组件启停走 root
 - [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
 - [x] 触控和按键优先复用常驻 root shell，失败后回退短命令和无障碍
@@ -220,6 +221,7 @@ m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.ho
 文本输入当前简单文本优先走 `input text`，中文、换行和复杂符号可走剪贴板粘贴路线。
 Root 文件 API 当前支持文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，二进制传输后续再做。
 Root 进程 API 当前支持 pidOf/list/info/kill，资源占用统计后续再做。
+Root 显示 API 当前支持显示信息读取、覆盖分辨率、覆盖 DPI、亮度和自动亮度开关；修改分辨率和 DPI 后建议脚本主动恢复默认值。
 Root 应用控制当前支持启动、强停、清理应用数据、授权、撤销权限、前台应用查询、安装、卸载、冻结和解冻。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
 root 和无障碍都不可用时返回明确错误。

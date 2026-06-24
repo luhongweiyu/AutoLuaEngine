@@ -372,6 +372,50 @@ int luaDevicePropSet(lua_State* state) {
     return pushRootBooleanResult(state, result, "device prop set failed");
 }
 
+int luaDeviceDisplayInfo(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceDisplayInfo();
+    return pushRootKeyValueResult(state, result, "device display info failed");
+}
+
+int luaDeviceDisplaySetSize(lua_State* state) {
+    lua_Integer width = luaL_checkinteger(state, 1);
+    lua_Integer height = luaL_checkinteger(state, 2);
+    RootExecResult result = AndroidBridge::deviceDisplaySetSize(
+            static_cast<int>(width),
+            static_cast<int>(height)
+    );
+    return pushRootBooleanResult(state, result, "device display set size failed");
+}
+
+int luaDeviceDisplayResetSize(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceDisplayResetSize();
+    return pushRootBooleanResult(state, result, "device display reset size failed");
+}
+
+int luaDeviceDisplaySetDensity(lua_State* state) {
+    lua_Integer density = luaL_checkinteger(state, 1);
+    RootExecResult result = AndroidBridge::deviceDisplaySetDensity(static_cast<int>(density));
+    return pushRootBooleanResult(state, result, "device display set density failed");
+}
+
+int luaDeviceDisplayResetDensity(lua_State* state) {
+    RootExecResult result = AndroidBridge::deviceDisplayResetDensity();
+    return pushRootBooleanResult(state, result, "device display reset density failed");
+}
+
+int luaDeviceDisplaySetBrightness(lua_State* state) {
+    lua_Integer brightness = luaL_checkinteger(state, 1);
+    RootExecResult result = AndroidBridge::deviceDisplaySetBrightness(static_cast<int>(brightness));
+    return pushRootBooleanResult(state, result, "device display set brightness failed");
+}
+
+int luaDeviceDisplaySetAutoBrightness(lua_State* state) {
+    luaL_checktype(state, 1, LUA_TBOOLEAN);
+    bool enabled = lua_toboolean(state, 1) != 0;
+    RootExecResult result = AndroidBridge::deviceDisplaySetAutoBrightness(enabled);
+    return pushRootBooleanResult(state, result, "device display set auto brightness failed");
+}
+
 int luaRootFileExists(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     RootExecResult result = AndroidBridge::rootFileExists(path);
@@ -1469,6 +1513,17 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, devicePropTableIndex, "get", luaDevicePropGet);
     setFunctionField(state, devicePropTableIndex, "set", luaDevicePropSet);
     lua_setfield(state, deviceTableIndex, "prop");
+
+    lua_newtable(state);
+    int deviceDisplayTableIndex = lua_gettop(state);
+    setFunctionField(state, deviceDisplayTableIndex, "info", luaDeviceDisplayInfo);
+    setFunctionField(state, deviceDisplayTableIndex, "setSize", luaDeviceDisplaySetSize);
+    setFunctionField(state, deviceDisplayTableIndex, "resetSize", luaDeviceDisplayResetSize);
+    setFunctionField(state, deviceDisplayTableIndex, "setDensity", luaDeviceDisplaySetDensity);
+    setFunctionField(state, deviceDisplayTableIndex, "resetDensity", luaDeviceDisplayResetDensity);
+    setFunctionField(state, deviceDisplayTableIndex, "setBrightness", luaDeviceDisplaySetBrightness);
+    setFunctionField(state, deviceDisplayTableIndex, "setAutoBrightness", luaDeviceDisplaySetAutoBrightness);
+    lua_setfield(state, deviceTableIndex, "display");
 
     lua_setfield(state, hostTableIndex, "device");
 

@@ -277,6 +277,93 @@ public final class EngineHttpServer {
             return result;
         }
 
+        if ("device.display.info".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplayInfo();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display info failed"));
+            }
+            return parseKeyValueObject(rootResult.stdout);
+        }
+
+        if ("device.display.setSize".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplaySetSize(
+                    requirePositiveInt(params, "width"),
+                    requirePositiveInt(params, "height")
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display set size failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.display.resetSize".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplayResetSize();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display reset size failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.display.setDensity".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplaySetDensity(
+                    requirePositiveInt(params, "density")
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display set density failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.display.resetDensity".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplayResetDensity();
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display reset density failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.display.setBrightness".equals(method)) {
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplaySetBrightness(
+                    requireInt(params, "brightness")
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display set brightness failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
+        if ("device.display.setAutoBrightness".equals(method)) {
+            if (!params.has("enabled")) {
+                throw new IllegalArgumentException("enabled is required");
+            }
+
+            RootCommandResult rootResult = AndroidHostBridge.deviceDisplaySetAutoBrightness(
+                    requireBoolean(params, "enabled")
+            );
+            if (!rootResult.success) {
+                throw new IllegalStateException(resolveRootCommandError(rootResult, "device display set auto brightness failed"));
+            }
+
+            JSONObject result = new JSONObject();
+            result.put("ok", true);
+            return result;
+        }
+
         if ("root.exec".equals(method)) {
             String command = params.optString("command", "");
             if (command.trim().isEmpty()) {
@@ -845,6 +932,36 @@ public final class EngineHttpServer {
             throw new IllegalArgumentException("value is required");
         }
         return params.optString("value", "");
+    }
+
+    private static int requirePositiveInt(JSONObject params, String name) {
+        int value = requireInt(params, name);
+        if (value <= 0) {
+            throw new IllegalArgumentException(name + " must be greater than 0");
+        }
+        return value;
+    }
+
+    private static int requireInt(JSONObject params, String name) {
+        if (!params.has(name)) {
+            throw new IllegalArgumentException(name + " is required");
+        }
+        try {
+            return params.getInt(name);
+        } catch (JSONException exception) {
+            throw new IllegalArgumentException(name + " must be an integer");
+        }
+    }
+
+    private static boolean requireBoolean(JSONObject params, String name) {
+        if (!params.has(name)) {
+            throw new IllegalArgumentException(name + " is required");
+        }
+        try {
+            return params.getBoolean(name);
+        } catch (JSONException exception) {
+            throw new IllegalArgumentException(name + " must be a boolean");
+        }
     }
 
     private static String requireProcessName(JSONObject params) {

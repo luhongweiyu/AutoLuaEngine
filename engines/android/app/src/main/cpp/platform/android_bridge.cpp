@@ -518,6 +518,116 @@ RootExecResult callStaticRootResultStringIntMethod(const char* methodName,
     return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
 }
 
+RootExecResult callStaticRootResultIntMethod(const char* methodName,
+                                             const char* signature,
+                                             int value,
+                                             const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            static_cast<jint>(value)
+    );
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
+RootExecResult callStaticRootResultBooleanMethod(const char* methodName,
+                                                 const char* signature,
+                                                 bool value,
+                                                 const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            value ? JNI_TRUE : JNI_FALSE
+    );
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
+RootExecResult callStaticRootResultIntIntMethod(const char* methodName,
+                                                const char* signature,
+                                                int first,
+                                                int second,
+                                                const std::string& failurePrefix) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return makeRootExecFailure("jni environment is not available");
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return makeRootExecFailure("android host bridge is not available");
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " method is not available");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            bridgeClass,
+            methodId,
+            static_cast<jint>(first),
+            static_cast<jint>(second)
+    );
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return makeRootExecFailure(failurePrefix + " java call failed");
+    }
+
+    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
+}
+
 RootExecResult callStaticRootResultStringBooleanMethod(const char* methodName,
                                                        const char* signature,
                                                        const std::string& value,
@@ -1275,6 +1385,67 @@ RootExecResult AndroidBridge::devicePropSet(const std::string& key, const std::s
             key,
             value,
             "device prop set"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplayInfo() {
+    return callStaticRootResultNoArgMethod(
+            "deviceDisplayInfo",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device display info"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplaySetSize(int width, int height) {
+    return callStaticRootResultIntIntMethod(
+            "deviceDisplaySetSize",
+            "(II)Lcom/autolua/engine/RootCommandResult;",
+            width,
+            height,
+            "device display set size"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplayResetSize() {
+    return callStaticRootResultNoArgMethod(
+            "deviceDisplayResetSize",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device display reset size"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplaySetDensity(int density) {
+    return callStaticRootResultIntMethod(
+            "deviceDisplaySetDensity",
+            "(I)Lcom/autolua/engine/RootCommandResult;",
+            density,
+            "device display set density"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplayResetDensity() {
+    return callStaticRootResultNoArgMethod(
+            "deviceDisplayResetDensity",
+            "()Lcom/autolua/engine/RootCommandResult;",
+            "device display reset density"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplaySetBrightness(int brightness) {
+    return callStaticRootResultIntMethod(
+            "deviceDisplaySetBrightness",
+            "(I)Lcom/autolua/engine/RootCommandResult;",
+            brightness,
+            "device display set brightness"
+    );
+}
+
+RootExecResult AndroidBridge::deviceDisplaySetAutoBrightness(bool enabled) {
+    return callStaticRootResultBooleanMethod(
+            "deviceDisplaySetAutoBrightness",
+            "(Z)Lcom/autolua/engine/RootCommandResult;",
+            enabled,
+            "device display set auto brightness"
     );
 }
 
