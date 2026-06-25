@@ -25,10 +25,10 @@ Android + Lua + 最小 HostApi
 ## 2. 每次开始工作前必须做
 
 1. 阅读 `README.md`
-2. 阅读 `docs/PROJECT_PLAN.md`
+2. 阅读 `docs/项目总计划.md`
 3. 阅读当前要改动相关的架构/API 文档
-4. 如果改 Android 引擎、悬浮窗、脚本 API 或兼容层，阅读 `docs/OLD_PROJECT_REFERENCE.md`
-5. 如果改 Android 服务进程、HTTP 服务或 NativeEngine 启动链路，阅读 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md`
+4. 如果改 Android 引擎、悬浮窗、脚本 API 或兼容层，阅读 `docs/旧项目参考记录.md`
+5. 如果改 Android 服务进程、HTTP 服务或 NativeEngine 启动链路，阅读 `docs/ANDROID_引擎进程拆分.md`
 6. 检查工作区是否有已有文件和未完成改动
 7. 不要删除或重写用户已有改动
 
@@ -94,11 +94,11 @@ tools/                                  PC 辅助脚本或调试工具
 
 需要同步的文档：
 
-- 总体计划：`docs/PROJECT_PLAN.md`
-- 架构：`docs/ARCHITECTURE.md`
-- API：`docs/API_CONTRACT.md`
-- 脚本文档：`docs/SCRIPT_MANUAL.md`
-- 用户需要做的事：`docs/USER_TODO.md`
+- 总体计划：`docs/项目总计划.md`
+- 架构：`docs/架构设计.md`
+- API：`docs/API_契约.md`
+- 脚本文档：`docs/脚本文档.md`
+- 用户需要做的事：`docs/用户待办事项.md`
 
 ## 6. 验证要求
 
@@ -120,8 +120,8 @@ tools/                                  PC 辅助脚本或调试工具
 
 优先顺序：
 
-1. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续拆掉主进程对 `NativeEngine` 的直接依赖。
+1. 按 `docs/ANDROID_引擎进程拆分.md` 继续拆掉主进程对 `NativeEngine` 的直接依赖。
 2. Android 自动化能力优先推进 root 版本；无障碍优先模式作为单独路线保留，不在 Root 模式运行期自动切换。
-3. 继续补基础 `m.*` API，并同步维护 `docs/SCRIPT_MANUAL.md` 顶部速查表。
+3. 继续补基础 `m.*` API，并同步维护 `docs/脚本文档.md` 顶部速查表。
 4. 优先推进 root 截图优化和真实 root 设备压测，再做 Toast、剪贴板、启动 App、输入法输入等系统 API。
 5. 找色、比色等算法继续暂缓，等 root 截图和点阵读取路径稳定后再做。

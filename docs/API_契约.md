@@ -1279,4 +1279,4 @@ end
 3. 返回值
 4. Lua 示例
 5. 平台能力表
-6. `docs/SCRIPT_MANUAL.md`
+6. `docs/脚本文档.md`
