@@ -57,7 +57,6 @@ public final class MainActivity extends Activity {
     private static final int SECTION_MARGIN = 18;
     private static final int ITEM_MARGIN = 10;
     private static final int MAX_LOG_LINES = 30;
-    private static final long RUN_TO_STOP_DEBOUNCE_MS = 1000L;
     private static final int COLOR_BACKGROUND = Color.rgb(245, 247, 250);
     private static final int COLOR_SURFACE = Color.WHITE;
     private static final int COLOR_TEXT = Color.rgb(31, 41, 55);
@@ -77,7 +76,6 @@ public final class MainActivity extends Activity {
     private int currentTab = TAB_SCRIPT;
     private String latestMessage = "就绪";
     private boolean scriptRunning;
-    private long lastRunRequestAt;
     private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -417,19 +415,13 @@ public final class MainActivity extends Activity {
         }
 
         EngineService.runScriptFile(this, selectedScript.filePath);
-        lastRunRequestAt = System.currentTimeMillis();
         setRunningControls(true);
         setMessage("准备运行脚本：" + selectedScript.fileName);
     }
 
     private void stopRunningScriptFromRunButton() {
-        long elapsedMs = System.currentTimeMillis() - lastRunRequestAt;
-        if (elapsedMs >= 0 && elapsedMs < RUN_TO_STOP_DEBOUNCE_MS) {
-            setMessage("脚本刚开始运行，已忽略重复点击");
-            return;
-        }
-
         EngineService.stopScript(this);
+        setRunningControls(true);
         setMessage("已请求停止脚本");
     }
 

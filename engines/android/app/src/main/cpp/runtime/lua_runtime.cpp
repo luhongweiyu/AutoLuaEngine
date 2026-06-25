@@ -71,6 +71,10 @@ void LuaRuntime::registerHostApi() {
     ::registerHostApi(state_);
 }
 
+bool LuaRuntime::shouldInterruptNow() const {
+    return shouldInterrupt_ != nullptr && shouldInterrupt_(controlContext_);
+}
+
 void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
     (void) debug;
 
@@ -78,11 +82,11 @@ void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 
-    if (runtime == nullptr || runtime->shouldInterrupt_ == nullptr) {
+    if (runtime == nullptr) {
         return;
     }
 
-    if (runtime->shouldInterrupt_(runtime->controlContext_)) {
+    if (runtime->shouldInterruptNow()) {
         luaL_error(state, "script stopped");
     }
 }

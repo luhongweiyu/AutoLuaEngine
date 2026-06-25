@@ -25,6 +25,14 @@ public:
      */
     std::string runText(const char* code, bool (*shouldInterrupt)(void*), void* controlContext);
 
+    /**
+     * 查询当前脚本是否应该中断。
+     *
+     * HostApi 的阻塞型函数（例如 sleep）会主动调用它，避免只有 VM hook
+     * 执行到下一批 Lua 指令时才响应停止。
+     */
+    bool shouldInterruptNow() const;
+
 private:
     struct lua_State* state_;
     bool (*shouldInterrupt_)(void*);

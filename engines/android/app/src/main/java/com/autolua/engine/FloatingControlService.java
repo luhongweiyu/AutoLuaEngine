@@ -32,8 +32,6 @@ import org.json.JSONObject;
  * 仍然可以点开控制面板。脚本运行统一交给 EngineService，本服务只负责浮窗交互。
  */
 public final class FloatingControlService extends Service {
-    private static final long RUN_TO_STOP_DEBOUNCE_MS = 1000L;
-
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private WindowManager windowManager;
@@ -42,7 +40,6 @@ public final class FloatingControlService extends Service {
     private WindowManager.LayoutParams bubbleLayoutParams;
     private int bubbleSizePx;
     private boolean scriptRunning;
-    private long lastRunRequestAt;
     private int touchSlopPx;
     private int lastTouchX;
     private int lastTouchY;
@@ -75,6 +72,7 @@ public final class FloatingControlService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         createBubbleViewIfAllowed();
+        refreshRunningStateFromEngine();
         return START_STICKY;
     }
 
@@ -262,7 +260,7 @@ public final class FloatingControlService extends Service {
         LinearLayout thirdRow = createActionRow();
         thirdRow.addView(createPanelAction("事", "事件", this::showUserEventPlaceholder));
         thirdRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
-        thirdRow.addView(createPanelAction("关", "关闭服务", this::stopSelf));
+        thirdRow.addView(createPanelAction("关", "关闭引擎", this::shutdownEngineService));
         LinearLayout.LayoutParams thirdRowParams = matchWidthWrapContent();
         thirdRowParams.topMargin = dp(22);
         panel.addView(thirdRow, thirdRowParams);
@@ -331,20 +329,22 @@ public final class FloatingControlService extends Service {
         }
 
         EngineService.runScriptFile(this, item.filePath);
-        lastRunRequestAt = System.currentTimeMillis();
         updateRunningState(EngineService.STATE_RUNNING);
         showToast("已发送运行命令：" + item.fileName);
     }
 
     private void stopRunningScriptFromRunAction() {
-        long elapsedMs = System.currentTimeMillis() - lastRunRequestAt;
-        if (elapsedMs >= 0 && elapsedMs < RUN_TO_STOP_DEBOUNCE_MS) {
-            showToast("脚本刚开始运行，已忽略重复点击");
-            return;
-        }
-
         EngineService.stopScript(this);
+        updateRunningState(EngineService.STATE_STOPPING);
         showToast("已请求停止脚本");
+    }
+
+    private void shutdownEngineService() {
+        EngineService.shutdownEngine(this);
+        updateRunningState(EngineService.STATE_STOPPING);
+        EngineSettings.setFloatingPanelExpanded(this, false);
+        removePanelView();
+        showToast("已请求关闭脚本引擎");
     }
 
     private void openScreenCapturePermission() {
@@ -445,10 +445,6 @@ public final class FloatingControlService extends Service {
                 || EngineService.STATE_PAUSING.equals(state)
                 || EngineService.STATE_PAUSED.equals(state)
                 || EngineService.STATE_STOPPING.equals(state);
-        if (scriptRunning == running) {
-            return;
-        }
-
         scriptRunning = running;
         mainHandler.post(() -> {
             if (bubbleView != null) {

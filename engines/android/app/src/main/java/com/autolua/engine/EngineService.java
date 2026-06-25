@@ -28,6 +28,8 @@ public final class EngineService extends Service {
             "com.autolua.engine.action.SET_ROOT_MODE";
     public static final String ACTION_SAVE_SCREEN_CAPTURE_PERMISSION =
             "com.autolua.engine.action.SAVE_SCREEN_CAPTURE_PERMISSION";
+    public static final String ACTION_SHUTDOWN_ENGINE =
+            "com.autolua.engine.action.SHUTDOWN_ENGINE";
     public static final String ACTION_STATUS =
             "com.autolua.engine.action.STATUS";
 
@@ -62,6 +64,12 @@ public final class EngineService extends Service {
     public static void stopScript(Context context) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_STOP_SCRIPT);
+        context.startService(intent);
+    }
+
+    public static void shutdownEngine(Context context) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_SHUTDOWN_ENGINE);
         context.startService(intent);
     }
 
@@ -125,6 +133,15 @@ public final class EngineService extends Service {
             return START_STICKY;
         }
 
+        if (ACTION_SHUTDOWN_ENGINE.equals(intent.getAction())) {
+            NativeEngine.stop();
+            broadcastStatus(STATE_STOPPING, "已请求关闭脚本引擎");
+            shutdownRuntime();
+            stopSelf();
+            android.os.Process.killProcess(android.os.Process.myPid());
+            return START_NOT_STICKY;
+        }
+
         if (ACTION_PAUSE_SCRIPT.equals(intent.getAction())) {
             boolean accepted = NativeEngine.pause();
             broadcastStatus(
@@ -180,6 +197,18 @@ public final class EngineService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onDestroy() {
+        shutdownRuntime();
+        super.onDestroy();
+    }
+
+    private void shutdownRuntime() {
+        EngineHttpServer.stop();
+        RootHelperBridge.shutdown();
+        RootShellBridge.shutdown();
     }
 
     private void runScriptFileInternal(String scriptPath) {

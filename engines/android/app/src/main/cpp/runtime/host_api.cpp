@@ -1,5 +1,6 @@
 #include "host_api.h"
 
+#include <algorithm>
 #include <android/log.h>
 #include <chrono>
 #include <cstdio>
@@ -15,6 +16,7 @@
 #include "../engine/engine_config.h"
 #include "../core/system_api.h"
 #include "image_store.h"
+#include "lua_runtime.h"
 #include "log_buffer.h"
 
 extern "C" {
@@ -72,7 +74,27 @@ int luaSleep(lua_State* state) {
         return luaL_error(state, "sleep duration must be greater than or equal to 0");
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(duration));
+    // sleep 也要响应停止请求，否则长时间 m.sleep(...) 期间点击停止会显得无效。
+    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+
+    const auto deadline = std::chrono::steady_clock::now()
+            + std::chrono::milliseconds(duration);
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (runtime != nullptr && runtime->shouldInterruptNow()) {
+            return luaL_error(state, "script stopped");
+        }
+
+        auto remaining = deadline - std::chrono::steady_clock::now();
+        auto slice = std::min(
+                std::chrono::duration_cast<std::chrono::milliseconds>(remaining),
+                std::chrono::milliseconds(50)
+        );
+        if (slice.count() > 0) {
+            std::this_thread::sleep_for(slice);
+        }
+    }
     lua_pushboolean(state, 1);
     return 1;
 }

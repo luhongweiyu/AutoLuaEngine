@@ -22,6 +22,12 @@ public final class RootHelperBridge {
     private RootHelperBridge() {
     }
 
+    public static void shutdown() {
+        synchronized (LOCK) {
+            closeSessionLocked();
+        }
+    }
+
     public static boolean prepare() {
         synchronized (LOCK) {
             try {

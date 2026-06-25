@@ -57,6 +57,16 @@ public final class EngineHttpServer {
         }
     }
 
+    public static void stop() {
+        synchronized (LOCK) {
+            if (instance == null) {
+                return;
+            }
+            instance.stopInternal();
+            instance = null;
+        }
+    }
+
     private void startInternal() {
         if (running) {
             return;
@@ -66,6 +76,13 @@ public final class EngineHttpServer {
         running = true;
         Thread acceptThread = new Thread(this::runAcceptLoop, "EngineHttpServer");
         acceptThread.start();
+    }
+
+    private void stopInternal() {
+        running = false;
+        closeQuietly(serverSocket);
+        serverSocket = null;
+        clientExecutor.shutdownNow();
     }
 
     private void runAcceptLoop() {

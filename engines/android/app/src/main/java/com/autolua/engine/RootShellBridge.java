@@ -122,6 +122,18 @@ public final class RootShellBridge {
                 && rootShellSession.isAlive();
     }
 
+    public static synchronized void shutdown() {
+        closeRootShellSession();
+        rootRuntimePrepared = false;
+        rootRuntimeAvailable = false;
+        cachedRootAvailable = null;
+        rootCacheExpireAt = 0L;
+        cachedRootCommandMode = RootCommandMode.UNKNOWN;
+        cachedRootSuPath = "su";
+        lastRootError = "root runtime is stopped";
+        lastProbeAttempts = Collections.emptyList();
+    }
+
     public static RootCommandResult exec(String command, int timeoutMs) {
         if (command == null || command.trim().isEmpty()) {
             return RootCommandResult.failure("root command is required");
