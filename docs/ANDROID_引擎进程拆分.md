@@ -149,7 +149,7 @@ u0_a51 ... com.autolua.engine:engine
 ```text
 脚本短任务结束 -> 保持 EngineService 存活，方便 IDE 连续运行
 严重崩溃恢复 -> 重启 :engine 进程
-用户手动关闭 -> stopService 后释放 HTTP server / native runtime
+用户手动强停进程 -> 直接 kill :engine，并释放 HTTP server / native runtime
 ```
 
 第一版先不在脚本结束后主动杀进程，避免 IDE 连接频繁断开。
