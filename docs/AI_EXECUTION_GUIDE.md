@@ -121,7 +121,7 @@ tools/                                  PC 辅助脚本或调试工具
 优先顺序：
 
 1. 按 `docs/ANDROID_ENGINE_PROCESS_SPLIT.md` 继续拆掉主进程对 `NativeEngine` 的直接依赖。
-2. Android 自动化能力优先考虑 root 版本；无 root 时再保留无障碍 fallback。
+2. Android 自动化能力优先推进 root 版本；无障碍优先模式作为单独路线保留，不在 Root 模式运行期自动切换。
 3. 继续补基础 `m.*` API，并同步维护 `docs/SCRIPT_MANUAL.md` 顶部速查表。
 4. 优先推进 root 截图优化和真实 root 设备压测，再做 Toast、剪贴板、启动 App、输入法输入等系统 API。
 5. 找色、比色等算法继续暂缓，等 root 截图和点阵读取路径稳定后再做。

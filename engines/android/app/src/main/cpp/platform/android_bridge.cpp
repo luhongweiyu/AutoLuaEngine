@@ -1548,7 +1548,7 @@ bool AndroidBridge::hasScreenCapturePermission() {
     return callStaticBooleanMethod0("hasScreenCapturePermission", "()Z");
 }
 
-ScreenCaptureResult AndroidBridge::captureScreen() {
+ScreenCaptureResult callScreenCaptureMethod(const char* methodName, const char* errorPrefix) {
     JNIEnv* env = getEnv();
     if (env == nullptr) {
         return makeCaptureFailure("jni environment is not available");
@@ -1562,25 +1562,25 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
 
     jmethodID methodId = env->GetStaticMethodID(
             bridgeClass,
-            "captureScreen",
+            methodName,
             "()Lcom/autolua/engine/ScreenCaptureResult;"
     );
     if (methodId == nullptr) {
         env->ExceptionClear();
         env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure("screen capture method is not available");
+        return makeCaptureFailure(std::string(errorPrefix) + " method is not available");
     }
 
     jobject resultObject = env->CallStaticObjectMethod(bridgeClass, methodId);
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
         env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure("screen capture java call failed");
+        return makeCaptureFailure(std::string(errorPrefix) + " java call failed");
     }
 
     if (resultObject == nullptr) {
         env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure("screen capture returned empty result");
+        return makeCaptureFailure(std::string(errorPrefix) + " returned empty result");
     }
 
     jclass resultClass = env->GetObjectClass(resultObject);
@@ -1588,7 +1588,7 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
         env->ExceptionClear();
         env->DeleteLocalRef(resultObject);
         env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure("screen capture result class is not available");
+        return makeCaptureFailure(std::string(errorPrefix) + " result class is not available");
     }
 
     jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
@@ -1618,7 +1618,7 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
         env->DeleteLocalRef(resultClass);
         env->DeleteLocalRef(resultObject);
         env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure("screen capture result fields are not available");
+        return makeCaptureFailure(std::string(errorPrefix) + " result fields are not available");
     }
 
     ScreenCaptureResult result;
@@ -1649,13 +1649,13 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
 
         if (source == nullptr || sourceCapacity <= 0) {
             result.success = false;
-            result.error = "screen capture pixel buffer is not direct";
+            result.error = std::string(errorPrefix) + " pixel buffer is not direct";
         } else if (static_cast<size_t>(sourceCapacity) < requiredSourceSize) {
             result.success = false;
-            result.error = "screen capture pixel buffer is incomplete";
+            result.error = std::string(errorPrefix) + " pixel buffer is incomplete";
         } else if (result.pixelStride < 4) {
             result.success = false;
-            result.error = "screen capture pixel stride is unsupported";
+            result.error = std::string(errorPrefix) + " pixel stride is unsupported";
         } else if (result.pixelStride == 4) {
             result.pixels.resize(targetSize);
             for (int y = 0; y < result.height; ++y) {
@@ -1688,7 +1688,7 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
         }
     } else if (result.success) {
         result.success = false;
-        result.error = "screen capture pixel buffer is empty";
+        result.error = std::string(errorPrefix) + " pixel buffer is empty";
     }
 
     env->CallVoidMethod(resultObject, closeMethod);
@@ -1713,10 +1713,18 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
     env->DeleteLocalRef(bridgeClass);
 
     if (!result.success && result.error.empty()) {
-        result.error = "screen capture failed";
+        result.error = std::string(errorPrefix) + " failed";
     }
 
     return result;
+}
+
+ScreenCaptureResult AndroidBridge::captureScreen() {
+    return callScreenCaptureMethod("captureScreen", "screen capture");
+}
+
+ScreenCaptureResult AndroidBridge::captureRootScreen() {
+    return callScreenCaptureMethod("captureRootScreen", "root screen capture");
 }
 
 bool AndroidBridge::touchTap(int x, int y) {

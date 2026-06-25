@@ -67,6 +67,10 @@ tap(300, 500)
 
 `useApi` 会把指定命名空间的一层函数导出到 `_G`。新脚本不应该依赖这些全局导出。
 
+native 侧当前的统一系统能力边界是 `core/SystemApi`。Lua 的 `_host`、后续 JS 的 HostApi、以及 IDE/协议入口都应该先绑定这一层，再由它转到平台实现，不要在不同脚本语言里各自直连 Android 平台桥。
+
+`libengine.so` 当前只对插件/FFI 预留两个稳定 C ABI：`ael_system_version()` 和 `ael_system_capabilities_json()`。具体系统 API 暂不直接开放 C ABI，先通过 HostApi/JSON-RPC 使用，等结构体和内存所有权规则稳定后再扩展。
+
 模块使用小写名：
 
 - `m.log`
@@ -271,7 +275,7 @@ m.log.print(info.platform)
 说明：
 
 - 判断当前 Android 设备是否可以通过 `su` 获取 root shell
-- 当前触控和按键能力会优先使用 root，失败后回退无障碍
+- Root 模式下脚本运行前会统一检查 root 授权；通过后触控和按键只走 root，不改走无障碍
 
 返回：
 
@@ -285,8 +289,8 @@ true 或 false
 
 - 设置 Android Root 模式开关
 - 默认开启
-- 开启后触控、按键、截图等自动化能力优先走 root，再按能力回退无障碍或 MediaProjection
-- 关闭后不主动走 root；显式 `m.root.exec(...)` 仍会尝试 root 命令
+- 开启后脚本运行前必须通过 root 授权检查，触控、按键、输入、截图等自动化能力只走 root
+- 关闭后使用无障碍/系统截图授权路线；显式 `m.root.exec(...)` 仍会尝试 root 命令
 - 该设置持久化到 App 本地设置，App 界面、脚本和 IDE 查询的是同一份状态
 
 Lua 示例：
@@ -571,8 +575,8 @@ true 或 false
 说明：
 
 - 启动 Android 应用
-- Root 模式开启且 root 可用时，优先使用 root `monkey`
-- root 启动失败后回退普通 Launcher Intent
+- Root 模式下只使用 root `monkey`
+- 无障碍优先模式下才使用普通 Launcher Intent
 
 Lua 示例：
 
@@ -936,7 +940,7 @@ running -> pausing -> paused -> running
 说明：
 
 - 点击屏幕坐标
-- Android 优先 root，失败后回退无障碍
+- Root 模式下只走 root `input tap`；无障碍优先模式下才走无障碍点击
 - 如果 root 和无障碍都不可用，返回 `nil, "touch tap failed; root or accessibility service is not available"`
 
 Lua 示例：
@@ -954,7 +958,7 @@ end
 
 - 滑动屏幕
 - `duration` 单位毫秒
-- Android 优先 root，失败后回退无障碍
+- Root 模式下只走 root `input swipe`；无障碍优先模式下才走无障碍滑动
 - 如果 root 和无障碍都不可用，返回 `nil, "touch swipe failed; root or accessibility service is not available"`
 
 Lua 示例：
@@ -971,8 +975,8 @@ end
 说明：
 
 - 向当前焦点输入框输入文本
-- Android 第一版先使用 root `input text`
-- root `input text` 失败后自动回退剪贴板 + root 粘贴
+- Android 第一版只使用 root `input text`
+- 中文、换行和复杂符号由脚本显式调用 `m.input.pasteText`
 - Root 模式关闭、root 不可用或当前焦点控件无法接收输入时返回 `nil, "input text failed; root is not available or focused control cannot receive text"`
 
 Lua 示例：
@@ -1028,8 +1032,8 @@ true 或 false
 说明：
 
 - 执行 Android 通用按键码
-- Android 第一版优先使用 root `input keyevent`
-- `keyCode = 4` 和 `keyCode = 3` 可在 root 失败后回退无障碍返回/Home
+- Root 模式下只使用 root `input keyevent`
+- 无障碍优先模式下 `keyCode = 4` 和 `keyCode = 3` 走无障碍返回/Home
 - 其他 keyCode 当前依赖 root；无 root 时返回 `nil, "key press failed; root or accessibility service is not available"`
 
 Lua 示例：
@@ -1046,7 +1050,7 @@ end
 说明：
 
 - 执行系统返回键
-- Android 优先 root `input keyevent`，失败后回退无障碍全局动作
+- Root 模式下只走 root `input keyevent`；无障碍优先模式下走无障碍全局动作
 - 如果 root 和无障碍都不可用，返回 `nil, "key back failed; root or accessibility service is not available"`
 
 Lua 示例：
@@ -1063,7 +1067,7 @@ end
 说明：
 
 - 执行系统主页键
-- Android 优先 root `input keyevent`，失败后回退无障碍全局动作
+- Root 模式下只走 root `input keyevent`；无障碍优先模式下走无障碍全局动作
 - 如果 root 和无障碍都不可用，返回 `nil, "key home failed; root or accessibility service is not available"`
 
 Lua 示例：
@@ -1082,8 +1086,9 @@ end
 - 获取当前屏幕截图
 - Android 第一版返回内存图片句柄，不做 PNG 编码，不写磁盘
 - 句柄只暴露基础元信息；后续找色、比色直接在 native 内存上处理
-- Android 优先使用 root 原始 `screencap`，失败后回退 MediaProjection
-- root 不可用且未授权时返回 `nil, "screen capture permission is not granted"`
+- Root 模式下只使用 root 原始 `screencap`
+- 无障碍优先模式下使用 MediaProjection 系统截图授权
+- root 不可用或未授权截图时返回 `nil, errorMessage`
 
 Lua 示例：
 
@@ -1232,7 +1237,7 @@ end
 | `m.root.file.*` | 支持，文本、stat/list、mkdir、chmod/chown、递归删除第一版 | 预留 | 受限 |
 | `m.root.process.*` | 支持，pidOf/list/info/stats/kill 第一版 | 预留 | 受限 |
 | `m.app.isInstalled` | 支持 | 预留 | 受限 |
-| `m.app.open` | 支持，root 优先 / Intent fallback | 预留 | 受限 |
+| `m.app.open` | 支持，Root 模式 root-only / 无障碍优先模式 Intent | 预留 | 受限 |
 | `m.app.stop` | 支持，root | 预留 | 受限 |
 | `m.app.clearData` | 支持，root | 预留 | 受限 |
 | `m.app.grant` | 支持，root | 预留 | 受限 |
@@ -1249,16 +1254,17 @@ end
 | `m.file.exists` | 支持 | 预留 | 预留 |
 | `m.file.remove` | 支持 | 预留 | 预留 |
 | `m.file.appDataPath` | 支持 | 预留 | 预留 |
-| `m.touch.tap` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
-| `m.touch.swipe` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
-| `m.input.text` | 支持，root input text + 剪贴板粘贴 fallback | 预留 | 受限 |
+| `m.touch.tap` | 支持，Root 模式 root-only / 无障碍优先模式无障碍 | 预留 | 受限 |
+| `m.touch.swipe` | 支持，Root 模式 root-only / 无障碍优先模式无障碍 | 预留 | 受限 |
+| `m.input.text` | 支持，root input text，只走 root | 预留 | 受限 |
 | `m.input.pasteText` | 支持，root 剪贴板粘贴 | 预留 | 受限 |
 | `m.key.isAccessibilityEnabled` | 支持 | 预留 | 预留 |
 | `m.device.isRootAvailable` | 支持 | 预留 | 受限 |
-| `m.key.press` | 支持，root 优先 / Back、Home 无障碍 fallback | 预留 | 受限 |
-| `m.key.back` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
-| `m.key.home` | 支持，root 优先 / 无障碍 fallback | 预留 | 受限 |
-| `m.screen.capture` | 支持，root 优先 / MediaProjection fallback | 预留 | 受限 |
+| `m.key.press` | 支持，Root 模式 root-only / 无障碍优先模式 Back、Home | 预留 | 受限 |
+| `m.key.back` | 支持，Root 模式 root-only / 无障碍优先模式无障碍 | 预留 | 受限 |
+| `m.key.home` | 支持，Root 模式 root-only / 无障碍优先模式无障碍 | 预留 | 受限 |
+| `m.screen.capture` | 支持，Root 模式 root-only / 无障碍优先模式 MediaProjection | 预留 | 受限 |
+| `m.root.screen.capture` | 支持，显式 root-only 截图 | 预留 | 受限 |
 | `m.image.release` | 支持 | 预留 | 预留 |
 | `m.image.getPixel` | 支持 | 预留 | 预留 |
 | `m.image.getPixels` | 支持 | 预留 | 预留 |

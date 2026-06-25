@@ -37,6 +37,7 @@
 | 亮度 | `m.device.display.setAutoBrightness(enabled)` | `m.setAutoBrightness(...)` | [查看](#api-device-display) |
 | Root | `m.root.exec(command, timeoutMs)` | `m.rootExec(...)` | [查看](#api-root-exec) |
 | Root | `m.root.status()` | `m.rootStatus()` | [查看](#api-root-status) |
+| Root 截图 | `m.root.screen.capture()` | `m.rootCapture()` | [查看](#api-root-screen-capture) |
 | Root 文件 | `m.root.file.exists(path)` | `m.rootFileExists(path)` | [查看](#api-root-file-exists) |
 | Root 文件 | `m.root.file.readText(path, timeoutMs)` | `m.rootReadText(...)` | [查看](#api-root-file-read-text) |
 | Root 文件 | `m.root.file.writeText(path, content, timeoutMs)` | `m.rootWriteText(...)` | [查看](#api-root-file-write-text) |
@@ -88,8 +89,8 @@
 
 | 命名空间 | 已有函数 |
 |---|---|
-| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootProcessStats`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
-| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootProcessStats`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `lr` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootCapture`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootProcessStats`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
+| `cd` | `print`、`sleep`、`tap`、`swipe`、`inputText`、`pasteText`、`pressKey`、`back`、`home`、`isRootAvailable`、`screenState`、`wakeDevice`、`sleepDevice`、`battery`、`rotation`、`setRotation`、`getSetting`、`putSetting`、`deleteSetting`、`getProp`、`setProp`、`displayInfo`、`setDisplaySize`、`resetDisplaySize`、`setDisplayDensity`、`resetDisplayDensity`、`setBrightness`、`setAutoBrightness`、`rootExec`、`rootStatus`、`rootCapture`、`rootStat`、`rootList`、`rootChown`、`rootPidOf`、`rootProcessList`、`rootProcessInfo`、`rootProcessStats`、`rootKill`、`runApp`、`closeApp`、`clearAppData`、`grantAppPermission`、`revokeAppPermission`、`installApp`、`uninstallApp`、`disableApp`、`enableApp`、`isAppInstalled`、`capture`、`getPixel`、`getPixels`、`releaseImage` |
 
 ## 1. 适用范围
 
@@ -253,17 +254,17 @@ y 方向：向下增加
 
 ### 3.4 权限规则
 
-触控和按键当前优先使用 Android root `input` 命令，root 不可用或命令失败时回退无障碍服务。脚本可以按需检查当前自动化状态：
+Root 模式默认开启。脚本运行前会统一检查 App 进程是否有 root 授权；没有 root 授权会直接拒绝运行，不再等到点击、截图等调用时才发现失败。
 
 ```lua
 local info = m.device.info()
 if info.automationMode == "none" then
-    print("需要开启 root 或无障碍服务")
+    print("需要给 App 授权 root")
     return
 end
 ```
 
-截图优先使用 root 原始 `screencap`，root 不可用或 root 截图失败时回退 Android MediaProjection 授权。无 root 时，需要先在 App 中点击 `开启截图授权`，并在系统弹窗中确认。
+Root 模式下，触控、按键、输入、截图只走 root 路线。手动切到“无障碍优先”后，触控/按键/截图才使用非 root 路线。
 
 ### 3.5 高频截图和点阵读取规则
 
@@ -296,7 +297,7 @@ benchmark avgDurationMs = 平均取帧耗时
 source count = 每种截图来源的帧数
 ```
 
-换到能给 App 授权 `su` 的设备后，优先看 `source` 是否为 `root-screencap`。如果仍是 `media-projection`，说明 root 截图路径没有拿到授权或执行失败。
+Root 模式下 `source` 应为 `root-screencap`；切到“无障碍优先”并完成系统截图授权后，`source` 才会是 `media-projection`。
 
 ## 4. 全局函数
 
@@ -458,9 +459,9 @@ true 或 false
 
 ```lua
 if m.device.isRootAvailable() then
-    print("root 可用，触控会优先走 root input")
+    print("root 可用，可以运行 root 模式脚本")
 else
-    print("root 不可用，会回退无障碍")
+    print("root 不可用，root 模式会拒绝运行脚本")
 end
 ```
 
@@ -474,7 +475,7 @@ end
 
 | 名称 | 类型 | 说明 |
 |---|---|---|
-| `enabled` | boolean | `true` 表示启用 Root 优先；`false` 表示不主动走 root，触控和按键尽量走无障碍 fallback |
+| `enabled` | boolean | `true` 表示启用 Root 模式；`false` 表示切到无障碍/系统授权路线 |
 
 返回值：
 
@@ -496,6 +497,7 @@ end
 
 - 默认值为 `true`，和 App 主界面“运行模式：Root 优先（默认）”一致。
 - 该设置会持久化，App 按钮、脚本和 IDE 查询到的是同一份状态。
+- Root 模式下脚本运行前必须通过 root 授权检查，不通过就拒绝运行。
 - 显式 `m.root.exec(...)` 不受这个开关影响，它始终表示“尝试执行 root 命令”。
 
 <a id="api-device-screen-state"></a>
@@ -861,9 +863,9 @@ end
 说明：
 
 - `available` 表示 App 进程是否能通过 `su` 拿到 root shell。
-- `commandMode` 是当前命中的 su 参数格式，例如 `SU_C`、`SU_0_SH_C`。
-- `suPath` 是当前命中的 su 路径，例如 `su`、`/system/xbin/su`。
-- `attempts` 会列出最近一轮探测过的 su 路径和参数格式。
+- `commandMode` 固定为 `SU_C`，即 `su -c`。
+- `suPath` 固定为 `su`。
+- `attempts` 记录最近一次 `su -c id -u` 的 stdout、stderr 和退出码。
 - `adb shell` 能 root 不代表 App 进程一定能 root，最终以这里的 `available` 为准。
 
 <a id="api-root-file-exists"></a>
@@ -1356,7 +1358,7 @@ end
 
 ### 7.2 `m.app.open(packageName)` / `m.app.start(packageName)` / `m.openApp(...)`
 
-启动指定应用。Root 模式开启且 root 可用时，优先通过 root `monkey` 启动；失败后回退普通 Launcher Intent。
+启动指定应用。Root 模式下只通过 root `monkey` 启动；无障碍优先模式下才使用普通 Launcher Intent。
 
 ```lua
 local ok, err = m.app.open("com.android.settings")
@@ -1803,7 +1805,7 @@ end
 
 ## 9. 触控 API
 
-触控 API 当前优先使用 root `input` 命令，失败后回退无障碍服务。脚本调用前可以先检查自动化状态。
+触控 API 在 Root 模式下只使用 root `input` 命令。切到“无障碍优先”后才使用无障碍触控。
 
 ```lua
 local info = m.device.info()
@@ -1817,7 +1819,7 @@ end
 
 ### 9.1 `m.touch.tap(x, y)` / `m.tap(x, y)`
 
-点击屏幕坐标。Android 端当前优先走 root `input tap`，失败后回退无障碍服务。
+点击屏幕坐标。Root 模式下走 root `input tap`；无障碍优先模式下走无障碍点击。
 
 参数：
 
@@ -1852,7 +1854,7 @@ touch tap failed; root or accessibility service is not available
 
 ### 9.2 `m.touch.swipe(x1, y1, x2, y2, duration)` / `m.swipe(...)`
 
-从一个坐标滑动到另一个坐标。Android 端当前优先走 root `input swipe`，失败后回退无障碍服务。
+从一个坐标滑动到另一个坐标。Root 模式下走 root `input swipe`；无障碍优先模式下走无障碍滑动。
 
 参数：
 
@@ -1882,7 +1884,7 @@ end
 
 ## 10. 输入 API
 
-输入 API 当前优先面向 root 设备。`m.input.text` 会先尝试 Android `input text`，失败后自动回退剪贴板粘贴；`m.input.pasteText` 可以显式使用剪贴板路线。
+输入 API 当前面向 root 设备。`m.input.text` 只执行 Android `input text`；需要中文、换行和复杂符号时，由脚本显式调用 `m.input.pasteText`。
 
 <a id="api-input-text"></a>
 
@@ -1894,7 +1896,7 @@ end
 
 | 名称 | 类型 | 说明 |
 |---|---|---|
-| `text` | string | 要输入的文本。简单文本优先走 root `input text`，复杂文本自动回退剪贴板粘贴 |
+| `text` | string | 要输入的简单文本。中文、换行和复杂符号建议显式用 `m.input.pasteText` |
 
 返回值：
 
@@ -1915,8 +1917,8 @@ end
 当前限制：
 
 - Root 模式关闭或 App 无法获取 root 时会失败。
-- 剪贴板回退会覆盖系统当前剪贴板内容。
-- 当前焦点控件必须能接收输入或粘贴文本。
+- `m.input.text` 只走 root `input text`，复杂文本由脚本显式调用 `m.input.pasteText`。
+- 当前焦点控件必须能接收 `input text`。
 
 常见失败：
 
@@ -1960,7 +1962,7 @@ end
 
 ## 11. 按键 API
 
-按键 API 当前优先通过 root `input keyevent` 实现，失败后回退 Android 无障碍服务。
+按键 API 在 Root 模式下只通过 root `input keyevent` 实现。切到“无障碍优先”后，Back/Home 走无障碍全局动作。
 
 <a id="api-key-accessibility"></a>
 
@@ -2016,8 +2018,8 @@ end
 
 当前路由：
 
-- Root 模式开启且 root 可用时，走 root `input keyevent`。
-- `keyCode = 4` 或 `keyCode = 3` 时，root 失败后可回退无障碍返回/Home。
+- Root 模式开启时，只走 root `input keyevent`。
+- 无障碍优先模式下，`keyCode = 4` 或 `keyCode = 3` 走无障碍返回/Home。
 - 其他通用按键当前依赖 root；无 root 时会失败。
 
 常见失败：
@@ -2088,7 +2090,7 @@ end
 
 ### 12.1 `m.screen.capture()` / `m.capture()`
 
-获取当前屏幕截图，并返回 native 内存图片句柄。Android 端当前优先使用 root 原始 `screencap`，失败后回退 MediaProjection。
+获取当前屏幕截图，并返回 native 内存图片句柄。Root 模式下只使用 root 原始 `screencap`；无障碍优先模式下使用 MediaProjection 系统截图授权。
 
 参数：
 
@@ -2154,9 +2156,47 @@ m.image.release(img)
 
 - 返回的是图片句柄，不是文件路径。
 - 图片像素数据保留在 native 内存中。
-- `source` 和 `captureDurationMs` 用于判断当前是否真的走 root 截图，以及后续压测截图路径。
+- `source` 和 `captureDurationMs` 用于判断当前实际截图路线和后续压测截图路径。
 - App 内置 `截图压测` 脚本可连续验证多帧截图耗时；压测脚本会主动释放每一帧图片句柄。
 - 使用完必须调用 `m.image.release(img)`。
+
+<a id="api-root-screen-capture"></a>
+
+### 12.2 `m.root.screen.capture()` / `m.rootCapture()`
+
+显式 root-only 截图。该接口只走 root 原始 `screencap`；root 不可用或截图失败时直接返回错误，适合验证 root 截图授权和压测 root 截图路径。
+
+参数：
+
+```text
+无
+```
+
+返回值：
+
+```text
+成功：image
+失败：nil, errorMessage
+```
+
+示例：
+
+```lua
+local img, err = m.root.screen.capture()
+if not img then
+    print("root capture failed:", err)
+    return
+end
+
+print(img.source, img.captureDurationMs)
+m.image.release(img)
+```
+
+说明：
+
+- 成功时 `img.source` 固定为 `"root-screencap"`。
+- 该接口不受“无障碍优先”模式影响，始终尝试 root 截图。
+- 当前仍通过 Android `screencap` 原始输出取帧；后续高频找色会升级到常驻 root worker，减少每帧创建命令和大块 stdout 复制。
 
 ## 13. 图片 API
 

@@ -32,6 +32,10 @@
 5. **功能先小闭环，再扩展。**
    每个阶段都必须有可运行、可验证的产物。
 
+6. **系统能力先收敛到 native 核心层。**
+   Android 第一版把 root、截图、触控、按键、应用控制等能力先进入 `libengine.so` 内的 `core/SystemApi`，Lua/后续 JS/插件只绑定这一层或其上层 HostApi，不各自重复实现系统调用。
+   当前已预留 `core/system_c_api.h`，先提供 `ael_system_version()` 和 `ael_system_capabilities_json()`，给后续 Lua FFI、JS native binding 和插件做版本/能力确认。
+
 ## 3. 总体阶段
 
 ### 阶段 0：规划与准备
@@ -183,11 +187,11 @@ Lua run failed: expected lua runtime error
 
 任务：
 
-- [x] `m.touch.tap(x, y)`，优先走 root，失败后回退无障碍
-- [x] `m.touch.swipe(x1, y1, x2, y2, duration)`，优先走 root，失败后回退无障碍
-- [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，按键优先走 root，失败后回退无障碍
-- [x] `m.key.press(keyCode)` 通用按键，root 优先，Back/Home 可回退无障碍
-- [x] `m.input.text(text)` 简单文本输入，先走 root `input text`，失败后回退剪贴板粘贴
+- [x] `m.touch.tap(x, y)`，Root 模式只走 root，无障碍优先模式走无障碍
+- [x] `m.touch.swipe(x1, y1, x2, y2, duration)`，Root 模式只走 root，无障碍优先模式走无障碍
+- [x] `m.key.isAccessibilityEnabled()`、`m.key.back()`、`m.key.home()`，Root 模式只走 root，无障碍优先模式走无障碍
+- [x] `m.key.press(keyCode)` 通用按键，Root 模式只走 root，无障碍优先模式只处理 Back/Home
+- [x] `m.input.text(text)` 简单文本输入，只走 root `input text`
 - [x] `m.input.pasteText(text)` 复杂文本输入，当前走剪贴板 + root 粘贴键
 - [x] `m.device.isRootAvailable()` 和 `m.device.info().rootAvailable`
 - [x] App 主界面 Root 模式开关，默认开启
@@ -199,9 +203,10 @@ Lua run failed: expected lua runtime error
 - [x] `m.device.screenState/wake/sleep/battery/rotation/setRotation` root 设备状态、唤醒/息屏、电量和方向控制第一版
 - [x] `m.device.settings.get/put/delete`、`m.device.prop.get/set` root 系统设置和系统属性底座能力
 - [x] `m.device.display.info/setSize/resetSize/setDensity/resetDensity/setBrightness/setAutoBrightness` root 显示参数和亮度控制第一版
-- [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/current/install/uninstall/disable/enable/disableComponent/enableComponent` 应用控制，启动 root 优先，强停、清数据、权限控制、前台查询、包管理和组件启停走 root
-- [x] `m.screen.capture()`，优先 root 原始 `screencap`，失败后回退 MediaProjection
-- [x] 触控和按键优先复用常驻 root shell，失败后回退短命令和无障碍
+- [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/current/install/uninstall/disable/enable/disableComponent/enableComponent` 应用控制，Root 模式启动只走 root，强停、清数据、权限控制、前台查询、包管理和组件启停走 root
+- [x] `m.screen.capture()`，Root 模式只走 root 原始 `screencap`，无障碍优先模式走 MediaProjection
+- [x] `m.root.screen.capture()` / `m.rootCapture()` 显式 root-only 截图
+- [x] 触控和按键复用常驻 root shell，命令失败时直接返回结果
 - [x] 图片对象句柄管理，当前支持基础句柄、`m.image.release`、`m.image.getPixel`、`m.image.getPixels`
 - [ ] `m.image.findColor(...)`
 
@@ -215,17 +220,18 @@ Lua run failed: expected lua runtime error
 
 ```text
 m.touch.tap / m.touch.swipe / m.input.text / m.key.press / m.key.back / m.key.home 已注册。
-当前 Android 端触控、文本输入和按键优先通过常驻 root shell 执行 `input ...`；
-常驻通道不可用时回退短命令，root 不可用或命令失败时回退无障碍。
-其中通用按键只有 Back/Home 可回退无障碍；其他 keyCode 当前依赖 root。
-文本输入当前简单文本优先走 `input text`，中文、换行和复杂符号可走剪贴板粘贴路线。
+当前 Android 端触控、文本输入和按键在 Root 模式下通过常驻 root shell 执行 `input ...`；
+Root 模式下 root 不可用会在脚本运行前拒绝执行，命令失败时直接返回结果。
+无障碍优先模式下触控和 Back/Home 走无障碍服务，通用 keyCode 仍依赖 root。
+文本输入当前只走 `input text`，中文、换行和复杂符号由脚本显式调用剪贴板粘贴路线。
 Root 文件 API 当前支持文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，二进制传输后续再做。
 Root 进程 API 当前支持 pidOf/list/info/stats/kill，`stats` 已能读取 `/proc/<pid>/status` 常用资源字段，守护脚本状态查询后续再做。
 Root 显示 API 当前支持显示信息读取、覆盖分辨率、覆盖 DPI、亮度和自动亮度开关；修改分辨率和 DPI 后建议脚本主动恢复默认值。
 Root 应用控制当前支持启动、强停、清理应用数据、授权、撤销权限、前台应用查询、安装、卸载、冻结和解冻。
-Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由不再优先走 root。
-root 和无障碍都不可用时返回明确错误。
-m.screen.capture 已接入 root 原始 `screencap` + MediaProjection fallback。未授权且 root 不可用时返回明确错误；
+Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由走无障碍优先路线。
+所选路线不可用时返回明确错误。
+m.screen.capture 已接入 root 原始 `screencap` 和 MediaProjection 两条路线，由当前运行模式决定；
+Root 模式下 root 不可用会在脚本运行前拒绝执行，截图失败时直接返回错误；
 授权后返回 native 内存图片句柄和 width、height、rowStride、pixelStride、byteLength、format、source、captureDurationMs。
 source 用于确认本帧实际走 root-screencap 还是 media-projection，captureDurationMs 用于后续 root 截图压测。
 当前已支持在 native 内存图片句柄上单点读取和批量读取 RGB 点阵；

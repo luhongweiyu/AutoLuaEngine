@@ -10,9 +10,10 @@
 #include <thread>
 #include <vector>
 #include <cstdlib>
+#include <utility>
 
 #include "../engine/engine_config.h"
-#include "../platform/android_bridge.h"
+#include "../core/system_api.h"
 #include "image_store.h"
 #include "log_buffer.h"
 
@@ -24,6 +25,12 @@ extern "C" {
 namespace {
 
 constexpr const char* kLogTag = "AutoLuaEngine";
+
+using autolua::core::SystemApi;
+
+int pushScreenCaptureResult(lua_State* state,
+                            ScreenCaptureResult capture,
+                            const char* defaultError);
 
 void logInfo(const std::string& message) {
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s", message.c_str());
@@ -89,9 +96,9 @@ int luaDeviceInfo(lua_State* state) {
     lua_pushstring(state, LUA_VERSION);
     lua_setfield(state, -2, "luaVersion");
 
-    bool rootModeEnabled = AndroidBridge::isRootModeEnabled();
-    bool rootAvailable = AndroidBridge::isRootAvailable();
-    bool accessibilityEnabled = AndroidBridge::isAccessibilityEnabled();
+    bool rootModeEnabled = SystemApi::isRootModeEnabled();
+    bool rootAvailable = SystemApi::isRootAvailable();
+    bool accessibilityEnabled = SystemApi::isAccessibilityEnabled();
     lua_pushboolean(state, rootModeEnabled ? 1 : 0);
     lua_setfield(state, -2, "rootModeEnabled");
     lua_pushboolean(state, rootAvailable ? 1 : 0);
@@ -113,14 +120,14 @@ int luaDeviceInfo(lua_State* state) {
 }
 
 int luaDeviceIsRootAvailable(lua_State* state) {
-    lua_pushboolean(state, AndroidBridge::isRootAvailable() ? 1 : 0);
+    lua_pushboolean(state, SystemApi::isRootAvailable() ? 1 : 0);
     return 1;
 }
 
 int luaDeviceSetRootModeEnabled(lua_State* state) {
     luaL_checktype(state, 1, LUA_TBOOLEAN);
     bool enabled = lua_toboolean(state, 1) != 0;
-    if (!AndroidBridge::setRootModeEnabled(enabled)) {
+    if (!SystemApi::setRootModeEnabled(enabled)) {
         lua_pushnil(state);
         lua_pushstring(state, "set root mode failed");
         return 2;
@@ -137,7 +144,7 @@ int luaRootExec(lua_State* state) {
         return luaL_error(state, "root exec timeout must be greater than or equal to 0");
     }
 
-    RootExecResult result = AndroidBridge::rootExec(command, static_cast<int>(timeoutMs));
+    RootExecResult result = SystemApi::rootExec(command, static_cast<int>(timeoutMs));
     lua_newtable(state);
     lua_pushboolean(state, result.success ? 1 : 0);
     lua_setfield(state, -2, "ok");
@@ -155,7 +162,7 @@ int luaRootExec(lua_State* state) {
 }
 
 int luaRootStatus(lua_State* state) {
-    RootStatusResult status = AndroidBridge::rootStatus();
+    RootStatusResult status = SystemApi::rootStatus();
 
     lua_newtable(state);
     lua_pushboolean(state, status.available ? 1 : 0);
@@ -196,14 +203,14 @@ int luaRootStatus(lua_State* state) {
     return 1;
 }
 
-std::string rootResultError(const RootExecResult& result, const char* fallback) {
+std::string rootResultError(const RootExecResult& result, const char* defaultError) {
     if (!result.error.empty()) {
         return result.error;
     }
     if (!result.stderrText.empty()) {
         return result.stderrText;
     }
-    return fallback;
+    return defaultError;
 }
 
 std::string trimKeyValueText(const std::string& value) {
@@ -264,9 +271,9 @@ void pushKeyValueTable(lua_State* state, const std::string& text) {
 
 int pushRootKeyValueResult(lua_State* state,
                            const RootExecResult& result,
-                           const char* fallbackError) {
+                           const char* defaultError) {
     if (!result.success) {
-        std::string error = rootResultError(result, fallbackError);
+        std::string error = rootResultError(result, defaultError);
         lua_pushnil(state);
         lua_pushstring(state, error.c_str());
         return 2;
@@ -278,9 +285,9 @@ int pushRootKeyValueResult(lua_State* state,
 
 int pushRootBooleanResult(lua_State* state,
                           const RootExecResult& result,
-                          const char* fallbackError) {
+                          const char* defaultError) {
     if (!result.success) {
-        std::string error = rootResultError(result, fallbackError);
+        std::string error = rootResultError(result, defaultError);
         lua_pushnil(state);
         lua_pushstring(state, error.c_str());
         return 2;
@@ -291,42 +298,42 @@ int pushRootBooleanResult(lua_State* state,
 }
 
 int luaDeviceScreenState(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceScreenState();
+    RootExecResult result = SystemApi::deviceScreenState();
     return pushRootKeyValueResult(state, result, "device screen state failed");
 }
 
 int luaDeviceWake(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceWake();
+    RootExecResult result = SystemApi::deviceWake();
     return pushRootBooleanResult(state, result, "device wake failed");
 }
 
 int luaDeviceSleep(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceSleep();
+    RootExecResult result = SystemApi::deviceSleep();
     return pushRootBooleanResult(state, result, "device sleep failed");
 }
 
 int luaDeviceBattery(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceBattery();
+    RootExecResult result = SystemApi::deviceBattery();
     return pushRootKeyValueResult(state, result, "device battery failed");
 }
 
 int luaDeviceRotation(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceRotation();
+    RootExecResult result = SystemApi::deviceRotation();
     return pushRootKeyValueResult(state, result, "device rotation failed");
 }
 
 int luaDeviceSetRotation(lua_State* state) {
     lua_Integer rotation = luaL_checkinteger(state, 1);
     bool locked = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
-    RootExecResult result = AndroidBridge::deviceSetRotation(static_cast<int>(rotation), locked);
+    RootExecResult result = SystemApi::deviceSetRotation(static_cast<int>(rotation), locked);
     return pushRootBooleanResult(state, result, "device set rotation failed");
 }
 
 int pushRootTextResult(lua_State* state,
                        const RootExecResult& result,
-                       const char* fallbackError) {
+                       const char* defaultError) {
     if (!result.success) {
-        std::string error = rootResultError(result, fallbackError);
+        std::string error = rootResultError(result, defaultError);
         lua_pushnil(state);
         lua_pushstring(state, error.c_str());
         return 2;
@@ -340,7 +347,7 @@ int pushRootTextResult(lua_State* state,
 int luaDeviceSettingsGet(lua_State* state) {
     const char* namespaceName = luaL_checkstring(state, 1);
     const char* key = luaL_checkstring(state, 2);
-    RootExecResult result = AndroidBridge::deviceSettingsGet(namespaceName, key);
+    RootExecResult result = SystemApi::deviceSettingsGet(namespaceName, key);
     return pushRootTextResult(state, result, "device settings get failed");
 }
 
@@ -348,39 +355,39 @@ int luaDeviceSettingsPut(lua_State* state) {
     const char* namespaceName = luaL_checkstring(state, 1);
     const char* key = luaL_checkstring(state, 2);
     const char* value = luaL_checkstring(state, 3);
-    RootExecResult result = AndroidBridge::deviceSettingsPut(namespaceName, key, value);
+    RootExecResult result = SystemApi::deviceSettingsPut(namespaceName, key, value);
     return pushRootBooleanResult(state, result, "device settings put failed");
 }
 
 int luaDeviceSettingsDelete(lua_State* state) {
     const char* namespaceName = luaL_checkstring(state, 1);
     const char* key = luaL_checkstring(state, 2);
-    RootExecResult result = AndroidBridge::deviceSettingsDelete(namespaceName, key);
+    RootExecResult result = SystemApi::deviceSettingsDelete(namespaceName, key);
     return pushRootBooleanResult(state, result, "device settings delete failed");
 }
 
 int luaDevicePropGet(lua_State* state) {
     const char* key = luaL_checkstring(state, 1);
-    RootExecResult result = AndroidBridge::devicePropGet(key);
+    RootExecResult result = SystemApi::devicePropGet(key);
     return pushRootTextResult(state, result, "device prop get failed");
 }
 
 int luaDevicePropSet(lua_State* state) {
     const char* key = luaL_checkstring(state, 1);
     const char* value = luaL_checkstring(state, 2);
-    RootExecResult result = AndroidBridge::devicePropSet(key, value);
+    RootExecResult result = SystemApi::devicePropSet(key, value);
     return pushRootBooleanResult(state, result, "device prop set failed");
 }
 
 int luaDeviceDisplayInfo(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceDisplayInfo();
+    RootExecResult result = SystemApi::deviceDisplayInfo();
     return pushRootKeyValueResult(state, result, "device display info failed");
 }
 
 int luaDeviceDisplaySetSize(lua_State* state) {
     lua_Integer width = luaL_checkinteger(state, 1);
     lua_Integer height = luaL_checkinteger(state, 2);
-    RootExecResult result = AndroidBridge::deviceDisplaySetSize(
+    RootExecResult result = SystemApi::deviceDisplaySetSize(
             static_cast<int>(width),
             static_cast<int>(height)
     );
@@ -388,37 +395,37 @@ int luaDeviceDisplaySetSize(lua_State* state) {
 }
 
 int luaDeviceDisplayResetSize(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceDisplayResetSize();
+    RootExecResult result = SystemApi::deviceDisplayResetSize();
     return pushRootBooleanResult(state, result, "device display reset size failed");
 }
 
 int luaDeviceDisplaySetDensity(lua_State* state) {
     lua_Integer density = luaL_checkinteger(state, 1);
-    RootExecResult result = AndroidBridge::deviceDisplaySetDensity(static_cast<int>(density));
+    RootExecResult result = SystemApi::deviceDisplaySetDensity(static_cast<int>(density));
     return pushRootBooleanResult(state, result, "device display set density failed");
 }
 
 int luaDeviceDisplayResetDensity(lua_State* state) {
-    RootExecResult result = AndroidBridge::deviceDisplayResetDensity();
+    RootExecResult result = SystemApi::deviceDisplayResetDensity();
     return pushRootBooleanResult(state, result, "device display reset density failed");
 }
 
 int luaDeviceDisplaySetBrightness(lua_State* state) {
     lua_Integer brightness = luaL_checkinteger(state, 1);
-    RootExecResult result = AndroidBridge::deviceDisplaySetBrightness(static_cast<int>(brightness));
+    RootExecResult result = SystemApi::deviceDisplaySetBrightness(static_cast<int>(brightness));
     return pushRootBooleanResult(state, result, "device display set brightness failed");
 }
 
 int luaDeviceDisplaySetAutoBrightness(lua_State* state) {
     luaL_checktype(state, 1, LUA_TBOOLEAN);
     bool enabled = lua_toboolean(state, 1) != 0;
-    RootExecResult result = AndroidBridge::deviceDisplaySetAutoBrightness(enabled);
+    RootExecResult result = SystemApi::deviceDisplaySetAutoBrightness(enabled);
     return pushRootBooleanResult(state, result, "device display set auto brightness failed");
 }
 
 int luaRootFileExists(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
-    RootExecResult result = AndroidBridge::rootFileExists(path);
+    RootExecResult result = SystemApi::rootFileExists(path);
     lua_pushboolean(state, result.success ? 1 : 0);
     return 1;
 }
@@ -430,7 +437,7 @@ int luaRootFileReadText(lua_State* state) {
         return luaL_error(state, "root file read timeout must be greater than or equal to 0");
     }
 
-    RootExecResult result = AndroidBridge::rootFileReadText(path, static_cast<int>(timeoutMs));
+    RootExecResult result = SystemApi::rootFileReadText(path, static_cast<int>(timeoutMs));
     if (!result.success) {
         std::string error = rootResultError(result, "root file read failed");
         lua_pushnil(state);
@@ -451,7 +458,7 @@ int luaRootFileWriteText(lua_State* state) {
         return luaL_error(state, "root file write timeout must be greater than or equal to 0");
     }
 
-    RootExecResult result = AndroidBridge::rootFileWriteText(
+    RootExecResult result = SystemApi::rootFileWriteText(
             path,
             std::string(content, contentLength),
             static_cast<int>(timeoutMs)
@@ -579,7 +586,7 @@ void pushRootFileInfo(lua_State* state, const RootFileInfo& info) {
 
 int luaRootFileStat(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
-    RootExecResult result = AndroidBridge::rootFileStat(path);
+    RootExecResult result = SystemApi::rootFileStat(path);
     if (!result.success) {
         std::string error = rootResultError(result, "root file stat failed");
         lua_pushnil(state);
@@ -600,7 +607,7 @@ int luaRootFileStat(lua_State* state) {
 
 int luaRootFileList(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
-    RootExecResult result = AndroidBridge::rootFileList(path);
+    RootExecResult result = SystemApi::rootFileList(path);
     if (!result.success) {
         std::string error = rootResultError(result, "root file list failed");
         lua_pushnil(state);
@@ -629,7 +636,7 @@ int luaRootFileList(lua_State* state) {
 int luaRootFileRemove(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     bool recursive = !lua_isnoneornil(state, 2) && lua_toboolean(state, 2) != 0;
-    RootExecResult result = AndroidBridge::rootFileRemove(path, recursive);
+    RootExecResult result = SystemApi::rootFileRemove(path, recursive);
     if (!result.success) {
         std::string error = rootResultError(result, "root file remove failed");
         lua_pushnil(state);
@@ -644,7 +651,7 @@ int luaRootFileRemove(lua_State* state) {
 int luaRootFileMkdir(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     bool recursive = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
-    RootExecResult result = AndroidBridge::rootFileMkdir(path, recursive);
+    RootExecResult result = SystemApi::rootFileMkdir(path, recursive);
     if (!result.success) {
         std::string error = rootResultError(result, "root file mkdir failed");
         lua_pushnil(state);
@@ -659,7 +666,7 @@ int luaRootFileMkdir(lua_State* state) {
 int luaRootFileChmod(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     const char* mode = luaL_checkstring(state, 2);
-    RootExecResult result = AndroidBridge::rootFileChmod(path, mode);
+    RootExecResult result = SystemApi::rootFileChmod(path, mode);
     if (!result.success) {
         std::string error = rootResultError(result, "root file chmod failed");
         lua_pushnil(state);
@@ -674,7 +681,7 @@ int luaRootFileChmod(lua_State* state) {
 int luaRootFileChown(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
     const char* owner = luaL_checkstring(state, 2);
-    RootExecResult result = AndroidBridge::rootFileChown(path, owner);
+    RootExecResult result = SystemApi::rootFileChown(path, owner);
     if (!result.success) {
         std::string error = rootResultError(result, "root file chown failed");
         lua_pushnil(state);
@@ -916,9 +923,9 @@ void pushProcessStats(lua_State* state, const ProcessStats& stats) {
 
 int pushProcessListResult(lua_State* state,
                           const RootExecResult& result,
-                          const char* fallbackError) {
+                          const char* defaultError) {
     if (!result.success) {
-        std::string error = rootResultError(result, fallbackError);
+        std::string error = rootResultError(result, defaultError);
         lua_pushnil(state);
         lua_pushstring(state, error.c_str());
         return 2;
@@ -935,7 +942,7 @@ int pushProcessListResult(lua_State* state,
 
 int luaRootProcessPidOf(lua_State* state) {
     const char* processName = luaL_checkstring(state, 1);
-    RootExecResult result = AndroidBridge::rootProcessPidOf(processName);
+    RootExecResult result = SystemApi::rootProcessPidOf(processName);
     if (!result.success) {
         std::string error = rootResultError(result, "root process pidOf failed");
         lua_pushnil(state);
@@ -953,7 +960,7 @@ int luaRootProcessPidOf(lua_State* state) {
 }
 
 int luaRootProcessList(lua_State* state) {
-    RootExecResult result = AndroidBridge::rootProcessList();
+    RootExecResult result = SystemApi::rootProcessList();
     return pushProcessListResult(state, result, "root process list failed");
 }
 
@@ -969,7 +976,7 @@ int luaRootProcessInfo(lua_State* state) {
         target = luaL_checkstring(state, 1);
     }
 
-    RootExecResult result = AndroidBridge::rootProcessInfo(target);
+    RootExecResult result = SystemApi::rootProcessInfo(target);
     return pushProcessListResult(state, result, "root process info failed");
 }
 
@@ -985,7 +992,7 @@ int luaRootProcessStats(lua_State* state) {
         target = luaL_checkstring(state, 1);
     }
 
-    RootExecResult result = AndroidBridge::rootProcessStats(target);
+    RootExecResult result = SystemApi::rootProcessStats(target);
     if (!result.success) {
         std::string error = rootResultError(result, "root process stats failed");
         lua_pushnil(state);
@@ -1021,7 +1028,7 @@ int luaRootProcessKill(lua_State* state) {
         return luaL_error(state, "process signal must be greater than 0");
     }
 
-    RootExecResult result = AndroidBridge::rootProcessKill(target, static_cast<int>(signal));
+    RootExecResult result = SystemApi::rootProcessKill(target, static_cast<int>(signal));
     if (!result.success) {
         std::string error = rootResultError(result, "root process kill failed");
         lua_pushnil(state);
@@ -1223,13 +1230,13 @@ int luaFileAppDataPath(lua_State* state) {
 
 int luaAppIsInstalled(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
-    lua_pushboolean(state, AndroidBridge::appIsInstalled(packageName) ? 1 : 0);
+    lua_pushboolean(state, SystemApi::appIsInstalled(packageName) ? 1 : 0);
     return 1;
 }
 
 int luaAppOpen(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appOpen(packageName)) {
+    if (!SystemApi::appOpen(packageName)) {
         lua_pushnil(state);
         lua_pushstring(state, "open app failed");
         return 2;
@@ -1241,7 +1248,7 @@ int luaAppOpen(lua_State* state) {
 
 int luaAppStop(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appStop(packageName)) {
+    if (!SystemApi::appStop(packageName)) {
         lua_pushnil(state);
         lua_pushstring(state, "stop app failed; root is not available or package name is invalid");
         return 2;
@@ -1253,7 +1260,7 @@ int luaAppStop(lua_State* state) {
 
 int luaAppClearData(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appClearData(packageName)) {
+    if (!SystemApi::appClearData(packageName)) {
         lua_pushnil(state);
         lua_pushstring(state, "clear app data failed; root is not available or package name is invalid");
         return 2;
@@ -1266,7 +1273,7 @@ int luaAppClearData(lua_State* state) {
 int luaAppGrantPermission(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
     const char* permissionName = luaL_checkstring(state, 2);
-    if (!AndroidBridge::appGrantPermission(packageName, permissionName)) {
+    if (!SystemApi::appGrantPermission(packageName, permissionName)) {
         lua_pushnil(state);
         lua_pushstring(state, "grant app permission failed; root is not available, package name is invalid or permission is invalid");
         return 2;
@@ -1279,7 +1286,7 @@ int luaAppGrantPermission(lua_State* state) {
 int luaAppRevokePermission(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
     const char* permissionName = luaL_checkstring(state, 2);
-    if (!AndroidBridge::appRevokePermission(packageName, permissionName)) {
+    if (!SystemApi::appRevokePermission(packageName, permissionName)) {
         lua_pushnil(state);
         lua_pushstring(state, "revoke app permission failed; root is not available, package name is invalid or permission is invalid");
         return 2;
@@ -1315,7 +1322,7 @@ void pushAppComponent(lua_State* state, const std::string& component) {
 }
 
 int luaAppCurrent(lua_State* state) {
-    RootExecResult result = AndroidBridge::appCurrent();
+    RootExecResult result = SystemApi::appCurrent();
     if (!result.success) {
         std::string error = rootResultError(result, "current app failed");
         lua_pushnil(state);
@@ -1338,7 +1345,7 @@ int luaAppCurrent(lua_State* state) {
 int luaAppInstall(lua_State* state) {
     const char* apkPath = luaL_checkstring(state, 1);
     bool replace = lua_isnoneornil(state, 2) || lua_toboolean(state, 2) != 0;
-    if (!AndroidBridge::appInstall(apkPath, replace)) {
+    if (!SystemApi::appInstall(apkPath, replace)) {
         lua_pushnil(state);
         lua_pushstring(state, "install app failed; root is not available or apk path is invalid");
         return 2;
@@ -1351,7 +1358,7 @@ int luaAppInstall(lua_State* state) {
 int luaAppUninstall(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
     bool keepData = !lua_isnoneornil(state, 2) && lua_toboolean(state, 2) != 0;
-    if (!AndroidBridge::appUninstall(packageName, keepData)) {
+    if (!SystemApi::appUninstall(packageName, keepData)) {
         lua_pushnil(state);
         lua_pushstring(state, "uninstall app failed; root is not available or package name is invalid");
         return 2;
@@ -1363,7 +1370,7 @@ int luaAppUninstall(lua_State* state) {
 
 int luaAppDisable(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appDisable(packageName)) {
+    if (!SystemApi::appDisable(packageName)) {
         lua_pushnil(state);
         lua_pushstring(state, "disable app failed; root is not available or package name is invalid");
         return 2;
@@ -1375,7 +1382,7 @@ int luaAppDisable(lua_State* state) {
 
 int luaAppEnable(lua_State* state) {
     const char* packageName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appEnable(packageName)) {
+    if (!SystemApi::appEnable(packageName)) {
         lua_pushnil(state);
         lua_pushstring(state, "enable app failed; root is not available or package name is invalid");
         return 2;
@@ -1387,7 +1394,7 @@ int luaAppEnable(lua_State* state) {
 
 int luaAppDisableComponent(lua_State* state) {
     const char* componentName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appDisableComponent(componentName)) {
+    if (!SystemApi::appDisableComponent(componentName)) {
         lua_pushnil(state);
         lua_pushstring(state, "disable app component failed; root is not available or component name is invalid");
         return 2;
@@ -1399,7 +1406,7 @@ int luaAppDisableComponent(lua_State* state) {
 
 int luaAppEnableComponent(lua_State* state) {
     const char* componentName = luaL_checkstring(state, 1);
-    if (!AndroidBridge::appEnableComponent(componentName)) {
+    if (!SystemApi::appEnableComponent(componentName)) {
         lua_pushnil(state);
         lua_pushstring(state, "enable app component failed; root is not available or component name is invalid");
         return 2;
@@ -1413,7 +1420,7 @@ int luaTouchTap(lua_State* state) {
     lua_Integer x = luaL_checkinteger(state, 1);
     lua_Integer y = luaL_checkinteger(state, 2);
 
-    if (!AndroidBridge::touchTap(static_cast<int>(x), static_cast<int>(y))) {
+    if (!SystemApi::touchTap(static_cast<int>(x), static_cast<int>(y))) {
         lua_pushnil(state);
         lua_pushstring(state, "touch tap failed; root or accessibility service is not available");
         return 2;
@@ -1430,7 +1437,7 @@ int luaTouchSwipe(lua_State* state) {
     lua_Integer y2 = luaL_checkinteger(state, 4);
     lua_Integer durationMs = luaL_optinteger(state, 5, 300);
 
-    if (!AndroidBridge::touchSwipe(
+    if (!SystemApi::touchSwipe(
             static_cast<int>(x1),
             static_cast<int>(y1),
             static_cast<int>(x2),
@@ -1447,7 +1454,7 @@ int luaTouchSwipe(lua_State* state) {
 
 int luaInputText(lua_State* state) {
     const char* text = luaL_checkstring(state, 1);
-    if (!AndroidBridge::inputText(text)) {
+    if (!SystemApi::inputText(text)) {
         lua_pushnil(state);
         lua_pushstring(state, "input text failed; root is not available or focused control cannot receive text");
         return 2;
@@ -1459,7 +1466,7 @@ int luaInputText(lua_State* state) {
 
 int luaInputPasteText(lua_State* state) {
     const char* text = luaL_checkstring(state, 1);
-    if (!AndroidBridge::pasteText(text)) {
+    if (!SystemApi::pasteText(text)) {
         lua_pushnil(state);
         lua_pushstring(state, "paste text failed; root is not available or focused control cannot paste text");
         return 2;
@@ -1470,7 +1477,7 @@ int luaInputPasteText(lua_State* state) {
 }
 
 int luaKeyBack(lua_State* state) {
-    if (!AndroidBridge::keyBack()) {
+    if (!SystemApi::keyBack()) {
         lua_pushnil(state);
         lua_pushstring(state, "key back failed; root or accessibility service is not available");
         return 2;
@@ -1481,7 +1488,7 @@ int luaKeyBack(lua_State* state) {
 }
 
 int luaKeyHome(lua_State* state) {
-    if (!AndroidBridge::keyHome()) {
+    if (!SystemApi::keyHome()) {
         lua_pushnil(state);
         lua_pushstring(state, "key home failed; root or accessibility service is not available");
         return 2;
@@ -1493,7 +1500,7 @@ int luaKeyHome(lua_State* state) {
 
 int luaKeyPress(lua_State* state) {
     lua_Integer keyCode = luaL_checkinteger(state, 1);
-    if (!AndroidBridge::keyPress(static_cast<int>(keyCode))) {
+    if (!SystemApi::keyPress(static_cast<int>(keyCode))) {
         lua_pushnil(state);
         lua_pushstring(state, "key press failed; root or accessibility service is not available");
         return 2;
@@ -1504,21 +1511,37 @@ int luaKeyPress(lua_State* state) {
 }
 
 int luaKeyIsAccessibilityEnabled(lua_State* state) {
-    lua_pushboolean(state, AndroidBridge::isAccessibilityEnabled() ? 1 : 0);
+    lua_pushboolean(state, SystemApi::isAccessibilityEnabled() ? 1 : 0);
     return 1;
 }
 
 int luaScreenCapture(lua_State* state) {
-    if (!AndroidBridge::hasScreenCapturePermission()) {
+    if (!SystemApi::hasScreenCapturePermission()) {
         lua_pushnil(state);
         lua_pushstring(state, "screen capture permission is not granted");
         return 2;
     }
 
-    ScreenCaptureResult capture = AndroidBridge::captureScreen();
+    return pushScreenCaptureResult(state, SystemApi::captureScreen(), "screen capture failed");
+}
+
+int luaRootScreenCapture(lua_State* state) {
+    return pushScreenCaptureResult(
+            state,
+            SystemApi::captureRootScreen(),
+            "root screen capture failed"
+    );
+}
+
+int pushScreenCaptureResult(lua_State* state,
+                            ScreenCaptureResult capture,
+                            const char* defaultError) {
     if (!capture.success) {
         lua_pushnil(state);
-        lua_pushstring(state, capture.error.c_str());
+        const std::string error = capture.error.empty()
+                ? std::string(defaultError)
+                : capture.error;
+        lua_pushstring(state, error.c_str());
         return 2;
     }
 
@@ -1704,6 +1727,11 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, rootTableIndex, "exec", luaRootExec);
     setFunctionField(state, rootTableIndex, "isAvailable", luaDeviceIsRootAvailable);
     setFunctionField(state, rootTableIndex, "status", luaRootStatus);
+
+    lua_newtable(state);
+    int rootScreenTableIndex = lua_gettop(state);
+    setFunctionField(state, rootScreenTableIndex, "capture", luaRootScreenCapture);
+    lua_setfield(state, rootTableIndex, "screen");
 
     lua_newtable(state);
     int rootFileTableIndex = lua_gettop(state);

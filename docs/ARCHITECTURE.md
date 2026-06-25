@@ -61,7 +61,8 @@ Android APK
 │  ├─ ScriptTask
 │  ├─ LuaRuntime
 │  ├─ HostApi
-│  └─ AndroidPlatformApi
+│  ├─ SystemApi
+│  └─ AndroidBridge
 │
 └─ Lua 层
    ├─ runtime/api_m.lua
@@ -97,6 +98,30 @@ engine_jni -> Engine -> LuaRuntime
 App 主界面读取引擎日志和设置状态时已经通过 `EngineLocalClient` 访问本地 JSON-RPC，不再直接调用 `NativeEngine` 读取主进程 native 状态。
 
 悬浮窗位置、隐藏状态和展开状态由 `EngineSettings` 持久化。悬浮面板已经提供运行、暂停、继续、停止、截图、日志、设置、用户事件、隐藏、关闭服务入口；日志和设置入口先回到 `MainActivity` 的状态区域承接，用户事件入口暂时只保留交互入口。
+
+系统能力已经收敛到 `libengine.so` 内的 native 核心层：
+
+```text
+Lua HostApi / 后续 JsHostApi / JNI 协议入口
+        ↓
+core/SystemApi
+        ↓
+platform/AndroidBridge
+        ↓
+Java 系统能力、root shell、MediaProjection、无障碍服务
+```
+
+后续 JS、Go 或插件接入时，优先绑定 `core/SystemApi` 或其上层 HostApi，不直接新增一套 Android 系统调用。截图、触控、按键、应用控制、root 文件/进程/设备能力都先进入这个边界，再由 Lua 的 `m/lr/cd` 或后续 JS API 做语言层适配。
+
+`libengine.so` 也预留了稳定 C ABI 雏形：
+
+```text
+core/system_c_api.h
+ael_system_version()
+ael_system_capabilities_json()
+```
+
+这两个函数先用于 Lua FFI、JS native binding 或插件确认版本和能力边界。具体系统调用暂时仍走 HostApi/JSON-RPC，等参数结构稳定后再逐步补 C ABI。
 
 旧项目参考结论：
 
@@ -248,14 +273,15 @@ engines/android/app/src/main/assets/runtime/bootstrap.lua
 当前 Android 平台能力：
 
 ```text
-m.touch.tap / m.touch.swipe -> RootShellBridge 常驻 root shell 执行 input，失败后回退短命令和 AccessibilityService
-m.key.back / m.key.home -> RootShellBridge 常驻 root shell 执行 input keyevent，失败后回退短命令和 AccessibilityService
-m.screen.capture -> root screencap 或 MediaProjection + ImageReader -> native 内存图片句柄
+m.touch.tap / m.touch.swipe -> Root 模式走 RootShellBridge 常驻 root shell；无障碍优先模式走 AccessibilityService
+m.key.back / m.key.home / m.key.press -> Root 模式走 RootShellBridge 常驻 root shell；无障碍优先模式只处理 Back/Home
+m.screen.capture -> Root 模式走 root screencap；无障碍优先模式走 MediaProjection + ImageReader
+m.root.screen.capture -> 显式 root screencap，不切换到 MediaProjection
 ```
 
 旧项目里还有 `httpGet/httpPost`、Toast、HUD、剪贴板、输入法输入、启动 App、UI 控件查找、Java 对象桥、root 引擎等能力。当前只把它们作为后续 API 候选，新增时仍然先进入 `m.*`，再由 Lua 层适配 `lr.*` 和 `cd.*`。
 
-Root 第一版说明见 `docs/ANDROID_ROOT_MODE.md`。当前触控和按键已优先复用常驻 root shell，但还不是独立 root 引擎；后续高频截图再评估常驻 root service。
+Root 第一版说明见 `docs/ANDROID_ROOT_MODE.md`。当前触控和按键已复用常驻 root shell，但还不是独立 root 引擎；后续高频截图再推进常驻 root worker 或独立 root 进程直取帧。
 
 ### 3.5 EngineProtocol
 

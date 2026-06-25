@@ -33,6 +33,7 @@ local cd = {
     setAutoBrightness = host.device.display.setAutoBrightness,
     rootExec = host.root.exec,
     rootStatus = host.root.status,
+    rootCapture = host.root.screen.capture,
     rootStat = host.root.file.stat,
     rootList = host.root.file.list,
     rootChown = host.root.file.chown,

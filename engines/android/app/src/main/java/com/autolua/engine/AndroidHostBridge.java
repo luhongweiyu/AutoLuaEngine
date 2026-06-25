@@ -228,42 +228,38 @@ public final class AndroidHostBridge {
     }
 
     public static boolean touchTap(int x, int y) {
-        if (isRootModeEnabledInternal() && RootShellBridge.tap(x, y)) {
-            return true;
-        }
-        return AutomationAccessibilityService.tap(x, y);
+        return isRootModeEnabledInternal()
+                ? RootShellBridge.tap(x, y)
+                : AutomationAccessibilityService.tap(x, y);
     }
 
     public static boolean touchSwipe(int x1, int y1, int x2, int y2, int durationMs) {
-        if (isRootModeEnabledInternal() && RootShellBridge.swipe(x1, y1, x2, y2, durationMs)) {
-            return true;
-        }
-        return AutomationAccessibilityService.swipe(x1, y1, x2, y2, durationMs);
+        return isRootModeEnabledInternal()
+                ? RootShellBridge.swipe(x1, y1, x2, y2, durationMs)
+                : AutomationAccessibilityService.swipe(x1, y1, x2, y2, durationMs);
     }
 
     public static boolean keyBack() {
-        if (isRootModeEnabledInternal() && RootShellBridge.keyBack()) {
-            return true;
-        }
-        return AutomationAccessibilityService.back();
+        return isRootModeEnabledInternal()
+                ? RootShellBridge.keyBack()
+                : AutomationAccessibilityService.back();
     }
 
     public static boolean keyHome() {
-        if (isRootModeEnabledInternal() && RootShellBridge.keyHome()) {
-            return true;
-        }
-        return AutomationAccessibilityService.home();
+        return isRootModeEnabledInternal()
+                ? RootShellBridge.keyHome()
+                : AutomationAccessibilityService.home();
     }
 
     /**
      * 执行通用 Android 按键码。
      *
-     * 第一版优先走 root input keyevent；Back/Home 这两个系统键在 root 不可用时
-     * 可以回退无障碍全局动作。其他 keyCode 暂不做模拟兜底，避免不同机型行为不一致。
+     * Root 模式下只走 root input keyevent；无障碍模式下只处理
+     * Back/Home 这两个系统全局动作。
      */
     public static boolean keyPress(int keyCode) {
-        if (isRootModeEnabledInternal() && RootShellBridge.keyEvent(keyCode)) {
-            return true;
+        if (isRootModeEnabledInternal()) {
+            return RootShellBridge.keyEvent(keyCode);
         }
         if (keyCode == 4) {
             return AutomationAccessibilityService.back();
@@ -277,17 +273,14 @@ public final class AndroidHostBridge {
     /**
      * 向当前焦点输入框输入文本。
      *
-     * 第一优先级仍然是 root `input text`，它对英文、数字和简单空格最快；
-     * 失败后回退剪贴板 + root 粘贴，覆盖中文、换行和复杂符号。
+     * Root 模式下只执行 root `input text`。中文、换行和复杂符号由脚本显式调用
+     * `m.input.pasteText`，不在这里自动切换输入路线。
      */
     public static boolean inputText(String text) {
         if (!isRootModeEnabledInternal() || text == null) {
             return false;
         }
-        if (RootShellBridge.inputText(text)) {
-            return true;
-        }
-        return pasteText(text);
+        return RootShellBridge.inputText(text);
     }
 
     /**
@@ -304,18 +297,24 @@ public final class AndroidHostBridge {
     }
 
     public static boolean hasScreenCapturePermission() {
-        return (isRootModeEnabledInternal() && RootShellBridge.isRootAvailable())
-                || ScreenCaptureBridge.hasPermission();
+        return isRootModeEnabledInternal()
+                ? RootShellBridge.isRootAvailable()
+                : ScreenCaptureBridge.hasPermission();
     }
 
     public static ScreenCaptureResult captureScreen() {
-        if (isRootModeEnabledInternal() && RootShellBridge.isRootAvailable()) {
-            ScreenCaptureResult rootCapture = RootScreenCaptureBridge.captureFrame();
-            if (rootCapture.success || !ScreenCaptureBridge.hasPermission()) {
-                return rootCapture;
-            }
-        }
-        return ScreenCaptureBridge.captureFrame();
+        return isRootModeEnabledInternal()
+                ? RootScreenCaptureBridge.captureFrame()
+                : ScreenCaptureBridge.captureFrame();
+    }
+
+    /**
+     * 只走 root 的截图入口。
+     *
+     * 这个接口只走 root 原始 screencap，用于 root 版调试和高频截图路线压测。
+     */
+    public static ScreenCaptureResult captureRootScreen() {
+        return RootScreenCaptureBridge.captureFrame();
     }
 
     private static boolean isRootModeEnabledInternal() {

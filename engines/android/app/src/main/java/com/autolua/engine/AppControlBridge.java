@@ -9,8 +9,9 @@ import java.util.regex.Pattern;
 /**
  * Android 应用控制桥。
  *
- * 启动应用优先走 root `monkey`，失败后回退普通 launcher Intent；
- * 停止、清理数据、授权管理和包管理都属于系统级操作，需要 root。
+ * Root 模式下启动应用只走 root `monkey`；
+ * 非 root 模式才使用普通 launcher Intent。停止、清理数据、授权管理和包管理
+ * 都属于系统级操作，需要 root。
  */
 public final class AppControlBridge {
     private static final int DEFAULT_TIMEOUT_MS = 2500;
@@ -43,14 +44,12 @@ public final class AppControlBridge {
             return false;
         }
 
-        if (rootModeEnabled && RootShellBridge.isRootAvailable()) {
+        if (rootModeEnabled) {
             RootCommandResult result = RootShellBridge.exec(
                     "monkey -p " + packageName + " -c android.intent.category.LAUNCHER 1",
                     DEFAULT_TIMEOUT_MS
             );
-            if (result.success) {
-                return true;
-            }
+            return result.success;
         }
 
         return openByLauncherIntent(context, packageName);

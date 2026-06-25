@@ -700,6 +700,7 @@ public final class EngineHttpServer {
             if (code == null || code.isEmpty()) {
                 throw new IllegalArgumentException("code is required");
             }
+            ensureRootModeCanRunScript();
 
             String message = NativeEngine.runLuaText(code);
             JSONObject status = new JSONObject(NativeEngine.statusJson(0));
@@ -755,6 +756,14 @@ public final class EngineHttpServer {
             return capture.getJSONObject("image");
         }
 
+        if ("root.screen.capture".equals(method)) {
+            JSONObject capture = new JSONObject(NativeEngine.captureRootScreenJson());
+            if (!capture.optBoolean("ok", false)) {
+                throw new IllegalStateException(capture.optString("error", "root screen capture failed"));
+            }
+            return capture.getJSONObject("image");
+        }
+
         if ("image.release".equals(method)) {
             int imageId = params.optInt("id", 0);
             if (imageId <= 0) {
@@ -775,6 +784,18 @@ public final class EngineHttpServer {
         }
 
         throw new UnsupportedOperationException("method is not found: " + method);
+    }
+
+    private void ensureRootModeCanRunScript() {
+        if (!EngineSettings.isRootModeEnabled(appContext)) {
+            return;
+        }
+
+        RootStatus rootStatus = RootShellBridge.status();
+        if (!rootStatus.available) {
+            String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
+            throw new IllegalStateException("Root 模式需要授权后才能运行脚本：" + error);
+        }
     }
 
     private JSONObject makeDeviceInfo() throws JSONException {
@@ -902,14 +923,14 @@ public final class EngineHttpServer {
         result.put(key, value);
     }
 
-    private static String resolveRootCommandError(RootCommandResult rootResult, String fallback) {
+    private static String resolveRootCommandError(RootCommandResult rootResult, String defaultError) {
         if (!rootResult.error.isEmpty()) {
             return rootResult.error;
         }
         if (!rootResult.stderr.isEmpty()) {
             return rootResult.stderr;
         }
-        return fallback;
+        return defaultError;
     }
 
     private static String requirePath(JSONObject params) {

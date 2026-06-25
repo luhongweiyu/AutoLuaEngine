@@ -48,6 +48,7 @@ m.setBrightness = host.device.display.setBrightness
 m.setAutoBrightness = host.device.display.setAutoBrightness
 m.rootExec = host.root.exec
 m.rootStatus = host.root.status
+m.rootCapture = host.root.screen.capture
 m.rootFileExists = host.root.file.exists
 m.rootReadText = host.root.file.readText
 m.rootWriteText = host.root.file.writeText

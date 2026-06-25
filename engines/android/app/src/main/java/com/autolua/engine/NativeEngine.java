@@ -88,6 +88,10 @@ public final class NativeEngine {
         return nativeCaptureScreenJson();
     }
 
+    public static String captureRootScreenJson() {
+        return nativeCaptureRootScreenJson();
+    }
+
     public static boolean releaseImage(int imageId) {
         return nativeReleaseImage(imageId);
     }
@@ -140,6 +144,8 @@ public final class NativeEngine {
     private static native String nativeLuaVersion();
 
     private static native String nativeCaptureScreenJson();
+
+    private static native String nativeCaptureRootScreenJson();
 
     private static native boolean nativeReleaseImage(int imageId);
 }

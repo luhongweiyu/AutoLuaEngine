@@ -184,6 +184,7 @@ script.stop
 script.status
 log.drain
 screen.capture
+root.screen.capture
 image.release
 ```
 
@@ -196,7 +197,7 @@ GET /health -> {"ok":true,"port":18380}
 ```
 
 `log.drain` 当前会返回 Lua `print/log.print` 和 native 引擎日志。
-`screen.capture` 优先走 root 原始 `screencap`，失败后回退 MediaProjection；只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据；
+`screen.capture` 在 Root 模式下只走 root 原始 `screencap`，在无障碍优先模式下走 MediaProjection；`root.screen.capture` 则始终只走 root 原始 `screencap`。两者都只返回 native 图片句柄和元信息，不通过 HTTP 返回像素数据。
 PC/IDE 使用完句柄后应调用 `image.release` 释放。
 
 注意：上面的 JSON-RPC 方法名是 IDE/PC 与引擎通讯协议，不等同于 Lua 脚本命名空间。
@@ -382,9 +383,9 @@ source count = 截图来源 帧数
 说明：
 
 ```text
-source 为 root-screencap 表示本帧走 root 原始截图。
-source 为 media-projection 表示本帧走系统截图授权。
-当前模拟器如果拒绝 App 的 su 授权，会回退或失败；换能给 App 授权 su 的设备后再压测 root 成功路径。
+Root 模式下 `source` 应为 `root-screencap`。
+无障碍优先模式并完成系统截图授权后，`source` 才会是 `media-projection`。
+当前模拟器如果拒绝 App 的 su 授权，root 压测会直接失败；换能给 App 授权 su 的设备后再测 root 成功路径。
 ```
 
 授权方式：

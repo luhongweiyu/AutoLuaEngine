@@ -134,6 +134,14 @@ public final class EngineService extends Service {
             return;
         }
 
+        if (EngineSettings.isRootModeEnabled(this) && !RootShellBridge.isRootAvailable()) {
+            running.set(false);
+            RootStatus rootStatus = RootShellBridge.status();
+            String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
+            broadcastStatus(STATE_FAILED, "Root 模式需要授权后才能运行脚本：" + error);
+            return;
+        }
+
         ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(assetPath);
         broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.title);
 

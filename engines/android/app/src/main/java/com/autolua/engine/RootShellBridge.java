@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -17,7 +16,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Root shell 能力桥。
  *
- * Root shell 能力先通过 su 探测设备支持的参数格式。
+ * Root shell 能力固定使用 `su -c`。Root 模式不做多命令探测，失败时直接
+ * 返回当前命令结果，避免运行期因为多路尝试产生额外开销。
  *
  * 点击、滑动和系统按键这类无输出命令会优先复用常驻 root shell，减少频繁
  * 创建 su 进程的开销；root.exec 和 screencap 这类需要准确 stdout/stderr 或
@@ -340,24 +340,20 @@ public final class RootShellBridge {
     private static boolean runInputCommand(String inputArgs) {
         String command = "input " + inputArgs;
         CommandResult result = runPersistentRootCommand(command, DEFAULT_TIMEOUT_MS);
-        if (result.exitCode != 0) {
-            result = runRootCommand(command, DEFAULT_TIMEOUT_MS);
-        }
         return result.exitCode == 0;
     }
 
     private static RootCommandMode detectRootCommandMode() {
-        List<RootStatus.ProbeAttempt> attempts = new ArrayList<>();
-        for (RootCommandMode mode : RootCommandMode.PROBE_ORDER) {
-            CommandResult result = runCommand(mode.buildArgs("id -u"), DEFAULT_TIMEOUT_MS);
-            attempts.add(makeProbeAttempt(mode, result));
-            if (result.exitCode == 0 && isRootIdentityOutput(result.stdoutText())) {
-                cachedRootSuPath = mode.suPath;
-                lastRootError = "";
-                lastProbeAttempts = attempts;
-                return mode;
-            }
+        RootCommandMode mode = RootCommandMode.SU_C;
+        CommandResult result = runCommand(mode.buildArgs("id -u"), DEFAULT_TIMEOUT_MS);
+        List<RootStatus.ProbeAttempt> attempts = Collections.singletonList(makeProbeAttempt(mode, result));
+        if (result.exitCode == 0 && isRootIdentityOutput(result.stdoutText())) {
+            cachedRootSuPath = mode.suPath;
+            lastRootError = "";
+            lastProbeAttempts = attempts;
+            return mode;
         }
+
         cachedRootSuPath = "";
         lastRootError = resolveProbeError(attempts);
         lastProbeAttempts = attempts;
@@ -752,94 +748,22 @@ public final class RootShellBridge {
     private enum RootCommandMode {
         UNKNOWN("su"),
         NONE(""),
-        SU_C("su"),
-        SYSTEM_XBIN_SU_C("/system/xbin/su"),
-        SYSTEM_BIN_SU_C("/system/bin/su"),
-        SBIN_SU_C("/sbin/su"),
-        VENDOR_BIN_SU_C("/vendor/bin/su"),
-        SU_0_SH_C("su"),
-        SYSTEM_XBIN_SU_0_SH_C("/system/xbin/su"),
-        SYSTEM_BIN_SU_0_SH_C("/system/bin/su"),
-        SBIN_SU_0_SH_C("/sbin/su"),
-        VENDOR_BIN_SU_0_SH_C("/vendor/bin/su"),
-        SU_ROOT_SH_C("su"),
-        SYSTEM_XBIN_SU_ROOT_SH_C("/system/xbin/su"),
-        SYSTEM_BIN_SU_ROOT_SH_C("/system/bin/su"),
-        SBIN_SU_ROOT_SH_C("/sbin/su"),
-        VENDOR_BIN_SU_ROOT_SH_C("/vendor/bin/su");
+        SU_C("su");
 
         private final String suPath;
-
-        private static final RootCommandMode[] PROBE_ORDER = {
-                SU_C,
-                SYSTEM_XBIN_SU_C,
-                SYSTEM_BIN_SU_C,
-                SBIN_SU_C,
-                VENDOR_BIN_SU_C,
-                SU_0_SH_C,
-                SYSTEM_XBIN_SU_0_SH_C,
-                SYSTEM_BIN_SU_0_SH_C,
-                SBIN_SU_0_SH_C,
-                VENDOR_BIN_SU_0_SH_C,
-                SU_ROOT_SH_C,
-                SYSTEM_XBIN_SU_ROOT_SH_C,
-                SYSTEM_BIN_SU_ROOT_SH_C,
-                SBIN_SU_ROOT_SH_C,
-                VENDOR_BIN_SU_ROOT_SH_C,
-        };
 
         RootCommandMode(String suPath) {
             this.suPath = suPath;
         }
 
         private String[] buildArgs(String command) {
-            switch (this) {
-                case SU_C:
-                case SYSTEM_XBIN_SU_C:
-                case SYSTEM_BIN_SU_C:
-                case SBIN_SU_C:
-                case VENDOR_BIN_SU_C:
-                    return new String[]{suPath, "-c", command};
-                case SU_0_SH_C:
-                case SYSTEM_XBIN_SU_0_SH_C:
-                case SYSTEM_BIN_SU_0_SH_C:
-                case SBIN_SU_0_SH_C:
-                case VENDOR_BIN_SU_0_SH_C:
-                    return new String[]{suPath, "0", "sh", "-c", command};
-                case SU_ROOT_SH_C:
-                case SYSTEM_XBIN_SU_ROOT_SH_C:
-                case SYSTEM_BIN_SU_ROOT_SH_C:
-                case SBIN_SU_ROOT_SH_C:
-                case VENDOR_BIN_SU_ROOT_SH_C:
-                    return new String[]{suPath, "root", "sh", "-c", command};
-                default:
-                    return new String[]{"su", "-c", command};
-            }
+            String executable = suPath.isEmpty() ? "su" : suPath;
+            return new String[]{executable, "-c", command};
         }
 
         private String[] buildInteractiveArgs() {
-            switch (this) {
-                case SU_C:
-                case SYSTEM_XBIN_SU_C:
-                case SYSTEM_BIN_SU_C:
-                case SBIN_SU_C:
-                case VENDOR_BIN_SU_C:
-                    return new String[]{suPath, "-c", "sh"};
-                case SU_0_SH_C:
-                case SYSTEM_XBIN_SU_0_SH_C:
-                case SYSTEM_BIN_SU_0_SH_C:
-                case SBIN_SU_0_SH_C:
-                case VENDOR_BIN_SU_0_SH_C:
-                    return new String[]{suPath, "0", "sh"};
-                case SU_ROOT_SH_C:
-                case SYSTEM_XBIN_SU_ROOT_SH_C:
-                case SYSTEM_BIN_SU_ROOT_SH_C:
-                case SBIN_SU_ROOT_SH_C:
-                case VENDOR_BIN_SU_ROOT_SH_C:
-                    return new String[]{suPath, "root", "sh"};
-                default:
-                    return new String[]{"su"};
-            }
+            String executable = suPath.isEmpty() ? "su" : suPath;
+            return new String[]{executable, "-c", "sh"};
         }
     }
 }

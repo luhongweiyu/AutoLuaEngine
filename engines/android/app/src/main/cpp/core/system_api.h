@@ -2,57 +2,19 @@
 
 #include <jni.h>
 #include <string>
-#include <vector>
 
-struct ScreenCaptureResult {
-    bool success = false;
-    std::vector<unsigned char> pixels;
-    int width = 0;
-    int height = 0;
-    int rowStride = 0;
-    int pixelStride = 0;
-    std::string format;
-    std::string source;
-    long long captureDurationMs = 0;
-    std::string error;
-};
+#include "../platform/android_bridge.h"
 
-struct RootExecResult {
-    bool success = false;
-    int exitCode = -1;
-    std::string stdoutText;
-    std::string stderrText;
-    bool timedOut = false;
-    std::string error;
-};
-
-struct RootProbeAttempt {
-    std::string commandMode;
-    std::string suPath;
-    int exitCode = -1;
-    std::string stdoutText;
-    std::string stderrText;
-    bool timedOut = false;
-    std::string error;
-};
-
-struct RootStatusResult {
-    bool available = false;
-    std::string commandMode;
-    std::string suPath;
-    bool cached = false;
-    long long cacheExpireAt = 0;
-    std::string error;
-    std::vector<RootProbeAttempt> attempts;
-};
+namespace autolua::core {
 
 /**
- * Android 平台能力桥。
+ * native 核心系统 API 出口。
  *
- * Native 层需要调用 Java/Kotlin 系统能力时统一从这里进入。
- * 当前用于 root / 无障碍状态检测、截图和触控按键。
+ * 这一层面向 Lua、后续 JS、IDE 协议和插件复用；具体 Android Java/root
+ * 细节仍由 platform/android_bridge.* 处理。这样脚本语言层只需要绑定
+ * SystemApi，不需要知道底层是无障碍、root shell 还是系统服务。
  */
-class AndroidBridge {
+class SystemApi {
 public:
     static void init(JavaVM* javaVm);
 
@@ -62,6 +24,7 @@ public:
     static bool isRootAvailable();
     static RootStatusResult rootStatus();
     static RootExecResult rootExec(const std::string& command, int timeoutMs);
+
     static RootExecResult rootFileExists(const std::string& path);
     static RootExecResult rootFileReadText(const std::string& path, int timeoutMs);
     static RootExecResult rootFileWriteText(
@@ -75,11 +38,13 @@ public:
     static RootExecResult rootFileMkdir(const std::string& path, bool recursive);
     static RootExecResult rootFileChmod(const std::string& path, const std::string& mode);
     static RootExecResult rootFileChown(const std::string& path, const std::string& owner);
+
     static RootExecResult rootProcessPidOf(const std::string& processName);
     static RootExecResult rootProcessList();
     static RootExecResult rootProcessInfo(const std::string& pidOrName);
     static RootExecResult rootProcessStats(const std::string& pidOrName);
     static RootExecResult rootProcessKill(const std::string& pidOrName, int signal);
+
     static RootExecResult deviceScreenState();
     static RootExecResult deviceWake();
     static RootExecResult deviceSleep();
@@ -92,7 +57,10 @@ public:
             const std::string& key,
             const std::string& value
     );
-    static RootExecResult deviceSettingsDelete(const std::string& namespaceName, const std::string& key);
+    static RootExecResult deviceSettingsDelete(
+            const std::string& namespaceName,
+            const std::string& key
+    );
     static RootExecResult devicePropGet(const std::string& key);
     static RootExecResult devicePropSet(const std::string& key, const std::string& value);
     static RootExecResult deviceDisplayInfo();
@@ -102,6 +70,7 @@ public:
     static RootExecResult deviceDisplayResetDensity();
     static RootExecResult deviceDisplaySetBrightness(int brightness);
     static RootExecResult deviceDisplaySetAutoBrightness(bool enabled);
+
     static bool appIsInstalled(const std::string& packageName);
     static bool appOpen(const std::string& packageName);
     static bool appStop(const std::string& packageName);
@@ -121,6 +90,7 @@ public:
     static bool appEnable(const std::string& packageName);
     static bool appDisableComponent(const std::string& componentName);
     static bool appEnableComponent(const std::string& componentName);
+
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static ScreenCaptureResult captureRootScreen();
@@ -131,6 +101,6 @@ public:
     static bool keyPress(int keyCode);
     static bool keyBack();
     static bool keyHome();
-
-private:
 };
+
+} // namespace autolua::core

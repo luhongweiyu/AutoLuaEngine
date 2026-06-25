@@ -5,9 +5,11 @@
 
 #include "engine/engine.h"
 #include "engine/engine_config.h"
-#include "platform/android_bridge.h"
+#include "core/system_api.h"
 #include "runtime/image_store.h"
 #include "runtime/log_buffer.h"
+
+using autolua::core::SystemApi;
 
 extern "C" {
 #include "lua.h"
@@ -73,6 +75,30 @@ std::string imageMetadataJson(const ImageMetadata& metadata) {
     return output.str();
 }
 
+std::string captureResultJson(ScreenCaptureResult capture, const char* defaultError) {
+    if (!capture.success) {
+        std::ostringstream output;
+        output << "{\"ok\":false,\"error\":\"";
+        appendJsonString(output, capture.error.empty() ? defaultError : capture.error);
+        output << "\"}";
+        return output.str();
+    }
+
+    ImageFrame frame;
+    frame.width = capture.width;
+    frame.height = capture.height;
+    frame.rowStride = capture.rowStride;
+    frame.pixelStride = capture.pixelStride;
+    frame.format = capture.format;
+    frame.source = capture.source;
+    frame.captureDurationMs = capture.captureDurationMs;
+    frame.pixels = std::move(capture.pixels);
+
+    ImageMetadata metadata = storeImageFrame(std::move(frame));
+    std::string metadataJson = imageMetadataJson(metadata);
+    return "{\"ok\":true,\"image\":" + metadataJson + "}";
+}
+
 } // namespace
 
 extern "C" JNIEXPORT void JNICALL
@@ -83,7 +109,7 @@ Java_com_autolua_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
     // Lua Runtime 会在下一阶段接入，避免一次改动混入太多变量。
     JavaVM* javaVm = nullptr;
     env->GetJavaVM(&javaVm);
-    AndroidBridge::init(javaVm);
+    SystemApi::init(javaVm);
 
     gEngine.init();
     logInfo("native engine initialized");
@@ -211,32 +237,19 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_autolua_engine_NativeEngine_nativeCaptureScreenJson(JNIEnv* env, jclass clazz) {
     (void) clazz;
 
-    if (!AndroidBridge::hasScreenCapturePermission()) {
+    if (!SystemApi::hasScreenCapturePermission()) {
         return env->NewStringUTF("{\"ok\":false,\"error\":\"screen capture permission is not granted\"}");
     }
 
-    ScreenCaptureResult capture = AndroidBridge::captureScreen();
-    if (!capture.success) {
-        std::ostringstream output;
-        output << "{\"ok\":false,\"error\":\"";
-        appendJsonString(output, capture.error.empty() ? "screen capture failed" : capture.error);
-        output << "\"}";
-        return env->NewStringUTF(output.str().c_str());
-    }
+    std::string result = captureResultJson(SystemApi::captureScreen(), "screen capture failed");
+    return env->NewStringUTF(result.c_str());
+}
 
-    ImageFrame frame;
-    frame.width = capture.width;
-    frame.height = capture.height;
-    frame.rowStride = capture.rowStride;
-    frame.pixelStride = capture.pixelStride;
-    frame.format = capture.format;
-    frame.source = capture.source;
-    frame.captureDurationMs = capture.captureDurationMs;
-    frame.pixels = std::move(capture.pixels);
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_autolua_engine_NativeEngine_nativeCaptureRootScreenJson(JNIEnv* env, jclass clazz) {
+    (void) clazz;
 
-    ImageMetadata metadata = storeImageFrame(std::move(frame));
-    std::string metadataJson = imageMetadataJson(metadata);
-    std::string result = "{\"ok\":true,\"image\":" + metadataJson + "}";
+    std::string result = captureResultJson(SystemApi::captureRootScreen(), "root screen capture failed");
     return env->NewStringUTF(result.c_str());
 }
 

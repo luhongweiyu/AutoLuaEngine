@@ -6,6 +6,8 @@ set(LUA_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/lua-5.4.8/sr
 
 add_library(engine SHARED
         engine_jni.cpp
+        core/system_c_api.cpp
+        core/system_api.cpp
         engine/engine.cpp
         engine/script_task.cpp
         platform/android_bridge.cpp

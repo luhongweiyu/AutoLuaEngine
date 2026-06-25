@@ -1569,7 +1569,9 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 说明：
 
 - 启动 Android 应用
-- Root 模式开启且 root 可用时优先 root 启动，失败后回退普通 Launcher Intent
+- Root 模式下只走 root `monkey`
+- 无障碍优先模式下走普通 Launcher Intent
+- Root 模式下 root 不可用或命令失败时直接返回错误
 
 请求：
 
@@ -1969,9 +1971,9 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 说明：
 
 - 执行 Android 通用按键码
-- Root 模式开启且 root 可用时优先使用 root `input keyevent`
-- `keyCode = 4` 和 `keyCode = 3` 可在 root 失败后回退无障碍返回/Home
-- 其他 keyCode 当前依赖 root
+- Root 模式下只走 root `input keyevent`
+- 无障碍优先模式下只处理 Back/Home 两个系统全局动作
+- Root 模式下 root 不可用或命令失败时直接返回错误
 
 请求：
 
@@ -2003,9 +2005,10 @@ clientPort：IDE/PC 实际访问端口，默认 18380
 说明：
 
 - 向当前焦点输入框输入文本
-- Android 第一版先使用 root `input text`
-- root `input text` 失败后自动回退剪贴板 + root 粘贴
+- 当前只使用 root `input text`
+- 中文、换行和复杂符号由脚本显式调用 `input.pasteText`
 - Root 模式关闭、root 不可用或当前焦点控件无法接收输入时返回 `ok: false`
+- 命令失败时直接返回结果，不自动改走剪贴板粘贴
 
 请求：
 
@@ -2127,12 +2130,14 @@ WebSocket 事件：
 说明：
 
 - 请求当前屏幕截图
-- Android 优先使用 root 原始 `screencap`，失败后回退 MediaProjection 授权
+- Root 模式下只使用 root 原始 `screencap`
+- 无障碍优先模式下使用 MediaProjection 系统截图授权
 - 第一版返回图片句柄和基础元信息
 - 当前 Android HTTP JSON-RPC 已实现该方法
 - 像素数据保留在引擎内存中，供后续 image API 使用，不通过协议反复传输大块数据
 - `source` 标记实际截图路线，`captureDurationMs` 用于 root 截图压测和后续高频路线判断
 - 当前高频点阵读取应优先在脚本侧通过 `image.getPixel` / `image.getPixels` 操作图片句柄，避免把像素数据经 HTTP 来回传输
+- Root 模式下 root 不可用或截图失败时直接返回错误
 
 请求：
 
@@ -2179,7 +2184,48 @@ WebSocket 事件：
 }
 ```
 
-## 10.3 `image.release`
+## 10.3 `root.screen.capture`
+
+说明：
+
+- 显式请求 root 截图
+- 只使用 root 原始 `screencap`
+- 用于 root 截图授权验证、压测和后续高频截图路线准备
+- root 不可用或截图失败时直接返回错误
+
+请求：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "root.screen.capture",
+  "params": {}
+}
+```
+
+响应：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "result": {
+    "id": 2,
+    "type": "image",
+    "width": 1080,
+    "height": 2220,
+    "rowStride": 4320,
+    "pixelStride": 4,
+    "byteLength": 9590400,
+    "format": "rgba8888",
+    "source": "root-screencap",
+    "captureDurationMs": 120
+  }
+}
+```
+
+## 10.4 `image.release`
 
 说明：
 
