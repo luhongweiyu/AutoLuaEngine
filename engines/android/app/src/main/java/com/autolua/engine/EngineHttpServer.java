@@ -143,7 +143,10 @@ public final class EngineHttpServer {
             boolean enabled = params.optBoolean("enabled", true);
             EngineSettings.setRootModeEnabled(appContext, enabled);
             if (enabled) {
-                RootShellBridge.prepareRootRuntime();
+                RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
+                if (rootStatus.available) {
+                    RootHelperBridge.prepare();
+                }
             }
             return makeDeviceInfo();
         }
@@ -794,8 +797,10 @@ public final class EngineHttpServer {
             return;
         }
 
-        RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
-        if (!rootStatus.available) {
+        // HTTP/IDE 运行脚本时不重新申请 Root。Root 模式的授权和常驻 shell
+        // 初始化只在引擎启动或切换模式时做，避免 F5/运行按钮反复弹授权框。
+        RootStatus rootStatus = RootShellBridge.status();
+        if (!rootStatus.available || !RootShellBridge.isRootRuntimeReady()) {
             String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
             throw new IllegalStateException("Root 模式需要授权后才能运行脚本：" + error);
         }

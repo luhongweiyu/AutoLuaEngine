@@ -62,7 +62,9 @@ public final class RootShellBridge {
     public static RootStatus status() {
         long now = System.currentTimeMillis();
         boolean cached = cachedRootAvailable != null && now < rootCacheExpireAt;
-        boolean available = rootRuntimePrepared ? rootRuntimeAvailable : isRootAvailable();
+        boolean available = rootRuntimePrepared
+                ? isRootRuntimeReady()
+                : cached && Boolean.TRUE.equals(cachedRootAvailable);
         return new RootStatus(
                 available,
                 cachedRootCommandMode.name(),
@@ -75,6 +77,11 @@ public final class RootShellBridge {
     }
 
     public static synchronized RootStatus prepareRootRuntime() {
+        // 已经有可用的常驻 root shell 时直接复用，不再重复执行 su 探测。
+        if (isRootRuntimeReady()) {
+            return status();
+        }
+
         long now = System.currentTimeMillis();
         RootCommandMode rootCommandMode = detectRootCommandMode();
         boolean available = rootCommandMode != RootCommandMode.NONE;
@@ -469,7 +476,7 @@ public final class RootShellBridge {
     }
 
     static CommandResult runRootBinaryCommand(String command, long timeoutMs) {
-        if (!isRootRuntimeReady() && !isRootAvailable()) {
+        if (!isRootRuntimeReady()) {
             return CommandResult.failure(lastRootError.isEmpty() ? "root is not available" : lastRootError);
         }
         return runCommand(cachedRootCommandMode.buildArgs(command), timeoutMs);

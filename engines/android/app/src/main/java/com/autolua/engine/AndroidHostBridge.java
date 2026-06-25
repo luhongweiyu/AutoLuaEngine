@@ -302,7 +302,7 @@ public final class AndroidHostBridge {
 
     public static boolean hasScreenCapturePermission() {
         return isRootModeEnabledInternal()
-                ? RootShellBridge.isRootAvailable()
+                ? RootShellBridge.isRootRuntimeReady()
                 : ScreenCaptureBridge.hasPermission();
     }
 

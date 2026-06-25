@@ -100,7 +100,10 @@ public final class EngineService extends Service {
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
         if (EngineSettings.isRootModeEnabled(this)) {
-            RootShellBridge.prepareRootRuntime();
+            RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
+            if (rootStatus.available) {
+                RootHelperBridge.prepare();
+            }
         }
     }
 
@@ -145,8 +148,11 @@ public final class EngineService extends Service {
             EngineSettings.setRootModeEnabled(this, enabled);
             if (enabled) {
                 RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
+                boolean helperReady = rootStatus.available && RootHelperBridge.prepare();
                 String message = rootStatus.available
-                        ? "运行模式已切换为 Root 优先，Root 运行层已就绪"
+                        ? (helperReady
+                                ? "运行模式已切换为 Root 优先，Root 运行层已就绪"
+                                : "运行模式已切换为 Root 优先，Root shell 已就绪，截图 helper 未就绪")
                         : "运行模式已切换为 Root 优先，但 Root 权限不可用：" + rootStatus.error;
                 broadcastStatus(rootStatus.available ? STATE_FINISHED : STATE_FAILED, message);
             } else {
@@ -194,7 +200,9 @@ public final class EngineService extends Service {
         }
 
         if (EngineSettings.isRootModeEnabled(this)) {
-            RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
+            // Root 授权只在引擎启动或切换 Root 模式时触发。运行脚本时只读取
+            // 已准备好的常驻 root shell，避免每次点击运行都弹出超级用户授权。
+            RootStatus rootStatus = RootShellBridge.status();
             if (!rootStatus.available || !RootShellBridge.isRootRuntimeReady()) {
                 running.set(false);
                 String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;

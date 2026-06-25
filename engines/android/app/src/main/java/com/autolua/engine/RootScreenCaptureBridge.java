@@ -20,7 +20,7 @@ public final class RootScreenCaptureBridge {
     }
 
     public static ScreenCaptureResult captureFrame() {
-        if (!RootShellBridge.isRootRuntimeReady() && !RootShellBridge.isRootAvailable()) {
+        if (!RootShellBridge.isRootRuntimeReady()) {
             return ScreenCaptureResult.failure("root screen capture is not available");
         }
 
@@ -28,7 +28,7 @@ public final class RootScreenCaptureBridge {
     }
 
     public static ScreenCaptureResult captureRawScreencapForDebug() {
-        if (!RootShellBridge.isRootRuntimeReady() && !RootShellBridge.isRootAvailable()) {
+        if (!RootShellBridge.isRootRuntimeReady()) {
             return ScreenCaptureResult.failure("root screen capture is not available");
         }
 

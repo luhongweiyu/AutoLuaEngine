@@ -22,6 +22,18 @@ public final class RootHelperBridge {
     private RootHelperBridge() {
     }
 
+    public static boolean prepare() {
+        synchronized (LOCK) {
+            try {
+                ensureSessionLocked();
+                return true;
+            } catch (IOException | RuntimeException exception) {
+                closeSessionLocked();
+                return false;
+            }
+        }
+    }
+
     public static ScreenCaptureResult captureFrame(int width, int height) {
         synchronized (LOCK) {
             try {
