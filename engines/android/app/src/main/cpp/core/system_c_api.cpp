@@ -12,8 +12,8 @@ constexpr const char* kCapabilitiesJson =
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"plugin-reserved\"],"
         "\"automationModes\":[\"root\",\"accessibility\"],"
-        "\"rootCommandMode\":\"su-c\","
-        "\"screenCapture\":[\"root-screencap\",\"media-projection\"],"
+        "\"rootCommandMode\":\"persistent-su-shell\","
+        "\"screenCapture\":[\"root-surface\",\"root-screen-capture\",\"media-projection\"],"
         "\"imageHandle\":\"native-memory\""
         "}";
 

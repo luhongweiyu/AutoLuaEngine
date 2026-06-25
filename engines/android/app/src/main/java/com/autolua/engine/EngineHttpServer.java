@@ -142,6 +142,9 @@ public final class EngineHttpServer {
 
             boolean enabled = params.optBoolean("enabled", true);
             EngineSettings.setRootModeEnabled(appContext, enabled);
+            if (enabled) {
+                RootShellBridge.prepareRootRuntime();
+            }
             return makeDeviceInfo();
         }
 
@@ -791,7 +794,7 @@ public final class EngineHttpServer {
             return;
         }
 
-        RootStatus rootStatus = RootShellBridge.status();
+        RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
         if (!rootStatus.available) {
             String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
             throw new IllegalStateException("Root 模式需要授权后才能运行脚本：" + error);

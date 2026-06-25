@@ -1,10 +1,12 @@
 package com.autolua.engine;
 
+import java.nio.ByteBuffer;
+
 /**
  * Root 截图桥。
  *
- * 这里使用 `screencap` 的原始输出，不使用 `screencap -p`，避免 PNG 编码和磁盘 IO。
- * 这仍然是短命令方案，不适合最终高频找色；后续高频路线应升级为常驻 root 进程。
+ * 正式 root 截图先走 Surface/Window 隐藏 API 高速路线，不再把每帧 `su screencap`
+ * 当作高频方案。旧的原始 screencap 解码只保留为显式调试入口，方便对比设备表现。
  */
 public final class RootScreenCaptureBridge {
     private static final long CAPTURE_TIMEOUT_MS = 3000;
@@ -18,13 +20,21 @@ public final class RootScreenCaptureBridge {
     }
 
     public static ScreenCaptureResult captureFrame() {
-        if (!RootShellBridge.isRootAvailable()) {
+        if (!RootShellBridge.isRootRuntimeReady() && !RootShellBridge.isRootAvailable()) {
+            return ScreenCaptureResult.failure("root screen capture is not available");
+        }
+
+        return RootHelperBridge.captureFrame(0, 0);
+    }
+
+    public static ScreenCaptureResult captureRawScreencapForDebug() {
+        if (!RootShellBridge.isRootRuntimeReady() && !RootShellBridge.isRootAvailable()) {
             return ScreenCaptureResult.failure("root screen capture is not available");
         }
 
         long startTime = System.nanoTime();
         RootShellBridge.CommandResult result =
-                RootShellBridge.runRootCommand("screencap", CAPTURE_TIMEOUT_MS);
+                RootShellBridge.runRootBinaryCommand("screencap", CAPTURE_TIMEOUT_MS);
         long captureDurationMs = elapsedMillis(startTime);
         if (result.exitCode != 0) {
             String error = result.stderrText().trim();
@@ -62,19 +72,20 @@ public final class RootScreenCaptureBridge {
             return ScreenCaptureResult.failure("root screencap output size is invalid");
         }
 
-        byte[] rgbaPixels = new byte[pixelBytes];
+        ByteBuffer rgbaBuffer = ByteBuffer.allocateDirect(pixelBytes);
         if (format == FORMAT_RGBA_8888) {
-            System.arraycopy(rawBytes, pixelOffset, rgbaPixels, 0, pixelBytes);
+            rgbaBuffer.put(rawBytes, pixelOffset, pixelBytes);
         } else if (format == FORMAT_RGBX_8888) {
-            copyRgbxToRgba(rawBytes, pixelOffset, rgbaPixels, pixelBytes);
+            copyRgbxToRgba(rawBytes, pixelOffset, rgbaBuffer, pixelBytes);
         } else if (format == FORMAT_BGRA_8888) {
-            copyBgraToRgba(rawBytes, pixelOffset, rgbaPixels, pixelBytes);
+            copyBgraToRgba(rawBytes, pixelOffset, rgbaBuffer, pixelBytes);
         } else {
             return ScreenCaptureResult.failure("root screencap format is unsupported: " + format);
         }
+        rgbaBuffer.position(0);
 
-        return ScreenCaptureResult.successFromRgbaBytes(
-                rgbaPixels,
+        return ScreenCaptureResult.successFromRgbaBuffer(
+                rgbaBuffer,
                 width,
                 height,
                 "root-screencap",
@@ -104,21 +115,21 @@ public final class RootScreenCaptureBridge {
                 | ((bytes[offset + 3] & 0xFF) << 24);
     }
 
-    private static void copyRgbxToRgba(byte[] source, int sourceOffset, byte[] target, int byteLength) {
+    private static void copyRgbxToRgba(byte[] source, int sourceOffset, ByteBuffer target, int byteLength) {
         for (int offset = 0; offset < byteLength; offset += 4) {
-            target[offset] = source[sourceOffset + offset];
-            target[offset + 1] = source[sourceOffset + offset + 1];
-            target[offset + 2] = source[sourceOffset + offset + 2];
-            target[offset + 3] = (byte) 0xFF;
+            target.put(source[sourceOffset + offset]);
+            target.put(source[sourceOffset + offset + 1]);
+            target.put(source[sourceOffset + offset + 2]);
+            target.put((byte) 0xFF);
         }
     }
 
-    private static void copyBgraToRgba(byte[] source, int sourceOffset, byte[] target, int byteLength) {
+    private static void copyBgraToRgba(byte[] source, int sourceOffset, ByteBuffer target, int byteLength) {
         for (int offset = 0; offset < byteLength; offset += 4) {
-            target[offset] = source[sourceOffset + offset + 2];
-            target[offset + 1] = source[sourceOffset + offset + 1];
-            target[offset + 2] = source[sourceOffset + offset];
-            target[offset + 3] = source[sourceOffset + offset + 3];
+            target.put(source[sourceOffset + offset + 2]);
+            target.put(source[sourceOffset + offset + 1]);
+            target.put(source[sourceOffset + offset]);
+            target.put(source[sourceOffset + offset + 3]);
         }
     }
 }

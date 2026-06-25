@@ -147,7 +147,7 @@ touch tap failed; root or accessibility service is not available
 
 ## 3.2 无障碍优先模式截图需要你手动授权
 
-Root 模式截图只使用 root 原始 `screencap`。切到无障碍优先模式后，截图会使用 MediaProjection，需要你点击 App 内：
+Root 模式截图只使用 root helper。切到无障碍优先模式后，截图会使用 MediaProjection，需要你点击 App 内：
 
 ```text
 开启截图授权

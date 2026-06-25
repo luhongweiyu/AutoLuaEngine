@@ -374,6 +374,7 @@ public final class MainActivity extends Activity {
 
     private void setRootMode(boolean enabled) {
         EngineSettings.setRootModeEnabled(this, enabled);
+        EngineService.setRootModeEnabled(this, enabled);
         updateRootModeButtons();
         outputView.setText(enabled ? "运行模式已切换为 Root 优先" : "运行模式已切换为无障碍优先");
     }
@@ -598,6 +599,7 @@ public final class MainActivity extends Activity {
         if (requestCode == REQUEST_SCREEN_CAPTURE) {
             if (resultCode == RESULT_OK && data != null) {
                 ScreenCaptureBridge.savePermission(resultCode, data);
+                EngineService.saveScreenCapturePermission(this, resultCode, data);
                 outputView.setText("截图授权已开启");
             } else {
                 outputView.setText("截图授权已取消");

@@ -24,6 +24,7 @@
         <service
             android:name=".AutomationAccessibilityService"
             android:exported="true"
+            android:process=":engine"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -37,6 +38,7 @@
         <service
             android:name=".ScreenCaptureForegroundService"
             android:exported="false"
+            android:process=":engine"
             android:foregroundServiceType="mediaProjection" />
 
         <service
@@ -45,7 +47,8 @@
 
         <service
             android:name=".EngineService"
-            android:exported="false" />
+            android:exported="false"
+            android:process=":engine" />
     </application>
 
 </manifest>

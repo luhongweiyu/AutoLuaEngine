@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Android 端脚本运行服务。
  *
  * Activity、悬浮窗和后续其他入口都只向这里发送运行/停止命令，避免每个界面
- * 自己创建脚本线程。当前仍与主 App 同进程运行；独立 `:engine` 进程后续再评估。
+ * 自己创建脚本线程。该服务运行在 `:engine` 独立进程，和旧项目 NativeService
+ * 的职责一致：主进程负责界面，引擎进程负责脚本、HTTP 协议和 root 运行层。
  */
 public final class EngineService extends Service {
     public static final String ACTION_RUN_ASSET =
@@ -26,10 +27,17 @@ public final class EngineService extends Service {
             "com.autolua.engine.action.PAUSE_SCRIPT";
     public static final String ACTION_RESUME_SCRIPT =
             "com.autolua.engine.action.RESUME_SCRIPT";
+    public static final String ACTION_SET_ROOT_MODE =
+            "com.autolua.engine.action.SET_ROOT_MODE";
+    public static final String ACTION_SAVE_SCREEN_CAPTURE_PERMISSION =
+            "com.autolua.engine.action.SAVE_SCREEN_CAPTURE_PERMISSION";
     public static final String ACTION_STATUS =
             "com.autolua.engine.action.STATUS";
 
     public static final String EXTRA_ASSET_PATH = "assetPath";
+    public static final String EXTRA_ENABLED = "enabled";
+    public static final String EXTRA_RESULT_CODE = "resultCode";
+    public static final String EXTRA_RESULT_DATA = "resultData";
     public static final String EXTRA_STATE = "state";
     public static final String EXTRA_MESSAGE = "message";
 
@@ -72,11 +80,30 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
+    public static void setRootModeEnabled(Context context, boolean enabled) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_SET_ROOT_MODE);
+        intent.putExtra(EXTRA_ENABLED, enabled);
+        context.startService(intent);
+    }
+
+    public static void saveScreenCapturePermission(Context context, int resultCode, Intent resultData) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_SAVE_SCREEN_CAPTURE_PERMISSION);
+        intent.putExtra(EXTRA_RESULT_CODE, resultCode);
+        intent.putExtra(EXTRA_RESULT_DATA, resultData);
+        context.startService(intent);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        ScreenCaptureBridge.init(getApplicationContext());
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
+        if (EngineSettings.isRootModeEnabled(this)) {
+            RootShellBridge.prepareRootRuntime();
+        }
     }
 
     @Override
@@ -115,6 +142,34 @@ public final class EngineService extends Service {
             return START_STICKY;
         }
 
+        if (ACTION_SET_ROOT_MODE.equals(intent.getAction())) {
+            boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, true);
+            EngineSettings.setRootModeEnabled(this, enabled);
+            if (enabled) {
+                RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
+                String message = rootStatus.available
+                        ? "运行模式已切换为 Root 优先，Root 运行层已就绪"
+                        : "运行模式已切换为 Root 优先，但 Root 权限不可用：" + rootStatus.error;
+                broadcastStatus(rootStatus.available ? STATE_FINISHED : STATE_FAILED, message);
+            } else {
+                broadcastStatus(STATE_FINISHED, "运行模式已切换为无障碍优先");
+            }
+            return START_STICKY;
+        }
+
+        if (ACTION_SAVE_SCREEN_CAPTURE_PERMISSION.equals(intent.getAction())) {
+            int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
+            Intent resultData = intent.getParcelableExtra(EXTRA_RESULT_DATA);
+            if (resultData == null) {
+                broadcastStatus(STATE_FAILED, "截图授权数据为空");
+                return START_STICKY;
+            }
+
+            ScreenCaptureBridge.savePermission(resultCode, resultData);
+            broadcastStatus(STATE_FINISHED, "截图授权已同步到引擎进程");
+            return START_STICKY;
+        }
+
         return START_STICKY;
     }
 
@@ -134,12 +189,14 @@ public final class EngineService extends Service {
             return;
         }
 
-        if (EngineSettings.isRootModeEnabled(this) && !RootShellBridge.isRootAvailable()) {
-            running.set(false);
-            RootStatus rootStatus = RootShellBridge.status();
-            String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
-            broadcastStatus(STATE_FAILED, "Root 模式需要授权后才能运行脚本：" + error);
-            return;
+        if (EngineSettings.isRootModeEnabled(this)) {
+            RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
+            if (!rootStatus.available || !RootShellBridge.isRootRuntimeReady()) {
+                running.set(false);
+                String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
+                broadcastStatus(STATE_FAILED, "Root 模式需要授权后才能运行脚本：" + error);
+                return;
+            }
         }
 
         ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(assetPath);

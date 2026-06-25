@@ -204,7 +204,7 @@ Lua run failed: expected lua runtime error
 - [x] `m.device.settings.get/put/delete`、`m.device.prop.get/set` root 系统设置和系统属性底座能力
 - [x] `m.device.display.info/setSize/resetSize/setDensity/resetDensity/setBrightness/setAutoBrightness` root 显示参数和亮度控制第一版
 - [x] `m.app.isInstalled/open/start/stop/clearData/grant/revoke/current/install/uninstall/disable/enable/disableComponent/enableComponent` 应用控制，Root 模式启动只走 root，强停、清数据、权限控制、前台查询、包管理和组件启停走 root
-- [x] `m.screen.capture()`，Root 模式只走 root 原始 `screencap`，无障碍优先模式走 MediaProjection
+- [x] `m.screen.capture()`，Root 模式只走 root helper，无障碍优先模式走 MediaProjection
 - [x] `m.root.screen.capture()` / `m.rootCapture()` 显式 root-only 截图
 - [x] 触控和按键复用常驻 root shell，命令失败时直接返回结果
 - [x] 图片对象句柄管理，当前支持基础句柄、`m.image.release`、`m.image.getPixel`、`m.image.getPixels`
@@ -230,10 +230,10 @@ Root 显示 API 当前支持显示信息读取、覆盖分辨率、覆盖 DPI、
 Root 应用控制当前支持启动、强停、清理应用数据、授权、撤销权限、前台应用查询、安装、卸载、冻结和解冻。
 Root 模式默认开启，可在 App 主界面切换；关闭后自动化路由走无障碍优先路线。
 所选路线不可用时返回明确错误。
-m.screen.capture 已接入 root 原始 `screencap` 和 MediaProjection 两条路线，由当前运行模式决定；
+m.screen.capture 已接入 root helper 和 MediaProjection 两条路线，由当前运行模式决定；
 Root 模式下 root 不可用会在脚本运行前拒绝执行，截图失败时直接返回错误；
 授权后返回 native 内存图片句柄和 width、height、rowStride、pixelStride、byteLength、format、source、captureDurationMs。
-source 用于确认本帧实际走 root-screencap 还是 media-projection，captureDurationMs 用于后续 root 截图压测。
+source 用于确认本帧实际走 root-helper 还是 media-projection，captureDurationMs 用于后续 root 截图压测。
 当前已支持在 native 内存图片句柄上单点读取和批量读取 RGB 点阵；
 找色、比色等算法后续再做，不在这一阶段提前实现。
 ```
@@ -308,7 +308,7 @@ ide/vscode-extension 已提供最小命令：
 - [x] App 日志入口改为通过本地 JSON-RPC 访问引擎
 - [x] App 设置入口改为通过本地 JSON-RPC 查询引擎状态
 - [x] 记录 Android 引擎独立进程拆分方案
-- [ ] 评估是否把 EngineService 放到独立 Android 进程 `:engine`
+- [x] 将 EngineService 放到独立 Android 进程 `:engine`
 - [x] 暂停脚本先按协作暂停设计，不强杀线程、不直接挂起系统线程
 
 验收标准：

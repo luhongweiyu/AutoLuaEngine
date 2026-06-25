@@ -18,6 +18,10 @@ public final class AndroidHostBridge {
         appContext = context.getApplicationContext();
     }
 
+    static Context appContext() {
+        return appContext;
+    }
+
     public static boolean isAccessibilityEnabled() {
         return AutomationAccessibilityService.isEnabled();
     }
@@ -311,7 +315,7 @@ public final class AndroidHostBridge {
     /**
      * 只走 root 的截图入口。
      *
-     * 这个接口只走 root 原始 screencap，用于 root 版调试和高频截图路线压测。
+     * 这个接口只走 root 模式截图路线，不在失败后切到 MediaProjection。
      */
     public static ScreenCaptureResult captureRootScreen() {
         return RootScreenCaptureBridge.captureFrame();

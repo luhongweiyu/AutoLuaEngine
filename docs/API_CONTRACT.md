@@ -1086,7 +1086,7 @@ end
 - 获取当前屏幕截图
 - Android 第一版返回内存图片句柄，不做 PNG 编码，不写磁盘
 - 句柄只暴露基础元信息；后续找色、比色直接在 native 内存上处理
-- Root 模式下只使用 root 原始 `screencap`
+- Root 模式下只使用 root helper 常驻进程
 - 无障碍优先模式下使用 MediaProjection 系统截图授权
 - root 不可用或未授权截图时返回 `nil, errorMessage`
 
@@ -1114,14 +1114,14 @@ Android 第一版成功返回：
     pixelStride = 4,
     byteLength = 9590400,
     format = "rgba8888",
-    source = "root-screencap",
-    captureDurationMs = 120
+    source = "root-helper",
+    captureDurationMs = 54
 }
 ```
 
 字段说明：
 
-- `source` 当前为 `"root-screencap"` 或 `"media-projection"`，用于确认本帧实际截图路线。
+- `source` 当前为 `"root-helper"` 或 `"media-projection"`，用于确认本帧实际截图路线。
 - `captureDurationMs` 是 Java 层取到这一帧的耗时，单位毫秒，用于后续 root 截图压测。
 
 ### 5.9.1 `m.image.release(image)` / `m.releaseImage(image)`

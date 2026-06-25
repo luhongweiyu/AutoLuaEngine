@@ -16,12 +16,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * Root shell 能力桥。
  *
- * Root shell 能力固定使用 `su -c`。Root 模式不做多命令探测，失败时直接
- * 返回当前命令结果，避免运行期因为多路尝试产生额外开销。
+ * Root 运行层固定使用一次 `su -c sh` 常驻会话。Root 模式开启、App 启动或
+ * 切换运行模式时先调用 prepareRootRuntime()，后续命令只发给这条会话执行。
+ * 这样点击、文件、设备控制、应用控制和 root.exec 都不会反复拉起 su 进程。
  *
- * 点击、滑动和系统按键这类无输出命令会优先复用常驻 root shell，减少频繁
- * 创建 su 进程的开销；root.exec 和 screencap 这类需要准确 stdout/stderr 或
- * 二进制输出的命令仍使用短命令，避免输出边界混乱。
+ * 注意：二进制大输出不走常驻文本通道，旧 screencap 调试路径单独保留。
  */
 public final class RootShellBridge {
     private static final long DEFAULT_TIMEOUT_MS = 2500;
@@ -29,6 +28,10 @@ public final class RootShellBridge {
     private static final long ROOT_CACHE_TRUE_MS = 60_000;
     private static final long ROOT_CACHE_FALSE_MS = 3_000;
     private static final int KEYCODE_PASTE = 279;
+    private static final String TEXT_STDOUT_BEGIN = "__AEL_TEXT_STDOUT_BEGIN__";
+    private static final String TEXT_STDOUT_END = "__AEL_TEXT_STDOUT_END__";
+    private static final String TEXT_STDERR_BEGIN = "__AEL_TEXT_STDERR_BEGIN__";
+    private static final String TEXT_STDERR_END = "__AEL_TEXT_STDERR_END__";
 
     private static Boolean cachedRootAvailable;
     private static long rootCacheExpireAt;
@@ -36,29 +39,30 @@ public final class RootShellBridge {
     private static String cachedRootSuPath = "su";
     private static String lastRootError = "root has not been probed";
     private static List<RootStatus.ProbeAttempt> lastProbeAttempts = Collections.emptyList();
+    private static boolean rootRuntimePrepared;
+    private static boolean rootRuntimeAvailable;
     private static RootShellSession rootShellSession;
 
     private RootShellBridge() {
     }
 
     public static boolean isRootAvailable() {
+        if (isRootRuntimeReady()) {
+            return true;
+        }
+
         long now = System.currentTimeMillis();
         if (cachedRootAvailable != null && now < rootCacheExpireAt) {
             return cachedRootAvailable;
         }
 
-        RootCommandMode rootCommandMode = detectRootCommandMode();
-        boolean available = rootCommandMode != RootCommandMode.NONE;
-        cachedRootAvailable = available;
-        cachedRootCommandMode = rootCommandMode;
-        rootCacheExpireAt = now + (available ? ROOT_CACHE_TRUE_MS : ROOT_CACHE_FALSE_MS);
-        return available;
+        return prepareRootRuntime().available;
     }
 
     public static RootStatus status() {
         long now = System.currentTimeMillis();
         boolean cached = cachedRootAvailable != null && now < rootCacheExpireAt;
-        boolean available = isRootAvailable();
+        boolean available = rootRuntimePrepared ? rootRuntimeAvailable : isRootAvailable();
         return new RootStatus(
                 available,
                 cachedRootCommandMode.name(),
@@ -68,6 +72,47 @@ public final class RootShellBridge {
                 available ? "" : lastRootError,
                 lastProbeAttempts
         );
+    }
+
+    public static synchronized RootStatus prepareRootRuntime() {
+        long now = System.currentTimeMillis();
+        RootCommandMode rootCommandMode = detectRootCommandMode();
+        boolean available = rootCommandMode != RootCommandMode.NONE;
+        cachedRootAvailable = available;
+        cachedRootCommandMode = rootCommandMode;
+        rootCacheExpireAt = now + (available ? ROOT_CACHE_TRUE_MS : ROOT_CACHE_FALSE_MS);
+        rootRuntimePrepared = true;
+
+        if (!available) {
+            closeRootShellSession();
+            rootRuntimeAvailable = false;
+            return status();
+        }
+
+        try {
+            if (rootShellSession == null
+                    || !rootShellSession.isForMode(cachedRootCommandMode)
+                    || !rootShellSession.isAlive()) {
+                closeRootShellSession();
+                rootShellSession = RootShellSession.start(cachedRootCommandMode);
+            }
+            rootRuntimeAvailable = rootShellSession.isAlive();
+        } catch (IOException exception) {
+            closeRootShellSession();
+            rootRuntimeAvailable = false;
+            lastRootError = exception.getMessage() == null
+                    ? "启动 Root 运行层失败"
+                    : exception.getMessage();
+        }
+
+        return status();
+    }
+
+    public static synchronized boolean isRootRuntimeReady() {
+        return rootRuntimePrepared
+                && rootRuntimeAvailable
+                && rootShellSession != null
+                && rootShellSession.isAlive();
     }
 
     public static RootCommandResult exec(String command, int timeoutMs) {
@@ -286,16 +331,10 @@ public final class RootShellBridge {
     }
 
     public static boolean tap(int x, int y) {
-        if (!isRootAvailable()) {
-            return false;
-        }
         return runInputCommand("tap " + x + " " + y);
     }
 
     public static boolean swipe(int x1, int y1, int x2, int y2, int durationMs) {
-        if (!isRootAvailable()) {
-            return false;
-        }
         int safeDuration = Math.max(durationMs, 1);
         return runInputCommand("swipe "
                 + x1 + " "
@@ -318,9 +357,6 @@ public final class RootShellBridge {
     }
 
     public static boolean keyEvent(int keyCode) {
-        if (!isRootAvailable()) {
-            return false;
-        }
         return runInputCommand("keyevent " + keyCode);
     }
 
@@ -331,7 +367,7 @@ public final class RootShellBridge {
      * 这里先明确拒绝，后续改为输入法或剪贴板方案时再扩展。
      */
     public static boolean inputText(String text) {
-        if (!isRootAvailable() || text == null || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
+        if (text == null || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
             return false;
         }
         return runInputCommand("text " + shellQuote(text.replace(" ", "%s")));
@@ -429,32 +465,55 @@ public final class RootShellBridge {
     }
 
     static CommandResult runRootCommand(String command, long timeoutMs) {
-        if (!isRootAvailable()) {
+        return runPersistentRootCommandWithOutput(command, timeoutMs);
+    }
+
+    static CommandResult runRootBinaryCommand(String command, long timeoutMs) {
+        if (!isRootRuntimeReady() && !isRootAvailable()) {
             return CommandResult.failure(lastRootError.isEmpty() ? "root is not available" : lastRootError);
         }
         return runCommand(cachedRootCommandMode.buildArgs(command), timeoutMs);
     }
 
-    private static synchronized CommandResult runPersistentRootCommand(String command, long timeoutMs) {
-        if (!isRootAvailable()) {
-            return CommandResult.failure("root is not available");
+    private static synchronized CommandResult runPersistentRootCommandWithOutput(
+            String command,
+            long timeoutMs
+    ) {
+        if (!isRootRuntimeReady()) {
+            return CommandResult.failure(lastRootError.isEmpty()
+                    ? "Root 运行层未就绪"
+                    : lastRootError);
         }
 
         try {
-            if (rootShellSession == null
-                    || !rootShellSession.isForMode(cachedRootCommandMode)
-                    || !rootShellSession.isAlive()) {
-                closeRootShellSession();
-                rootShellSession = RootShellSession.start(cachedRootCommandMode);
-            }
-
-            CommandResult result = rootShellSession.runNoOutputCommand(command, timeoutMs);
+            CommandResult result = rootShellSession.runTextCommand(command, timeoutMs);
             if (result.timedOut || result.exitCode < 0) {
                 closeRootShellSession();
+                rootRuntimeAvailable = false;
             }
             return result;
         } catch (IOException exception) {
             closeRootShellSession();
+            rootRuntimeAvailable = false;
+            return CommandResult.failure(exception.getMessage());
+        }
+    }
+
+    private static synchronized CommandResult runPersistentRootCommand(String command, long timeoutMs) {
+        if (!isRootRuntimeReady()) {
+            return CommandResult.failure("Root 运行层未就绪");
+        }
+
+        try {
+            CommandResult result = rootShellSession.runNoOutputCommand(command, timeoutMs);
+            if (result.timedOut || result.exitCode < 0) {
+                closeRootShellSession();
+                rootRuntimeAvailable = false;
+            }
+            return result;
+        } catch (IOException exception) {
+            closeRootShellSession();
+            rootRuntimeAvailable = false;
             return CommandResult.failure(exception.getMessage());
         }
     }
@@ -616,9 +675,9 @@ public final class RootShellBridge {
     /**
      * 常驻 root shell。
      *
-     * 这里只用于无输出命令：命令的 stdout/stderr 会被重定向到 /dev/null，然后
-     * 额外打印一行标记读取退出码。这样可以安全处理 input tap/swipe/keyevent，
-     * 又不会和 root.exec、screencap 的输出格式互相污染。
+     * 无输出命令只打印退出码；有输出命令会把 stdout/stderr 各自写入临时文件，
+     * 再用 base64 包起来传回 Java。这样普通换行、中文和命令输出里的特殊字符
+     * 不会破坏协议边界，也不会为每个 API 重新启动 su。
      */
     private static final class RootShellSession {
         private static final String MARKER_PREFIX = "__AEL_ROOT_RC_";
@@ -694,6 +753,74 @@ public final class RootShellBridge {
             return CommandResult.timeout();
         }
 
+        private CommandResult runTextCommand(String command, long timeoutMs) throws IOException {
+            if (!isAlive()) {
+                return CommandResult.failure("root shell is not alive");
+            }
+
+            String marker = MARKER_PREFIX
+                    + System.currentTimeMillis()
+                    + "_"
+                    + (++commandSequence)
+                    + "__";
+            String stdoutPath = "/data/local/tmp/ael_stdout_" + commandSequence + "_" + System.nanoTime();
+            String stderrPath = "/data/local/tmp/ael_stderr_" + commandSequence + "_" + System.nanoTime();
+            String script = "{ " + command + "; } >" + shellQuote(stdoutPath)
+                    + " 2>" + shellQuote(stderrPath) + "\n"
+                    + "rc=$?\n"
+                    + "printf '" + TEXT_STDOUT_BEGIN + "\\n'\n"
+                    + "base64 " + shellQuote(stdoutPath) + " 2>/dev/null || true\n"
+                    + "printf '\\n" + TEXT_STDOUT_END + "\\n'\n"
+                    + "printf '" + TEXT_STDERR_BEGIN + "\\n'\n"
+                    + "base64 " + shellQuote(stderrPath) + " 2>/dev/null || true\n"
+                    + "printf '\\n" + TEXT_STDERR_END + "\\n'\n"
+                    + "rm -f " + shellQuote(stdoutPath) + " " + shellQuote(stderrPath) + "\n"
+                    + "printf '" + marker + ":%s\\n' \"$rc\"\n";
+            stdin.write(script.getBytes(StandardCharsets.UTF_8));
+            stdin.flush();
+
+            TextCommandFrames frames = new TextCommandFrames();
+            long deadline = System.currentTimeMillis() + timeoutMs;
+            while (System.currentTimeMillis() < deadline) {
+                long waitMs = Math.max(1L, deadline - System.currentTimeMillis());
+                String line;
+                try {
+                    line = stdoutLines.poll(Math.min(waitMs, 50L), TimeUnit.MILLISECONDS);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    return CommandResult.failure("root shell command interrupted");
+                }
+
+                if (line == null) {
+                    continue;
+                }
+
+                if (line.startsWith(marker + ":")) {
+                    return new CommandResult(
+                            parseMarkerExitCode(line, marker),
+                            decodeBase64Frame(frames.stdoutBase64),
+                            decodeBase64Frame(frames.stderrBase64)
+                    );
+                }
+                frames.accept(line);
+            }
+
+            return CommandResult.timeout();
+        }
+
+        private byte[] decodeBase64Frame(StringBuilder builder) {
+            if (builder.length() == 0) {
+                return new byte[0];
+            }
+
+            try {
+                return android.util.Base64.decode(builder.toString(), android.util.Base64.DEFAULT);
+            } catch (IllegalArgumentException exception) {
+                return ("base64 decode failed: " + exception.getMessage())
+                        .getBytes(StandardCharsets.UTF_8);
+            }
+        }
+
         private int parseMarkerExitCode(String line, String marker) {
             String value = line.substring(marker.length() + 1).trim();
             try {
@@ -742,6 +869,41 @@ public final class RootShellBridge {
                 // 进程可能已经退出，直接 destroy 即可。
             }
             process.destroy();
+        }
+
+        /**
+         * root shell 的 stdout 是按行读取的。这里用一个很小的状态机接收 base64
+         * 分段，避免命令本身的输出和协议标记混在一起。
+         */
+        private static final class TextCommandFrames {
+            private final StringBuilder stdoutBase64 = new StringBuilder();
+            private final StringBuilder stderrBase64 = new StringBuilder();
+            private int section;
+
+            private void accept(String line) {
+                if (TEXT_STDOUT_BEGIN.equals(line)) {
+                    section = 1;
+                    return;
+                }
+                if (TEXT_STDOUT_END.equals(line)) {
+                    section = 0;
+                    return;
+                }
+                if (TEXT_STDERR_BEGIN.equals(line)) {
+                    section = 2;
+                    return;
+                }
+                if (TEXT_STDERR_END.equals(line)) {
+                    section = 0;
+                    return;
+                }
+
+                if (section == 1) {
+                    stdoutBase64.append(line.trim());
+                } else if (section == 2) {
+                    stderrBase64.append(line.trim());
+                }
+            }
         }
     }
 

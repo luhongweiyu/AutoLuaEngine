@@ -44,7 +44,7 @@ android:process=":engine"
 3. 截图授权和无障碍能力属于 Android 系统权限链路，需要明确跨进程访问方式。
 4. App 内日志入口不能再直接读主进程 native 日志，否则看到的不是引擎进程日志。
 
-## 3. 当前已完成的安全步骤
+## 3. 当前已完成
 
 已完成：
 
@@ -58,6 +58,25 @@ MainActivity 设置入口    -> EngineLocalClient -> device.info / script.status
 
 也就是说，native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`。
 App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访问引擎，不再直接读取主进程 native 状态。
+
+2026-06-25 已按旧项目方向完成第一版独立进程拆分：
+
+```text
+主进程 com.autolua.engine
+├─ MainActivity
+├─ FloatingControlService
+└─ 权限入口
+
+引擎进程 com.autolua.engine:engine
+├─ EngineService
+├─ EngineHttpServer
+├─ NativeEngine
+├─ ScreenCaptureBridge
+└─ libengine.so
+```
+
+核心 API 层仍然是 `libengine.so`。Lua、后续 JS、FFI 和插件都应绑定这层统一 API；
+Java Service 只负责进程、权限、Android 系统桥接和 root helper 启动。
 
 验证记录：
 
@@ -108,13 +127,20 @@ Lua -> native _host -> AndroidBridge -> ScreenCaptureBridge
     android:process=":engine" />
 ```
 
-验收：
+已完成，验收：
 
 ```text
 adb shell ps -A | findstr autolua
 ```
 
 应能看到主进程和 `:engine` 进程。
+
+当前验证：
+
+```text
+u0_a51 ... com.autolua.engine
+u0_a51 ... com.autolua.engine:engine
+```
 
 ### 4.4 脚本结束后的进程回收
 
@@ -131,6 +157,17 @@ adb shell ps -A | findstr autolua
 ## 5. 当前不做
 
 - 插件进程
-- root 引擎进程
 - 多脚本并发进程池
 - 每次脚本运行都新建进程
+
+## 6. root helper
+
+当前已新增 root helper：
+
+```text
+su -c app_process /system/bin com.autolua.engine.RootHelperMain
+```
+
+该进程 uid=0，第一版用于 root 截图。App 引擎进程通过 stdin/stdout 与它通讯，
+协议为“文本头 + 原始 RGBA 帧”。后续 root 点击、文件、设备控制等能力会逐步
+下沉到这里，保持 root 进程启动一次、后续复用。

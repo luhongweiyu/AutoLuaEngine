@@ -292,12 +292,12 @@ m.image.release(img)
 App 内置 `截图压测` 脚本会连续截 10 帧，逐帧释放图片句柄，并输出：
 
 ```text
-first frame source = root-screencap 或 media-projection
+first frame source = root-helper 或 media-projection
 benchmark avgDurationMs = 平均取帧耗时
 source count = 每种截图来源的帧数
 ```
 
-Root 模式下 `source` 应为 `root-screencap`；切到“无障碍优先”并完成系统截图授权后，`source` 才会是 `media-projection`。
+Root 模式下 `source` 应为 `root-helper`；切到“无障碍优先”并完成系统截图授权后，`source` 才会是 `media-projection`。
 
 ## 4. 全局函数
 
@@ -2090,7 +2090,7 @@ end
 
 ### 12.1 `m.screen.capture()` / `m.capture()`
 
-获取当前屏幕截图，并返回 native 内存图片句柄。Root 模式下只使用 root 原始 `screencap`；无障碍优先模式下使用 MediaProjection 系统截图授权。
+获取当前屏幕截图，并返回 native 内存图片句柄。Root 模式下只使用 root helper 常驻进程；无障碍优先模式下使用 MediaProjection 系统截图授权。
 
 参数：
 
@@ -2112,8 +2112,8 @@ end
     pixelStride = 4,
     byteLength = 9590400,
     format = "rgba8888",
-    source = "root-screencap",
-    captureDurationMs = 120
+    source = "root-helper",
+    captureDurationMs = 54
 }
 ```
 
@@ -2149,7 +2149,7 @@ m.image.release(img)
 | `pixelStride` | number | 每个像素字节跨度 |
 | `byteLength` | number | native 内存像素字节数 |
 | `format` | string | 当前为 `"rgba8888"` |
-| `source` | string | 截图来源，当前为 `"root-screencap"` 或 `"media-projection"` |
+| `source` | string | 截图来源，当前为 `"root-helper"` 或 `"media-projection"` |
 | `captureDurationMs` | number | Java 层取到这一帧的耗时，单位毫秒 |
 
 注意：
@@ -2164,7 +2164,7 @@ m.image.release(img)
 
 ### 12.2 `m.root.screen.capture()` / `m.rootCapture()`
 
-显式 root-only 截图。该接口只走 root 原始 `screencap`；root 不可用或截图失败时直接返回错误，适合验证 root 截图授权和压测 root 截图路径。
+显式 root-only 截图。该接口只走 root helper；root 不可用或截图失败时直接返回错误，适合验证 root 截图授权和压测 root 截图路径。
 
 参数：
 
@@ -2194,9 +2194,9 @@ m.image.release(img)
 
 说明：
 
-- 成功时 `img.source` 固定为 `"root-screencap"`。
+- 成功时 `img.source` 固定为 `"root-helper"`。
 - 该接口不受“无障碍优先”模式影响，始终尝试 root 截图。
-- 当前仍通过 Android `screencap` 原始输出取帧；后续高频找色会升级到常驻 root worker，减少每帧创建命令和大块 stdout 复制。
+- 当前通过 root helper 常驻进程取帧；后续高频找色会升级到帧引擎和共享内存，继续减少跨进程复制。
 
 ## 13. 图片 API
 

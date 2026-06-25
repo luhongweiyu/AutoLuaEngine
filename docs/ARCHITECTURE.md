@@ -91,9 +91,9 @@ engine_jni -> Engine -> LuaRuntime
 
 第一版只需要支持单任务运行。后续再扩展多任务。
 
-当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。悬浮控制使用系统 overlay 小圆点，回到 Home 或切换到其他 App 后仍会贴边显示，点击后弹出运行、暂停、继续、停止、截图等控制面板。脚本运行已经下沉到后台 `EngineService`，主界面和悬浮图标只负责发送运行/暂停/继续/停止命令并接收状态广播，不直接持有脚本执行线程。是否使用独立 Android 进程 `:engine` 后续再评估。
+当前 App 控制界面已从纯调试页调整为脚本列表、运行设置和悬浮控制入口。悬浮控制使用系统 overlay 小圆点，回到 Home 或切换到其他 App 后仍会贴边显示，点击后弹出运行、暂停、继续、停止、截图等控制面板。脚本运行已经下沉到 `:engine` 独立进程里的 `EngineService`，主界面和悬浮图标只负责发送运行/暂停/继续/停止命令并接收状态广播，不直接持有脚本执行线程。
 
-当前 native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`：`MainActivity` 和 `FloatingControlService` 只负责确保服务启动，不再各自直接启动一套 HTTP/native 引擎。这样后续把 `EngineService` 挪到独立进程时，脚本执行入口不会分裂成多个进程副本。
+当前 native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`：`MainActivity` 和 `FloatingControlService` 只负责确保服务启动，不再各自直接启动一套 HTTP/native 引擎。
 
 App 主界面读取引擎日志和设置状态时已经通过 `EngineLocalClient` 访问本地 JSON-RPC，不再直接调用 `NativeEngine` 读取主进程 native 状态。
 
@@ -112,6 +112,16 @@ Java 系统能力、root shell、MediaProjection、无障碍服务
 ```
 
 后续 JS、Go 或插件接入时，优先绑定 `core/SystemApi` 或其上层 HostApi，不直接新增一套 Android 系统调用。截图、触控、按键、应用控制、root 文件/进程/设备能力都先进入这个边界，再由 Lua 的 `m/lr/cd` 或后续 JS API 做语言层适配。
+
+当前 root helper 也只作为 Android 平台桥接层存在，不改变统一 API 边界：
+
+```text
+libengine.so / SystemApi
+        ↓
+AndroidBridge / Java Bridge
+        ↓
+RootHelperBridge -> su -c app_process -> RootHelperMain(uid=0)
+```
 
 `libengine.so` 也预留了稳定 C ABI 雏形：
 
@@ -275,13 +285,13 @@ engines/android/app/src/main/assets/runtime/bootstrap.lua
 ```text
 m.touch.tap / m.touch.swipe -> Root 模式走 RootShellBridge 常驻 root shell；无障碍优先模式走 AccessibilityService
 m.key.back / m.key.home / m.key.press -> Root 模式走 RootShellBridge 常驻 root shell；无障碍优先模式只处理 Back/Home
-m.screen.capture -> Root 模式走 root screencap；无障碍优先模式走 MediaProjection + ImageReader
-m.root.screen.capture -> 显式 root screencap，不切换到 MediaProjection
+m.screen.capture -> Root 模式走 root helper；无障碍优先模式走 MediaProjection + ImageReader
+m.root.screen.capture -> 显式 root helper，不切换到 MediaProjection
 ```
 
 旧项目里还有 `httpGet/httpPost`、Toast、HUD、剪贴板、输入法输入、启动 App、UI 控件查找、Java 对象桥、root 引擎等能力。当前只把它们作为后续 API 候选，新增时仍然先进入 `m.*`，再由 Lua 层适配 `lr.*` 和 `cd.*`。
 
-Root 第一版说明见 `docs/ANDROID_ROOT_MODE.md`。当前触控和按键已复用常驻 root shell，但还不是独立 root 引擎；后续高频截图再推进常驻 root worker 或独立 root 进程直取帧。
+Root 第一版说明见 `docs/ANDROID_ROOT_MODE.md`。当前命令型 root API 已复用常驻 root shell，截图已接入 uid=0 root helper；后续高频截图继续推进帧引擎和共享内存。
 
 ### 3.5 EngineProtocol
 

@@ -136,6 +136,47 @@ public final class ScreenCaptureResult {
         );
     }
 
+    public static ScreenCaptureResult successFromRgbaBuffer(
+            ByteBuffer buffer,
+            int width,
+            int height,
+            String source,
+            long captureDurationMs
+    ) {
+        if (buffer == null || !buffer.isDirect()) {
+            return failure("screen capture pixel buffer is not direct");
+        }
+
+        if (width <= 0 || height <= 0) {
+            return failure("screen capture size is invalid");
+        }
+
+        long expectedLengthLong = (long) width * (long) height * 4L;
+        if (expectedLengthLong > Integer.MAX_VALUE) {
+            return failure("screen capture pixel buffer is too large");
+        }
+
+        int expectedLength = (int) expectedLengthLong;
+        if (buffer.capacity() < expectedLength) {
+            return failure("screen capture pixel buffer is incomplete");
+        }
+
+        buffer.position(0);
+        return new ScreenCaptureResult(
+                true,
+                null,
+                buffer,
+                width,
+                height,
+                width * 4,
+                4,
+                "rgba8888",
+                source,
+                captureDurationMs,
+                null
+        );
+    }
+
     public static ScreenCaptureResult failure(String error) {
         return new ScreenCaptureResult(false, null, null, 0, 0, 0, 0, null, "", 0, error);
     }
