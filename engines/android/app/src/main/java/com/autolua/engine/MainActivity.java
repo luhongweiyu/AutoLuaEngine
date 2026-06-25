@@ -476,7 +476,8 @@ public final class MainActivity extends Activity {
                 boolean running = isActiveEngineState(taskStatus.optString("status", ""));
                 runOnUiThread(() -> setRunningControls(running));
             } catch (Exception ignored) {
-                // 引擎刚启动时 HTTP 服务可能还没就绪，后续状态广播会同步按钮颜色。
+                // HTTP 不通时说明引擎进程没有可确认的运行任务，按钮直接恢复“运行”。
+                runOnUiThread(() -> setRunningControls(false));
             }
         }, "MainActivityRunningStateQuery").start();
     }

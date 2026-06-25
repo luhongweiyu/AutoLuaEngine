@@ -1,11 +1,13 @@
 package com.autolua.engine;
 
+import android.app.ActivityManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -28,8 +30,8 @@ public final class EngineService extends Service {
             "com.autolua.engine.action.SET_ROOT_MODE";
     public static final String ACTION_SAVE_SCREEN_CAPTURE_PERMISSION =
             "com.autolua.engine.action.SAVE_SCREEN_CAPTURE_PERMISSION";
-    public static final String ACTION_SHUTDOWN_ENGINE =
-            "com.autolua.engine.action.SHUTDOWN_ENGINE";
+    public static final String ACTION_FORCE_STOP_ENGINE_PROCESS =
+            "com.autolua.engine.action.FORCE_STOP_ENGINE_PROCESS";
     public static final String ACTION_STATUS =
             "com.autolua.engine.action.STATUS";
 
@@ -67,10 +69,12 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
-    public static void shutdownEngine(Context context) {
-        Intent intent = new Intent(context, EngineService.class);
-        intent.setAction(ACTION_SHUTDOWN_ENGINE);
-        context.startService(intent);
+    public static void forceStopEngineProcess(Context context) {
+        // 强制停止进程是脚本卡死时使用的硬控制：主进程先让 UI 立即回到
+        // 未运行状态，再直接结束 :engine 进程，不等待脚本或 HTTP 请求收尾。
+        broadcastStatus(context, STATE_FINISHED, "已强制停止引擎进程");
+        context.stopService(new Intent(context, EngineService.class));
+        killEngineProcessNow(context);
     }
 
     public static void pauseScript(Context context) {
@@ -133,9 +137,9 @@ public final class EngineService extends Service {
             return START_STICKY;
         }
 
-        if (ACTION_SHUTDOWN_ENGINE.equals(intent.getAction())) {
+        if (ACTION_FORCE_STOP_ENGINE_PROCESS.equals(intent.getAction())) {
             NativeEngine.stop();
-            broadcastStatus(STATE_STOPPING, "已请求关闭脚本引擎");
+            broadcastStatus(STATE_FINISHED, "已强制停止引擎进程");
             shutdownRuntime();
             stopSelf();
             android.os.Process.killProcess(android.os.Process.myPid());
@@ -264,10 +268,35 @@ public final class EngineService extends Service {
     }
 
     private void broadcastStatus(String state, String message) {
+        broadcastStatus(this, state, message);
+    }
+
+    private static void broadcastStatus(Context context, String state, String message) {
         Intent intent = new Intent(ACTION_STATUS);
-        intent.setPackage(getPackageName());
+        intent.setPackage(context.getPackageName());
         intent.putExtra(EXTRA_STATE, state);
         intent.putExtra(EXTRA_MESSAGE, message == null ? "" : message);
-        sendBroadcast(intent);
+        context.sendBroadcast(intent);
+    }
+
+    private static void killEngineProcessNow(Context context) {
+        ActivityManager activityManager =
+                (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager == null) {
+            return;
+        }
+
+        List<ActivityManager.RunningAppProcessInfo> processes =
+                activityManager.getRunningAppProcesses();
+        if (processes == null) {
+            return;
+        }
+
+        String engineProcessName = context.getPackageName() + ":engine";
+        for (ActivityManager.RunningAppProcessInfo process : processes) {
+            if (engineProcessName.equals(process.processName)) {
+                android.os.Process.killProcess(process.pid);
+            }
+        }
     }
 }

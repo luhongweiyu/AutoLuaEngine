@@ -260,7 +260,7 @@ public final class FloatingControlService extends Service {
         LinearLayout thirdRow = createActionRow();
         thirdRow.addView(createPanelAction("事", "事件", this::showUserEventPlaceholder));
         thirdRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
-        thirdRow.addView(createPanelAction("关", "关闭引擎", this::shutdownEngineService));
+        thirdRow.addView(createPanelAction("停", "强停进程", this::forceStopEngineProcess));
         LinearLayout.LayoutParams thirdRowParams = matchWidthWrapContent();
         thirdRowParams.topMargin = dp(22);
         panel.addView(thirdRow, thirdRowParams);
@@ -339,12 +339,12 @@ public final class FloatingControlService extends Service {
         showToast("已请求停止脚本");
     }
 
-    private void shutdownEngineService() {
-        EngineService.shutdownEngine(this);
-        updateRunningState(EngineService.STATE_STOPPING);
+    private void forceStopEngineProcess() {
+        EngineService.forceStopEngineProcess(this);
+        updateRunningState(EngineService.STATE_FINISHED);
         EngineSettings.setFloatingPanelExpanded(this, false);
         removePanelView();
-        showToast("已请求关闭脚本引擎");
+        showToast("已强制停止引擎进程");
     }
 
     private void openScreenCapturePermission() {
@@ -461,7 +461,8 @@ public final class FloatingControlService extends Service {
                 JSONObject taskStatus = EngineLocalClient.call(this, "script.status", params);
                 updateRunningState(taskStatus.optString("status", ""));
             } catch (Exception ignored) {
-                // 悬浮窗刚启动时引擎 HTTP 可能还没就绪，后续状态广播会继续同步颜色。
+                // HTTP 不通代表当前没有可确认的运行任务，悬浮按钮必须恢复未运行颜色。
+                updateRunningState(EngineService.STATE_FINISHED);
             }
         }, "FloatingRunningStateQuery").start();
     }
