@@ -5,10 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -19,8 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 的职责一致：主进程负责界面，引擎进程负责脚本、HTTP 协议和 root 运行层。
  */
 public final class EngineService extends Service {
-    public static final String ACTION_RUN_ASSET =
-            "com.autolua.engine.action.RUN_ASSET";
+    public static final String ACTION_RUN_SCRIPT_FILE =
+            "com.autolua.engine.action.RUN_SCRIPT_FILE";
     public static final String ACTION_STOP_SCRIPT =
             "com.autolua.engine.action.STOP_SCRIPT";
     public static final String ACTION_PAUSE_SCRIPT =
@@ -34,7 +31,7 @@ public final class EngineService extends Service {
     public static final String ACTION_STATUS =
             "com.autolua.engine.action.STATUS";
 
-    public static final String EXTRA_ASSET_PATH = "assetPath";
+    public static final String EXTRA_SCRIPT_PATH = "scriptPath";
     public static final String EXTRA_ENABLED = "enabled";
     public static final String EXTRA_RESULT_CODE = "resultCode";
     public static final String EXTRA_RESULT_DATA = "resultData";
@@ -55,10 +52,10 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
-    public static void runAssetScript(Context context, String assetPath) {
+    public static void runScriptFile(Context context, String scriptPath) {
         Intent intent = new Intent(context, EngineService.class);
-        intent.setAction(ACTION_RUN_ASSET);
-        intent.putExtra(EXTRA_ASSET_PATH, assetPath);
+        intent.setAction(ACTION_RUN_SCRIPT_FILE);
+        intent.putExtra(EXTRA_SCRIPT_PATH, scriptPath);
         context.startService(intent);
     }
 
@@ -98,6 +95,7 @@ public final class EngineService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        ScriptCatalog.ensureScriptDirectory(getApplicationContext());
         ScreenCaptureBridge.init(getApplicationContext());
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
@@ -112,9 +110,9 @@ public final class EngineService extends Service {
             return START_STICKY;
         }
 
-        if (ACTION_RUN_ASSET.equals(intent.getAction())) {
-            String assetPath = intent.getStringExtra(EXTRA_ASSET_PATH);
-            runAssetScriptInternal(assetPath);
+        if (ACTION_RUN_SCRIPT_FILE.equals(intent.getAction())) {
+            String scriptPath = intent.getStringExtra(EXTRA_SCRIPT_PATH);
+            runScriptFileInternal(scriptPath);
             return START_STICKY;
         }
 
@@ -178,9 +176,15 @@ public final class EngineService extends Service {
         return null;
     }
 
-    private void runAssetScriptInternal(String assetPath) {
-        if (assetPath == null || assetPath.isEmpty()) {
+    private void runScriptFileInternal(String scriptPath) {
+        if (scriptPath == null || scriptPath.isEmpty()) {
             broadcastStatus(STATE_FAILED, "脚本路径为空");
+            return;
+        }
+
+        ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(this, scriptPath);
+        if (item == null) {
+            broadcastStatus(STATE_FAILED, "脚本文件不存在：" + scriptPath);
             return;
         }
 
@@ -199,14 +203,14 @@ public final class EngineService extends Service {
             }
         }
 
-        ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(assetPath);
-        broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.title);
+        ScriptCatalog.setSelectedScript(this, item);
+        broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.fileName);
 
         Thread worker = new Thread(() -> {
             String state = STATE_FINISHED;
             String message;
             try {
-                message = NativeEngine.runLuaText(readAssetText(assetPath));
+                message = NativeEngine.runLuaText(ScriptCatalog.readScriptText(item.filePath));
                 if (message.contains("failed") || message.contains("Engine is already running")) {
                     state = STATE_FAILED;
                 }
@@ -220,18 +224,6 @@ public final class EngineService extends Service {
             broadcastStatus(state, message);
         }, "EngineServiceLuaWorker");
         worker.start();
-    }
-
-    private String readAssetText(String assetPath) throws IOException {
-        try (InputStream inputStream = getAssets().open(assetPath);
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int readCount;
-            while ((readCount = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, readCount);
-            }
-            return outputStream.toString(StandardCharsets.UTF_8.name());
-        }
     }
 
     private void broadcastStatus(String state, String message) {

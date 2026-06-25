@@ -111,6 +111,7 @@ public final class FloatingControlService extends Service {
     private View createBubbleView() {
         TextView bubble = new TextView(this);
         bubble.setText("引擎");
+        bubble.setContentDescription("AutoLuaEngine 悬浮按钮");
         bubble.setTextColor(Color.WHITE);
         bubble.setTextSize(13);
         bubble.setGravity(Gravity.CENTER);
@@ -307,11 +308,14 @@ public final class FloatingControlService extends Service {
     }
 
     private void runSelectedScript() {
-        String assetPath = getSharedPreferences(ScriptCatalog.PREF_NAME, MODE_PRIVATE)
-                .getString(ScriptCatalog.KEY_SELECTED_SCRIPT_PATH, ScriptCatalog.DEFAULT_SCRIPT_PATH);
-        ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(assetPath);
-        EngineService.runAssetScript(this, assetPath);
-        showToast("已发送运行命令：" + item.title);
+        ScriptCatalog.ScriptItem item = ScriptCatalog.getSelectedScript(this);
+        if (item == null) {
+            showToast("脚本目录为空");
+            return;
+        }
+
+        EngineService.runScriptFile(this, item.filePath);
+        showToast("已发送运行命令：" + item.fileName);
     }
 
     private void openScreenCapturePermission() {

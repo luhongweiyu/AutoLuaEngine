@@ -5,14 +5,22 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -20,11 +28,17 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 /**
  * Android 引擎主界面。
  *
- * 当前先提供脚本列表、运行控制、截图授权和悬浮窗入口。脚本编辑仍放在
- * VS Code/PC 侧，App 侧负责运行和权限状态。
+ * 主进程只负责 UI、悬浮窗和权限入口；脚本执行、HTTP 服务、Root 运行层在
+ * EngineService 所在的 :engine 进程内运行。这里通过 Intent 和本地 JSON-RPC
+ * 控制引擎，避免 UI 进程直接持有脚本线程。
  */
 public final class MainActivity extends Activity {
     public static final String ACTION_REQUEST_SCREEN_CAPTURE =
@@ -36,26 +50,38 @@ public final class MainActivity extends Activity {
 
     private static final int REQUEST_SCREEN_CAPTURE = 1001;
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
-    private static final int ROOT_PADDING = 32;
-    private static final int SECTION_MARGIN = 24;
+    private static final int TAB_SCRIPT = 0;
+    private static final int TAB_STATUS = 1;
+    private static final int TAB_MARKET = 2;
+    private static final int TAB_SETTINGS = 3;
+    private static final int ROOT_PADDING = 18;
+    private static final int PAGE_PADDING = 18;
+    private static final int SECTION_MARGIN = 18;
     private static final int ITEM_MARGIN = 10;
     private static final int MAX_LOG_LINES = 30;
+    private static final int COLOR_BACKGROUND = Color.rgb(245, 247, 250);
+    private static final int COLOR_SURFACE = Color.WHITE;
+    private static final int COLOR_TEXT = Color.rgb(31, 41, 55);
+    private static final int COLOR_MUTED = Color.rgb(107, 114, 128);
+    private static final int COLOR_LINE = Color.rgb(226, 232, 240);
+    private static final int COLOR_PRIMARY = Color.rgb(37, 99, 235);
+    private static final int COLOR_SUCCESS = Color.rgb(22, 163, 74);
 
-    private TextView outputView;
-    private TextView selectedScriptView;
+    private FrameLayout pageContainer;
+    private TextView messageView;
+    private TextView scriptSummaryView;
+    private TextView statusDetailView;
+    private TextView settingsPermissionView;
+    private TextView[] navItems;
     private Button runButton;
-    private Button errorButton;
-    private Button loopButton;
-    private Button touchButton;
-    private Button captureButton;
-    private Button screenButton;
-    private Button rootModeRootButton;
-    private Button rootModeAccessibilityButton;
     private Button pauseButton;
     private Button resumeButton;
     private Button stopButton;
-    private Button floatingButton;
+    private CheckBox rootModeCheckBox;
+    private CheckBox floatingCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
+    private int currentTab = TAB_SCRIPT;
+    private String latestMessage = "就绪";
     private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -69,8 +95,10 @@ public final class MainActivity extends Activity {
         ensureAppFilesDir();
         ScreenCaptureBridge.init(getApplicationContext());
         EngineService.ensureStarted(this);
-        selectedScript = loadSelectedScript();
+        selectedScript = ScriptCatalog.getSelectedScript(this);
+        ensureFloatingControlIfEnabled();
         setContentView(createContentView());
+        showTab(TAB_SCRIPT);
         handleIntent(getIntent());
     }
 
@@ -90,6 +118,7 @@ public final class MainActivity extends Activity {
         } else {
             registerReceiver(engineStatusReceiver, filter);
         }
+        refreshVisiblePage();
     }
 
     @Override
@@ -99,326 +128,356 @@ public final class MainActivity extends Activity {
     }
 
     private void handleIntent(Intent intent) {
-        if (intent != null && ACTION_REQUEST_SCREEN_CAPTURE.equals(intent.getAction())) {
+        if (intent == null) {
+            return;
+        }
+
+        if (ACTION_REQUEST_SCREEN_CAPTURE.equals(intent.getAction())) {
+            showTab(TAB_SETTINGS);
             requestScreenCapture();
             return;
         }
 
-        if (intent != null && ACTION_SHOW_LOGS.equals(intent.getAction())) {
+        if (ACTION_SHOW_LOGS.equals(intent.getAction())) {
+            showTab(TAB_STATUS);
             showRecentLogs();
             return;
         }
 
-        if (intent != null && ACTION_SHOW_SETTINGS.equals(intent.getAction())) {
-            showSettingsSummary();
+        if (ACTION_SHOW_SETTINGS.equals(intent.getAction())) {
+            showTab(TAB_SETTINGS);
         }
     }
 
-    private ScrollView createContentView() {
-        ScrollView scrollView = new ScrollView(this);
+    private View createContentView() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(ROOT_PADDING, ROOT_PADDING, ROOT_PADDING, ROOT_PADDING);
-        root.setLayoutParams(matchWidthWrapContent());
-        scrollView.addView(root);
+        root.setBackgroundColor(COLOR_BACKGROUND);
 
-        TextView titleView = createTitle("AutoLuaEngine");
-        root.addView(titleView, matchWidthWrapContent());
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(dp(ROOT_PADDING), dp(16), dp(ROOT_PADDING), dp(12));
+        header.setBackgroundColor(COLOR_SURFACE);
 
-        TextView connectionView = createSmallText(
-                "调试端口：127.0.0.1:" + EngineSettings.getHttpPort(this)
+        TextView titleView = createText("AutoLuaEngine", 22, COLOR_TEXT, true);
+        header.addView(titleView, matchWidthWrapContent());
+
+        messageView = createText(latestMessage, 13, COLOR_MUTED, false);
+        LinearLayout.LayoutParams messageParams = matchWidthWrapContent();
+        messageParams.topMargin = dp(6);
+        header.addView(messageView, messageParams);
+        root.addView(header, matchWidthWrapContent());
+
+        pageContainer = new FrameLayout(this);
+        LinearLayout.LayoutParams pageParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
         );
-        root.addView(connectionView, matchWidthWrapContent());
+        root.addView(pageContainer, pageParams);
 
-        addControlSection(root);
-        addRunModeSection(root);
-        addScriptListSection(root);
-        addStatusSection(root);
+        root.addView(createBottomNavigation(), matchWidthWrapContent());
+        return root;
+    }
 
+    private View createBottomNavigation() {
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        nav.setPadding(0, dp(6), 0, dp(6));
+        nav.setBackgroundColor(COLOR_SURFACE);
+
+        navItems = new TextView[] {
+                createNavItem("脚本", TAB_SCRIPT),
+                createNavItem("状态", TAB_STATUS),
+                createNavItem("市场", TAB_MARKET),
+                createNavItem("设置", TAB_SETTINGS)
+        };
+
+        for (TextView item : navItems) {
+            nav.addView(item, new LinearLayout.LayoutParams(
+                    0,
+                    dp(54),
+                    1f
+            ));
+        }
+        return nav;
+    }
+
+    private TextView createNavItem(String text, int tabIndex) {
+        TextView item = createText(text, 14, COLOR_MUTED, false);
+        item.setGravity(Gravity.CENTER);
+        item.setClickable(true);
+        item.setOnClickListener(view -> showTab(tabIndex));
+        return item;
+    }
+
+    private void showTab(int tabIndex) {
+        currentTab = tabIndex;
+        if (pageContainer == null) {
+            return;
+        }
+
+        pageContainer.removeAllViews();
+        pageContainer.addView(createPageForTab(tabIndex), matchParent());
+        updateNavigationState();
+
+        if (tabIndex == TAB_STATUS) {
+            queryStatusSummary();
+        }
+        if (tabIndex == TAB_SETTINGS) {
+            updateSettingsPermissionView();
+        }
+    }
+
+    private View createPageForTab(int tabIndex) {
+        if (tabIndex == TAB_STATUS) {
+            return createStatusPage();
+        }
+        if (tabIndex == TAB_MARKET) {
+            return createMarketPage();
+        }
+        if (tabIndex == TAB_SETTINGS) {
+            return createSettingsPage();
+        }
+        return createScriptPage();
+    }
+
+    private View createScriptPage() {
+        ScrollView scrollView = createPageScrollView();
+        LinearLayout page = createPageContent();
+        scrollView.addView(page);
+
+        page.addView(createSectionTitle("脚本"), matchWidthWrapContent());
+
+        File scriptDirectory = ScriptCatalog.getScriptDirectory(this);
+        TextView directoryView = createSmallText("目录：" + scriptDirectory.getAbsolutePath());
+        page.addView(directoryView, topMarginParams(8));
+
+        scriptSummaryView = createSmallText("");
+        page.addView(scriptSummaryView, topMarginParams(8));
+        updateScriptSummaryView();
+
+        LinearLayout controlRow = createHorizontalRow();
+        runButton = createPrimaryButton(R.id.button_run_lua, "运行", this::runSelectedScript);
+        pauseButton = createSecondaryButton(R.id.button_pause, "暂停", () -> EngineService.pauseScript(this));
+        resumeButton = createSecondaryButton(R.id.button_resume, "继续", () -> EngineService.resumeScript(this));
+        stopButton = createDangerButton(R.id.button_stop, "停止", () -> EngineService.stopScript(this));
+        controlRow.addView(runButton, weightedButtonParams(1f, false));
+        controlRow.addView(pauseButton, weightedButtonParams(1f, true));
+        controlRow.addView(resumeButton, weightedButtonParams(1f, true));
+        controlRow.addView(stopButton, weightedButtonParams(1f, true));
+        page.addView(controlRow, topMarginParams(14));
+        setRunningControls(false);
+
+        View divider = createDivider();
+        page.addView(divider, topMarginParams(16));
+
+        ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
+        if (scripts.length == 0) {
+            page.addView(createEmptyText("当前脚本目录没有 .lua 文件"), topMarginParams(24));
+            return scrollView;
+        }
+
+        for (ScriptCatalog.ScriptItem item : scripts) {
+            page.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
+        }
         return scrollView;
     }
 
-    private void addScriptListSection(LinearLayout root) {
-        root.addView(createSectionTitle("我的脚本"), sectionLayoutParams());
+    private View createScriptRow(ScriptCatalog.ScriptItem item) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(8), COLOR_LINE));
+        row.setClickable(true);
+        row.setOnClickListener(view -> selectScript(item));
 
-        selectedScriptView = createSmallText("");
-        updateSelectedScriptView();
-        root.addView(selectedScriptView, matchWidthWrapContent());
+        RadioButton radioButton = new RadioButton(this);
+        radioButton.setChecked(selectedScript != null && selectedScript.filePath.equals(item.filePath));
+        radioButton.setOnClickListener(view -> selectScript(item));
+        row.addView(radioButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
 
-        ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.builtInScripts();
-        for (int i = 0; i < scripts.length; i++) {
-            ScriptCatalog.ScriptItem item = scripts[i];
-            Button button = createButton(resolveButtonId(item.assetPath), item.title, () -> selectScriptAndRun(item));
-            addButton(root, button, i > 0);
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
 
-            TextView descriptionView = createSmallText(item.description + "    " + item.assetPath);
-            root.addView(descriptionView, matchWidthWrapContent());
-        }
+        TextView nameView = createText(item.fileName, 16, COLOR_TEXT, true);
+        textColumn.addView(nameView, matchWidthWrapContent());
+
+        TextView descriptionView = createSmallText(item.description);
+        textColumn.addView(descriptionView, topMarginParams(4));
+
+        String detailText = item.displayPath
+                + "    "
+                + formatFileSize(item.sizeBytes)
+                + "    "
+                + formatTime(item.modifiedAt);
+        TextView detailView = createTinyText(detailText);
+        textColumn.addView(detailView, topMarginParams(4));
+
+        row.addView(textColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        return row;
     }
 
-    private void addRunModeSection(LinearLayout root) {
-        root.addView(createSectionTitle("运行模式"), sectionLayoutParams());
+    private View createStatusPage() {
+        ScrollView scrollView = createPageScrollView();
+        LinearLayout page = createPageContent();
+        scrollView.addView(page);
 
-        rootModeRootButton = createButton(
-                R.id.button_root_mode_root,
-                "",
-                () -> setRootMode(true)
-        );
-        rootModeAccessibilityButton = createButton(
-                R.id.button_root_mode_accessibility,
-                "",
-                () -> setRootMode(false)
-        );
-        updateRootModeButtons();
-        addButton(root, rootModeRootButton, false);
-        addButton(root, rootModeAccessibilityButton, true);
+        page.addView(createSectionTitle("状态"), matchWidthWrapContent());
 
-        touchButton = createButton(
-                R.id.button_run_touch,
-                "测试触控和按键",
-                () -> runScript("scripts/touch.lua")
-        );
-        addButton(root, touchButton, true);
+        statusDetailView = createSmallText("正在读取状态...");
+        statusDetailView.setTextSize(14);
+        page.addView(statusDetailView, topMarginParams(10));
 
-        captureButton = createButton(
+        LinearLayout row = createHorizontalRow();
+        row.addView(createSecondaryButton(View.generateViewId(), "刷新状态", this::queryStatusSummary),
+                weightedButtonParams(1f, false));
+        row.addView(createSecondaryButton(View.generateViewId(), "读取日志", this::showRecentLogs),
+                weightedButtonParams(1f, true));
+        page.addView(row, topMarginParams(16));
+        return scrollView;
+    }
+
+    private View createMarketPage() {
+        ScrollView scrollView = createPageScrollView();
+        LinearLayout page = createPageContent();
+        scrollView.addView(page);
+
+        page.addView(createSectionTitle("市场"), matchWidthWrapContent());
+        page.addView(createEmptyText("暂未开放"), topMarginParams(30));
+        return scrollView;
+    }
+
+    private View createSettingsPage() {
+        ScrollView scrollView = createPageScrollView();
+        LinearLayout page = createPageContent();
+        scrollView.addView(page);
+
+        page.addView(createSectionTitle("设置"), matchWidthWrapContent());
+
+        rootModeCheckBox = new CheckBox(this);
+        rootModeCheckBox.setText("Root 模式（默认）");
+        rootModeCheckBox.setTextSize(16);
+        rootModeCheckBox.setTextColor(COLOR_TEXT);
+        rootModeCheckBox.setChecked(EngineSettings.isRootModeEnabled(this));
+        rootModeCheckBox.setOnCheckedChangeListener(this::handleRootModeChanged);
+        page.addView(rootModeCheckBox, topMarginParams(12));
+
+        TextView rootHint = createSmallText("勾选后脚本运行前检查 Root 授权，点击、滑动、按键、截图只走 Root 路线。");
+        page.addView(rootHint, topMarginParams(4));
+
+        floatingCheckBox = new CheckBox(this);
+        floatingCheckBox.setText("显示悬浮按钮");
+        floatingCheckBox.setTextSize(16);
+        floatingCheckBox.setTextColor(COLOR_TEXT);
+        floatingCheckBox.setChecked(isFloatingControlVisible());
+        floatingCheckBox.setOnCheckedChangeListener(this::handleFloatingChanged);
+        page.addView(floatingCheckBox, topMarginParams(SECTION_MARGIN));
+
+        TextView floatingHint = createSmallText("悬浮按钮在主进程显示，只负责发送运行、暂停、停止等控制命令。");
+        page.addView(floatingHint, topMarginParams(4));
+
+        settingsPermissionView = createSmallText("");
+        settingsPermissionView.setTextSize(14);
+        page.addView(settingsPermissionView, topMarginParams(SECTION_MARGIN));
+        updateSettingsPermissionView();
+
+        LinearLayout permissionRow = createHorizontalRow();
+        permissionRow.addView(createSecondaryButton(
                 R.id.button_request_capture,
-                "开启截图授权",
+                "截图授权",
                 this::requestScreenCapture
-        );
-        addButton(root, captureButton, true);
-
-        screenButton = createButton(
-                R.id.button_run_screen,
-                "测试截图和取色",
-                () -> runScript("scripts/screen.lua")
-        );
-        addButton(root, screenButton, true);
+        ), weightedButtonParams(1f, false));
+        permissionRow.addView(createSecondaryButton(
+                View.generateViewId(),
+                "无障碍设置",
+                this::openAccessibilitySettings
+        ), weightedButtonParams(1f, true));
+        page.addView(permissionRow, topMarginParams(12));
+        return scrollView;
     }
 
-    private void addControlSection(LinearLayout root) {
-        root.addView(createSectionTitle("运行控制"), sectionLayoutParams());
-
-        Button runSelectedButton = createButton(
-                R.id.button_run_lua,
-                "运行选中脚本",
-                () -> runScript(selectedScript.assetPath)
-        );
-        runButton = runSelectedButton;
-        addButton(root, runSelectedButton, false);
-
-        pauseButton = createButton(
-                R.id.button_pause,
-                "暂停脚本",
-                () -> EngineService.pauseScript(this)
-        );
-        pauseButton.setEnabled(false);
-        addButton(root, pauseButton, true);
-
-        resumeButton = createButton(
-                R.id.button_resume,
-                "继续脚本",
-                () -> EngineService.resumeScript(this)
-        );
-        resumeButton.setEnabled(false);
-        addButton(root, resumeButton, true);
-
-        errorButton = createButton(
-                R.id.button_run_error,
-                "错误验证",
-                () -> runScript("scripts/error.lua")
-        );
-        addButton(root, errorButton, true);
-
-        loopButton = createButton(
-                R.id.button_run_loop,
-                "循环停止验证",
-                () -> runScript("scripts/loop.lua")
-        );
-        addButton(root, loopButton, true);
-
-        stopButton = createButton(
-                R.id.button_stop,
-                "停止脚本",
-                () -> EngineService.stopScript(this)
-        );
-        stopButton.setEnabled(false);
-        addButton(root, stopButton, true);
-
-        floatingButton = createButton(
-                R.id.button_start_floating,
-                "开启悬浮控制",
-                this::startFloatingControl
-        );
-        addButton(root, floatingButton, true);
-    }
-
-    private void addStatusSection(LinearLayout root) {
-        root.addView(createSectionTitle("状态"), sectionLayoutParams());
-
-        outputView = new TextView(this);
-        outputView.setId(R.id.text_output);
-        outputView.setText("就绪");
-        outputView.setTextSize(16);
-        outputView.setGravity(Gravity.START);
-        root.addView(outputView, matchWidthWrapContent());
-    }
-
-    private TextView createTitle(String text) {
-        TextView titleView = new TextView(this);
-        titleView.setText(text);
-        titleView.setTextSize(24);
-        titleView.setGravity(Gravity.START);
-        return titleView;
-    }
-
-    private TextView createSectionTitle(String text) {
-        TextView titleView = new TextView(this);
-        titleView.setText(text);
-        titleView.setTextSize(18);
-        titleView.setGravity(Gravity.START);
-        return titleView;
-    }
-
-    private TextView createSmallText(String text) {
-        TextView textView = new TextView(this);
-        textView.setText(text);
-        textView.setTextSize(13);
-        textView.setGravity(Gravity.START);
-        return textView;
-    }
-
-    private Button createButton(int id, String text, Runnable action) {
-        Button button = new Button(this);
-        button.setId(id);
-        button.setText(text);
-        button.setAllCaps(false);
-        button.setOnClickListener(view -> action.run());
-        return button;
-    }
-
-    private void addButton(LinearLayout root, Button button, boolean withTopMargin) {
-        LinearLayout.LayoutParams params = matchWidthWrapContent();
-        if (withTopMargin) {
-            params.topMargin = ITEM_MARGIN;
+    private void updateNavigationState() {
+        if (navItems == null) {
+            return;
         }
-        root.addView(button, params);
+
+        for (int i = 0; i < navItems.length; i++) {
+            TextView item = navItems[i];
+            boolean selected = i == currentTab;
+            item.setTextColor(selected ? COLOR_PRIMARY : COLOR_MUTED);
+            item.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        }
     }
 
-    private LinearLayout.LayoutParams matchWidthWrapContent() {
-        return new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-    }
-
-    private LinearLayout.LayoutParams sectionLayoutParams() {
-        LinearLayout.LayoutParams params = matchWidthWrapContent();
-        params.topMargin = SECTION_MARGIN;
-        return params;
-    }
-
-    private int resolveButtonId(String assetPath) {
-        if ("scripts/main.lua".equals(assetPath)) {
-            return R.id.button_script_main;
+    private void refreshVisiblePage() {
+        selectedScript = ScriptCatalog.getSelectedScript(this);
+        if (currentTab == TAB_SCRIPT) {
+            updateScriptSummaryView();
+        } else if (currentTab == TAB_STATUS) {
+            queryStatusSummary();
+        } else if (currentTab == TAB_SETTINGS) {
+            updateSettingsPermissionView();
         }
-        if ("scripts/error.lua".equals(assetPath)) {
-            return R.id.button_script_error;
-        }
-        if ("scripts/loop.lua".equals(assetPath)) {
-            return R.id.button_script_loop;
-        }
-        if ("scripts/touch.lua".equals(assetPath)) {
-            return R.id.button_script_touch;
-        }
-        if ("scripts/screen.lua".equals(assetPath)) {
-            return R.id.button_script_screen;
-        }
-        if ("scripts/screen_benchmark.lua".equals(assetPath)) {
-            return R.id.button_script_screen_benchmark;
-        }
-        return R.id.button_script_main;
     }
 
     private void selectScript(ScriptCatalog.ScriptItem item) {
         selectedScript = item;
-        getSharedPreferences(ScriptCatalog.PREF_NAME, MODE_PRIVATE)
-                .edit()
-                .putString(ScriptCatalog.KEY_SELECTED_SCRIPT_PATH, item.assetPath)
-                .apply();
-        updateSelectedScriptView();
-        outputView.setText("已选择脚本：" + item.title);
+        ScriptCatalog.setSelectedScript(this, item);
+        setMessage("已选择脚本：" + item.fileName);
+        showTab(TAB_SCRIPT);
     }
 
-    private void selectScriptAndRun(ScriptCatalog.ScriptItem item) {
-        selectScript(item);
-        runScript(item.assetPath);
-    }
-
-    private ScriptCatalog.ScriptItem loadSelectedScript() {
-        String assetPath = getSharedPreferences(ScriptCatalog.PREF_NAME, MODE_PRIVATE)
-                .getString(ScriptCatalog.KEY_SELECTED_SCRIPT_PATH, ScriptCatalog.DEFAULT_SCRIPT_PATH);
-        return ScriptCatalog.findByPath(assetPath);
-    }
-
-    private void updateSelectedScriptView() {
-        if (selectedScriptView == null || selectedScript == null) {
+    private void updateScriptSummaryView() {
+        if (scriptSummaryView == null) {
             return;
         }
-        selectedScriptView.setText("当前选择：" + selectedScript.title + "    " + selectedScript.assetPath);
+
+        if (selectedScript == null) {
+            scriptSummaryView.setText("当前未选择脚本");
+            return;
+        }
+        scriptSummaryView.setText("已选：" + selectedScript.fileName + "    " + selectedScript.displayPath);
     }
 
-    private void runScript(String assetPath) {
-        EngineService.runAssetScript(this, assetPath);
-        outputView.setText("准备运行脚本...");
+    private void runSelectedScript() {
+        selectedScript = ScriptCatalog.getSelectedScript(this);
+        if (selectedScript == null) {
+            setMessage("脚本目录为空，无法运行");
+            return;
+        }
+
+        EngineService.runScriptFile(this, selectedScript.filePath);
+        setMessage("准备运行脚本：" + selectedScript.fileName);
     }
 
-    private void setRootMode(boolean enabled) {
+    private void handleRootModeChanged(CompoundButton button, boolean enabled) {
         EngineSettings.setRootModeEnabled(this, enabled);
         EngineService.setRootModeEnabled(this, enabled);
-        updateRootModeButtons();
-        outputView.setText(enabled ? "运行模式已切换为 Root 优先" : "运行模式已切换为无障碍优先");
+        setMessage(enabled ? "运行模式已切换为 Root 模式" : "运行模式已切换为无障碍优先");
+        updateSettingsPermissionView();
     }
 
-    private void updateRootModeButtons() {
-        if (rootModeRootButton == null || rootModeAccessibilityButton == null) {
-            return;
+    private void handleFloatingChanged(CompoundButton button, boolean checked) {
+        if (checked) {
+            startFloatingControl();
+        } else {
+            EngineSettings.setFloatingBubbleHidden(this, true);
+            EngineSettings.setFloatingPanelExpanded(this, false);
+            stopService(new Intent(this, FloatingControlService.class));
+            setMessage("悬浮按钮已隐藏");
         }
-
-        // 用两个明确选项模拟模式选择：首次安装默认 Root 优先，当前选项在文案中标记为已选。
-        boolean rootModeEnabled = EngineSettings.isRootModeEnabled(this);
-        rootModeRootButton.setText(rootModeEnabled
-                ? "Root 优先（默认，已选）"
-                : "Root 优先（默认）");
-        rootModeAccessibilityButton.setText(rootModeEnabled
-                ? "无障碍优先"
-                : "无障碍优先（已选）");
+        updateSettingsPermissionView();
     }
 
-    private void ensureAppFilesDir() {
-        getFilesDir();
-    }
-
-    private void setRunningState(boolean running) {
+    private void setRunningControls(boolean running) {
         if (runButton != null) {
             runButton.setEnabled(!running);
-        }
-        if (errorButton != null) {
-            errorButton.setEnabled(!running);
-        }
-        if (loopButton != null) {
-            loopButton.setEnabled(!running);
-        }
-        if (touchButton != null) {
-            touchButton.setEnabled(!running);
-        }
-        if (captureButton != null) {
-            captureButton.setEnabled(!running);
-        }
-        if (screenButton != null) {
-            screenButton.setEnabled(!running);
-        }
-        if (floatingButton != null) {
-            floatingButton.setEnabled(!running);
         }
         if (pauseButton != null) {
             pauseButton.setEnabled(running);
@@ -429,19 +488,16 @@ public final class MainActivity extends Activity {
         if (stopButton != null) {
             stopButton.setEnabled(running);
         }
-        if (running) {
-            outputView.setText("脚本运行中...");
-        }
     }
 
     private void handleEngineStatus(Intent intent) {
         String state = intent.getStringExtra(EngineService.EXTRA_STATE);
         String message = intent.getStringExtra(EngineService.EXTRA_MESSAGE);
         if (EngineService.STATE_RUNNING.equals(state)) {
-            setRunningState(true);
+            setRunningControls(true);
         } else if (EngineService.STATE_PAUSING.equals(state)
                 || EngineService.STATE_PAUSED.equals(state)) {
-            setRunningState(true);
+            setRunningControls(true);
             if (pauseButton != null) {
                 pauseButton.setEnabled(false);
             }
@@ -449,27 +505,30 @@ public final class MainActivity extends Activity {
                 resumeButton.setEnabled(true);
             }
         } else if (EngineService.STATE_STOPPING.equals(state)) {
-            setRunningState(true);
+            setRunningControls(true);
             if (pauseButton != null) {
                 pauseButton.setEnabled(false);
             }
             if (resumeButton != null) {
                 resumeButton.setEnabled(false);
             }
-            outputView.setText(message);
         } else {
-            setRunningState(false);
+            setRunningControls(false);
         }
 
         if (message != null && !message.isEmpty()) {
-            outputView.setText(message);
+            setMessage(message);
+        }
+
+        if (currentTab == TAB_STATUS) {
+            queryStatusSummary();
         }
     }
 
     private void requestScreenCapture() {
         Intent intent = ScreenCaptureBridge.createCaptureIntent(this);
         if (intent == null) {
-            outputView.setText("当前设备不支持截图授权");
+            setMessage("当前设备不支持截图授权");
             return;
         }
         startActivityForResult(intent, REQUEST_SCREEN_CAPTURE);
@@ -483,7 +542,7 @@ public final class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName())
             );
             startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION);
-            outputView.setText("请开启悬浮窗权限后再启动悬浮控制");
+            setMessage("请开启悬浮窗权限后再启动悬浮控制");
             return;
         }
 
@@ -491,15 +550,70 @@ public final class MainActivity extends Activity {
         EngineSettings.setFloatingPanelExpanded(this, false);
         Intent serviceIntent = new Intent(this, FloatingControlService.class);
         startService(serviceIntent);
-        outputView.setText("悬浮控制已启动");
+        setMessage("悬浮控制已启动");
+    }
+
+    private void ensureFloatingControlIfEnabled() {
+        if (EngineSettings.isFloatingBubbleHidden(this)) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !Settings.canDrawOverlays(this)) {
+            return;
+        }
+
+        startService(new Intent(this, FloatingControlService.class));
+    }
+
+    private void openAccessibilitySettings() {
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        startActivity(intent);
+        setMessage("已打开无障碍设置");
+    }
+
+    private void queryStatusSummary() {
+        if (statusDetailView == null) {
+            return;
+        }
+
+        statusDetailView.setText("正在读取状态...");
+        runEngineStatusQuery("正在读取状态...", "读取状态失败：", () -> {
+            JSONObject deviceInfo = EngineLocalClient.call(this, "device.info", new JSONObject());
+            JSONObject taskStatus = EngineLocalClient.call(this, "script.status", makeTaskIdParams(0));
+            boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                    || Settings.canDrawOverlays(this);
+            ScriptCatalog.ScriptItem currentScript = ScriptCatalog.getSelectedScript(this);
+
+            return "设备：Android API " + deviceInfo.optInt("apiLevel", Build.VERSION.SDK_INT)
+                    + "\n包名：" + deviceInfo.optString("packageName", getPackageName())
+                    + "\n调试端口："
+                    + deviceInfo.optString("httpHost", "127.0.0.1")
+                    + ":"
+                    + deviceInfo.optInt("httpPort", EngineSettings.getHttpPort(this))
+                    + "\n引擎版本：" + deviceInfo.optString("engineVersion", "unknown")
+                    + "\nLua 版本：" + deviceInfo.optString("luaVersion", "unknown")
+                    + "\n任务状态：" + taskStatus.optString("status", "unknown")
+                    + "\nRoot 模式：" + formatEnabled(deviceInfo.optBoolean("rootModeEnabled", true))
+                    + "\nRoot 权限：" + formatEnabled(deviceInfo.optBoolean("rootAvailable", false))
+                    + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
+                    + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
+                    + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
+                    + "\n就绪状态：" + resolveReadyText(deviceInfo, overlayEnabled)
+                    + "\n当前脚本：" + (currentScript == null ? "未选择" : currentScript.fileName);
+        }, text -> {
+            if (statusDetailView != null) {
+                statusDetailView.setText(text);
+            }
+        });
     }
 
     /**
-     * 通过本地 JSON-RPC 读取最近日志并显示在 App 状态区域。
+     * 通过本地 JSON-RPC 读取最近日志。
      *
-     * 悬浮窗的“日志”入口会回到这里，先满足手机端快速查看；IDE 侧同样通过 log.drain 读取。
+     * 悬浮窗的“日志”入口会切到状态页并调用这里，便于手机端快速看脚本输出。
      */
     private void showRecentLogs() {
+        showTab(TAB_STATUS);
         runEngineStatusQuery("正在读取日志...", "读取日志失败：", () -> {
             JSONObject result = EngineLocalClient.call(this, "log.drain", makeAfterIdParams(0));
             JSONArray entries = result.optJSONArray("entries");
@@ -519,40 +633,44 @@ public final class MainActivity extends Activity {
                         .append(entry.optString("message", ""));
             }
             return builder.toString();
+        }, text -> {
+            if (statusDetailView != null) {
+                statusDetailView.setText(text);
+            }
         });
     }
 
-    /**
-     * 显示当前引擎设置和关键权限状态。
-     *
-     * 第一版还没有独立设置页，先用状态区域承接悬浮窗的“设置”入口。
-     * 引擎版本和任务状态通过本地 JSON-RPC 查询，避免主进程直接读 native 状态。
-     */
-    private void showSettingsSummary() {
-        ScriptCatalog.ScriptItem currentScript = selectedScript;
-        runEngineStatusQuery("正在读取设置...", "读取设置失败：", () -> {
-            JSONObject deviceInfo = EngineLocalClient.call(this, "device.info", new JSONObject());
-            JSONObject taskStatus = EngineLocalClient.call(this, "script.status", makeTaskIdParams(0));
-            boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                    || Settings.canDrawOverlays(this);
+    private void updateSettingsPermissionView() {
+        if (settingsPermissionView == null) {
+            return;
+        }
 
-            return "当前设置"
-                    + "\n调试地址："
-                    + deviceInfo.optString("httpHost", "127.0.0.1")
-                    + ":"
-                    + deviceInfo.optInt("httpPort", EngineSettings.getHttpPort(this))
-                    + "\n引擎版本：" + deviceInfo.optString("engineVersion", "unknown")
-                    + "\nLua 版本：" + deviceInfo.optString("luaVersion", "unknown")
-                    + "\n任务状态：" + taskStatus.optString("status", "unknown")
-                    + "\nRoot 模式：" + formatEnabled(deviceInfo.optBoolean("rootModeEnabled", true))
-                    + "\nRoot 权限：" + formatEnabled(deviceInfo.optBoolean("rootAvailable", false))
-                    + "\n自动化模式：" + deviceInfo.optString("automationMode", "unknown")
-                    + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
-                    + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
-                    + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
-                    + "\n悬浮按钮：" + (EngineSettings.isFloatingBubbleHidden(this) ? "已隐藏" : "显示中")
-                    + "\n当前脚本：" + currentScript.title + "    " + currentScript.assetPath;
-        });
+        boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || Settings.canDrawOverlays(this);
+        settingsPermissionView.setText("权限状态"
+                + "\nRoot 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
+                + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
+                + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
+                + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
+                + "\n调试端口：127.0.0.1:" + EngineSettings.getHttpPort(this));
+    }
+
+    private boolean isFloatingControlVisible() {
+        boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || Settings.canDrawOverlays(this);
+        return overlayEnabled && !EngineSettings.isFloatingBubbleHidden(this);
+    }
+
+    private String resolveReadyText(JSONObject deviceInfo, boolean overlayEnabled) {
+        boolean rootModeEnabled = deviceInfo.optBoolean("rootModeEnabled", true);
+        boolean rootAvailable = deviceInfo.optBoolean("rootAvailable", false);
+        if (rootModeEnabled && !rootAvailable) {
+            return "Root 模式未就绪";
+        }
+        if (!overlayEnabled) {
+            return "悬浮窗未授权";
+        }
+        return "就绪";
     }
 
     private String formatEnabled(boolean enabled) {
@@ -574,8 +692,9 @@ public final class MainActivity extends Activity {
     private void runEngineStatusQuery(
             String loadingText,
             String errorPrefix,
-            EngineStatusTextLoader loader) {
-        outputView.setText(loadingText);
+            EngineStatusTextLoader loader,
+            StatusTextConsumer consumer) {
+        setMessage(loadingText);
         new Thread(() -> {
             String text;
             try {
@@ -585,12 +704,19 @@ public final class MainActivity extends Activity {
             }
 
             String finalText = text;
-            runOnUiThread(() -> outputView.setText(finalText));
+            runOnUiThread(() -> {
+                consumer.accept(finalText);
+                setMessage("就绪");
+            });
         }, "MainActivityEngineStatusQuery").start();
     }
 
     private interface EngineStatusTextLoader {
         String load() throws Exception;
+    }
+
+    private interface StatusTextConsumer {
+        void accept(String text);
     }
 
     @Override
@@ -600,10 +726,11 @@ public final class MainActivity extends Activity {
             if (resultCode == RESULT_OK && data != null) {
                 ScreenCaptureBridge.savePermission(resultCode, data);
                 EngineService.saveScreenCapturePermission(this, resultCode, data);
-                outputView.setText("截图授权已开启");
+                setMessage("截图授权已开启");
             } else {
-                outputView.setText("截图授权已取消");
+                setMessage("截图授权已取消");
             }
+            updateSettingsPermissionView();
             return;
         }
 
@@ -612,8 +739,184 @@ public final class MainActivity extends Activity {
                     || Settings.canDrawOverlays(this)) {
                 startFloatingControl();
             } else {
-                outputView.setText("悬浮窗权限未开启");
+                setMessage("悬浮窗权限未开启");
+                if (floatingCheckBox != null) {
+                    floatingCheckBox.setOnCheckedChangeListener(null);
+                    floatingCheckBox.setChecked(false);
+                    floatingCheckBox.setOnCheckedChangeListener(this::handleFloatingChanged);
+                }
             }
+            updateSettingsPermissionView();
         }
+    }
+
+    private void ensureAppFilesDir() {
+        getFilesDir();
+        ScriptCatalog.ensureScriptDirectory(this);
+    }
+
+    private void setMessage(String message) {
+        latestMessage = message == null || message.isEmpty() ? "就绪" : message;
+        if (messageView != null) {
+            messageView.setText(latestMessage);
+        }
+    }
+
+    private ScrollView createPageScrollView() {
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(false);
+        scrollView.setBackgroundColor(COLOR_BACKGROUND);
+        return scrollView;
+    }
+
+    private LinearLayout createPageContent() {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(dp(PAGE_PADDING), dp(PAGE_PADDING), dp(PAGE_PADDING), dp(PAGE_PADDING));
+        page.setLayoutParams(matchWidthWrapContent());
+        return page;
+    }
+
+    private LinearLayout createHorizontalRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        return row;
+    }
+
+    private TextView createSectionTitle(String text) {
+        TextView titleView = createText(text, 20, COLOR_TEXT, true);
+        titleView.setGravity(Gravity.START);
+        return titleView;
+    }
+
+    private TextView createSmallText(String text) {
+        TextView textView = createText(text, 13, COLOR_MUTED, false);
+        textView.setLineSpacing(dp(2), 1.0f);
+        return textView;
+    }
+
+    private TextView createTinyText(String text) {
+        return createText(text, 12, COLOR_MUTED, false);
+    }
+
+    private TextView createEmptyText(String text) {
+        TextView textView = createText(text, 15, COLOR_MUTED, false);
+        textView.setGravity(Gravity.CENTER);
+        return textView;
+    }
+
+    private TextView createText(String text, int sp, int color, boolean bold) {
+        TextView textView = new TextView(this);
+        textView.setText(text);
+        textView.setTextSize(sp);
+        textView.setTextColor(color);
+        textView.setIncludeFontPadding(true);
+        textView.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
+        return textView;
+    }
+
+    private Button createPrimaryButton(int id, String text, Runnable action) {
+        Button button = createButton(id, text, action);
+        button.setTextColor(Color.WHITE);
+        button.setBackground(makeRoundDrawable(COLOR_PRIMARY, dp(7), COLOR_PRIMARY));
+        return button;
+    }
+
+    private Button createSecondaryButton(int id, String text, Runnable action) {
+        Button button = createButton(id, text, action);
+        button.setTextColor(COLOR_TEXT);
+        button.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(7), COLOR_LINE));
+        return button;
+    }
+
+    private Button createDangerButton(int id, String text, Runnable action) {
+        Button button = createButton(id, text, action);
+        button.setTextColor(Color.WHITE);
+        button.setBackground(makeRoundDrawable(Color.rgb(220, 38, 38), dp(7), Color.rgb(220, 38, 38)));
+        return button;
+    }
+
+    private Button createButton(int id, String text, Runnable action) {
+        Button button = new Button(this);
+        button.setId(id);
+        button.setText(text);
+        button.setTextSize(14);
+        button.setAllCaps(false);
+        button.setMinHeight(dp(44));
+        button.setPadding(dp(8), 0, dp(8), 0);
+        button.setOnClickListener(view -> action.run());
+        return button;
+    }
+
+    private View createDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(COLOR_LINE);
+        divider.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)
+        ));
+        return divider;
+    }
+
+    private LinearLayout.LayoutParams matchWidthWrapContent() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private FrameLayout.LayoutParams matchParent() {
+        return new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        );
+    }
+
+    private LinearLayout.LayoutParams topMarginParams(int marginDp) {
+        LinearLayout.LayoutParams params = matchWidthWrapContent();
+        params.topMargin = dp(marginDp);
+        return params;
+    }
+
+    private LinearLayout.LayoutParams weightedButtonParams(float weight, boolean withLeftMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0,
+                dp(46),
+                weight
+        );
+        if (withLeftMargin) {
+            params.leftMargin = dp(8);
+        }
+        return params;
+    }
+
+    private GradientDrawable makeRoundDrawable(int color, int radiusPx, int strokeColor) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radiusPx);
+        drawable.setStroke(dp(1), strokeColor);
+        return drawable;
+    }
+
+    private String formatFileSize(long sizeBytes) {
+        if (sizeBytes < 1024) {
+            return sizeBytes + " B";
+        }
+        if (sizeBytes < 1024 * 1024) {
+            return String.format(Locale.US, "%.1f KB", sizeBytes / 1024.0);
+        }
+        return String.format(Locale.US, "%.1f MB", sizeBytes / 1024.0 / 1024.0);
+    }
+
+    private String formatTime(long timeMillis) {
+        if (timeMillis <= 0) {
+            return "未知时间";
+        }
+        return new SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(new Date(timeMillis));
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
