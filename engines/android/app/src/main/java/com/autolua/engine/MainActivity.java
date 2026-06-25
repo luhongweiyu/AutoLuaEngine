@@ -28,7 +28,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -54,7 +53,6 @@ public final class MainActivity extends Activity {
     private static final int TAB_STATUS = 1;
     private static final int TAB_MARKET = 2;
     private static final int TAB_SETTINGS = 3;
-    private static final int ROOT_PADDING = 18;
     private static final int PAGE_PADDING = 18;
     private static final int SECTION_MARGIN = 18;
     private static final int ITEM_MARGIN = 10;
@@ -68,15 +66,10 @@ public final class MainActivity extends Activity {
     private static final int COLOR_SUCCESS = Color.rgb(22, 163, 74);
 
     private FrameLayout pageContainer;
-    private TextView messageView;
-    private TextView scriptSummaryView;
     private TextView statusDetailView;
     private TextView settingsPermissionView;
     private TextView[] navItems;
     private Button runButton;
-    private Button pauseButton;
-    private Button resumeButton;
-    private Button stopButton;
     private CheckBox rootModeCheckBox;
     private CheckBox floatingCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
@@ -97,6 +90,7 @@ public final class MainActivity extends Activity {
         EngineService.ensureStarted(this);
         selectedScript = ScriptCatalog.getSelectedScript(this);
         ensureFloatingControlIfEnabled();
+        configureSystemBars();
         setContentView(createContentView());
         showTab(TAB_SCRIPT);
         handleIntent(getIntent());
@@ -153,20 +147,6 @@ public final class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(COLOR_BACKGROUND);
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(ROOT_PADDING), dp(16), dp(ROOT_PADDING), dp(12));
-        header.setBackgroundColor(COLOR_SURFACE);
-
-        TextView titleView = createText("AutoLuaEngine", 22, COLOR_TEXT, true);
-        header.addView(titleView, matchWidthWrapContent());
-
-        messageView = createText(latestMessage, 13, COLOR_MUTED, false);
-        LinearLayout.LayoutParams messageParams = matchWidthWrapContent();
-        messageParams.topMargin = dp(6);
-        header.addView(messageView, messageParams);
-        root.addView(header, matchWidthWrapContent());
 
         pageContainer = new FrameLayout(this);
         LinearLayout.LayoutParams pageParams = new LinearLayout.LayoutParams(
@@ -243,52 +223,46 @@ public final class MainActivity extends Activity {
     }
 
     private View createScriptPage() {
-        ScrollView scrollView = createPageScrollView();
-        LinearLayout page = createPageContent();
-        scrollView.addView(page);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(COLOR_BACKGROUND);
 
-        page.addView(createSectionTitle("脚本"), matchWidthWrapContent());
+        LinearLayout header = createPageContent();
 
-        File scriptDirectory = ScriptCatalog.getScriptDirectory(this);
-        TextView directoryView = createSmallText("目录：" + scriptDirectory.getAbsolutePath());
-        page.addView(directoryView, topMarginParams(8));
-
-        scriptSummaryView = createSmallText("");
-        page.addView(scriptSummaryView, topMarginParams(8));
-        updateScriptSummaryView();
-
-        LinearLayout controlRow = createHorizontalRow();
+        LinearLayout runBar = createHorizontalRow();
         runButton = createPrimaryButton(R.id.button_run_lua, "运行", this::runSelectedScript);
-        pauseButton = createSecondaryButton(R.id.button_pause, "暂停", () -> EngineService.pauseScript(this));
-        resumeButton = createSecondaryButton(R.id.button_resume, "继续", () -> EngineService.resumeScript(this));
-        stopButton = createDangerButton(R.id.button_stop, "停止", () -> EngineService.stopScript(this));
-        controlRow.addView(runButton, weightedButtonParams(1f, false));
-        controlRow.addView(pauseButton, weightedButtonParams(1f, true));
-        controlRow.addView(resumeButton, weightedButtonParams(1f, true));
-        controlRow.addView(stopButton, weightedButtonParams(1f, true));
-        page.addView(controlRow, topMarginParams(14));
+        runBar.addView(runButton, matchWidthButtonParams());
+        header.addView(runBar, topMarginParams(12));
         setRunningControls(false);
 
-        View divider = createDivider();
-        page.addView(divider, topMarginParams(16));
+        root.addView(header, matchWidthWrapContent());
+
+        ScrollView scrollView = createPageScrollView();
+        LinearLayout list = createListContent();
+        scrollView.addView(list);
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+        ));
 
         ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
         if (scripts.length == 0) {
-            page.addView(createEmptyText("当前脚本目录没有 .lua 文件"), topMarginParams(24));
-            return scrollView;
+            list.addView(createEmptyText("当前脚本目录没有 .lua 文件"), topMarginParams(24));
+            return root;
         }
 
         for (ScriptCatalog.ScriptItem item : scripts) {
-            page.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
+            list.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
         }
-        return scrollView;
+        return root;
     }
 
     private View createScriptRow(ScriptCatalog.ScriptItem item) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(10), dp(12), dp(10));
+        row.setPadding(dp(10), dp(6), dp(10), dp(6));
         row.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(8), COLOR_LINE));
         row.setClickable(true);
         row.setOnClickListener(view -> selectScript(item));
@@ -296,29 +270,28 @@ public final class MainActivity extends Activity {
         RadioButton radioButton = new RadioButton(this);
         radioButton.setChecked(selectedScript != null && selectedScript.filePath.equals(item.filePath));
         radioButton.setOnClickListener(view -> selectScript(item));
-        row.addView(radioButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        row.addView(radioButton, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
-        LinearLayout textColumn = new LinearLayout(this);
-        textColumn.setOrientation(LinearLayout.VERTICAL);
-
-        TextView nameView = createText(item.fileName, 16, COLOR_TEXT, true);
-        textColumn.addView(nameView, matchWidthWrapContent());
-
-        TextView descriptionView = createSmallText(item.description);
-        textColumn.addView(descriptionView, topMarginParams(4));
-
-        String detailText = item.displayPath
-                + "    "
-                + formatFileSize(item.sizeBytes)
-                + "    "
-                + formatTime(item.modifiedAt);
-        TextView detailView = createTinyText(detailText);
-        textColumn.addView(detailView, topMarginParams(4));
-
-        row.addView(textColumn, new LinearLayout.LayoutParams(
+        TextView nameView = createText(item.fileName, 15, COLOR_TEXT, true);
+        nameView.setSingleLine(true);
+        row.addView(nameView, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
+                1.2f
+        ));
+
+        String rightText = item.description
+                + "  "
+                + formatFileSize(item.sizeBytes)
+                + "  "
+                + formatTime(item.modifiedAt);
+        TextView detailView = createTinyText(rightText);
+        detailView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        detailView.setSingleLine(true);
+        row.addView(detailView, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1.8f
         ));
         return row;
     }
@@ -328,11 +301,9 @@ public final class MainActivity extends Activity {
         LinearLayout page = createPageContent();
         scrollView.addView(page);
 
-        page.addView(createSectionTitle("状态"), matchWidthWrapContent());
-
         statusDetailView = createSmallText("正在读取状态...");
         statusDetailView.setTextSize(14);
-        page.addView(statusDetailView, topMarginParams(10));
+        page.addView(statusDetailView, matchWidthWrapContent());
 
         LinearLayout row = createHorizontalRow();
         row.addView(createSecondaryButton(View.generateViewId(), "刷新状态", this::queryStatusSummary),
@@ -348,8 +319,7 @@ public final class MainActivity extends Activity {
         LinearLayout page = createPageContent();
         scrollView.addView(page);
 
-        page.addView(createSectionTitle("市场"), matchWidthWrapContent());
-        page.addView(createEmptyText("暂未开放"), topMarginParams(30));
+        page.addView(createEmptyText("暂未开放"), topMarginParams(24));
         return scrollView;
     }
 
@@ -357,8 +327,6 @@ public final class MainActivity extends Activity {
         ScrollView scrollView = createPageScrollView();
         LinearLayout page = createPageContent();
         scrollView.addView(page);
-
-        page.addView(createSectionTitle("设置"), matchWidthWrapContent());
 
         rootModeCheckBox = new CheckBox(this);
         rootModeCheckBox.setText("Root 模式（默认）");
@@ -417,9 +385,7 @@ public final class MainActivity extends Activity {
 
     private void refreshVisiblePage() {
         selectedScript = ScriptCatalog.getSelectedScript(this);
-        if (currentTab == TAB_SCRIPT) {
-            updateScriptSummaryView();
-        } else if (currentTab == TAB_STATUS) {
+        if (currentTab == TAB_STATUS) {
             queryStatusSummary();
         } else if (currentTab == TAB_SETTINGS) {
             updateSettingsPermissionView();
@@ -431,18 +397,6 @@ public final class MainActivity extends Activity {
         ScriptCatalog.setSelectedScript(this, item);
         setMessage("已选择脚本：" + item.fileName);
         showTab(TAB_SCRIPT);
-    }
-
-    private void updateScriptSummaryView() {
-        if (scriptSummaryView == null) {
-            return;
-        }
-
-        if (selectedScript == null) {
-            scriptSummaryView.setText("当前未选择脚本");
-            return;
-        }
-        scriptSummaryView.setText("已选：" + selectedScript.fileName + "    " + selectedScript.displayPath);
     }
 
     private void runSelectedScript() {
@@ -479,15 +433,6 @@ public final class MainActivity extends Activity {
         if (runButton != null) {
             runButton.setEnabled(!running);
         }
-        if (pauseButton != null) {
-            pauseButton.setEnabled(running);
-        }
-        if (resumeButton != null) {
-            resumeButton.setEnabled(false);
-        }
-        if (stopButton != null) {
-            stopButton.setEnabled(running);
-        }
     }
 
     private void handleEngineStatus(Intent intent) {
@@ -498,20 +443,8 @@ public final class MainActivity extends Activity {
         } else if (EngineService.STATE_PAUSING.equals(state)
                 || EngineService.STATE_PAUSED.equals(state)) {
             setRunningControls(true);
-            if (pauseButton != null) {
-                pauseButton.setEnabled(false);
-            }
-            if (resumeButton != null) {
-                resumeButton.setEnabled(true);
-            }
         } else if (EngineService.STATE_STOPPING.equals(state)) {
             setRunningControls(true);
-            if (pauseButton != null) {
-                pauseButton.setEnabled(false);
-            }
-            if (resumeButton != null) {
-                resumeButton.setEnabled(false);
-            }
         } else {
             setRunningControls(false);
         }
@@ -757,8 +690,20 @@ public final class MainActivity extends Activity {
 
     private void setMessage(String message) {
         latestMessage = message == null || message.isEmpty() ? "就绪" : message;
-        if (messageView != null) {
-            messageView.setText(latestMessage);
+    }
+
+    private void configureSystemBars() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().setStatusBarColor(COLOR_BACKGROUND);
+            getWindow().setNavigationBarColor(COLOR_SURFACE);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+            getWindow().getDecorView().setSystemUiVisibility(flags);
         }
     }
 
@@ -777,17 +722,19 @@ public final class MainActivity extends Activity {
         return page;
     }
 
+    private LinearLayout createListContent() {
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(PAGE_PADDING), 0, dp(PAGE_PADDING), dp(PAGE_PADDING));
+        list.setLayoutParams(matchWidthWrapContent());
+        return list;
+    }
+
     private LinearLayout createHorizontalRow() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         return row;
-    }
-
-    private TextView createSectionTitle(String text) {
-        TextView titleView = createText(text, 20, COLOR_TEXT, true);
-        titleView.setGravity(Gravity.START);
-        return titleView;
     }
 
     private TextView createSmallText(String text) {
@@ -827,13 +774,6 @@ public final class MainActivity extends Activity {
         Button button = createButton(id, text, action);
         button.setTextColor(COLOR_TEXT);
         button.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(7), COLOR_LINE));
-        return button;
-    }
-
-    private Button createDangerButton(int id, String text, Runnable action) {
-        Button button = createButton(id, text, action);
-        button.setTextColor(Color.WHITE);
-        button.setBackground(makeRoundDrawable(Color.rgb(220, 38, 38), dp(7), Color.rgb(220, 38, 38)));
         return button;
     }
 
@@ -889,6 +829,13 @@ public final class MainActivity extends Activity {
             params.leftMargin = dp(8);
         }
         return params;
+    }
+
+    private LinearLayout.LayoutParams matchWidthButtonParams() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+        );
     }
 
     private GradientDrawable makeRoundDrawable(int color, int radiusPx, int strokeColor) {
