@@ -57,6 +57,7 @@ public final class MainActivity extends Activity {
     private static final int SECTION_MARGIN = 18;
     private static final int ITEM_MARGIN = 10;
     private static final int MAX_LOG_LINES = 30;
+    private static final long RUN_TO_STOP_DEBOUNCE_MS = 1000L;
     private static final int COLOR_BACKGROUND = Color.rgb(245, 247, 250);
     private static final int COLOR_SURFACE = Color.WHITE;
     private static final int COLOR_TEXT = Color.rgb(31, 41, 55);
@@ -75,6 +76,8 @@ public final class MainActivity extends Activity {
     private ScriptCatalog.ScriptItem selectedScript;
     private int currentTab = TAB_SCRIPT;
     private String latestMessage = "就绪";
+    private boolean scriptRunning;
+    private long lastRunRequestAt;
     private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -113,6 +116,7 @@ public final class MainActivity extends Activity {
             registerReceiver(engineStatusReceiver, filter);
         }
         refreshVisiblePage();
+        refreshRunningStateFromEngine();
     }
 
     @Override
@@ -233,7 +237,7 @@ public final class MainActivity extends Activity {
         runButton = createPrimaryButton(R.id.button_run_lua, "运行", this::runSelectedScript);
         runBar.addView(runButton, matchWidthButtonParams());
         header.addView(runBar, topMarginParams(12));
-        setRunningControls(false);
+        setRunningControls(scriptRunning);
 
         root.addView(header, matchWidthWrapContent());
 
@@ -268,6 +272,7 @@ public final class MainActivity extends Activity {
         row.setOnClickListener(view -> selectScript(item));
 
         RadioButton radioButton = new RadioButton(this);
+        radioButton.setTag(item.filePath);
         radioButton.setChecked(selectedScript != null && selectedScript.filePath.equals(item.filePath));
         radioButton.setOnClickListener(view -> selectScript(item));
         row.addView(radioButton, new LinearLayout.LayoutParams(dp(42), dp(42)));
@@ -396,10 +401,15 @@ public final class MainActivity extends Activity {
         selectedScript = item;
         ScriptCatalog.setSelectedScript(this, item);
         setMessage("已选择脚本：" + item.fileName);
-        showTab(TAB_SCRIPT);
+        updateScriptSelectionState();
     }
 
     private void runSelectedScript() {
+        if (scriptRunning) {
+            stopRunningScriptFromRunButton();
+            return;
+        }
+
         selectedScript = ScriptCatalog.getSelectedScript(this);
         if (selectedScript == null) {
             setMessage("脚本目录为空，无法运行");
@@ -407,7 +417,20 @@ public final class MainActivity extends Activity {
         }
 
         EngineService.runScriptFile(this, selectedScript.filePath);
+        lastRunRequestAt = System.currentTimeMillis();
+        setRunningControls(true);
         setMessage("准备运行脚本：" + selectedScript.fileName);
+    }
+
+    private void stopRunningScriptFromRunButton() {
+        long elapsedMs = System.currentTimeMillis() - lastRunRequestAt;
+        if (elapsedMs >= 0 && elapsedMs < RUN_TO_STOP_DEBOUNCE_MS) {
+            setMessage("脚本刚开始运行，已忽略重复点击");
+            return;
+        }
+
+        EngineService.stopScript(this);
+        setMessage("已请求停止脚本");
     }
 
     private void handleRootModeChanged(CompoundButton button, boolean enabled) {
@@ -430,24 +453,20 @@ public final class MainActivity extends Activity {
     }
 
     private void setRunningControls(boolean running) {
+        scriptRunning = running;
         if (runButton != null) {
-            runButton.setEnabled(!running);
+            runButton.setEnabled(true);
+            runButton.setAlpha(1f);
+            runButton.setText(running ? "停止" : "运行");
+            int color = running ? COLOR_SUCCESS : COLOR_PRIMARY;
+            runButton.setBackground(makeRoundDrawable(color, dp(7), color));
         }
     }
 
     private void handleEngineStatus(Intent intent) {
         String state = intent.getStringExtra(EngineService.EXTRA_STATE);
         String message = intent.getStringExtra(EngineService.EXTRA_MESSAGE);
-        if (EngineService.STATE_RUNNING.equals(state)) {
-            setRunningControls(true);
-        } else if (EngineService.STATE_PAUSING.equals(state)
-                || EngineService.STATE_PAUSED.equals(state)) {
-            setRunningControls(true);
-        } else if (EngineService.STATE_STOPPING.equals(state)) {
-            setRunningControls(true);
-        } else {
-            setRunningControls(false);
-        }
+        setRunningControls(isActiveEngineState(state));
 
         if (message != null && !message.isEmpty()) {
             setMessage(message);
@@ -456,6 +475,52 @@ public final class MainActivity extends Activity {
         if (currentTab == TAB_STATUS) {
             queryStatusSummary();
         }
+    }
+
+    private void refreshRunningStateFromEngine() {
+        new Thread(() -> {
+            try {
+                JSONObject taskStatus = EngineLocalClient.call(this, "script.status", makeTaskIdParams(0));
+                boolean running = isActiveEngineState(taskStatus.optString("status", ""));
+                runOnUiThread(() -> setRunningControls(running));
+            } catch (Exception ignored) {
+                // 引擎刚启动时 HTTP 服务可能还没就绪，后续状态广播会同步按钮颜色。
+            }
+        }, "MainActivityRunningStateQuery").start();
+    }
+
+    private void updateScriptSelectionState() {
+        if (pageContainer == null) {
+            return;
+        }
+        updateScriptSelectionState(pageContainer);
+    }
+
+    private void updateScriptSelectionState(View view) {
+        if (view instanceof RadioButton) {
+            Object tag = view.getTag();
+            boolean checked = selectedScript != null
+                    && tag instanceof String
+                    && selectedScript.filePath.equals(tag);
+            ((RadioButton) view).setChecked(checked);
+            return;
+        }
+
+        if (!(view instanceof ViewGroup)) {
+            return;
+        }
+
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            updateScriptSelectionState(group.getChildAt(i));
+        }
+    }
+
+    private boolean isActiveEngineState(String state) {
+        return EngineService.STATE_RUNNING.equals(state)
+                || EngineService.STATE_PAUSING.equals(state)
+                || EngineService.STATE_PAUSED.equals(state)
+                || EngineService.STATE_STOPPING.equals(state);
     }
 
     private void requestScreenCapture() {

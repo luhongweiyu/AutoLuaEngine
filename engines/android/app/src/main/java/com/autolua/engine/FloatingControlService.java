@@ -23,6 +23,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 /**
  * 系统级悬浮控制入口。
  *
@@ -30,6 +32,8 @@ import android.widget.Toast;
  * 仍然可以点开控制面板。脚本运行统一交给 EngineService，本服务只负责浮窗交互。
  */
 public final class FloatingControlService extends Service {
+    private static final long RUN_TO_STOP_DEBOUNCE_MS = 1000L;
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private WindowManager windowManager;
@@ -37,6 +41,8 @@ public final class FloatingControlService extends Service {
     private View panelOverlayView;
     private WindowManager.LayoutParams bubbleLayoutParams;
     private int bubbleSizePx;
+    private boolean scriptRunning;
+    private long lastRunRequestAt;
     private int touchSlopPx;
     private int lastTouchX;
     private int lastTouchY;
@@ -47,6 +53,7 @@ public final class FloatingControlService extends Service {
         @Override
         public void onReceive(Context context, Intent intent) {
             String message = intent.getStringExtra(EngineService.EXTRA_MESSAGE);
+            updateRunningState(intent.getStringExtra(EngineService.EXTRA_STATE));
             if (message != null && !message.isEmpty()) {
                 showToast(message);
             }
@@ -58,10 +65,11 @@ public final class FloatingControlService extends Service {
         super.onCreate();
         EngineService.ensureStarted(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        bubbleSizePx = dp(54);
+        bubbleSizePx = dp(28);
         touchSlopPx = ViewConfiguration.get(this).getScaledTouchSlop();
         registerEngineStatusReceiver();
         createBubbleViewIfAllowed();
+        refreshRunningStateFromEngine();
     }
 
     @Override
@@ -110,13 +118,12 @@ public final class FloatingControlService extends Service {
 
     private View createBubbleView() {
         TextView bubble = new TextView(this);
-        bubble.setText("引擎");
+        bubble.setText("");
         bubble.setContentDescription("AutoLuaEngine 悬浮按钮");
         bubble.setTextColor(Color.WHITE);
-        bubble.setTextSize(13);
         bubble.setGravity(Gravity.CENTER);
-        bubble.setBackground(makeOvalDrawable(Color.parseColor("#159FE6"), Color.WHITE, 2));
-        bubble.setElevation(dp(8));
+        bubble.setBackground(makeBubbleDrawable());
+        bubble.setElevation(dp(6));
         bubble.setOnTouchListener(this::handleBubbleTouch);
         return bubble;
     }
@@ -234,7 +241,11 @@ public final class FloatingControlService extends Service {
         panel.addView(divider, dividerParams);
 
         LinearLayout firstRow = createActionRow();
-        firstRow.addView(createPanelAction("▶", "运行", this::runSelectedScript));
+        firstRow.addView(createPanelAction(
+                scriptRunning ? "■" : "▶",
+                scriptRunning ? "停止" : "运行",
+                this::toggleScriptRunning
+        ));
         firstRow.addView(createPanelAction("Ⅱ", "暂停", () -> EngineService.pauseScript(this)));
         firstRow.addView(createPanelAction("续", "继续", () -> EngineService.resumeScript(this)));
         firstRow.addView(createPanelAction("■", "停止", () -> EngineService.stopScript(this)));
@@ -307,7 +318,12 @@ public final class FloatingControlService extends Service {
         return item;
     }
 
-    private void runSelectedScript() {
+    private void toggleScriptRunning() {
+        if (scriptRunning) {
+            stopRunningScriptFromRunAction();
+            return;
+        }
+
         ScriptCatalog.ScriptItem item = ScriptCatalog.getSelectedScript(this);
         if (item == null) {
             showToast("脚本目录为空");
@@ -315,7 +331,20 @@ public final class FloatingControlService extends Service {
         }
 
         EngineService.runScriptFile(this, item.filePath);
+        lastRunRequestAt = System.currentTimeMillis();
+        updateRunningState(EngineService.STATE_RUNNING);
         showToast("已发送运行命令：" + item.fileName);
+    }
+
+    private void stopRunningScriptFromRunAction() {
+        long elapsedMs = System.currentTimeMillis() - lastRunRequestAt;
+        if (elapsedMs >= 0 && elapsedMs < RUN_TO_STOP_DEBOUNCE_MS) {
+            showToast("脚本刚开始运行，已忽略重复点击");
+            return;
+        }
+
+        EngineService.stopScript(this);
+        showToast("已请求停止脚本");
     }
 
     private void openScreenCapturePermission() {
@@ -411,6 +440,36 @@ public final class FloatingControlService extends Service {
         mainHandler.post(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
     }
 
+    private void updateRunningState(String state) {
+        boolean running = EngineService.STATE_RUNNING.equals(state)
+                || EngineService.STATE_PAUSING.equals(state)
+                || EngineService.STATE_PAUSED.equals(state)
+                || EngineService.STATE_STOPPING.equals(state);
+        if (scriptRunning == running) {
+            return;
+        }
+
+        scriptRunning = running;
+        mainHandler.post(() -> {
+            if (bubbleView != null) {
+                bubbleView.setBackground(makeBubbleDrawable());
+            }
+        });
+    }
+
+    private void refreshRunningStateFromEngine() {
+        new Thread(() -> {
+            try {
+                JSONObject params = new JSONObject();
+                params.put("taskId", 0);
+                JSONObject taskStatus = EngineLocalClient.call(this, "script.status", params);
+                updateRunningState(taskStatus.optString("status", ""));
+            } catch (Exception ignored) {
+                // 悬浮窗刚启动时引擎 HTTP 可能还没就绪，后续状态广播会继续同步颜色。
+            }
+        }, "FloatingRunningStateQuery").start();
+    }
+
     private void registerEngineStatusReceiver() {
         IntentFilter filter = new IntentFilter(EngineService.ACTION_STATUS);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -442,6 +501,13 @@ public final class FloatingControlService extends Service {
         drawable.setColor(color);
         drawable.setCornerRadius(radiusPx);
         return drawable;
+    }
+
+    private GradientDrawable makeBubbleDrawable() {
+        int color = scriptRunning
+                ? Color.parseColor("#16A34A")
+                : Color.parseColor("#159FE6");
+        return makeOvalDrawable(color, Color.WHITE, 1);
     }
 
     private int dp(int value) {

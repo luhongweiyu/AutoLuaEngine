@@ -1,6 +1,7 @@
 package com.autolua.engine;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 import android.util.Log;
 
@@ -708,32 +709,55 @@ public final class EngineHttpServer {
             }
             ensureRootModeCanRunScript();
 
-            String message = NativeEngine.runLuaText(code);
+            broadcastStatus(EngineService.STATE_RUNNING, "脚本运行中：IDE/HTTP");
+            String message;
+            try {
+                message = NativeEngine.runLuaText(code);
+            } catch (RuntimeException exception) {
+                broadcastStatus(EngineService.STATE_FAILED, "脚本运行失败：" + exception.getMessage());
+                throw exception;
+            }
             JSONObject status = new JSONObject(NativeEngine.statusJson(0));
+            String statusText = status.optString("status", "unknown");
+            broadcastStatus(
+                    "finished".equals(statusText) ? EngineService.STATE_FINISHED : EngineService.STATE_FAILED,
+                    message
+            );
             JSONObject result = new JSONObject();
             result.put("taskId", status.optInt("taskId", 0));
             result.put("message", message);
-            result.put("status", status.optString("status", "unknown"));
+            result.put("status", statusText);
             return result;
         }
 
         if ("script.stop".equals(method)) {
             NativeEngine.stop();
+            broadcastStatus(EngineService.STATE_STOPPING, "已请求停止脚本");
             JSONObject result = new JSONObject();
             result.put("accepted", true);
             return result;
         }
 
         if ("script.pause".equals(method)) {
+            boolean accepted = NativeEngine.pause();
+            broadcastStatus(
+                    accepted ? EngineService.STATE_PAUSING : EngineService.STATE_FAILED,
+                    accepted ? "已请求暂停脚本" : "当前没有可暂停的脚本"
+            );
             JSONObject result = new JSONObject();
-            result.put("accepted", NativeEngine.pause());
+            result.put("accepted", accepted);
             result.put("status", new JSONObject(NativeEngine.statusJson(0)).optString("status", "unknown"));
             return result;
         }
 
         if ("script.resume".equals(method)) {
+            boolean accepted = NativeEngine.resume();
+            broadcastStatus(
+                    accepted ? EngineService.STATE_RUNNING : EngineService.STATE_FAILED,
+                    accepted ? "已请求继续脚本" : "当前没有已暂停的脚本"
+            );
             JSONObject result = new JSONObject();
-            result.put("accepted", NativeEngine.resume());
+            result.put("accepted", accepted);
             result.put("status", new JSONObject(NativeEngine.statusJson(0)).optString("status", "unknown"));
             return result;
         }
@@ -829,6 +853,14 @@ public final class EngineHttpServer {
         result.put("httpHost", "127.0.0.1");
         result.put("httpPort", port);
         return result;
+    }
+
+    private void broadcastStatus(String state, String message) {
+        Intent intent = new Intent(EngineService.ACTION_STATUS);
+        intent.setPackage(appContext.getPackageName());
+        intent.putExtra(EngineService.EXTRA_STATE, state);
+        intent.putExtra(EngineService.EXTRA_MESSAGE, message == null ? "" : message);
+        appContext.sendBroadcast(intent);
     }
 
     private static JSONObject makeRootStatus(RootStatus rootStatus) throws JSONException {
