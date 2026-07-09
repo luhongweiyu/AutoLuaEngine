@@ -1,3 +1,6 @@
+/**
+ * 文件用途：MediaProjection 前台服务，提供非 Root 截图所需的前台运行环境。
+ */
 package com.autolua.engine;
 
 import android.app.Notification;

@@ -1,3 +1,6 @@
+/**
+ * 文件用途：封装亮屏、息屏、电池、旋转等设备控制相关命令。
+ */
 package com.autolua.engine;
 
 import java.util.Locale;

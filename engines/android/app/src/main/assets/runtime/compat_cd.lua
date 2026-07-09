@@ -1,3 +1,4 @@
+-- 文件用途：定义触动精灵兼容命名空间 cd，把兼容函数映射到底层 HostApi。
 local host = assert(_G._host, "native host api is not registered")
 
 -- cd 用于逐步兼容触动精灵。

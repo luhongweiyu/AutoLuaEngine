@@ -1,3 +1,6 @@
+/**
+ * 文件用途：:engine 独立进程脚本服务，负责脚本任务、HTTP 服务和状态广播。
+ */
 package com.autolua.engine;
 
 import android.app.ActivityManager;

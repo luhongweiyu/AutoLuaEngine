@@ -1,3 +1,4 @@
+-- 文件用途：内置示例脚本，用于连续截图并统计截图耗时。
 print("screen benchmark started")
 
 local frameCount = 10

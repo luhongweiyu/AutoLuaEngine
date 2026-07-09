@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 native 统一系统 API，向引擎层屏蔽 Android 平台桥细节。
+ */
 #include "system_api.h"
 
 namespace autolua::core {

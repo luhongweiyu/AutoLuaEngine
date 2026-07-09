@@ -1,3 +1,6 @@
+/**
+ * 文件用途：基于 MediaProjection 和 ImageReader 实现非 Root 截图。
+ */
 package com.autolua.engine;
 
 import android.graphics.Bitmap;

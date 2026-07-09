@@ -1,3 +1,6 @@
+/**
+ * 文件用途：屏幕截图结果数据结构，承载像素、尺寸、耗时和错误信息。
+ */
 package com.autolua.engine;
 
 import android.media.Image;

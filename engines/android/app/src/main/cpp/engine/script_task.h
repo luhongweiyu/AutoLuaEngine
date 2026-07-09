@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明脚本任务状态机和脚本线程控制上下文。
+ */
 #pragma once
 
 #include <string>

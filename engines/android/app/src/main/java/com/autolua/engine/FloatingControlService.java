@@ -1,3 +1,6 @@
+/**
+ * 文件用途：主进程悬浮按钮服务，提供脚本运行、停止、暂停、继续和快捷入口。
+ */
 package com.autolua.engine;
 
 import android.app.Service;

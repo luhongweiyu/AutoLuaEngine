@@ -1,3 +1,6 @@
+/**
+ * 文件用途：Root 探测和缓存状态数据结构。
+ */
 package com.autolua.engine;
 
 import java.util.ArrayList;

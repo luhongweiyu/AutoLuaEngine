@@ -1,3 +1,6 @@
+/**
+ * 文件用途：管理常驻 Root shell，执行点击、滑动、按键、文件和进程命令。
+ */
 package com.autolua.engine;
 
 import java.io.ByteArrayOutputStream;

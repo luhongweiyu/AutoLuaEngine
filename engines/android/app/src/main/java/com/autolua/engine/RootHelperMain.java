@@ -1,3 +1,6 @@
+/**
+ * 文件用途：Root helper 进程入口，在 su 环境中执行高频 Root 能力。
+ */
 package com.autolua.engine;
 
 import android.graphics.Bitmap;

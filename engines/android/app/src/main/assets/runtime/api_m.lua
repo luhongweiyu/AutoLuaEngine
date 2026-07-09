@@ -1,3 +1,4 @@
+-- 文件用途：定义 AutoLuaEngine 自己的 m 命名空间脚本 API。
 local host = assert(_G._host, "native host api is not registered")
 
 -- m 是 AutoLuaEngine 自己的正式脚本 API。

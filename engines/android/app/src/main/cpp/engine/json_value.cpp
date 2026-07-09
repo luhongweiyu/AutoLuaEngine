@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现轻量 JSON 解析和序列化，供引擎命令协议使用。
+ */
 #include "json_value.h"
 
 #include <cmath>

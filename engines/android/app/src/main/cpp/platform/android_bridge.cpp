@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 native 到 Java AndroidHostBridge 的 JNI 平台调用桥。
+ */
 #include "android_bridge.h"
 
 #include <cstring>

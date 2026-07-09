@@ -1,3 +1,6 @@
+/**
+ * 文件用途：封装 Root 模式截图，优先通过 Root helper 获取原始像素。
+ */
 package com.autolua.engine;
 
 import java.nio.ByteBuffer;

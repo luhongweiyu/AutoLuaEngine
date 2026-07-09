@@ -1,3 +1,6 @@
+/**
+ * 文件用途：给 libengine.so 暴露 Android 平台能力入口，并把调用分发到具体 Bridge。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

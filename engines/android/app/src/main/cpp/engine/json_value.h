@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明轻量 JSON 值类型和工具函数，避免引入额外第三方库。
+ */
 #pragma once
 
 #include <map>

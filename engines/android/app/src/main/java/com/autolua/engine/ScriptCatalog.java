@@ -1,3 +1,6 @@
+/**
+ * 文件用途：管理 App 私有脚本目录，负责扫描、复制示例和记录当前选择。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

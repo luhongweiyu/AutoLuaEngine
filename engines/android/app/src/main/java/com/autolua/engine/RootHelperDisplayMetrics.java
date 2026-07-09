@@ -1,3 +1,6 @@
+/**
+ * 文件用途：Root helper 内部使用的屏幕参数数据结构。
+ */
 package com.autolua.engine;
 
 import android.graphics.Point;

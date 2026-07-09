@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明 LuaRuntime，封装单个 Lua 虚拟机和脚本执行入口。
+ */
 #pragma once
 
 #include <string>

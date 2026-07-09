@@ -1,3 +1,6 @@
+/**
+ * 文件用途：封装屏幕尺寸、密度、亮度等显示相关 Root 命令。
+ */
 package com.autolua.engine;
 
 import java.util.regex.Matcher;

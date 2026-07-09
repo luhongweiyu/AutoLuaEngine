@@ -1,3 +1,6 @@
+/**
+ * 文件用途：管理 MediaProjection 截图授权，并向引擎进程同步截图权限。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

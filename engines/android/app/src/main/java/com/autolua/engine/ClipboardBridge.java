@@ -1,3 +1,6 @@
+/**
+ * 文件用途：封装剪贴板写入能力，供脚本文本输入和粘贴 API 使用。
+ */
 package com.autolua.engine;
 
 import android.content.ClipData;

@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明 native 图片帧、图片元数据和像素读取接口。
+ */
 #pragma once
 
 #include <cstddef>

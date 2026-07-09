@@ -1,3 +1,6 @@
+/**
+ * 文件用途：管理常驻 Root helper 进程，用于高效执行截图等 Root 能力。
+ */
 package com.autolua.engine;
 
 import java.io.BufferedWriter;

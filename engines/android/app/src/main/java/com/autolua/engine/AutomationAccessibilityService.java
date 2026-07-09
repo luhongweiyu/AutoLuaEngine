@@ -1,3 +1,6 @@
+/**
+ * 文件用途：无障碍自动化服务，负责非 Root 模式下的点击、滑动和系统按键手势。
+ */
 package com.autolua.engine;
 
 import android.accessibilityservice.AccessibilityService;

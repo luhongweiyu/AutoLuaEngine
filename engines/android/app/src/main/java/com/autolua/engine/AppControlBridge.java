@@ -1,3 +1,6 @@
+/**
+ * 文件用途：封装应用安装、启动、停止、清数据、权限和组件启停控制。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

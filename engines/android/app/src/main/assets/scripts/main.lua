@@ -1,3 +1,4 @@
+-- 文件用途：内置示例脚本，用于演示基础 API、文件读写和中文标识符支持。
 print("hello lua 5.4")
 print("_VERSION =", _VERSION)
 

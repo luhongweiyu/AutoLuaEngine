@@ -1,3 +1,6 @@
+/**
+ * 文件用途：App 主界面，负责脚本列表、状态展示、市场占位和设置入口。
+ */
 package com.autolua.engine;
 
 import android.app.Activity;

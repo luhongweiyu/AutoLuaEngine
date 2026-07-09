@@ -1,3 +1,6 @@
+/**
+ * 文件用途：统一保存引擎设置，包括端口、Root 模式、悬浮窗状态和截图授权信息。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

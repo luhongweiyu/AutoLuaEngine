@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 Java NativeEngine 到 libengine.so 的 JNI 调用入口。
+ */
 #include <jni.h>
 #include <android/log.h>
 

@@ -1,3 +1,6 @@
+/**
+ * 文件用途：Root 命令执行结果数据结构，记录退出码、输出、错误和超时状态。
+ */
 package com.autolua.engine;
 
 /**

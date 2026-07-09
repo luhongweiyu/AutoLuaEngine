@@ -1,3 +1,4 @@
+-- 文件用途：脚本启动时加载的 Lua 引导层，负责切换 m/lr/cd API 到全局环境。
 local exportedGlobals = {}
 
 local function clearExportedGlobals()

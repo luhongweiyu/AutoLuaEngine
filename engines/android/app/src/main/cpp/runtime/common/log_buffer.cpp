@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 native 日志环形缓冲，供脚本 print/log 和 IDE 轮询读取。
+ */
 #include "log_buffer.h"
 
 #include <mutex>

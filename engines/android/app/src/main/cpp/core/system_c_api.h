@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明稳定 C ABI 入口，方便后续 Lua ffi、JS 插件或外部 so 调用。
+ */
 #pragma once
 
 #ifdef __cplusplus

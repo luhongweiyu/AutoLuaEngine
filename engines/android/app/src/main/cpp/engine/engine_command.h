@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明引擎命令分发入口，统一处理方法名和 JSON 参数。
+ */
 #pragma once
 
 #include <string>

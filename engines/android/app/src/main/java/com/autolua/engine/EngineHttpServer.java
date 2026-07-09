@@ -1,3 +1,6 @@
+/**
+ * 文件用途：在 :engine 进程内提供 HTTP JSON-RPC 服务，供 IDE/PC 调试控制引擎。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

@@ -1,3 +1,6 @@
+/**
+ * 文件用途：加载 libengine.so，并向 Java 层暴露 native 引擎命令调用入口。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

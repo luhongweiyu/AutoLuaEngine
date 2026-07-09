@@ -1,3 +1,6 @@
+/**
+ * 文件用途：主进程访问本机 EngineHttpServer 的轻量 JSON-RPC 客户端。
+ */
 package com.autolua.engine;
 
 import android.content.Context;

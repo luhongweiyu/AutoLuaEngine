@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 JSON-RPC 命令分发，把 HTTP/Java 请求映射到 native 系统 API。
+ */
 #include "engine_command.h"
 
 #include "engine.h"

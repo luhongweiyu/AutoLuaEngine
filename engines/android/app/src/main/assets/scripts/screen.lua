@@ -1,3 +1,4 @@
+-- 文件用途：内置示例脚本，用于验证截图句柄、取色和释放图片能力。
 print("screen script started")
 
 local img, err = m.screen.capture()

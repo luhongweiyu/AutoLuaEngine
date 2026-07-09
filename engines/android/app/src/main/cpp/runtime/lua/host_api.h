@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明 Lua HostApi 注册入口，只负责向 Lua 虚拟机注入 native _host 表。
+ */
 #pragma once
 
 struct lua_State;

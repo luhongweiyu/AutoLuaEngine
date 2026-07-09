@@ -1,3 +1,6 @@
+/**
+ * 文件用途：封装系统设置和系统属性的读取、写入、删除命令。
+ */
 package com.autolua.engine;
 
 import java.util.regex.Pattern;

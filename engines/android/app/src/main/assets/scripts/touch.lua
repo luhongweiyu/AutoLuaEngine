@@ -1,3 +1,4 @@
+-- 文件用途：内置示例脚本，用于验证点击、滑动和按键自动化能力。
 print("touch script started")
 print("root available =", m.device.isRootAvailable())
 

@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现脚本任务状态机，负责运行、停止、暂停和恢复协作。
+ */
 #include "script_task.h"
 
 ScriptTask::ScriptTask(int taskId)

@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 Lua 虚拟机生命周期、脚本执行和停止暂停 hook。
+ */
 #include "lua_runtime.h"
 
 #include <string>

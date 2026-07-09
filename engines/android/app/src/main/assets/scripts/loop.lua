@@ -1,3 +1,4 @@
+-- 文件用途：内置示例脚本，用于验证长循环脚本的运行和停止控制。
 print("loop script started")
 
 local total = 0

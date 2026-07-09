@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 native 图片句柄池，用于截图像素缓存、取色和释放。
+ */
 #include "image_store.h"
 
 #include <map>

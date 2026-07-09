@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现引擎主对象，管理脚本任务、停止暂停状态和命令调用。
+ */
 #include "engine.h"
 
 #include "script_task.h"

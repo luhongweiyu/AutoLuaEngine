@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明引擎主对象，是 Java/JNI 调用 native 核心能力的统一入口。
+ */
 #pragma once
 
 #include <string>

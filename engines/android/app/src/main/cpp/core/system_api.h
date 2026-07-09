@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明 native 统一系统 API，供脚本运行时和命令分发层调用。
+ */
 #pragma once
 
 #include <jni.h>

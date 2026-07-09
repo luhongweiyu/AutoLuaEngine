@@ -1,3 +1,6 @@
+/**
+ * 文件用途：实现 Lua HostApi 绑定，把 _host 表中的函数连接到 native 系统 API。
+ */
 #include "host_api.h"
 
 #include <algorithm>

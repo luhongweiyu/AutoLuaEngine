@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明 Android 平台桥接口，供 SystemApi 调用 Java 侧系统能力。
+ */
 #pragma once
 
 #include <jni.h>

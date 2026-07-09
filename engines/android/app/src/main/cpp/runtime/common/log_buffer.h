@@ -1,3 +1,6 @@
+/**
+ * 文件用途：声明 native 日志缓冲入口，统一保存脚本和引擎日志。
+ */
 #pragma once
 
 #include <string>
