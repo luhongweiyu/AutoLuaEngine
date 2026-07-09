@@ -4,8 +4,8 @@
 #include "engine_config.h"
 #include "json_value.h"
 #include "../core/system_api.h"
-#include "../runtime/image_store.h"
-#include "../runtime/log_buffer.h"
+#include "../runtime/common/image_store.h"
+#include "../runtime/common/log_buffer.h"
 
 #include <cstdlib>
 #include <sstream>

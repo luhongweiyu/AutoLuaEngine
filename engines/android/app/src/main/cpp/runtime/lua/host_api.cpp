@@ -13,11 +13,11 @@
 #include <cstdlib>
 #include <utility>
 
-#include "../engine/engine_config.h"
-#include "../core/system_api.h"
-#include "image_store.h"
+#include "../../engine/engine_config.h"
+#include "../../core/system_api.h"
+#include "../common/image_store.h"
 #include "lua_runtime.h"
-#include "log_buffer.h"
+#include "../common/log_buffer.h"
 
 extern "C" {
 #include "lua.h"

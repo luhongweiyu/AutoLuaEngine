@@ -4,7 +4,7 @@
 #include "engine/engine.h"
 #include "engine/engine_command.h"
 #include "core/system_api.h"
-#include "runtime/log_buffer.h"
+#include "runtime/common/log_buffer.h"
 
 using autolua::core::SystemApi;
 

@@ -13,10 +13,10 @@ add_library(engine SHARED
         engine/json_value.cpp
         engine/script_task.cpp
         platform/android_bridge.cpp
-        runtime/host_api.cpp
-        runtime/image_store.cpp
-        runtime/log_buffer.cpp
-        runtime/lua_runtime.cpp
+        runtime/common/image_store.cpp
+        runtime/common/log_buffer.cpp
+        runtime/lua/host_api.cpp
+        runtime/lua/lua_runtime.cpp
         ${LUA_SRC_DIR}/lapi.c
         ${LUA_SRC_DIR}/lauxlib.c
         ${LUA_SRC_DIR}/lbaselib.c

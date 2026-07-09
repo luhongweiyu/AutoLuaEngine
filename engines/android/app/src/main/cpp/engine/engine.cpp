@@ -1,7 +1,7 @@
 #include "engine.h"
 
 #include "script_task.h"
-#include "../runtime/lua_runtime.h"
+#include "../runtime/lua/lua_runtime.h"
 
 #include <sstream>
 
