@@ -10,6 +10,18 @@ bool SystemApi::isAccessibilityEnabled() {
     return AndroidBridge::isAccessibilityEnabled();
 }
 
+int SystemApi::apiLevel() {
+    return AndroidBridge::apiLevel();
+}
+
+int SystemApi::httpPort() {
+    return AndroidBridge::httpPort();
+}
+
+std::string SystemApi::packageName() {
+    return AndroidBridge::packageName();
+}
+
 bool SystemApi::isRootModeEnabled() {
     return AndroidBridge::isRootModeEnabled();
 }
@@ -20,6 +32,18 @@ bool SystemApi::setRootModeEnabled(bool enabled) {
 
 bool SystemApi::isRootAvailable() {
     return AndroidBridge::isRootAvailable();
+}
+
+bool SystemApi::isRootRuntimeReady() {
+    return AndroidBridge::isRootRuntimeReady();
+}
+
+bool SystemApi::prepareRootRuntime() {
+    return AndroidBridge::prepareRootRuntime();
+}
+
+bool SystemApi::prepareRootHelper() {
+    return AndroidBridge::prepareRootHelper();
 }
 
 RootStatusResult SystemApi::rootStatus() {

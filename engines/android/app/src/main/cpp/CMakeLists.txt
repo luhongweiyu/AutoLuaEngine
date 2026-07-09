@@ -9,6 +9,8 @@ add_library(engine SHARED
         core/system_c_api.cpp
         core/system_api.cpp
         engine/engine.cpp
+        engine/engine_command.cpp
+        engine/json_value.cpp
         engine/script_task.cpp
         platform/android_bridge.cpp
         runtime/host_api.cpp

@@ -6,6 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -111,12 +114,7 @@ public final class EngineService extends Service {
         ScreenCaptureBridge.init(getApplicationContext());
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
-        if (EngineSettings.isRootModeEnabled(this)) {
-            RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
-            if (rootStatus.available) {
-                RootHelperBridge.prepare();
-            }
-        }
+        prepareRootRuntimeOnServiceStart();
     }
 
     @Override
@@ -132,13 +130,11 @@ public final class EngineService extends Service {
         }
 
         if (ACTION_STOP_SCRIPT.equals(intent.getAction())) {
-            NativeEngine.stop();
-            broadcastStatus(STATE_STOPPING, "已请求停止脚本");
+            requestScriptStop();
             return START_STICKY;
         }
 
         if (ACTION_FORCE_STOP_ENGINE_PROCESS.equals(intent.getAction())) {
-            NativeEngine.stop();
             broadcastStatus(STATE_FINISHED, "已强制停止引擎进程");
             shutdownRuntime();
             stopSelf();
@@ -147,38 +143,17 @@ public final class EngineService extends Service {
         }
 
         if (ACTION_PAUSE_SCRIPT.equals(intent.getAction())) {
-            boolean accepted = NativeEngine.pause();
-            broadcastStatus(
-                    accepted ? STATE_PAUSING : STATE_FAILED,
-                    accepted ? "已请求暂停脚本" : "当前没有可暂停的脚本"
-            );
+            requestScriptPause();
             return START_STICKY;
         }
 
         if (ACTION_RESUME_SCRIPT.equals(intent.getAction())) {
-            boolean accepted = NativeEngine.resume();
-            broadcastStatus(
-                    accepted ? STATE_RUNNING : STATE_FAILED,
-                    accepted ? "已请求继续脚本" : "当前没有已暂停的脚本"
-            );
+            requestScriptResume();
             return START_STICKY;
         }
 
         if (ACTION_SET_ROOT_MODE.equals(intent.getAction())) {
-            boolean enabled = intent.getBooleanExtra(EXTRA_ENABLED, true);
-            EngineSettings.setRootModeEnabled(this, enabled);
-            if (enabled) {
-                RootStatus rootStatus = RootShellBridge.prepareRootRuntime();
-                boolean helperReady = rootStatus.available && RootHelperBridge.prepare();
-                String message = rootStatus.available
-                        ? (helperReady
-                                ? "运行模式已切换为 Root 优先，Root 运行层已就绪"
-                                : "运行模式已切换为 Root 优先，Root shell 已就绪，截图 helper 未就绪")
-                        : "运行模式已切换为 Root 优先，但 Root 权限不可用：" + rootStatus.error;
-                broadcastStatus(rootStatus.available ? STATE_FINISHED : STATE_FAILED, message);
-            } else {
-                broadcastStatus(STATE_FINISHED, "运行模式已切换为无障碍优先");
-            }
+            setRootModeFromNative(intent.getBooleanExtra(EXTRA_ENABLED, true));
             return START_STICKY;
         }
 
@@ -232,18 +207,6 @@ public final class EngineService extends Service {
             return;
         }
 
-        if (EngineSettings.isRootModeEnabled(this)) {
-            // Root 授权只在引擎启动或切换 Root 模式时触发。运行脚本时只读取
-            // 已准备好的常驻 root shell，避免每次点击运行都弹出超级用户授权。
-            RootStatus rootStatus = RootShellBridge.status();
-            if (!rootStatus.available || !RootShellBridge.isRootRuntimeReady()) {
-                running.set(false);
-                String error = rootStatus.error.isEmpty() ? "Root 权限不可用" : rootStatus.error;
-                broadcastStatus(STATE_FAILED, "Root 模式需要授权后才能运行脚本：" + error);
-                return;
-            }
-        }
-
         ScriptCatalog.setSelectedScript(this, item);
         broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.fileName);
 
@@ -251,13 +214,25 @@ public final class EngineService extends Service {
             String state = STATE_FINISHED;
             String message;
             try {
-                message = NativeEngine.runLuaText(ScriptCatalog.readScriptText(item.filePath));
-                if (message.contains("failed") || message.contains("Engine is already running")) {
+                JSONObject result = callNativeCommand(
+                        "script.run",
+                        new JSONObject()
+                                .put("language", "lua")
+                                .put("code", ScriptCatalog.readScriptText(item.filePath))
+                );
+                message = result.optString("message", "脚本执行完成");
+                if (!"finished".equals(result.optString("status", "unknown"))) {
                     state = STATE_FAILED;
                 }
             } catch (IOException exception) {
                 state = STATE_FAILED;
                 message = "读取脚本失败：" + exception.getMessage();
+            } catch (JSONException exception) {
+                state = STATE_FAILED;
+                message = "脚本命令参数错误：" + exception.getMessage();
+            } catch (RuntimeException exception) {
+                state = STATE_FAILED;
+                message = "脚本运行失败：" + exception.getMessage();
             } finally {
                 running.set(false);
             }
@@ -265,6 +240,105 @@ public final class EngineService extends Service {
             broadcastStatus(state, message);
         }, "EngineServiceLuaWorker");
         worker.start();
+    }
+
+    private void prepareRootRuntimeOnServiceStart() {
+        if (!EngineSettings.isRootModeEnabled(this)) {
+            return;
+        }
+
+        try {
+            JSONObject result = callNativeCommand(
+                    "device.setRootModeEnabled",
+                    new JSONObject().put("enabled", true)
+            );
+            if (result.optBoolean("rootAvailable", false)) {
+                broadcastStatus(STATE_FINISHED, "Root 运行层已就绪");
+            } else {
+                broadcastStatus(STATE_FAILED, "Root 模式已开启，但 Root 权限不可用");
+            }
+        } catch (JSONException exception) {
+            broadcastStatus(STATE_FAILED, "Root 初始化参数错误：" + exception.getMessage());
+        } catch (RuntimeException exception) {
+            broadcastStatus(STATE_FAILED, "Root 初始化失败：" + exception.getMessage());
+        }
+    }
+
+    private void requestScriptStop() {
+        try {
+            callNativeCommand("script.stop", new JSONObject());
+            broadcastStatus(STATE_STOPPING, "已请求停止脚本");
+        } catch (RuntimeException exception) {
+            broadcastStatus(STATE_FAILED, "停止脚本失败：" + exception.getMessage());
+        }
+    }
+
+    private void requestScriptPause() {
+        try {
+            JSONObject result = callNativeCommand("script.pause", new JSONObject());
+            boolean accepted = result.optBoolean("accepted", false);
+            broadcastStatus(
+                    accepted ? STATE_PAUSING : STATE_FAILED,
+                    accepted ? "已请求暂停脚本" : "当前没有可暂停的脚本"
+            );
+        } catch (RuntimeException exception) {
+            broadcastStatus(STATE_FAILED, "暂停脚本失败：" + exception.getMessage());
+        }
+    }
+
+    private void requestScriptResume() {
+        try {
+            JSONObject result = callNativeCommand("script.resume", new JSONObject());
+            boolean accepted = result.optBoolean("accepted", false);
+            broadcastStatus(
+                    accepted ? STATE_RUNNING : STATE_FAILED,
+                    accepted ? "已请求继续脚本" : "当前没有已暂停的脚本"
+            );
+        } catch (RuntimeException exception) {
+            broadcastStatus(STATE_FAILED, "继续脚本失败：" + exception.getMessage());
+        }
+    }
+
+    private void setRootModeFromNative(boolean enabled) {
+        try {
+            JSONObject result = callNativeCommand(
+                    "device.setRootModeEnabled",
+                    new JSONObject().put("enabled", enabled)
+            );
+            if (!enabled) {
+                broadcastStatus(STATE_FINISHED, "运行模式已切换为无障碍优先");
+                return;
+            }
+
+            String message = result.optBoolean("rootAvailable", false)
+                    ? "运行模式已切换为 Root 优先，Root 运行层已就绪"
+                    : "运行模式已切换为 Root 优先，但 Root 权限不可用";
+            broadcastStatus(
+                    result.optBoolean("rootAvailable", false) ? STATE_FINISHED : STATE_FAILED,
+                    message
+            );
+        } catch (JSONException exception) {
+            broadcastStatus(STATE_FAILED, "Root 模式参数错误：" + exception.getMessage());
+        } catch (RuntimeException exception) {
+            broadcastStatus(STATE_FAILED, "Root 模式切换失败：" + exception.getMessage());
+        }
+    }
+
+    private static JSONObject callNativeCommand(String method, JSONObject params) {
+        try {
+            JSONObject envelope = new JSONObject(NativeEngine.callJson(
+                    method,
+                    params == null ? "{}" : params.toString()
+            ));
+            if (!envelope.optBoolean("ok", false)) {
+                throw new IllegalStateException(envelope.optString("error", "native command failed"));
+            }
+
+            JSONObject result = envelope.optJSONObject("result");
+            return result == null ? new JSONObject() : result;
+        } catch (JSONException exception) {
+            throw new IllegalStateException("native command json parse failed: " + method, exception);
+        }
     }
 
     private void broadcastStatus(String state, String message) {

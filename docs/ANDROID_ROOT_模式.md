@@ -38,8 +38,9 @@ EngineService(:engine) -> 启动/切换模式时准备 RootShellBridge / RootHel
 
 ```text
 引擎启动或切换到 Root 模式时申请并准备 root 运行层
-root 运行层已就绪 -> 运行脚本，触控/按键/输入/截图只走 root 路线
-root 运行层未就绪 -> 直接拒绝运行脚本，不在运行中重复申请
+运行脚本时不重复申请 root
+触控/按键/输入/截图只执行当前模式对应路线
+root 运行层未就绪或命令失败 -> 当前 API 直接返回错误
 ```
 
 截图执行顺序：
@@ -135,7 +136,7 @@ print(img.source, img.captureDurationMs)
 
 限制：
 
-- Root 模式下如果 App 没有 root 授权或常驻 root 运行层未就绪，脚本会直接拒绝运行。
+- Root 模式下如果 App 没有 root 授权或常驻 root 运行层未就绪，相关 root API 会直接返回错误；运行脚本本身不再重复申请 root。
 - root 截图当前已改为 root helper 常驻进程，不再每帧启动 `su screencap`；下一步要做帧引擎和共享内存，继续减少跨进程复制。
 - 文本输入当前只支持 root `input text`；中文、换行和复杂符号由脚本显式调用 `m.input.pasteText`。
 - Root 文件 API 当前只承诺 UTF-8 文本读写、状态、列表、删除、递归删除、目录创建、chmod 和 chown，不承诺二进制传输。

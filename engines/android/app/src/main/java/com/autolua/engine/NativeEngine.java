@@ -6,7 +6,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Java 层统一 native 入口。
@@ -14,7 +13,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 后续所有 Java/Kotlin 到 C++ 引擎的调用都从这里走，避免 JNI 方法散落在各处。
  */
 public final class NativeEngine {
-    private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
     private static final String[] LUA_RUNTIME_ASSETS = {
             "runtime/api_m.lua",
             "runtime/compat_lr.lua",
@@ -44,56 +42,18 @@ public final class NativeEngine {
         initialized = true;
     }
 
-    public static String runLuaText(String code) {
-        if (!RUNNING.compareAndSet(false, true)) {
-            return "Engine is already running";
-        }
-
-        try {
-            return nativeRunLuaText(luaRuntimeBootstrap + "\n" + code);
-        } finally {
-            RUNNING.set(false);
-        }
-    }
-
-    public static void stop() {
-        nativeStop();
-    }
-
-    public static boolean pause() {
-        return nativePause();
-    }
-
-    public static boolean resume() {
-        return nativeResume();
-    }
-
-    public static String drainLogs(int afterId) {
-        return nativeDrainLogs(afterId);
-    }
-
-    public static String statusJson(int taskId) {
-        return nativeStatusJson(taskId);
-    }
-
-    public static String engineVersion() {
-        return nativeEngineVersion();
-    }
-
-    public static String luaVersion() {
-        return nativeLuaVersion();
-    }
-
-    public static String captureScreenJson() {
-        return nativeCaptureScreenJson();
-    }
-
-    public static String captureRootScreenJson() {
-        return nativeCaptureRootScreenJson();
-    }
-
-    public static boolean releaseImage(int imageId) {
-        return nativeReleaseImage(imageId);
+    /**
+     * 调用 libengine.so 的统一 JSON 命令入口。
+     *
+     * App、悬浮窗、HTTP JSON-RPC 和后续 IDE 插件都应该优先走这里。Java 层只负责
+     * 把 Android 必须保留在框架侧的对象传给 native，具体命令由 C++ 引擎统一处理。
+     */
+    public static String callJson(String method, String paramsJson) {
+        return nativeCallJson(
+                method == null ? "" : method,
+                paramsJson == null || paramsJson.trim().isEmpty() ? "{}" : paramsJson,
+                luaRuntimeBootstrap == null ? "" : luaRuntimeBootstrap
+        );
     }
 
     /**
@@ -127,25 +87,9 @@ public final class NativeEngine {
 
     private static native void nativeInit();
 
-    private static native String nativeRunLuaText(String code);
-
-    private static native void nativeStop();
-
-    private static native boolean nativePause();
-
-    private static native boolean nativeResume();
-
-    private static native String nativeDrainLogs(int afterId);
-
-    private static native String nativeStatusJson(int taskId);
-
-    private static native String nativeEngineVersion();
-
-    private static native String nativeLuaVersion();
-
-    private static native String nativeCaptureScreenJson();
-
-    private static native String nativeCaptureRootScreenJson();
-
-    private static native boolean nativeReleaseImage(int imageId);
+    private static native String nativeCallJson(
+            String method,
+            String paramsJson,
+            String luaRuntimeBootstrap
+    );
 }

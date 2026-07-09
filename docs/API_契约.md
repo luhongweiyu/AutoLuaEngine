@@ -275,7 +275,7 @@ m.log.print(info.platform)
 说明：
 
 - 判断当前 Android 设备是否可以通过 `su` 获取 root shell
-- Root 模式下引擎启动或切换模式时准备 root 运行层；运行脚本时只检查已就绪状态，触控和按键只走 root，不改走无障碍
+- Root 模式下引擎启动或切换模式时准备 root 运行层；运行脚本时不重复申请 root，触控和按键只走 root，不改走无障碍，失败时直接返回错误
 
 返回：
 

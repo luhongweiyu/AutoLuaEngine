@@ -26,12 +26,38 @@ public final class AndroidHostBridge {
         return AutomationAccessibilityService.isEnabled();
     }
 
+    public static int apiLevel() {
+        return android.os.Build.VERSION.SDK_INT;
+    }
+
+    public static int httpPort() {
+        return appContext == null
+                ? EngineSettings.DEFAULT_HTTP_PORT
+                : EngineSettings.getHttpPort(appContext);
+    }
+
+    public static String packageName() {
+        return appContext == null ? "" : appContext.getPackageName();
+    }
+
     public static boolean isRootAvailable() {
         return RootShellBridge.isRootAvailable();
     }
 
     public static RootStatus rootStatus() {
         return RootShellBridge.status();
+    }
+
+    public static boolean isRootRuntimeReady() {
+        return RootShellBridge.isRootRuntimeReady();
+    }
+
+    public static boolean prepareRootRuntime() {
+        return RootShellBridge.prepareRootRuntime().available;
+    }
+
+    public static boolean prepareRootHelper() {
+        return RootHelperBridge.prepare();
     }
 
     public static boolean isRootModeEnabled() {

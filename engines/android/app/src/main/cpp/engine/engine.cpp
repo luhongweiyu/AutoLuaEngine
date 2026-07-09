@@ -54,6 +54,14 @@ void Engine::init() {
 }
 
 std::string Engine::runLuaText(const char* code) {
+    // 脚本任务必须在 native 层统一串行化。App、悬浮窗、HTTP 和后续插件都会
+    // 进入同一个 libengine.so，如果只在某个 Java 入口加锁，其他入口仍会竞争
+    // Lua VM 任务状态和停止/暂停控制位。
+    std::unique_lock<std::mutex> runLock(runMutex_, std::try_to_lock);
+    if (!runLock.owns_lock()) {
+        return "Engine is already running";
+    }
+
     if (!initialized_) {
         init();
     }

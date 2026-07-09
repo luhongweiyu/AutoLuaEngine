@@ -6,6 +6,8 @@ namespace {
 
 JavaVM* gJavaVm = nullptr;
 
+std::string jStringToString(JNIEnv* env, jstring value);
+
 JNIEnv* getEnv() {
     if (gJavaVm == nullptr) {
         return nullptr;
@@ -55,6 +57,70 @@ bool callStaticBooleanMethod0(const char* methodName, const char* signature) {
 
     env->DeleteLocalRef(bridgeClass);
     return result == JNI_TRUE;
+}
+
+int callStaticIntMethod0(const char* methodName, const char* signature) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return 0;
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return 0;
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return 0;
+    }
+
+    jint result = env->CallStaticIntMethod(bridgeClass, methodId);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return 0;
+    }
+
+    env->DeleteLocalRef(bridgeClass);
+    return static_cast<int>(result);
+}
+
+std::string callStaticStringMethod0(const char* methodName, const char* signature) {
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return "";
+    }
+
+    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (bridgeClass == nullptr) {
+        env->ExceptionClear();
+        return "";
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
+    if (methodId == nullptr) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return "";
+    }
+
+    jstring value = static_cast<jstring>(env->CallStaticObjectMethod(bridgeClass, methodId));
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(bridgeClass);
+        return "";
+    }
+
+    std::string result = jStringToString(env, value);
+    if (value != nullptr) {
+        env->DeleteLocalRef(value);
+    }
+    env->DeleteLocalRef(bridgeClass);
+    return result;
 }
 
 bool callStaticBooleanMethod2(const char* methodName, const char* signature, jint x, jint y) {
@@ -866,6 +932,18 @@ bool AndroidBridge::isAccessibilityEnabled() {
     return callStaticBooleanMethod0("isAccessibilityEnabled", "()Z");
 }
 
+int AndroidBridge::apiLevel() {
+    return callStaticIntMethod0("apiLevel", "()I");
+}
+
+int AndroidBridge::httpPort() {
+    return callStaticIntMethod0("httpPort", "()I");
+}
+
+std::string AndroidBridge::packageName() {
+    return callStaticStringMethod0("packageName", "()Ljava/lang/String;");
+}
+
 bool AndroidBridge::isRootModeEnabled() {
     return callStaticBooleanMethod0("isRootModeEnabled", "()Z");
 }
@@ -880,6 +958,18 @@ bool AndroidBridge::setRootModeEnabled(bool enabled) {
 
 bool AndroidBridge::isRootAvailable() {
     return callStaticBooleanMethod0("isRootAvailable", "()Z");
+}
+
+bool AndroidBridge::isRootRuntimeReady() {
+    return callStaticBooleanMethod0("isRootRuntimeReady", "()Z");
+}
+
+bool AndroidBridge::prepareRootRuntime() {
+    return callStaticBooleanMethod0("prepareRootRuntime", "()Z");
+}
+
+bool AndroidBridge::prepareRootHelper() {
+    return callStaticBooleanMethod0("prepareRootHelper", "()Z");
 }
 
 RootStatusResult AndroidBridge::rootStatus() {

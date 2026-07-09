@@ -119,7 +119,8 @@ int luaDeviceInfo(lua_State* state) {
     lua_setfield(state, -2, "luaVersion");
 
     bool rootModeEnabled = SystemApi::isRootModeEnabled();
-    bool rootAvailable = SystemApi::isRootAvailable();
+    RootStatusResult rootStatus = SystemApi::rootStatus();
+    bool rootAvailable = rootStatus.available;
     bool accessibilityEnabled = SystemApi::isAccessibilityEnabled();
     lua_pushboolean(state, rootModeEnabled ? 1 : 0);
     lua_setfield(state, -2, "rootModeEnabled");
@@ -153,6 +154,13 @@ int luaDeviceSetRootModeEnabled(lua_State* state) {
         lua_pushnil(state);
         lua_pushstring(state, "set root mode failed");
         return 2;
+    }
+
+    // 和 App 设置页、HTTP `device.setRootModeEnabled` 保持同一语义：
+    // 切到 Root 模式时只在这里准备常驻 root 运行层，后续点击、截图、文件等
+    // API 只直接使用已准备好的路线，失败就把错误返回给脚本。
+    if (enabled && SystemApi::prepareRootRuntime()) {
+        SystemApi::prepareRootHelper();
     }
 
     lua_pushboolean(state, 1);
@@ -1538,12 +1546,6 @@ int luaKeyIsAccessibilityEnabled(lua_State* state) {
 }
 
 int luaScreenCapture(lua_State* state) {
-    if (!SystemApi::hasScreenCapturePermission()) {
-        lua_pushnil(state);
-        lua_pushstring(state, "screen capture permission is not granted");
-        return 2;
-    }
-
     return pushScreenCaptureResult(state, SystemApi::captureScreen(), "screen capture failed");
 }
 

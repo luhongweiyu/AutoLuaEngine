@@ -19,9 +19,15 @@ public:
     static void init(JavaVM* javaVm);
 
     static bool isAccessibilityEnabled();
+    static int apiLevel();
+    static int httpPort();
+    static std::string packageName();
     static bool isRootModeEnabled();
     static bool setRootModeEnabled(bool enabled);
     static bool isRootAvailable();
+    static bool isRootRuntimeReady();
+    static bool prepareRootRuntime();
+    static bool prepareRootHelper();
     static RootStatusResult rootStatus();
     static RootExecResult rootExec(const std::string& command, int timeoutMs);
 

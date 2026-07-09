@@ -68,6 +68,7 @@ private:
     std::atomic_bool pauseRequested_;
     std::condition_variable controlCondition_;
     std::mutex controlMutex_;
+    std::mutex runMutex_;
     mutable std::mutex taskMutex_;
     int lastTaskId_;
     std::string lastStatus_;

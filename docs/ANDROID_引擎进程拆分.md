@@ -24,7 +24,7 @@ AutoLuaEngine 后续目标：
 ├─ EngineService
 ├─ EngineHttpServer
 ├─ NativeEngine
-└─ libengine.so / LuaRuntime
+└─ libengine.so / EngineCommand / LuaRuntime
 ```
 
 第一版暂不做插件进程。
@@ -54,6 +54,8 @@ FloatingControlService   -> EngineService.ensureStarted()
 EngineService.onCreate() -> NativeEngine.init() + EngineHttpServer.start()
 MainActivity 日志入口    -> EngineLocalClient -> log.drain
 MainActivity 设置入口    -> EngineLocalClient -> device.info / script.status
+EngineHttpServer         -> NativeEngine.callJson -> libengine.so
+EngineService 控制脚本   -> NativeEngine.callJson -> libengine.so
 ```
 
 也就是说，native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`。
@@ -72,11 +74,34 @@ App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访
 ├─ EngineHttpServer
 ├─ NativeEngine
 ├─ ScreenCaptureBridge
-└─ libengine.so
+└─ libengine.so / engine_command.cpp
 ```
 
 核心 API 层仍然是 `libengine.so`。Lua、后续 JS、FFI 和插件都应绑定这层统一 API；
 Java Service 只负责进程、权限、Android 系统桥接和 root helper 启动。
+
+2026-07-09 已完成第二次边界收口：
+
+```text
+App 主进程
+├─ MainActivity：UI、脚本选择、权限入口、状态展示
+├─ FloatingControlService：悬浮按钮和控制面板
+└─ EngineLocalClient：通过本地 JSON-RPC 查询引擎
+
+:engine 进程
+├─ EngineService：进程壳、脚本文件读取、状态广播、强停进程
+├─ EngineHttpServer：HTTP/JSON-RPC 网络壳
+├─ NativeEngine：JNI 统一入口
+└─ libengine.so：脚本运行、任务状态、统一命令分发、系统 API 调度
+```
+
+关键规则：
+
+- Java HTTP 层不再分发 `device.*`、`root.*`、`script.*`、`screen.*` 等业务命令。
+- `EngineHttpServer` 只把 JSON-RPC 的 `method/params` 传给 `NativeEngine.callJson(...)`。
+- `EngineService` 运行、停止、暂停、继续、切换 Root 模式时，也走同一个 native 命令入口。
+- Root 授权准备只在 `:engine` 启动和切换 Root 模式时做，运行脚本时不重复申请。
+- 强停进程是硬控制，收到强停命令后直接释放服务资源并 kill `:engine`，不等待脚本协作停止。
 
 验证记录：
 
@@ -87,20 +112,33 @@ GET http://127.0.0.1:18382/health -> {"ok":true,"port":18380}
 
 其中 `18382` 是本机临时 adb forward 端口，Android 端实际端口仍是 `18380`。
 
-## 4. 后续拆分步骤
+2026-07-09 在雷达模拟器 `emulator-5560` 验证：
 
-### 4.1 主进程不再直接调用 NativeEngine
+```text
+adb forward tcp:18380 tcp:18380
+GET /health -> {"ok":true,"port":18380}
+device.info -> platform=android, luaVersion=Lua 5.4, rootAvailable=true
+script.run -> print("你好 from native command") 成功输出中文日志和 Lua 版本
+log.drain -> 可读取 native 日志通道
+script.stop -> 可停止长循环脚本，任务状态变为 failed: script stopped
+```
 
-需要逐项替换：
+## 4. 当前运行路线
+
+### 4.1 主进程不直接调用 NativeEngine
+
+已完成：
 
 ```text
 MainActivity.showRecentLogs() -> 已通过 EngineLocalClient 调用 log.drain
 MainActivity 设置页状态        -> 已通过 EngineLocalClient 调用 device.info / script.status
+MainActivity 运行/停止脚本     -> 发送 Intent 给 EngineService
+FloatingControlService 控制脚本 -> 发送 Intent 给 EngineService
 ```
 
-替换后，主进程只通过协议或 Service 控制引擎。
+主进程只通过协议或 Service 控制引擎，不直接加载脚本运行状态。
 
-### 4.2 截图能力跨进程确认
+### 4.2 截图能力跨进程边界
 
 当前 `m.screen.capture()` 走：
 
@@ -108,17 +146,16 @@ MainActivity 设置页状态        -> 已通过 EngineLocalClient 调用 device
 Lua -> native _host -> AndroidBridge -> ScreenCaptureBridge
 ```
 
-拆进程前必须确认：
+当前规则：
 
-- MediaProjection 授权数据能否安全传到 `:engine`。
-- ImageReader / VirtualDisplay 是否放在引擎进程创建。
-- 图片句柄必须只存在于引擎进程，不能跨进程传 native 指针。
+- MediaProjection 授权由主进程发起，授权结果通过 Intent 传给 `EngineService`。
+- ImageReader / VirtualDisplay 放在 `:engine` 进程创建。
+- 图片句柄只存在于 `:engine` 进程，不跨进程传 native 指针。
+- HTTP 只返回图片句柄元信息，不返回大像素数据。
 
-第一版建议：截图授权仍由主进程发起，授权结果通过 Intent / Binder 传给 `EngineService`。
+### 4.3 EngineService 独立进程
 
-### 4.3 EngineService 加独立进程
-
-前两步完成后，再修改 Manifest：
+Manifest：
 
 ```xml
 <service
@@ -127,7 +164,7 @@ Lua -> native _host -> AndroidBridge -> ScreenCaptureBridge
     android:process=":engine" />
 ```
 
-已完成，验收：
+验收：
 
 ```text
 adb shell ps -A | findstr autolua
