@@ -50,10 +50,36 @@ struct PixelPoint {
     int y = 0;
 };
 
+/**
+ * 读取当前屏幕帧缓存。
+ *
+ * keepCapture 开启时忽略时间限制；未开启时按当前缓冲时间判断是否命中。
+ */
 bool getCachedScreenFrame(ImageMetadata* metadata);
 
+/**
+ * 保存新的屏幕帧，并覆盖上一张屏幕缓存帧。
+ */
 ImageMetadata storeScreenFrame(ImageFrame frame);
 
+/**
+ * 开启锁帧缓存：之后截图一直复用当前屏幕帧，直到 release 或清空缓存。
+ */
+void keepScreenFrameCache();
+
+/**
+ * 关闭锁帧缓存：之后截图恢复为按缓冲时间复用。
+ */
+void releaseScreenFrameCache();
+
+/**
+ * 设置屏幕帧缓冲时间，单位毫秒。传入负数会返回 false。
+ */
+bool setScreenFrameCacheDurationMs(long long durationMs);
+
+/**
+ * 清空屏幕缓存帧，并恢复脚本运行期缓存设置到默认状态。
+ */
 void clearScreenFrameCache();
 
 bool readImagePixel(int imageId, int x, int y, PixelColor* color, std::string* error);

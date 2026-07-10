@@ -66,7 +66,7 @@ m.device.setRootModeEnabled(true)
 }
 ```
 
-关闭后，触控、按键、截图走无障碍/系统授权路线；显式调用 `m.root.exec` 仍然只走 root。`m.root.screen.capture` 会先复用 20ms 屏幕帧缓存，缓存未命中时只走 root。
+关闭后，触控、按键、截图走无障碍/系统授权路线；显式调用 `m.root.exec` 仍然只走 root。`m.root.screen.capture` 会先复用屏幕帧缓存，缓存未命中时只走 root。
 
 `m.device.info().automationMode` 当前取值为：
 
@@ -170,7 +170,7 @@ print(img.source, img.captureDurationMs)
 
 ```text
 root.status -> available=true, commandMode=SU_C, suPath=su
-root.screen.capture 连续 5 次 -> 20ms 内复用缓存帧；缓存未命中时 source=root-helper, 1280x720
+root.screen.capture 连续 5 次 -> 缓冲时间内复用缓存帧；缓存未命中时 source=root-helper, 1280x720
 captureDurationMs -> 166, 145, 164, 164, 205
 ```
 

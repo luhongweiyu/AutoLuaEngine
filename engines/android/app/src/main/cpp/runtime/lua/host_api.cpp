@@ -1560,6 +1560,31 @@ int luaRootScreenCapture(lua_State* state) {
     return pushScreenCaptureResult(state, true, "root screen capture failed");
 }
 
+int luaScreenKeepCapture(lua_State* state) {
+    keepScreenFrameCache();
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaScreenReleaseCapture(lua_State* state) {
+    releaseScreenFrameCache();
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+int luaScreenSetCaptureCacheMs(lua_State* state) {
+    lua_Integer durationMs = luaL_checkinteger(state, 1);
+    if (durationMs < 0) {
+        lua_pushnil(state);
+        lua_pushstring(state, "capture cache ms must be greater than or equal to 0");
+        return 2;
+    }
+
+    setScreenFrameCacheDurationMs(static_cast<long long>(durationMs));
+    lua_pushinteger(state, durationMs);
+    return 1;
+}
+
 int pushImageMetadata(lua_State* state, const ImageMetadata& metadata) {
     lua_newtable(state);
     lua_pushinteger(state, metadata.id);
@@ -1837,6 +1862,9 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int screenTableIndex = lua_gettop(state);
     setFunctionField(state, screenTableIndex, "capture", luaScreenCapture);
+    setFunctionField(state, screenTableIndex, "keepCapture", luaScreenKeepCapture);
+    setFunctionField(state, screenTableIndex, "releaseCapture", luaScreenReleaseCapture);
+    setFunctionField(state, screenTableIndex, "setCaptureCacheMs", luaScreenSetCaptureCacheMs);
     lua_setfield(state, hostTableIndex, "screen");
 
     lua_newtable(state);

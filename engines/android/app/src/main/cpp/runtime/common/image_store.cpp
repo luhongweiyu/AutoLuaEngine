@@ -22,6 +22,8 @@ std::map<int, StoredImage> gImages;
 int gNextImageId = 1;
 int gScreenFrameImageId = 0;
 long long gScreenFrameStoredAtMs = 0;
+long long gScreenFrameCacheMs = kScreenFrameCacheMs;
+bool gKeepScreenFrame = false;
 
 long long steadyNowMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -92,10 +94,17 @@ bool getCachedScreenFrame(ImageMetadata* metadata) {
         return false;
     }
 
-    // 20ms 内的连续截图请求都视为同一屏幕帧，直接复用 native 内存里的
+    // keepCapture 开启后，当前屏幕帧会一直复用，直到脚本调用
+    // releaseCapture、脚本结束或新脚本开始清空缓存。
+    if (gKeepScreenFrame) {
+        *metadata = makeMetadataLocked(iterator->second);
+        return true;
+    }
+
+    // 缓冲时间内的连续截图请求都视为同一屏幕帧，直接复用 native 内存里的
     // 当前截图句柄，避免重复拉取屏幕像素。
     long long ageMs = steadyNowMs() - gScreenFrameStoredAtMs;
-    if (ageMs < 0 || ageMs > kScreenFrameCacheMs) {
+    if (ageMs < 0 || ageMs > gScreenFrameCacheMs) {
         return false;
     }
 
@@ -121,6 +130,26 @@ ImageMetadata storeScreenFrame(ImageFrame frame) {
     return metadata;
 }
 
+void keepScreenFrameCache() {
+    std::lock_guard<std::mutex> lock(gImageMutex);
+    gKeepScreenFrame = true;
+}
+
+void releaseScreenFrameCache() {
+    std::lock_guard<std::mutex> lock(gImageMutex);
+    gKeepScreenFrame = false;
+}
+
+bool setScreenFrameCacheDurationMs(long long durationMs) {
+    if (durationMs < 0) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(gImageMutex);
+    gScreenFrameCacheMs = durationMs;
+    return true;
+}
+
 void clearScreenFrameCache() {
     std::lock_guard<std::mutex> lock(gImageMutex);
 
@@ -129,6 +158,8 @@ void clearScreenFrameCache() {
     }
     gScreenFrameImageId = 0;
     gScreenFrameStoredAtMs = 0;
+    gKeepScreenFrame = false;
+    gScreenFrameCacheMs = kScreenFrameCacheMs;
 }
 
 bool readImagePixel(int imageId, int x, int y, PixelColor* color, std::string* error) {

@@ -8,6 +8,9 @@ local minDurationMs = nil
 local maxDurationMs = 0
 local sourceCounts = {}
 
+local cacheMs = m.setCaptureCacheMs(20)
+print("capture cache ms =", cacheMs)
+
 local function recordFrame(img)
     local durationMs = tonumber(img.captureDurationMs) or 0
     local source = img.source or "unknown"
@@ -29,6 +32,9 @@ local function printSourceCounts()
     end
 end
 
+m.keepCapture()
+print("keepCapture enabled")
+
 for i = 1, frameCount do
     local img, err = m.screen.capture()
     if not img then
@@ -40,6 +46,7 @@ for i = 1, frameCount do
 
     if i == 1 then
         print("first frame size =", img.width, img.height)
+        print("first frame id =", img.id)
         print("first frame source =", img.source)
         print("first frame durationMs =", img.captureDurationMs)
 
@@ -56,9 +63,13 @@ for i = 1, frameCount do
         else
             print("sample pixels failed =", colorsErr)
         end
+    elseif i == 2 then
+        print("second frame id =", img.id)
+        m.releaseCapture()
+        print("releaseCapture enabled timed cache")
     end
 
-    -- 截图帧由引擎缓存管理，这里连续调用 capture 用于验证 20ms 缓存复用。
+    -- 截图帧由引擎缓存管理，这里连续调用 capture 用于验证缓冲复用。
 end
 
 if successCount > 0 then

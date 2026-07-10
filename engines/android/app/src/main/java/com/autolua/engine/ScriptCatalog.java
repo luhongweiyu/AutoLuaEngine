@@ -210,7 +210,7 @@ public final class ScriptCatalog {
         descriptions.put("loop.lua", "验证长循环和停止");
         descriptions.put("touch.lua", "验证点击、滑动和无障碍状态");
         descriptions.put("screen.lua", "验证截图句柄和取色");
-        descriptions.put("screen_benchmark.lua", "连续截图、复用缓存帧并统计耗时");
+        descriptions.put("screen_benchmark.lua", "连续截图、锁帧缓存并统计耗时");
         return descriptions;
     }
 

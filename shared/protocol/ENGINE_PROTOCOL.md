@@ -2189,7 +2189,7 @@ WebSocket 事件：
 说明：
 
 - 显式请求 root 截图
-- 与 `screen.capture` 共用 20ms 屏幕帧缓存；缓存未命中时只使用 root helper
+- 与 `screen.capture` 共用屏幕帧缓存；缓存未命中时只使用 root helper
 - 用于 root 截图授权验证、压测和后续高频截图路线准备
 - root 不可用或截图失败时直接返回错误
 
@@ -2230,8 +2230,9 @@ WebSocket 事件：
 说明：
 
 - `screen.capture` 和 `root.screen.capture` 共用当前屏幕帧缓存。
-- 20ms 内连续请求截图时，引擎直接返回当前缓存帧句柄。
-- 超过 20ms 后再次请求截图时，引擎重新取屏并覆盖旧屏幕帧。
+- 默认 20ms 内连续请求截图时，引擎直接返回当前缓存帧句柄。
+- Lua 可通过 `setCaptureCacheMs/keepCapture/releaseCapture` 调整脚本内截图缓存策略。
+- 超过缓冲时间后再次请求截图时，引擎重新取屏并覆盖旧屏幕帧。
 - IDE/PC 不需要释放屏幕帧句柄；不要长期保存旧屏幕帧句柄。
 
 ## 11. 状态事件

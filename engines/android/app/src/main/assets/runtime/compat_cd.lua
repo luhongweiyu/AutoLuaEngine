@@ -57,6 +57,9 @@ local cd = {
     enableAppComponent = host.app.enableComponent,
     isAppInstalled = host.app.isInstalled,
     capture = host.screen.capture,
+    keepCapture = host.screen.keepCapture,
+    releaseCapture = host.screen.releaseCapture,
+    setCaptureCacheMs = host.screen.setCaptureCacheMs,
     getPixel = host.image.getPixel,
     getPixels = host.image.getPixels,
 }
