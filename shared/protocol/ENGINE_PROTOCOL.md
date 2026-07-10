@@ -2,6 +2,8 @@
 
 本协议用于 IDE/PC 工具与各平台引擎通讯。
 
+当前 native 自动化能力正在按 `libengine.so` C ABI 重写。HTTP 通讯层暂时保留脚本运行、停止、状态、日志等控制命令；旧的 `screen.capture`、`root.screen.capture`、`key.press`、`input.*` 协议入口已撤下。
+
 第一版 Android 引擎已实现最小 HTTP JSON-RPC 通讯，后续 VS Code 插件、Qt 工具、Windows/iOS 引擎都应尽量遵守这里的语义。
 
 ## 1. 传输方式

@@ -13,7 +13,6 @@ add_library(engine SHARED
         engine/json_value.cpp
         engine/script_task.cpp
         platform/android_bridge.cpp
-        runtime/common/image_store.cpp
         runtime/common/log_buffer.cpp
         runtime/lua/host_api.cpp
         runtime/lua/lua_runtime.cpp

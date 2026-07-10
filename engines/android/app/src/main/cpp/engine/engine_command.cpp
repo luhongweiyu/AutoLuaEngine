@@ -7,7 +7,6 @@
 #include "engine_config.h"
 #include "json_value.h"
 #include "../core/system_api.h"
-#include "../runtime/common/image_store.h"
 #include "../runtime/common/log_buffer.h"
 
 #include <cstdlib>
@@ -682,49 +681,6 @@ std::string okBooleanObject() {
     return "{\"ok\":true}";
 }
 
-std::string imageMetadataJson(const ImageMetadata& metadata) {
-    std::ostringstream output;
-    output << "{";
-    output << "\"id\":" << metadata.id << ",";
-    output << "\"type\":\"image\",";
-    output << "\"width\":" << metadata.width << ",";
-    output << "\"height\":" << metadata.height << ",";
-    output << "\"rowStride\":" << metadata.rowStride << ",";
-    output << "\"pixelStride\":" << metadata.pixelStride << ",";
-    output << "\"byteLength\":" << metadata.byteLength << ",";
-    output << "\"format\":" << quoteJsonString(metadata.format) << ",";
-    output << "\"source\":" << quoteJsonString(metadata.source) << ",";
-    output << "\"captureDurationMs\":" << metadata.captureDurationMs;
-    output << "}";
-    return output.str();
-}
-
-using CaptureFunction = ScreenCaptureResult (*)();
-
-std::string captureResultJson(CaptureFunction captureFunction, const char* defaultError) {
-    ImageMetadata cachedMetadata;
-    if (getCachedScreenFrame(&cachedMetadata)) {
-        return imageMetadataJson(cachedMetadata);
-    }
-
-    ScreenCaptureResult capture = captureFunction();
-    if (!capture.success) {
-        throw CommandError(-32000, capture.error.empty() ? defaultError : capture.error);
-    }
-
-    ImageFrame frame;
-    frame.width = capture.width;
-    frame.height = capture.height;
-    frame.rowStride = capture.rowStride;
-    frame.pixelStride = capture.pixelStride;
-    frame.format = capture.format;
-    frame.source = capture.source;
-    frame.captureDurationMs = capture.captureDurationMs;
-    frame.pixels = std::move(capture.pixels);
-
-    return imageMetadataJson(storeScreenFrame(std::move(frame)));
-}
-
 std::string commandResult(Engine& engine,
                           const std::string& method,
                           const JsonValue& params,
@@ -1053,24 +1009,6 @@ std::string commandResult(Engine& engine,
                 + "}";
     }
 
-    if (method == "key.press") {
-        int keyCode = requireInt(params, "keyCode");
-        if (keyCode < 0) {
-            throw CommandError(-32602, "keyCode is required");
-        }
-        return "{\"ok\":" + boolText(SystemApi::keyPress(keyCode)) + "}";
-    }
-
-    if (method == "input.text") {
-        return "{\"ok\":" + boolText(SystemApi::inputText(requireStringAllowEmpty(params, "text"))) + "}";
-    }
-
-    if (method == "input.pasteText") {
-        return "{\"ok\":"
-                + boolText(SystemApi::pasteText(requireStringAllowEmpty(params, "text")))
-                + "}";
-    }
-
     if (method == "script.run") {
         std::string language = params.stringOr("language", "lua");
         if (language != "lua") {
@@ -1153,14 +1091,6 @@ std::string commandResult(Engine& engine,
 
     if (method == "script.status") {
         return engine.statusJson(params.intOr("taskId", 0));
-    }
-
-    if (method == "screen.capture") {
-        return captureResultJson(&SystemApi::captureScreen, "screen capture failed");
-    }
-
-    if (method == "root.screen.capture") {
-        return captureResultJson(&SystemApi::captureRootScreen, "root screen capture failed");
     }
 
     throw CommandError(-32601, "method is not found: " + method);

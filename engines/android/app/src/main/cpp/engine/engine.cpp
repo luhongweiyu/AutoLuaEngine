@@ -4,7 +4,7 @@
 #include "engine.h"
 
 #include "script_task.h"
-#include "../runtime/common/image_store.h"
+#include "../core/system_c_api.h"
 #include "../runtime/lua/lua_runtime.h"
 
 #include <sstream>
@@ -73,7 +73,7 @@ std::string Engine::runLuaText(const char* code) {
     stopRequested_.store(false);
     pauseRequested_.store(false);
     controlCondition_.notify_all();
-    clearScreenFrameCache();
+    ael_clear_capture_cache();
 
     int taskId;
     {
@@ -90,7 +90,7 @@ std::string Engine::runLuaText(const char* code) {
 
     LuaRuntime runtime;
     std::string result = runtime.runText(code, Engine::shouldInterrupt, this);
-    clearScreenFrameCache();
+    ael_clear_capture_cache();
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 
