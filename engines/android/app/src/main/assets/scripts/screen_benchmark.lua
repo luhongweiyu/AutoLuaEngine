@@ -58,11 +58,7 @@ for i = 1, frameCount do
         end
     end
 
-    local ok, releaseErr = m.image.release(img)
-    if not ok then
-        print("frame", i, "release failed =", releaseErr)
-        break
-    end
+    -- 截图帧由引擎缓存管理，这里连续调用 capture 用于验证 20ms 缓存复用。
 end
 
 if successCount > 0 then

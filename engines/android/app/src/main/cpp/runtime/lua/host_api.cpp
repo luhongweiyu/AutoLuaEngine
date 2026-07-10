@@ -33,9 +33,13 @@ constexpr const char* kLogTag = "AutoLuaEngine";
 
 using autolua::core::SystemApi;
 
+int pushImageMetadata(lua_State* state, const ImageMetadata& metadata);
+
 int pushScreenCaptureResult(lua_State* state,
                             ScreenCaptureResult capture,
                             const char* defaultError);
+
+int pushScreenCaptureResult(lua_State* state, bool rootOnly, const char* defaultError);
 
 void logInfo(const std::string& message) {
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s", message.c_str());
@@ -1549,41 +1553,14 @@ int luaKeyIsAccessibilityEnabled(lua_State* state) {
 }
 
 int luaScreenCapture(lua_State* state) {
-    return pushScreenCaptureResult(state, SystemApi::captureScreen(), "screen capture failed");
+    return pushScreenCaptureResult(state, false, "screen capture failed");
 }
 
 int luaRootScreenCapture(lua_State* state) {
-    return pushScreenCaptureResult(
-            state,
-            SystemApi::captureRootScreen(),
-            "root screen capture failed"
-    );
+    return pushScreenCaptureResult(state, true, "root screen capture failed");
 }
 
-int pushScreenCaptureResult(lua_State* state,
-                            ScreenCaptureResult capture,
-                            const char* defaultError) {
-    if (!capture.success) {
-        lua_pushnil(state);
-        const std::string error = capture.error.empty()
-                ? std::string(defaultError)
-                : capture.error;
-        lua_pushstring(state, error.c_str());
-        return 2;
-    }
-
-    ImageFrame frame;
-    frame.width = capture.width;
-    frame.height = capture.height;
-    frame.rowStride = capture.rowStride;
-    frame.pixelStride = capture.pixelStride;
-    frame.format = capture.format;
-    frame.source = capture.source;
-    frame.captureDurationMs = capture.captureDurationMs;
-    frame.pixels = std::move(capture.pixels);
-
-    ImageMetadata metadata = storeImageFrame(std::move(frame));
-
+int pushImageMetadata(lua_State* state, const ImageMetadata& metadata) {
     lua_newtable(state);
     lua_pushinteger(state, metadata.id);
     lua_setfield(state, -2, "id");
@@ -1608,16 +1585,42 @@ int pushScreenCaptureResult(lua_State* state,
     return 1;
 }
 
-int luaImageRelease(lua_State* state) {
-    int imageId = readImageId(state, 1);
-    if (!releaseImageFrame(imageId)) {
+int pushScreenCaptureResult(lua_State* state, bool rootOnly, const char* defaultError) {
+    ImageMetadata metadata;
+    if (getCachedScreenFrame(&metadata)) {
+        return pushImageMetadata(state, metadata);
+    }
+
+    ScreenCaptureResult capture = rootOnly
+            ? SystemApi::captureRootScreen()
+            : SystemApi::captureScreen();
+    return pushScreenCaptureResult(state, std::move(capture), defaultError);
+}
+
+int pushScreenCaptureResult(lua_State* state,
+                            ScreenCaptureResult capture,
+                            const char* defaultError) {
+    if (!capture.success) {
         lua_pushnil(state);
-        lua_pushstring(state, "image handle is not found");
+        const std::string error = capture.error.empty()
+                ? std::string(defaultError)
+                : capture.error;
+        lua_pushstring(state, error.c_str());
         return 2;
     }
 
-    lua_pushboolean(state, 1);
-    return 1;
+    ImageFrame frame;
+    frame.width = capture.width;
+    frame.height = capture.height;
+    frame.rowStride = capture.rowStride;
+    frame.pixelStride = capture.pixelStride;
+    frame.format = capture.format;
+    frame.source = capture.source;
+    frame.captureDurationMs = capture.captureDurationMs;
+    frame.pixels = std::move(capture.pixels);
+
+    ImageMetadata metadata = storeScreenFrame(std::move(frame));
+    return pushImageMetadata(state, metadata);
 }
 
 int luaImageGetPixel(lua_State* state) {
@@ -1838,7 +1841,6 @@ void registerHostApi(lua_State* state) {
 
     lua_newtable(state);
     int imageTableIndex = lua_gettop(state);
-    setFunctionField(state, imageTableIndex, "release", luaImageRelease);
     setFunctionField(state, imageTableIndex, "getPixel", luaImageGetPixel);
     setFunctionField(state, imageTableIndex, "getPixels", luaImageGetPixels);
     lua_setfield(state, hostTableIndex, "image");

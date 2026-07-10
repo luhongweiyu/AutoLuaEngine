@@ -1,5 +1,5 @@
 /**
- * 文件用途：声明 native 图片帧、图片元数据和像素读取接口。
+ * 文件用途：声明 native 图片帧、屏幕帧缓存和像素读取接口。
  */
 #pragma once
 
@@ -50,9 +50,11 @@ struct PixelPoint {
     int y = 0;
 };
 
-ImageMetadata storeImageFrame(ImageFrame frame);
+bool getCachedScreenFrame(ImageMetadata* metadata);
 
-bool releaseImageFrame(int imageId);
+ImageMetadata storeScreenFrame(ImageFrame frame);
+
+void clearScreenFrameCache();
 
 bool readImagePixel(int imageId, int x, int y, PixelColor* color, std::string* error);
 

@@ -79,7 +79,6 @@ m.disableAppComponent = host.app.disableComponent
 m.enableAppComponent = host.app.enableComponent
 m.isAppInstalled = host.app.isInstalled
 m.capture = host.screen.capture
-m.releaseImage = host.image.release
 m.getPixel = host.image.getPixel
 m.getPixels = host.image.getPixels
 

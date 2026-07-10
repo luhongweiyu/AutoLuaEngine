@@ -59,7 +59,6 @@ local lr = {
     capture = host.screen.capture,
     getPixel = host.image.getPixel,
     getPixels = host.image.getPixels,
-    releaseImage = host.image.release,
 }
 
 lr.__compat = {

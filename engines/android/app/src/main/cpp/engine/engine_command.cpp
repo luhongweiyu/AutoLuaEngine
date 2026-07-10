@@ -699,7 +699,15 @@ std::string imageMetadataJson(const ImageMetadata& metadata) {
     return output.str();
 }
 
-std::string captureResultJson(ScreenCaptureResult capture, const char* defaultError) {
+using CaptureFunction = ScreenCaptureResult (*)();
+
+std::string captureResultJson(CaptureFunction captureFunction, const char* defaultError) {
+    ImageMetadata cachedMetadata;
+    if (getCachedScreenFrame(&cachedMetadata)) {
+        return imageMetadataJson(cachedMetadata);
+    }
+
+    ScreenCaptureResult capture = captureFunction();
     if (!capture.success) {
         throw CommandError(-32000, capture.error.empty() ? defaultError : capture.error);
     }
@@ -714,7 +722,7 @@ std::string captureResultJson(ScreenCaptureResult capture, const char* defaultEr
     frame.captureDurationMs = capture.captureDurationMs;
     frame.pixels = std::move(capture.pixels);
 
-    return imageMetadataJson(storeImageFrame(std::move(frame)));
+    return imageMetadataJson(storeScreenFrame(std::move(frame)));
 }
 
 std::string commandResult(Engine& engine,
@@ -1148,25 +1156,11 @@ std::string commandResult(Engine& engine,
     }
 
     if (method == "screen.capture") {
-        return captureResultJson(SystemApi::captureScreen(), "screen capture failed");
+        return captureResultJson(&SystemApi::captureScreen, "screen capture failed");
     }
 
     if (method == "root.screen.capture") {
-        return captureResultJson(SystemApi::captureRootScreen(), "root screen capture failed");
-    }
-
-    if (method == "image.release") {
-        int imageId = params.intOr("id", 0);
-        if (imageId <= 0) {
-            imageId = params.intOr("imageId", 0);
-        }
-        if (imageId <= 0) {
-            throw CommandError(-32602, "image id is required");
-        }
-        if (!releaseImageFrame(imageId)) {
-            throw CommandError(-32602, "image handle is not found");
-        }
-        return "{\"released\":true}";
+        return captureResultJson(&SystemApi::captureRootScreen, "root screen capture failed");
     }
 
     throw CommandError(-32601, "method is not found: " + method);

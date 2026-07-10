@@ -1,4 +1,4 @@
--- 文件用途：内置示例脚本，用于验证截图句柄、取色和释放图片能力。
+-- 文件用途：内置示例脚本，用于验证截图缓存帧和取色能力。
 print("screen script started")
 
 local img, err = m.screen.capture()
@@ -32,12 +32,7 @@ if img then
         print("image.getPixels failed =", colorsErr)
     end
 
-    local ok, releaseErr = m.image.release(img)
-    if ok then
-        print("image.release success")
-    else
-        print("image.release failed =", releaseErr)
-    end
+    print("screen frame is managed by engine")
 else
     print("screen.capture failed =", err)
 end

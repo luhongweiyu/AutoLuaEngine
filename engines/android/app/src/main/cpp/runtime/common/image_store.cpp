@@ -1,10 +1,12 @@
 /**
- * 文件用途：实现 native 图片句柄池，用于截图像素缓存、取色和释放。
+ * 文件用途：实现 native 图片句柄池和屏幕帧缓存，用于截图复用和取色。
  */
 #include "image_store.h"
 
+#include <chrono>
 #include <map>
 #include <mutex>
+#include <utility>
 
 namespace {
 
@@ -13,9 +15,19 @@ struct StoredImage {
     ImageFrame frame;
 };
 
+constexpr long long kScreenFrameCacheMs = 20;
+
 std::mutex gImageMutex;
 std::map<int, StoredImage> gImages;
 int gNextImageId = 1;
+int gScreenFrameImageId = 0;
+long long gScreenFrameStoredAtMs = 0;
+
+long long steadyNowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+}
 
 ImageMetadata makeMetadataLocked(const StoredImage& image) {
     ImageMetadata metadata;
@@ -66,21 +78,57 @@ bool readPixelFromFrameLocked(
 
 } // namespace
 
-ImageMetadata storeImageFrame(ImageFrame frame) {
+bool getCachedScreenFrame(ImageMetadata* metadata) {
     std::lock_guard<std::mutex> lock(gImageMutex);
+
+    if (gScreenFrameImageId <= 0) {
+        return false;
+    }
+
+    auto iterator = gImages.find(gScreenFrameImageId);
+    if (iterator == gImages.end()) {
+        gScreenFrameImageId = 0;
+        gScreenFrameStoredAtMs = 0;
+        return false;
+    }
+
+    // 20ms 内的连续截图请求都视为同一屏幕帧，直接复用 native 内存里的
+    // 当前截图句柄，避免重复拉取屏幕像素。
+    long long ageMs = steadyNowMs() - gScreenFrameStoredAtMs;
+    if (ageMs < 0 || ageMs > kScreenFrameCacheMs) {
+        return false;
+    }
+
+    *metadata = makeMetadataLocked(iterator->second);
+    return true;
+}
+
+ImageMetadata storeScreenFrame(ImageFrame frame) {
+    std::lock_guard<std::mutex> lock(gImageMutex);
+
+    if (gScreenFrameImageId > 0) {
+        gImages.erase(gScreenFrameImageId);
+    }
 
     StoredImage image;
     image.id = gNextImageId++;
     image.frame = std::move(frame);
 
     ImageMetadata metadata = makeMetadataLocked(image);
+    gScreenFrameImageId = image.id;
+    gScreenFrameStoredAtMs = steadyNowMs();
     gImages[image.id] = std::move(image);
     return metadata;
 }
 
-bool releaseImageFrame(int imageId) {
+void clearScreenFrameCache() {
     std::lock_guard<std::mutex> lock(gImageMutex);
-    return gImages.erase(imageId) > 0;
+
+    if (gScreenFrameImageId > 0) {
+        gImages.erase(gScreenFrameImageId);
+    }
+    gScreenFrameImageId = 0;
+    gScreenFrameStoredAtMs = 0;
 }
 
 bool readImagePixel(int imageId, int x, int y, PixelColor* color, std::string* error) {
