@@ -206,5 +206,4 @@ su -c app_process /system/bin com.autolua.engine.RootHelperMain
 ```
 
 该进程 uid=0，第一版用于 root 截图。App 引擎进程通过 stdin/stdout 与它通讯，
-协议为“文本头 + 原始 RGBA 帧”。后续 root 点击、文件、设备控制等能力会逐步
-下沉到这里，保持 root 进程启动一次、后续复用。
+协议为“文本头 + 原始 RGBA 帧”，保持 root 进程启动一次、后续复用。

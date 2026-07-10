@@ -19,8 +19,7 @@ import java.nio.charset.StandardCharsets;
  * 这个类由 `su -c app_process ... com.autolua.engine.RootHelperMain` 启动，
  * 进程 uid=0，不属于普通 App 沙箱。App 的 `:engine` 进程通过 stdin/stdout
  * 与它通讯。协议为“文本头 + 原始二进制帧”，避免 base64 造成大块额外拷贝。
- * 第一版只实现截图命令，后续点击、文件、设备控制等 root 能力会逐步下沉到这里，
- * 保持“启动一次、后续复用”的模型。
+ * 第一版只实现截图命令，保持“启动一次、后续复用”的模型。
  */
 public final class RootHelperMain {
     private RootHelperMain() {

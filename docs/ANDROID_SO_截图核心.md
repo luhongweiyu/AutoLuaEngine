@@ -74,4 +74,4 @@ m.releaseCapture()
 m.setCaptureCacheMs(ms)
 ```
 
-触控、滑动、按键、输入、找色等 API 已先从 Lua/协议暴露层清空，等待按新的 C ABI 边界重新实现。
+其他系统自动化 API 已先从 Lua/协议暴露层清空，等待按新的 C ABI 边界重新实现。

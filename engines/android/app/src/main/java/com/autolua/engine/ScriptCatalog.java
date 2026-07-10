@@ -38,7 +38,6 @@ public final class ScriptCatalog {
             "main.lua",
             "error.lua",
             "loop.lua",
-            "touch.lua",
             "screen.lua",
             "screen_benchmark.lua"
     };
@@ -205,12 +204,11 @@ public final class ScriptCatalog {
 
     private static Map<String, String> makeSampleDescriptions() {
         Map<String, String> descriptions = new HashMap<>();
-        descriptions.put("main.lua", "Lua、文件、命名空间和中文标识符");
+        descriptions.put("main.lua", "Lua、命名空间和中文标识符");
         descriptions.put("error.lua", "验证脚本错误返回");
         descriptions.put("loop.lua", "验证长循环和停止");
-        descriptions.put("touch.lua", "验证点击、滑动和无障碍状态");
-        descriptions.put("screen.lua", "验证截图句柄和取色");
-        descriptions.put("screen_benchmark.lua", "连续截图、锁帧缓存并统计耗时");
+        descriptions.put("screen.lua", "验证截图宽、高和点阵地址");
+        descriptions.put("screen_benchmark.lua", "连续截图、锁帧缓存和点阵地址复用");
         return descriptions;
     }
 

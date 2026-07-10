@@ -15,7 +15,7 @@ namespace autolua::core {
  *
  * 这一层面向 Lua、后续 JS、IDE 协议和插件复用；具体 Android Java/root
  * 细节仍由 platform/android_bridge.* 处理。这样脚本语言层只需要绑定
- * SystemApi，不需要知道底层是无障碍、root shell 还是系统服务。
+ * SystemApi，不需要知道底层是 root shell、系统服务还是其他平台实现。
  */
 class SystemApi {
 public:
@@ -103,13 +103,6 @@ public:
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static ScreenCaptureResult captureRootScreen();
-    static bool touchTap(int x, int y);
-    static bool touchSwipe(int x1, int y1, int x2, int y2, int durationMs);
-    static bool inputText(const std::string& text);
-    static bool pasteText(const std::string& text);
-    static bool keyPress(int keyCode);
-    static bool keyBack();
-    static bool keyHome();
 };
 
 } // namespace autolua::core

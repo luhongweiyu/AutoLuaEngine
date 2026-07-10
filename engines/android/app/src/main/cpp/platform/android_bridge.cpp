@@ -126,37 +126,6 @@ std::string callStaticStringMethod0(const char* methodName, const char* signatur
     return result;
 }
 
-bool callStaticBooleanMethod2(const char* methodName, const char* signature, jint x, jint y) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId, x, y);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
-}
-
 bool callStaticBooleanMethod1(const char* methodName, const char* signature, jint value) {
     JNIEnv* env = getEnv();
     if (env == nullptr) {
@@ -177,43 +146,6 @@ bool callStaticBooleanMethod1(const char* methodName, const char* signature, jin
     }
 
     jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId, value);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
-}
-
-bool callStaticBooleanMethod5(const char* methodName,
-                              const char* signature,
-                              jint x1,
-                              jint y1,
-                              jint x2,
-                              jint y2,
-                              jint durationMs) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId, x1, y1, x2, y2, durationMs);
 
     if (env->ExceptionCheck()) {
         env->ExceptionClear();
@@ -1818,32 +1750,4 @@ ScreenCaptureResult AndroidBridge::captureScreen() {
 
 ScreenCaptureResult AndroidBridge::captureRootScreen() {
     return callScreenCaptureMethod("captureRootScreen", "root screen capture");
-}
-
-bool AndroidBridge::touchTap(int x, int y) {
-    return callStaticBooleanMethod2("touchTap", "(II)Z", x, y);
-}
-
-bool AndroidBridge::touchSwipe(int x1, int y1, int x2, int y2, int durationMs) {
-    return callStaticBooleanMethod5("touchSwipe", "(IIIII)Z", x1, y1, x2, y2, durationMs);
-}
-
-bool AndroidBridge::inputText(const std::string& text) {
-    return callStaticBooleanStringMethod("inputText", "(Ljava/lang/String;)Z", text);
-}
-
-bool AndroidBridge::pasteText(const std::string& text) {
-    return callStaticBooleanStringMethod("pasteText", "(Ljava/lang/String;)Z", text);
-}
-
-bool AndroidBridge::keyPress(int keyCode) {
-    return callStaticBooleanMethod1("keyPress", "(I)Z", static_cast<jint>(keyCode));
-}
-
-bool AndroidBridge::keyBack() {
-    return callStaticBooleanMethod0("keyBack", "()Z");
-}
-
-bool AndroidBridge::keyHome() {
-    return callStaticBooleanMethod0("keyHome", "()Z");
 }

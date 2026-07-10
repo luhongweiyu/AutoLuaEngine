@@ -1,127 +1,24 @@
-# AI 执行规范
+# AI 执行指南
 
-本文档用于保证后续 AI 能连续、有序地推进工程。
+## 当前原则
 
-## 1. 当前工程目标
+- 不保留半成品 API。
+- 新增能力先设计 `libengine.so` C ABI。
+- Lua / JS / Go 都绑定同一层 C ABI。
+- 文档只记录当前真实可用能力。
+- 修改后需要提交并推送。
 
-第一版只做：
+## 当前已实现
 
-```text
-Android + Lua + 最小 HostApi
+```c
+int screen_capture(int* width, int* height, unsigned char** pixels);
+void screen_keep_capture();
+void screen_release_capture();
+int screen_set_capture_cache_ms(int durationMs);
+void screen_clear_capture_cache();
+const char* screen_last_error();
 ```
 
-不要在第一版主动引入：
+## 当前已清空
 
-- JavaScript
-- Go
-- Windows 引擎
-- iOS 引擎
-- 完整 IDE
-- FFI 完整实现
-- Java import 完整实现
-
-除非用户明确要求切换阶段。
-
-## 2. 每次开始工作前必须做
-
-1. 阅读 `README.md`
-2. 阅读 `docs/项目总计划.md`
-3. 阅读当前要改动相关的架构/API 文档
-4. 如果改 Android 引擎、悬浮窗、脚本 API 或兼容层，阅读 `docs/旧项目参考记录.md`
-5. 如果改 Android 服务进程、HTTP 服务或 NativeEngine 启动链路，阅读 `docs/ANDROID_引擎进程拆分.md`
-6. 检查工作区是否有已有文件和未完成改动
-7. 不要删除或重写用户已有改动
-
-## 3. 推进顺序
-
-默认按以下顺序推进：
-
-1. Android Native 工程
-2. JNI 最小调用
-3. Lua 5.4.8 Runtime
-4. `print` / `sleep`
-5. ScriptTask
-6. HostApi v0.1
-7. Android 自动化能力 v0.2
-8. PC/IDE 通讯协议
-
-不得跳过最小闭环直接做复杂功能。
-
-## 4. 代码组织要求
-
-代码必须保持可读、可维护、可直接运行。
-
-文件和文件夹必须按职责归类，不能把不同层级的代码混放。
-
-推荐归类：
-
-```text
-docs/                                   项目规划、架构、API 文档
-engines/android/app/src/main/java/      Android Kotlin/Java 层
-engines/android/app/src/main/cpp/       Android Native C++ 引擎层
-engines/android/app/src/main/assets/    Android 内置 Lua 示例和资源
-engines/windows/                        Windows 引擎预留目录
-engines/ios/                            iOS 引擎预留目录
-ide/                                    VS Code / Qt IDE 相关代码
-shared/                                 跨平台协议、API 描述、公共模型
-tools/                                  PC 辅助脚本或调试工具
-```
-
-新增 C++ 函数时：
-
-- 函数放置有序
-- 命名清晰
-- 复杂逻辑需要详细注释
-- 不过度封装
-- 不做过度兜底
-
-新增 Kotlin/Java 代码时：
-
-- Android 权限、生命周期、JNI 边界写清楚注释
-- 不把大量业务逻辑塞进 Activity
-- Native 调用统一通过 `NativeEngine`
-
-## 5. 文档同步规则
-
-以下情况必须更新文档：
-
-- 新增阶段任务
-- 修改架构边界
-- 新增脚本 API
-- 修改返回值规则
-- 引入新的第三方库
-- 改变 Android Studio / Gradle / NDK 版本要求
-
-需要同步的文档：
-
-- 总体计划：`docs/项目总计划.md`
-- 架构：`docs/架构设计.md`
-- API：`docs/API_契约.md`
-- 脚本文档：`docs/脚本文档.md`
-- 用户需要做的事：`docs/用户待办事项.md`
-
-## 6. 验证要求
-
-每完成一个阶段，必须能给出明确验证方式。
-
-示例：
-
-- APK 是否能启动
-- JNI 是否被调用
-- Lua 是否能执行
-- Logcat 是否能看到输出
-- API 是否返回预期值
-
-不能只说“理论上可以”。
-
-## 7. 当前下一步
-
-当前已进入 Android + Lua 第一版基础闭环完善阶段。
-
-优先顺序：
-
-1. 按 `docs/ANDROID_引擎进程拆分.md` 继续拆掉主进程对 `NativeEngine` 的直接依赖。
-2. Android 自动化能力优先推进 root 版本；无障碍优先模式作为单独路线保留，不在 Root 模式运行期自动切换。
-3. 继续补基础 `m.*` API，并同步维护 `docs/脚本文档.md` 顶部速查表。
-4. 优先推进 root 截图优化和真实 root 设备压测，再做 Toast、剪贴板、启动 App、输入法输入等系统 API。
-5. 找色、比色等算法继续暂缓，等 root 截图和点阵读取路径稳定后再做。
+旧的系统自动化入口不要从旧代码恢复，需要时重新设计和实现。

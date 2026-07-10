@@ -15,8 +15,7 @@ import java.nio.charset.StandardCharsets;
  * App 引擎进程访问 root helper 的桥。
  *
  * helper 由 `su -c app_process` 启动一次，后续命令通过 stdin/stdout 传输。
- * 第一版只承接高频截图验证；等截图路线稳定后，再把点击、文件、设备控制等
- * root API 逐步搬进 helper，减少 Java 侧 shell 命令依赖。
+ * 第一版只承接高频截图验证。
  */
 public final class RootHelperBridge {
     private static final Object LOCK = new Object();

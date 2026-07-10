@@ -342,7 +342,7 @@ public final class MainActivity extends Activity {
         rootModeCheckBox.setOnCheckedChangeListener(this::handleRootModeChanged);
         page.addView(rootModeCheckBox, topMarginParams(12));
 
-        TextView rootHint = createSmallText("勾选后引擎启动和切换模式时准备 Root 运行层，点击、滑动、按键、截图只走 Root 路线。");
+        TextView rootHint = createSmallText("勾选后引擎启动和切换模式时准备 Root 运行层；当前已实现截图核心。");
         page.addView(rootHint, topMarginParams(4));
 
         floatingCheckBox = new CheckBox(this);

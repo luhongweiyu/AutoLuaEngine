@@ -1,5 +1,5 @@
 /**
- * 文件用途：管理常驻 Root shell，执行点击、滑动、按键、文件和进程命令。
+ * 文件用途：管理常驻 Root shell，执行 root.exec、文件、设备、应用和进程命令。
  */
 package com.autolua.engine;
 
@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
  *
  * Root 运行层固定使用一次 `su -c sh` 常驻会话。Root 模式开启、App 启动或
  * 切换运行模式时先调用 prepareRootRuntime()，后续命令只发给这条会话执行。
- * 这样点击、文件、设备控制、应用控制和 root.exec 都不会反复拉起 su 进程。
+ * 这样文件、设备控制、应用控制和 root.exec 都不会反复拉起 su 进程。
  *
  * 注意：二进制大输出不走常驻文本通道，旧 screencap 调试路径单独保留。
  */
@@ -30,7 +30,6 @@ public final class RootShellBridge {
     private static final int MAX_COMMAND_TIMEOUT_MS = 30_000;
     private static final long ROOT_CACHE_TRUE_MS = 60_000;
     private static final long ROOT_CACHE_FALSE_MS = 3_000;
-    private static final int KEYCODE_PASTE = 279;
     private static final String TEXT_STDOUT_BEGIN = "__AEL_TEXT_STDOUT_BEGIN__";
     private static final String TEXT_STDOUT_END = "__AEL_TEXT_STDOUT_END__";
     private static final String TEXT_STDERR_BEGIN = "__AEL_TEXT_STDERR_BEGIN__";
@@ -350,55 +349,6 @@ public final class RootShellBridge {
         // 这里不加 shellQuote，保留变量展开能力。
         String statusPath = "/proc/" + pidExpression + "/status";
         return "[ -r " + statusPath + " ] || exit 1; cat " + statusPath;
-    }
-
-    public static boolean tap(int x, int y) {
-        return runInputCommand("tap " + x + " " + y);
-    }
-
-    public static boolean swipe(int x1, int y1, int x2, int y2, int durationMs) {
-        int safeDuration = Math.max(durationMs, 1);
-        return runInputCommand("swipe "
-                + x1 + " "
-                + y1 + " "
-                + x2 + " "
-                + y2 + " "
-                + safeDuration);
-    }
-
-    public static boolean keyBack() {
-        return keyEvent(4);
-    }
-
-    public static boolean keyHome() {
-        return keyEvent(3);
-    }
-
-    public static boolean paste() {
-        return keyEvent(KEYCODE_PASTE);
-    }
-
-    public static boolean keyEvent(int keyCode) {
-        return runInputCommand("keyevent " + keyCode);
-    }
-
-    /**
-     * 使用 Android input text 做第一版文本输入。
-     *
-     * Android input 命令把空格写成 %s；换行和复杂中文在不同系统上表现不稳定，
-     * 这里先明确拒绝，后续改为输入法或剪贴板方案时再扩展。
-     */
-    public static boolean inputText(String text) {
-        if (text == null || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
-            return false;
-        }
-        return runInputCommand("text " + shellQuote(text.replace(" ", "%s")));
-    }
-
-    private static boolean runInputCommand(String inputArgs) {
-        String command = "input " + inputArgs;
-        CommandResult result = runPersistentRootCommand(command, DEFAULT_TIMEOUT_MS);
-        return result.exitCode == 0;
     }
 
     private static RootCommandMode detectRootCommandMode() {

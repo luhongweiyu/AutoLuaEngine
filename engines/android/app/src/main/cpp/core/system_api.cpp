@@ -263,32 +263,4 @@ ScreenCaptureResult SystemApi::captureRootScreen() {
     return AndroidBridge::captureRootScreen();
 }
 
-bool SystemApi::touchTap(int x, int y) {
-    return AndroidBridge::touchTap(x, y);
-}
-
-bool SystemApi::touchSwipe(int x1, int y1, int x2, int y2, int durationMs) {
-    return AndroidBridge::touchSwipe(x1, y1, x2, y2, durationMs);
-}
-
-bool SystemApi::inputText(const std::string& text) {
-    return AndroidBridge::inputText(text);
-}
-
-bool SystemApi::pasteText(const std::string& text) {
-    return AndroidBridge::pasteText(text);
-}
-
-bool SystemApi::keyPress(int keyCode) {
-    return AndroidBridge::keyPress(keyCode);
-}
-
-bool SystemApi::keyBack() {
-    return AndroidBridge::keyBack();
-}
-
-bool SystemApi::keyHome() {
-    return AndroidBridge::keyHome();
-}
-
 } // namespace autolua::core

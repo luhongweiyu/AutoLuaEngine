@@ -53,7 +53,7 @@ struct RootStatusResult {
  * Android 平台能力桥。
  *
  * Native 层需要调用 Java/Kotlin 系统能力时统一从这里进入。
- * 当前用于 root / 无障碍状态检测、截图和触控按键。
+ * 当前用于 root 状态检测、截图、文件、设备和应用控制。
  */
 class AndroidBridge {
 public:
@@ -133,13 +133,6 @@ public:
     static bool hasScreenCapturePermission();
     static ScreenCaptureResult captureScreen();
     static ScreenCaptureResult captureRootScreen();
-    static bool touchTap(int x, int y);
-    static bool touchSwipe(int x1, int y1, int x2, int y2, int durationMs);
-    static bool inputText(const std::string& text);
-    static bool pasteText(const std::string& text);
-    static bool keyPress(int keyCode);
-    static bool keyBack();
-    static bool keyHome();
 
 private:
 };
