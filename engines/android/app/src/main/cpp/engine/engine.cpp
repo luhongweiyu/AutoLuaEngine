@@ -73,7 +73,7 @@ std::string Engine::runLuaText(const char* code) {
     stopRequested_.store(false);
     pauseRequested_.store(false);
     controlCondition_.notify_all();
-    ael_clear_capture_cache();
+    screen_clear_capture_cache();
 
     int taskId;
     {
@@ -90,7 +90,7 @@ std::string Engine::runLuaText(const char* code) {
 
     LuaRuntime runtime;
     std::string result = runtime.runText(code, Engine::shouldInterrupt, this);
-    ael_clear_capture_cache();
+    screen_clear_capture_cache();
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 

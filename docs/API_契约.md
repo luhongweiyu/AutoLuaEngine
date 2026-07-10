@@ -71,7 +71,7 @@ tap(300, 500)
 
 native 侧当前的统一系统能力边界是 `core/SystemApi`。Lua 的 `_host`、后续 JS 的 HostApi、以及 IDE/协议入口都应该先绑定这一层，再由它转到平台实现，不要在不同脚本语言里各自直连 Android 平台桥。
 
-`libengine.so` 当前只对插件/FFI 预留两个稳定 C ABI：`ael_system_version()` 和 `ael_system_capabilities_json()`。具体系统 API 暂不直接开放 C ABI，先通过 HostApi/JSON-RPC 使用，等结构体和内存所有权规则稳定后再扩展。
+`libengine.so` 当前 C ABI 使用 snake_case 命名，例如 `screen_capture()`、`screen_keep_capture()`。具体已实现接口以 `docs/ANDROID_SO_截图核心.md` 为准。
 
 模块使用小写名：
 

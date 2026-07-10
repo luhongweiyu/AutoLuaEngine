@@ -1,5 +1,5 @@
 /**
- * 文件用途：注册 Lua 最小 HostApi，把脚本侧 m.capture 等函数连接到 libengine.so 的 C ABI。
+ * 文件用途：注册 Lua 最小 HostApi，把脚本侧 m.capture 等函数连接到 libengine.so 的 screen_* C ABI。
  */
 #include "host_api.h"
 
@@ -109,9 +109,9 @@ int luaRootCapture(lua_State* state) {
     int height = 0;
     unsigned char* pixels = nullptr;
 
-    if (!ael_root_capture(&width, &height, &pixels)) {
+    if (!screen_capture(&width, &height, &pixels)) {
         lua_pushnil(state);
-        lua_pushstring(state, ael_last_error());
+        lua_pushstring(state, screen_last_error());
         return 2;
     }
 
@@ -122,22 +122,22 @@ int luaRootCapture(lua_State* state) {
 }
 
 int luaKeepCapture(lua_State* state) {
-    ael_keep_capture();
+    screen_keep_capture();
     lua_pushboolean(state, 1);
     return 1;
 }
 
 int luaReleaseCapture(lua_State* state) {
-    ael_release_capture();
+    screen_release_capture();
     lua_pushboolean(state, 1);
     return 1;
 }
 
 int luaSetCaptureCacheMs(lua_State* state) {
     lua_Integer durationMs = luaL_checkinteger(state, 1);
-    if (!ael_set_capture_cache_ms(static_cast<int>(durationMs))) {
+    if (!screen_set_capture_cache_ms(static_cast<int>(durationMs))) {
         lua_pushnil(state);
-        lua_pushstring(state, ael_last_error());
+        lua_pushstring(state, screen_last_error());
         return 2;
     }
 
@@ -166,16 +166,6 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, screenTableIndex, "releaseCapture", luaReleaseCapture);
     setFunctionField(state, screenTableIndex, "setCaptureCacheMs", luaSetCaptureCacheMs);
     lua_setfield(state, hostTableIndex, "screen");
-
-    lua_newtable(state);
-    int rootTableIndex = lua_gettop(state);
-    setFunctionField(state, rootTableIndex, "capture", luaRootCapture);
-
-    lua_newtable(state);
-    int rootScreenTableIndex = lua_gettop(state);
-    setFunctionField(state, rootScreenTableIndex, "capture", luaRootCapture);
-    lua_setfield(state, rootTableIndex, "screen");
-    lua_setfield(state, hostTableIndex, "root");
 
     lua_setglobal(state, "_host");
 }

@@ -1,4 +1,4 @@
--- 文件用途：内置示例脚本，用于验证 root 截图缓存、锁帧和点阵地址复用。
+-- 文件用途：内置示例脚本，用于验证截图缓存、锁帧和点阵地址复用。
 print("screen benchmark started")
 
 local frameCount = 10

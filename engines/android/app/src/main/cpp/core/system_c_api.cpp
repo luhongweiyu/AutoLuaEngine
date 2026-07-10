@@ -29,7 +29,7 @@ constexpr const char* kCapabilitiesJson =
         "\"rootCommandMode\":\"persistent-su-shell\","
         "\"screenCapture\":[\"root-capture-cache\"],"
         "\"imageFormat\":\"rgba8888\","
-        "\"rootCapture\":\"ael_root_capture(int* width,int* height,unsigned char** pixels)\""
+        "\"screenCaptureApi\":\"screen_capture(int* width,int* height,unsigned char** pixels)\""
         "}";
 
 std::mutex gCaptureMutex;
@@ -100,15 +100,15 @@ bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
 
 } // namespace
 
-extern "C" const char* ael_system_version() {
+extern "C" const char* engine_version() {
     return EngineConfig::kEngineVersion;
 }
 
-extern "C" const char* ael_system_capabilities_json() {
+extern "C" const char* engine_capabilities_json() {
     return kCapabilitiesJson;
 }
 
-extern "C" int ael_root_capture(int* width, int* height, unsigned char** pixels) {
+extern "C" int screen_capture(int* width, int* height, unsigned char** pixels) {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
     if (width == nullptr || height == nullptr || pixels == nullptr) {
@@ -146,17 +146,17 @@ extern "C" int ael_root_capture(int* width, int* height, unsigned char** pixels)
     return 1;
 }
 
-extern "C" void ael_keep_capture() {
+extern "C" void screen_keep_capture() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
     gKeepCapture = true;
 }
 
-extern "C" void ael_release_capture() {
+extern "C" void screen_release_capture() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
     gKeepCapture = false;
 }
 
-extern "C" int ael_set_capture_cache_ms(int durationMs) {
+extern "C" int screen_set_capture_cache_ms(int durationMs) {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
     if (durationMs < 0) {
@@ -169,7 +169,7 @@ extern "C" int ael_set_capture_cache_ms(int durationMs) {
     return 1;
 }
 
-extern "C" void ael_clear_capture_cache() {
+extern "C" void screen_clear_capture_cache() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
     gCapturePixels.clear();
@@ -182,7 +182,7 @@ extern "C" void ael_clear_capture_cache() {
     gLastError.clear();
 }
 
-extern "C" const char* ael_last_error() {
+extern "C" const char* screen_last_error() {
     static thread_local std::string threadError;
 
     std::lock_guard<std::mutex> lock(gCaptureMutex);
