@@ -1,14 +1,16 @@
 /**
- * 文件用途：注册 Lua 最小 HostApi，只负责 Lua 参数转换并调用 libengine.so C ABI。
+ * 文件用途：注册 Lua 固定 HostApi，只负责参数转换并调用 libengine.so C ABI。
  */
 #include "host_api.h"
 
 #include <cstdint>
+#include <chrono>
 #include <limits>
 #include <sstream>
 #include <string>
 
 #include "../../core/system_c_api.h"
+#include "java_bridge.h"
 #include "lua_runtime.h"
 
 extern "C" {
@@ -76,9 +78,35 @@ int luaSleep(lua_State* state) {
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 
-    if (!engine_sleepInterruptible(static_cast<int>(duration), luaShouldInterrupt, runtime)) {
+    // sleep 是自动化脚本最常见的等待点。按短片段调用统一 C ABI，并在片段之间
+    // 处理 Java 监听器队列，使异步 Sensor/Runnable 等回调无需并发操作 Lua VM。
+    auto deadline = std::chrono::steady_clock::now()
+            + std::chrono::milliseconds(static_cast<long long>(duration));
+    do {
+        processLuaJavaCallbacks(state);
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+                deadline - std::chrono::steady_clock::now()
+        ).count();
+        if (remaining <= 0) {
+            break;
+        }
+
+        int sliceMs = static_cast<int>(remaining > 20 ? 20 : remaining);
+        if (!engine_sleepInterruptible(sliceMs, luaShouldInterrupt, runtime)) {
+            const char* error = engine_runtimeLastError();
+            return luaL_error(
+                    state,
+                    error == nullptr || error[0] == '\0' ? "script stopped" : error
+            );
+        }
+    } while (true);
+
+    if (runtime != nullptr && runtime->shouldInterruptNow()) {
         const char* error = engine_runtimeLastError();
-        return luaL_error(state, error == nullptr || error[0] == '\0' ? "script stopped" : error);
+        return luaL_error(
+                state,
+                error == nullptr || error[0] == '\0' ? "script stopped" : error
+        );
     }
 
     lua_pushboolean(state, 1);

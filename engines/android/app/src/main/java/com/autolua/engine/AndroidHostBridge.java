@@ -27,6 +27,16 @@ public final class AndroidHostBridge {
         return appContext;
     }
 
+    /**
+     * 返回引擎进程的 Application Context。
+     *
+     * Java 互操作层和兼容 LuaEngine.getContext() 需要返回真实 Android 对象；只暴露
+     * Application Context，避免脚本长期持有 Activity 导致界面和资源泄漏。
+     */
+    public static Context applicationContext() {
+        return appContext;
+    }
+
     public static boolean isAccessibilityEnabled() {
         return AutomationAccessibilityService.isEnabled();
     }

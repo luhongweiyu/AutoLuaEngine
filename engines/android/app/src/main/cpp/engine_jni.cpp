@@ -8,6 +8,7 @@
 #include "engine/engine_command.h"
 #include "platform/android_bridge.h"
 #include "runtime/common/log_buffer.h"
+#include "runtime/lua/java_bridge.h"
 
 namespace {
 
@@ -45,6 +46,7 @@ Java_com_autolua_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
     JavaVM* javaVm = nullptr;
     env->GetJavaVM(&javaVm);
     AndroidBridge::init(javaVm);
+    initializeLuaJavaBridge(javaVm);
 
     gEngine.init();
     logInfo("native engine initialized");

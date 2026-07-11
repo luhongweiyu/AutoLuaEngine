@@ -18,6 +18,7 @@ add_library(engine SHARED
         platform/android_bridge.cpp
         runtime/common/log_buffer.cpp
         runtime/lua/host_api.cpp
+        runtime/lua/java_bridge.cpp
         runtime/lua/lua_runtime.cpp
         ${LUA_SRC_DIR}/lapi.c
         ${LUA_SRC_DIR}/lauxlib.c

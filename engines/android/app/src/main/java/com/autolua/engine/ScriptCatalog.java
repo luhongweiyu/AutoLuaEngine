@@ -18,7 +18,6 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -43,6 +42,7 @@ public final class ScriptCatalog {
             "error.lua",
             "loop.lua",
             "input.lua",
+            "java_import.lua",
             "screen.lua",
             "screen_benchmark.lua"
     };
@@ -76,7 +76,9 @@ public final class ScriptCatalog {
             return new ScriptItem[0];
         }
 
-        Arrays.sort(files, Comparator.comparing(file -> file.getName().toLowerCase(Locale.US)));
+        Arrays.sort(files, (left, right) -> left.getName()
+                .toLowerCase(Locale.US)
+                .compareTo(right.getName().toLowerCase(Locale.US)));
 
         List<ScriptItem> items = new ArrayList<>();
         for (File file : files) {

@@ -7,6 +7,7 @@
 
 #include "../../core/api/runtime_api.h"
 #include "host_api.h"
+#include "java_bridge.h"
 
 extern "C" {
 #include "lua.h"
@@ -24,10 +25,12 @@ LuaRuntime::LuaRuntime()
 
     luaL_openlibs(state_);
     registerHostApi();
+    registerLuaJavaBridge(state_, this);
 }
 
 LuaRuntime::~LuaRuntime() {
     if (state_ != nullptr) {
+        unregisterLuaJavaBridge(state_);
         lua_close(state_);
         state_ = nullptr;
     }
@@ -82,6 +85,10 @@ bool LuaRuntime::shouldInterruptNow() const {
 
 void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
     (void) debug;
+
+    // Java 监听器可能在主线程或 Binder 线程触发。所有跨线程回调先排队，
+    // 再由脚本所属线程在 hook 中执行，避免并发访问同一个 lua_State。
+    processLuaJavaCallbacks(state);
 
     lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
