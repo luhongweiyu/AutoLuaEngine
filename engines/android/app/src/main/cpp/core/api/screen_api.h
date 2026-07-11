@@ -17,7 +17,7 @@ struct ScreenFrame {
     int width = 0;
     int height = 0;
     unsigned char* pixels = nullptr;
-    long long revision = 0;
+    long long frameId = 0;
 };
 
 /**
@@ -53,11 +53,11 @@ void clearScreenCaptureCache();
 std::string screenLastError();
 
 /**
- * 返回当前截图缓存版本号。
+ * 返回当前截图缓存帧编号。
  *
- * 每次写入新截图或清空截图缓存都会递增，找色等依赖缓存帧的能力用它判断内部
- * 派生缓存是否需要重建。
+ * 每次写入新截图或清空截图缓存都会递增。找色转置缓存用这个编号判断自己是否
+ * 还对应当前截图帧。
  */
-long long screenCaptureRevision();
+long long screenCaptureFrameId();
 
 } // namespace autolua::api

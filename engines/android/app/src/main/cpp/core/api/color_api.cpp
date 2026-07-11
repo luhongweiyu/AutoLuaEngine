@@ -28,7 +28,7 @@ constexpr int kMaxColorItems = 500;
  * offset 是相对锚点的像素偏移，解析阶段已根据扫描方向决定是否按转置点阵计算。
  * 比较阶段只需要 anchorIndex + offset，不再做坐标乘加。
  */
-struct ColorCompareItem {
+struct 颜色比较项 {
     int offset = 0;
     int16_t rMin = 0;
     int16_t gMin = 0;
@@ -41,8 +41,8 @@ struct ColorCompareItem {
 /**
  * 解析 colors 后得到的热路径数据。
  */
-struct ParsedColors {
-    std::array<ColorCompareItem, kMaxColorItems> items;
+struct 已解析颜色 {
+    std::array<颜色比较项, kMaxColorItems> items;
     int count = 0;
     int minRelativeX = 0;
     int maxRelativeX = 0;
@@ -51,13 +51,13 @@ struct ParsedColors {
 };
 
 std::mutex gColorMutex;
-std::vector<unsigned char> gTransposedPixels;
-int gTransposedWidth = 0;
-int gTransposedHeight = 0;
-long long gTransposedRevision = -1;
+std::vector<unsigned char> g转置点阵;
+int g转置宽度 = 0;
+int g转置高度 = 0;
+long long g转置帧编号 = -1;
 std::string gLastError;
 
-int hexCharToValue(char value) {
+int 十六进制字符转数值(char value) {
     if (value >= '0' && value <= '9') {
         return value - '0';
     }
@@ -70,7 +70,7 @@ int hexCharToValue(char value) {
     return -1;
 }
 
-bool parseSignedInt(const char*& cursor, int& result) {
+bool 解析有符号整数(const char*& cursor, int& result) {
     const char* start = cursor;
     bool negative = false;
 
@@ -101,7 +101,7 @@ bool parseSignedInt(const char*& cursor, int& result) {
     return true;
 }
 
-bool parseHex6(const char*& cursor, int& result) {
+bool 解析6位十六进制(const char*& cursor, int& result) {
     const char* start = cursor;
     if (cursor[0] == '0' && (cursor[1] == 'x' || cursor[1] == 'X')) {
         cursor += 2;
@@ -109,7 +109,7 @@ bool parseHex6(const char*& cursor, int& result) {
 
     int value = 0;
     for (int index = 0; index < 6; ++index) {
-        int halfByte = hexCharToValue(*cursor);
+        int halfByte = 十六进制字符转数值(*cursor);
         if (halfByte < 0) {
             cursor = start;
             return false;
@@ -122,7 +122,7 @@ bool parseHex6(const char*& cursor, int& result) {
     return true;
 }
 
-bool parseColorPiece(
+bool 解析颜色片段(
         const char*& cursor,
         int& x,
         int& y,
@@ -132,19 +132,19 @@ bool parseColorPiece(
 ) {
     const char* start = cursor;
 
-    if (!parseSignedInt(cursor, x) || *cursor != '|') {
+    if (!解析有符号整数(cursor, x) || *cursor != '|') {
         cursor = start;
         return false;
     }
     ++cursor;
 
-    if (!parseSignedInt(cursor, y) || *cursor != '|') {
+    if (!解析有符号整数(cursor, y) || *cursor != '|') {
         cursor = start;
         return false;
     }
     ++cursor;
 
-    if (!parseHex6(cursor, color)) {
+    if (!解析6位十六进制(cursor, color)) {
         cursor = start;
         return false;
     }
@@ -152,7 +152,7 @@ bool parseColorPiece(
     hasOwnTolerance = false;
     if (*cursor == '-' || *cursor == '|') {
         ++cursor;
-        if (!parseHex6(cursor, tolerance)) {
+        if (!解析6位十六进制(cursor, tolerance)) {
             cursor = start;
             return false;
         }
@@ -162,35 +162,35 @@ bool parseColorPiece(
     return true;
 }
 
-bool setErrorLocked(const std::string& error) {
+bool 写入错误Locked(const std::string& error) {
     gLastError = error;
     return false;
 }
 
-void writeNotFoundPoint(ColorPoint* point) {
+void 写入未找到坐标(找色坐标* point) {
     if (point != nullptr) {
         point->x = -1;
         point->y = -1;
     }
 }
 
-bool isTransposedDirection(int dir) {
+bool 是否转置方向(int dir) {
     return dir == 1 || dir == 4 || dir == 5 || dir == 8;
 }
 
-bool parseColorsLocked(
+bool 解析颜色字符串Locked(
         const char* colors,
         int width,
         int height,
-        bool useTransposedPixels,
+        bool 使用转置点阵,
         int sim,
-        ParsedColors* parsed
+        已解析颜色* parsed
 ) {
     if (colors == nullptr || parsed == nullptr) {
-        return setErrorLocked("找色参数为空");
+        return 写入错误Locked("找色参数为空");
     }
     if (sim < 0 || sim > 0xFFFFFF) {
-        return setErrorLocked("找色容差必须在 0x000000 到 0xFFFFFF 之间");
+        return 写入错误Locked("找色容差必须在 0x000000 到 0xFFFFFF 之间");
     }
 
     int anchorX = 0;
@@ -206,7 +206,7 @@ bool parseColorsLocked(
         bool hasOwnTolerance = false;
         const char* pieceStart = cursor;
 
-        if (!parseColorPiece(cursor, pointX, pointY, color, hasOwnTolerance, tolerance)) {
+        if (!解析颜色片段(cursor, pointX, pointY, color, hasOwnTolerance, tolerance)) {
             cursor = pieceStart + 1;
             continue;
         }
@@ -215,7 +215,7 @@ bool parseColorsLocked(
             tolerance = sim;
         }
         if (tolerance < 0 || tolerance > 0xFFFFFF) {
-            return setErrorLocked("找色独立容差必须在 0x000000 到 0xFFFFFF 之间");
+            return 写入错误Locked("找色独立容差必须在 0x000000 到 0xFFFFFF 之间");
         }
 
         if (!hasAnchor) {
@@ -225,14 +225,14 @@ bool parseColorsLocked(
         }
 
         if (parsed->count >= kMaxColorItems) {
-            return setErrorLocked("找色颜色点数量超过 500");
+            return 写入错误Locked("找色颜色点数量超过 500");
         }
 
         int relativeX = pointX - anchorX;
         int relativeY = pointY - anchorY;
 
-        ColorCompareItem item;
-        item.offset = useTransposedPixels
+        颜色比较项 item;
+        item.offset = 使用转置点阵
                 ? relativeX * height + relativeY
                 : relativeY * width + relativeX;
 
@@ -267,14 +267,14 @@ bool parseColorsLocked(
     }
 
     if (!hasAnchor || parsed->count <= 0) {
-        return setErrorLocked("找色颜色字符串没有有效颜色点");
+        return 写入错误Locked("找色颜色字符串没有有效颜色点");
     }
 
     if (parsed->count > 1) {
         std::sort(
                 parsed->items.begin(),
                 parsed->items.begin() + parsed->count,
-                [](const ColorCompareItem& left, const ColorCompareItem& right) {
+                [](const 颜色比较项& left, const 颜色比较项& right) {
                     unsigned int leftScore = static_cast<unsigned int>(left.rRange)
                             + static_cast<unsigned int>(left.gRange)
                             + static_cast<unsigned int>(left.bRange);
@@ -289,10 +289,10 @@ bool parseColorsLocked(
     return true;
 }
 
-bool normalizeRangeLocked(
+bool 修正查找范围Locked(
         int width,
         int height,
-        const ParsedColors& parsed,
+        const 已解析颜色& parsed,
         int& x1,
         int& y1,
         int& x2,
@@ -312,19 +312,19 @@ bool normalizeRangeLocked(
     }
 
     if (x1 > x2 || y1 > y2) {
-        return setErrorLocked("找色范围为空");
+        return 写入错误Locked("找色范围为空");
     }
 
     return true;
 }
 
-bool compareColorItems(
+bool 比较颜色项(
         const unsigned char* pixels,
-        const ParsedColors& parsed,
+        const 已解析颜色& parsed,
         int anchorIndex
 ) {
     for (int index = 0; index < parsed.count; ++index) {
-        const ColorCompareItem& item = parsed.items[index];
+        const 颜色比较项& item = parsed.items[index];
         const unsigned char* pixel = pixels + (anchorIndex + item.offset) * kPixelBytes;
 
         if ((unsigned) ((int) pixel[0] - (int) item.rMin) > (unsigned) item.rRange) {
@@ -340,40 +340,40 @@ bool compareColorItems(
     return true;
 }
 
-bool rebuildTransposedPixelsLocked(
+bool 重建转置点阵Locked(
         const unsigned char* pixels,
         int width,
         int height,
-        long long frameRevision
+        long long frameId
 ) {
-    if (gTransposedRevision == frameRevision
-            && gTransposedWidth == width
-            && gTransposedHeight == height
-            && !gTransposedPixels.empty()) {
+    if (g转置帧编号 == frameId
+            && g转置宽度 == width
+            && g转置高度 == height
+            && !g转置点阵.empty()) {
         return true;
     }
 
     size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
-    gTransposedPixels.resize(pixelCount * kPixelBytes);
+    g转置点阵.resize(pixelCount * kPixelBytes);
 
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             size_t source = (static_cast<size_t>(y) * width + x) * kPixelBytes;
             size_t target = (static_cast<size_t>(x) * height + y) * kPixelBytes;
-            gTransposedPixels[target] = pixels[source];
-            gTransposedPixels[target + 1] = pixels[source + 1];
-            gTransposedPixels[target + 2] = pixels[source + 2];
-            gTransposedPixels[target + 3] = pixels[source + 3];
+            g转置点阵[target] = pixels[source];
+            g转置点阵[target + 1] = pixels[source + 1];
+            g转置点阵[target + 2] = pixels[source + 2];
+            g转置点阵[target + 3] = pixels[source + 3];
         }
     }
 
-    gTransposedWidth = width;
-    gTransposedHeight = height;
-    gTransposedRevision = frameRevision;
+    g转置宽度 = width;
+    g转置高度 = height;
+    g转置帧编号 = frameId;
     return true;
 }
 
-bool scanParsedColorsLocked(
+bool 扫描颜色Locked(
         const unsigned char* pixels,
         int width,
         int height,
@@ -382,15 +382,15 @@ bool scanParsedColorsLocked(
         int x2,
         int y2,
         int dir,
-        const ParsedColors& parsed,
-        ColorPoint* point
+        const 已解析颜色& parsed,
+        找色坐标* point
 ) {
     switch (dir) {
         case 1:
             for (int x = x1; x <= x2; ++x) {
                 int anchorIndex = x * height + y1;
                 for (int y = y1; y <= y2; ++y) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -403,7 +403,7 @@ bool scanParsedColorsLocked(
             for (int y = y1; y <= y2; ++y) {
                 int anchorIndex = y * width + x1;
                 for (int x = x1; x <= x2; ++x) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -416,7 +416,7 @@ bool scanParsedColorsLocked(
             for (int y = y1; y <= y2; ++y) {
                 int anchorIndex = y * width + x2;
                 for (int x = x2; x >= x1; --x) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -429,7 +429,7 @@ bool scanParsedColorsLocked(
             for (int x = x2; x >= x1; --x) {
                 int anchorIndex = x * height + y1;
                 for (int y = y1; y <= y2; ++y) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -442,7 +442,7 @@ bool scanParsedColorsLocked(
             for (int x = x2; x >= x1; --x) {
                 int anchorIndex = x * height + y2;
                 for (int y = y2; y >= y1; --y) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -455,7 +455,7 @@ bool scanParsedColorsLocked(
             for (int y = y2; y >= y1; --y) {
                 int anchorIndex = y * width + x2;
                 for (int x = x2; x >= x1; --x) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -468,7 +468,7 @@ bool scanParsedColorsLocked(
             for (int y = y2; y >= y1; --y) {
                 int anchorIndex = y * width + x1;
                 for (int x = x1; x <= x2; ++x) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -481,7 +481,7 @@ bool scanParsedColorsLocked(
             for (int x = x1; x <= x2; ++x) {
                 int anchorIndex = x * height + y2;
                 for (int y = y2; y >= y1; --y) {
-                    if (compareColorItems(pixels, parsed, anchorIndex)) {
+                    if (比较颜色项(pixels, parsed, anchorIndex)) {
                         point->x = x;
                         point->y = y;
                         return true;
@@ -491,19 +491,19 @@ bool scanParsedColorsLocked(
             }
             break;
         default:
-            return setErrorLocked("找色方向必须是 1 到 8");
+            return 写入错误Locked("找色方向必须是 1 到 8");
     }
 
-    return setErrorLocked("未找到匹配颜色");
+    return 写入错误Locked("未找到匹配颜色");
 }
 
 } // namespace
 
-bool findColorOnFrame(
+bool 在点阵中多点找色(
         const unsigned char* pixels,
         int width,
         int height,
-        long long frameRevision,
+        long long frameId,
         int x1,
         int y1,
         int x2,
@@ -511,36 +511,36 @@ bool findColorOnFrame(
         int dir,
         int sim,
         const char* colors,
-        ColorPoint* point
+        找色坐标* point
 ) {
     std::lock_guard<std::mutex> lock(gColorMutex);
-    writeNotFoundPoint(point);
+    写入未找到坐标(point);
 
     if (point == nullptr) {
-        return setErrorLocked("找色输出坐标为空");
+        return 写入错误Locked("找色输出坐标为空");
     }
     if (pixels == nullptr || width <= 0 || height <= 0) {
-        return setErrorLocked("找色点阵为空");
+        return 写入错误Locked("找色点阵为空");
     }
 
-    bool useTransposedPixels = isTransposedDirection(dir);
-    ParsedColors parsed;
-    if (!parseColorsLocked(colors, width, height, useTransposedPixels, sim, &parsed)) {
+    bool 使用转置点阵 = 是否转置方向(dir);
+    已解析颜色 parsed;
+    if (!解析颜色字符串Locked(colors, width, height, 使用转置点阵, sim, &parsed)) {
         return false;
     }
-    if (!normalizeRangeLocked(width, height, parsed, x1, y1, x2, y2)) {
+    if (!修正查找范围Locked(width, height, parsed, x1, y1, x2, y2)) {
         return false;
     }
 
     const unsigned char* searchPixels = pixels;
-    if (useTransposedPixels) {
-        if (!rebuildTransposedPixelsLocked(pixels, width, height, frameRevision)) {
+    if (使用转置点阵) {
+        if (!重建转置点阵Locked(pixels, width, height, frameId)) {
             return false;
         }
-        searchPixels = gTransposedPixels.data();
+        searchPixels = g转置点阵.data();
     }
 
-    bool found = scanParsedColorsLocked(
+    bool found = 扫描颜色Locked(
             searchPixels,
             width,
             height,
@@ -558,7 +558,7 @@ bool findColorOnFrame(
     return found;
 }
 
-bool findColorOnScreen(
+bool 在屏幕中多点找色(
         int x1,
         int y1,
         int x2,
@@ -566,21 +566,21 @@ bool findColorOnScreen(
         int dir,
         int sim,
         const char* colors,
-        ColorPoint* point
+        找色坐标* point
 ) {
-    writeNotFoundPoint(point);
+    写入未找到坐标(point);
 
     ScreenFrame frame;
     if (!captureScreen(&frame)) {
         std::lock_guard<std::mutex> lock(gColorMutex);
-        return setErrorLocked(screenLastError());
+        return 写入错误Locked(screenLastError());
     }
 
-    return findColorOnFrame(
+    return 在点阵中多点找色(
             frame.pixels,
             frame.width,
             frame.height,
-            frame.revision,
+            frame.frameId,
             x1,
             y1,
             x2,
@@ -592,17 +592,17 @@ bool findColorOnScreen(
     );
 }
 
-void clearColorCache() {
+void 清空找色缓存() {
     std::lock_guard<std::mutex> lock(gColorMutex);
-    gTransposedPixels.clear();
-    gTransposedPixels.shrink_to_fit();
-    gTransposedWidth = 0;
-    gTransposedHeight = 0;
-    gTransposedRevision = -1;
+    g转置点阵.clear();
+    g转置点阵.shrink_to_fit();
+    g转置宽度 = 0;
+    g转置高度 = 0;
+    g转置帧编号 = -1;
     gLastError.clear();
 }
 
-std::string colorLastError() {
+std::string 取找色错误() {
     std::lock_guard<std::mutex> lock(gColorMutex);
     return gLastError;
 }

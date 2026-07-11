@@ -146,7 +146,7 @@ int luaSetCaptureCacheMs(lua_State* state) {
  * 成功返回：x, y。
  * 失败返回：nil, errorMessage。
  */
-int luaColorFind(lua_State* state) {
+int luaColorsFind(lua_State* state) {
     int x1 = luaCheckInt(state, 1, "x1");
     int y1 = luaCheckInt(state, 2, "y1");
     int x2 = luaCheckInt(state, 3, "x2");
@@ -156,9 +156,9 @@ int luaColorFind(lua_State* state) {
     const char* colors = luaL_checkstring(state, 7);
 
     EnginePoint point{-1, -1};
-    if (!color_find(x1, y1, x2, y2, dir, sim, colors, &point)) {
+    if (!engine_findColors(x1, y1, x2, y2, dir, sim, colors, &point)) {
         lua_pushnil(state);
-        lua_pushstring(state, color_last_error());
+        lua_pushstring(state, engine_findColorsLastError());
         return 2;
     }
 
@@ -191,7 +191,7 @@ void registerHostApi(lua_State* state) {
 
     lua_newtable(state);
     int colorTableIndex = lua_gettop(state);
-    setFunctionField(state, colorTableIndex, "find", luaColorFind);
+    setFunctionField(state, colorTableIndex, "findColors", luaColorsFind);
     lua_setfield(state, hostTableIndex, "color");
 
     lua_setglobal(state, "_host");

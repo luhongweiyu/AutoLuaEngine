@@ -22,8 +22,8 @@ void screen_release_capture();
 int screen_set_capture_cache_ms(int durationMs);
 void screen_clear_capture_cache();
 const char* screen_last_error();
-int color_find(...);
-const char* color_last_error();
+int engine_findColors(...);
+const char* engine_findColorsLastError();
 const EngineApi* engine_get_api();
 ```
 

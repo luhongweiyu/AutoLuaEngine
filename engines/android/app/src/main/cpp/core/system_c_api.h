@@ -49,7 +49,7 @@ typedef struct EngineApi {
     int (*screen_set_capture_cache_ms)(int durationMs);
     void (*screen_clear_capture_cache)();
     const char* (*screen_last_error)();
-    int (*color_find)(
+    int (*findColors)(
             int x1,
             int y1,
             int x2,
@@ -59,7 +59,7 @@ typedef struct EngineApi {
             const char* colors,
             EnginePoint* point
     );
-    const char* (*color_last_error)();
+    const char* (*findColorsLastError)();
 } EngineApi;
 
 /**
@@ -185,9 +185,9 @@ const char* screen_last_error();
  *
  * 返回：
  * - 1：找到颜色，point 写入命中坐标。
- * - 0：未找到或失败，point 写入 -1/-1，可通过 color_last_error() 读取原因。
+ * - 0：未找到或失败，point 写入 -1/-1，可通过 engine_findColorsLastError() 读取原因。
  */
-int color_find(
+int engine_findColors(
         int x1,
         int y1,
         int x2,
@@ -203,7 +203,7 @@ int color_find(
  *
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
-const char* color_last_error();
+const char* engine_findColorsLastError();
 
 #ifdef __cplusplus
 }

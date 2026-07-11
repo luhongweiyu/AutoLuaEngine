@@ -75,7 +75,7 @@ std::string Engine::runLuaText(const char* code) {
     pauseRequested_.store(false);
     controlCondition_.notify_all();
     autolua::api::clearScreenCaptureCache();
-    autolua::api::clearColorCache();
+    autolua::api::清空找色缓存();
 
     int taskId;
     {
@@ -93,7 +93,7 @@ std::string Engine::runLuaText(const char* code) {
     LuaRuntime runtime;
     std::string result = runtime.runText(code, Engine::shouldInterrupt, this);
     autolua::api::clearScreenCaptureCache();
-    autolua::api::clearColorCache();
+    autolua::api::清空找色缓存();
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 

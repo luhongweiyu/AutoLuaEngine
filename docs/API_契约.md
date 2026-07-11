@@ -33,8 +33,8 @@ screen_last_error
 当前找色 C ABI：
 
 ```c
-color_find
-color_last_error
+engine_findColors
+engine_findColorsLastError
 ```
 
 当前插件函数表入口：
@@ -118,7 +118,7 @@ typedef struct EnginePoint {
     int y;
 } EnginePoint;
 
-int color_find(
+int engine_findColors(
         int x1,
         int y1,
         int x2,
@@ -128,18 +128,18 @@ int color_find(
         const char* colors,
         EnginePoint* point
 );
-const char* color_last_error();
+const char* engine_findColorsLastError();
 ```
 
 规则：
 
-- `color_find` 直接使用当前截图缓存，不带“是否截屏”参数。
+- `engine_findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
 - 截图是否刷新由 `screen_capture` 的缓存时间、`screen_keep_capture` 和 `screen_release_capture` 控制。
 - `dir` 取值为 `1` 到 `8`，沿用旧找色算法扫描方向。
 - `sim` 为默认容差，格式为 `0xRRGGBB`。
 - `colors` 格式示例：`0|0|FFFFFF,10|5|FF0000-101010`。
 - 找到返回 `1`，`point.x/point.y` 为命中坐标。
-- 未找到或失败返回 `0`，`point.x/point.y` 为 `-1/-1`，原因通过 `color_last_error()` 获取。
+- 未找到或失败返回 `0`，`point.x/point.y` 为 `-1/-1`，原因通过 `engine_findColorsLastError()` 获取。
 
 ## 插件函数表
 
@@ -160,7 +160,7 @@ m.capture()
 m.keepCapture()
 m.releaseCapture()
 m.setCaptureCacheMs(ms)
-m.findColor(x1, y1, x2, y2, dir, sim, colors)
+m.findColors(x1, y1, x2, y2, dir, sim, colors)
 ```
 
 ## 暂未定义契约

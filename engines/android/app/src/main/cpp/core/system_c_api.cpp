@@ -25,7 +25,7 @@ constexpr const char* kCapabilitiesJson =
         "\"pluginApi\":\"engine_get_api\","
         "\"runtimeApi\":[\"runtime_print\",\"runtime_log_print\",\"runtime_sleep\"],"
         "\"screenCapture\":[\"screen_capture\",\"screen_capture_cache\",\"screen_keep_capture\"],"
-        "\"colorApi\":[\"color_find\"],"
+        "\"colorApi\":[\"engine_findColors\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
 
@@ -65,8 +65,8 @@ const EngineApi kEngineApi = {
         screen_set_capture_cache_ms,
         screen_clear_capture_cache,
         screen_last_error,
-        color_find,
-        color_last_error
+        engine_findColors,
+        engine_findColorsLastError
 };
 
 } // namespace
@@ -230,7 +230,7 @@ extern "C" int screen_set_capture_cache_ms(int durationMs) {
  */
 extern "C" void screen_clear_capture_cache() {
     autolua::api::clearScreenCaptureCache();
-    autolua::api::clearColorCache();
+    autolua::api::清空找色缓存();
     gScreenLastError.clear();
 }
 
@@ -247,7 +247,7 @@ extern "C" const char* screen_last_error() {
  * 找色核心内部会调用 screen_api，所以这里没有“是否截屏”参数；缓存策略统一由
  * screen_capture/keep/release/setCaptureCacheMs 控制。
  */
-extern "C" int color_find(
+extern "C" int engine_findColors(
         int x1,
         int y1,
         int x2,
@@ -262,8 +262,8 @@ extern "C" int color_find(
         return 0;
     }
 
-    autolua::api::ColorPoint colorPoint;
-    bool found = autolua::api::findColorOnScreen(
+    autolua::api::找色坐标 colorPoint;
+    bool found = autolua::api::在屏幕中多点找色(
             x1,
             y1,
             x2,
@@ -277,7 +277,7 @@ extern "C" int color_find(
     point->x = colorPoint.x;
     point->y = colorPoint.y;
     if (!found) {
-        gColorLastError = autolua::api::colorLastError();
+        gColorLastError = autolua::api::取找色错误();
         return 0;
     }
 
@@ -288,6 +288,6 @@ extern "C" int color_find(
 /**
  * 返回最近一次找色 C ABI 失败原因。
  */
-extern "C" const char* color_last_error() {
+extern "C" const char* engine_findColorsLastError() {
     return gColorLastError.c_str();
 }
