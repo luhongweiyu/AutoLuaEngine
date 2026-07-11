@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 文件用途：允许 App 通过 FileProvider 把私有 scripts 目录中的文件交给外部应用打开。 -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path
+        name="scripts"
+        path="scripts/" />
+</paths>

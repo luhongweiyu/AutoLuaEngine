@@ -4,6 +4,7 @@
 package com.autolua.engine;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,9 +16,11 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.MimeTypeMap;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -31,9 +34,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+
+import androidx.core.content.FileProvider;
 
 /**
  * Android 引擎主界面。
@@ -43,11 +49,6 @@ import java.util.Locale;
  * 控制引擎，避免 UI 进程直接持有脚本线程。
  */
 public final class MainActivity extends Activity {
-    public static final String ACTION_SHOW_LOGS =
-            "com.autolua.engine.action.SHOW_LOGS";
-    public static final String ACTION_SHOW_SETTINGS =
-            "com.autolua.engine.action.SHOW_SETTINGS";
-
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
     private static final int TAB_SCRIPT = 0;
     private static final int TAB_STATUS = 1;
@@ -93,14 +94,12 @@ public final class MainActivity extends Activity {
         configureSystemBars();
         setContentView(createContentView());
         showTab(TAB_SCRIPT);
-        handleIntent(getIntent());
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleIntent(intent);
     }
 
     @Override
@@ -120,22 +119,6 @@ public final class MainActivity extends Activity {
     protected void onStop() {
         unregisterReceiver(engineStatusReceiver);
         super.onStop();
-    }
-
-    private void handleIntent(Intent intent) {
-        if (intent == null) {
-            return;
-        }
-
-        if (ACTION_SHOW_LOGS.equals(intent.getAction())) {
-            showTab(TAB_STATUS);
-            showRecentLogs();
-            return;
-        }
-
-        if (ACTION_SHOW_SETTINGS.equals(intent.getAction())) {
-            showTab(TAB_SETTINGS);
-        }
     }
 
     private View createContentView() {
@@ -243,7 +226,7 @@ public final class MainActivity extends Activity {
 
         ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
         if (scripts.length == 0) {
-            list.addView(createEmptyText("当前脚本目录没有 .lua 文件"), topMarginParams(24));
+            list.addView(createEmptyText("当前脚本目录没有文件"), topMarginParams(24));
             return root;
         }
 
@@ -270,25 +253,25 @@ public final class MainActivity extends Activity {
 
         TextView nameView = createText(item.fileName, 15, COLOR_TEXT, true);
         nameView.setSingleLine(true);
+        nameView.setEllipsize(TextUtils.TruncateAt.END);
         row.addView(nameView, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1.2f
         ));
 
-        String rightText = item.description
-                + "  "
-                + formatFileSize(item.sizeBytes)
-                + "  "
-                + formatTime(item.modifiedAt);
+        String rightText = makeScriptDetailText(item);
         TextView detailView = createTinyText(rightText);
         detailView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         detailView.setSingleLine(true);
+        detailView.setEllipsize(TextUtils.TruncateAt.END);
         row.addView(detailView, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1.8f
         ));
+
+        row.addView(createOpenFileButton(item), new LinearLayout.LayoutParams(dp(42), dp(42)));
         return row;
     }
 
@@ -399,6 +382,10 @@ public final class MainActivity extends Activity {
         selectedScript = ScriptCatalog.getSelectedScript(this);
         if (selectedScript == null) {
             setMessage("脚本目录为空，无法运行");
+            return;
+        }
+        if (!selectedScript.runnable) {
+            setMessage("当前只支持运行 Lua 文件：" + selectedScript.fileName);
             return;
         }
 
@@ -539,6 +526,31 @@ public final class MainActivity extends Activity {
         Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
         startActivity(intent);
         setMessage("已打开无障碍设置");
+    }
+
+    private void openScriptFile(ScriptCatalog.ScriptItem item) {
+        File file = new File(item.filePath);
+        if (!file.exists()) {
+            setMessage("文件不存在：" + item.fileName);
+            return;
+        }
+
+        Uri uri = FileProvider.getUriForFile(
+                this,
+                getPackageName() + ".fileprovider",
+                file
+        );
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(uri, resolveMimeType(item.fileName));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+        try {
+            startActivity(Intent.createChooser(intent, "打开文件"));
+            setMessage("已请求打开文件：" + item.fileName);
+        } catch (ActivityNotFoundException exception) {
+            setMessage("没有可打开该文件的应用：" + item.fileName);
+        }
     }
 
     private void queryStatusSummary() {
@@ -812,6 +824,16 @@ public final class MainActivity extends Activity {
         return button;
     }
 
+    private TextView createOpenFileButton(ScriptCatalog.ScriptItem item) {
+        TextView button = createText("↗", 20, COLOR_PRIMARY, true);
+        button.setGravity(Gravity.CENTER);
+        button.setClickable(true);
+        button.setContentDescription("打开文件：" + item.fileName);
+        button.setBackground(makeRoundDrawable(Color.TRANSPARENT, dp(7), COLOR_LINE));
+        button.setOnClickListener(view -> openScriptFile(item));
+        return button;
+    }
+
     private View createDivider() {
         View divider = new View(this);
         divider.setBackgroundColor(COLOR_LINE);
@@ -879,11 +901,34 @@ public final class MainActivity extends Activity {
         return String.format(Locale.US, "%.1f MB", sizeBytes / 1024.0 / 1024.0);
     }
 
+    private String makeScriptDetailText(ScriptCatalog.ScriptItem item) {
+        StringBuilder builder = new StringBuilder();
+        if (item.description != null && !item.description.isEmpty()) {
+            builder.append(item.description).append("  ");
+        }
+        builder.append(formatFileSize(item.sizeBytes))
+                .append("  ")
+                .append(formatTime(item.modifiedAt));
+        return builder.toString();
+    }
+
     private String formatTime(long timeMillis) {
         if (timeMillis <= 0) {
             return "未知时间";
         }
         return new SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(new Date(timeMillis));
+    }
+
+    private String resolveMimeType(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex >= 0 && dotIndex + 1 < fileName.length()) {
+            String extension = fileName.substring(dotIndex + 1).toLowerCase(Locale.US);
+            String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+            if (mimeType != null && !mimeType.isEmpty()) {
+                return mimeType;
+            }
+        }
+        return "text/plain";
     }
 
     private int dp(int value) {

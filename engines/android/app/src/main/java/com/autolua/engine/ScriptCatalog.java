@@ -6,19 +6,19 @@ package com.autolua.engine;
 import android.content.Context;
 
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * App 侧脚本目录。
@@ -34,6 +34,7 @@ public final class ScriptCatalog {
     public static final String DEFAULT_SCRIPT_FILE_NAME = "main.lua";
 
     private static final String ASSET_SCRIPT_DIR = "scripts";
+    private static final int MAX_DESCRIPTION_LENGTH = 42;
     private static final String[] SAMPLE_SCRIPT_NAMES = {
             "main.lua",
             "error.lua",
@@ -41,7 +42,6 @@ public final class ScriptCatalog {
             "screen.lua",
             "screen_benchmark.lua"
     };
-    private static final Map<String, String> SAMPLE_DESCRIPTIONS = makeSampleDescriptions();
 
     private ScriptCatalog() {
     }
@@ -67,9 +67,7 @@ public final class ScriptCatalog {
 
     public static ScriptItem[] listScripts(Context context) {
         ensureScriptDirectory(context);
-        File[] files = getScriptDirectory(context).listFiles(file ->
-                file.isFile() && file.getName().toLowerCase(Locale.US).endsWith(".lua")
-        );
+        File[] files = getScriptDirectory(context).listFiles(File::isFile);
         if (files == null || files.length == 0) {
             return new ScriptItem[0];
         }
@@ -138,15 +136,16 @@ public final class ScriptCatalog {
 
     private static ScriptItem toScriptItem(Context context, File file) {
         String fileName = file.getName();
-        String description = SAMPLE_DESCRIPTIONS.containsKey(fileName)
-                ? SAMPLE_DESCRIPTIONS.get(fileName)
-                : "用户脚本";
+        String language = detectLanguage(fileName);
+        String description = readFirstLineDescription(file);
         String displayPath = getScriptDirectory(context).getName() + "/" + fileName;
         return new ScriptItem(
                 fileName,
                 file.getAbsolutePath(),
                 displayPath,
                 description,
+                language,
+                isRunnableLanguage(language),
                 file.length(),
                 file.lastModified()
         );
@@ -202,14 +201,76 @@ public final class ScriptCatalog {
         }
     }
 
-    private static Map<String, String> makeSampleDescriptions() {
-        Map<String, String> descriptions = new HashMap<>();
-        descriptions.put("main.lua", "Lua、命名空间和中文标识符");
-        descriptions.put("error.lua", "验证脚本错误返回");
-        descriptions.put("loop.lua", "验证长循环和停止");
-        descriptions.put("screen.lua", "验证截图宽、高和点阵地址");
-        descriptions.put("screen_benchmark.lua", "连续截图、锁帧缓存和点阵地址复用");
-        return descriptions;
+    /**
+     * 读取文件首行注释作为列表备注。
+     *
+     * 这里只接受常见脚本注释前缀，避免把第一行真实代码误当成备注显示。
+     */
+    private static String readFirstLineDescription(File file) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new FileInputStream(file),
+                StandardCharsets.UTF_8
+        ))) {
+            String firstLine = reader.readLine();
+            return extractDescription(firstLine);
+        } catch (IOException ignored) {
+            return "";
+        }
+    }
+
+    private static String extractDescription(String firstLine) {
+        if (firstLine == null) {
+            return "";
+        }
+
+        String text = firstLine.trim();
+        if (text.startsWith("\uFEFF")) {
+            text = text.substring(1).trim();
+        }
+
+        if (text.startsWith("--")) {
+            text = text.substring(2).trim();
+        } else if (text.startsWith("//")) {
+            text = text.substring(2).trim();
+        } else if (text.startsWith("#")) {
+            text = text.substring(1).trim();
+        } else if (text.startsWith("/*")) {
+            text = text.substring(2).trim();
+            if (text.endsWith("*/")) {
+                text = text.substring(0, text.length() - 2).trim();
+            }
+        } else {
+            return "";
+        }
+
+        if (text.startsWith("文件用途：")) {
+            text = text.substring("文件用途：".length()).trim();
+        }
+        if (text.startsWith("文件用途:")) {
+            text = text.substring("文件用途:".length()).trim();
+        }
+        if (text.length() > MAX_DESCRIPTION_LENGTH) {
+            text = text.substring(0, MAX_DESCRIPTION_LENGTH) + "...";
+        }
+        return text;
+    }
+
+    private static String detectLanguage(String fileName) {
+        String lowerName = fileName.toLowerCase(Locale.US);
+        if (lowerName.endsWith(".lua")) {
+            return "lua";
+        }
+        if (lowerName.endsWith(".js")) {
+            return "js";
+        }
+        if (lowerName.endsWith(".go")) {
+            return "go";
+        }
+        return "text";
+    }
+
+    private static boolean isRunnableLanguage(String language) {
+        return "lua".equals(language);
     }
 
     public static final class ScriptItem {
@@ -217,6 +278,8 @@ public final class ScriptCatalog {
         public final String filePath;
         public final String displayPath;
         public final String description;
+        public final String language;
+        public final boolean runnable;
         public final long sizeBytes;
         public final long modifiedAt;
 
@@ -225,12 +288,16 @@ public final class ScriptCatalog {
                 String filePath,
                 String displayPath,
                 String description,
+                String language,
+                boolean runnable,
                 long sizeBytes,
                 long modifiedAt) {
             this.fileName = fileName;
             this.filePath = filePath;
             this.displayPath = displayPath;
             this.description = description;
+            this.language = language;
+            this.runnable = runnable;
             this.sizeBytes = sizeBytes;
             this.modifiedAt = modifiedAt;
         }

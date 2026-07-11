@@ -1,5 +1,5 @@
 /**
- * 文件用途：主进程悬浮按钮服务，提供脚本运行、停止、暂停、继续和快捷入口。
+ * 文件用途：主进程悬浮按钮服务，提供脚本运行/停止、隐藏和强制停止进程入口。
  */
 package com.autolua.engine;
 
@@ -226,7 +226,7 @@ public final class FloatingControlService extends Service {
         panel.setBackground(makeRoundDrawable(Color.parseColor("#E6333333"), dp(14)));
 
         TextView status = new TextView(this);
-        status.setText("服务状态  开启");
+        status.setText(scriptRunning ? "脚本运行中" : "脚本未运行");
         status.setTextColor(Color.WHITE);
         status.setTextSize(18);
         status.setGravity(Gravity.START);
@@ -247,25 +247,9 @@ public final class FloatingControlService extends Service {
                 scriptRunning ? "停止" : "运行",
                 this::toggleScriptRunning
         ));
-        firstRow.addView(createPanelAction("Ⅱ", "暂停", () -> EngineService.pauseScript(this)));
-        firstRow.addView(createPanelAction("续", "继续", () -> EngineService.resumeScript(this)));
-        firstRow.addView(createPanelAction("■", "停止", () -> EngineService.stopScript(this)));
+        firstRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
+        firstRow.addView(createPanelAction("停", "强停进程", this::forceStopEngineProcess));
         panel.addView(firstRow, matchWidthWrapContent());
-
-        LinearLayout secondRow = createActionRow();
-        secondRow.addView(createPanelAction("志", "日志", this::openLogPanel));
-        secondRow.addView(createPanelAction("设", "设置", this::openSettingsPanel));
-        LinearLayout.LayoutParams secondRowParams = matchWidthWrapContent();
-        secondRowParams.topMargin = dp(22);
-        panel.addView(secondRow, secondRowParams);
-
-        LinearLayout thirdRow = createActionRow();
-        thirdRow.addView(createPanelAction("事", "事件", this::showUserEventPlaceholder));
-        thirdRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
-        thirdRow.addView(createPanelAction("停", "强停进程", this::forceStopEngineProcess));
-        LinearLayout.LayoutParams thirdRowParams = matchWidthWrapContent();
-        thirdRowParams.topMargin = dp(22);
-        panel.addView(thirdRow, thirdRowParams);
 
         FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
                 Math.min(dp(360), getResources().getDisplayMetrics().widthPixels - dp(32)),
@@ -329,6 +313,10 @@ public final class FloatingControlService extends Service {
             showToast("脚本目录为空");
             return;
         }
+        if (!item.runnable) {
+            showToast("当前只支持运行 Lua 文件：" + item.fileName);
+            return;
+        }
 
         EngineService.runScriptFile(this, item.filePath);
         updateRunningState(EngineService.STATE_RUNNING);
@@ -347,28 +335,6 @@ public final class FloatingControlService extends Service {
         EngineSettings.setFloatingPanelExpanded(this, false);
         removePanelView();
         showToast("已强制停止引擎进程");
-    }
-
-    private void openLogPanel() {
-        openMainActivity(MainActivity.ACTION_SHOW_LOGS);
-    }
-
-    private void openSettingsPanel() {
-        openMainActivity(MainActivity.ACTION_SHOW_SETTINGS);
-    }
-
-    private void openMainActivity(String action) {
-        EngineSettings.setFloatingPanelExpanded(this, false);
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setAction(action);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivity(intent);
-    }
-
-    private void showUserEventPlaceholder() {
-        showToast("用户事件入口已预留");
     }
 
     private void hideBubbleAndRemember() {

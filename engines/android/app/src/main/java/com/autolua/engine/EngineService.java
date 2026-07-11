@@ -178,6 +178,10 @@ public final class EngineService extends Service {
             broadcastStatus(STATE_FAILED, "脚本文件不存在：" + scriptPath);
             return;
         }
+        if (!item.runnable) {
+            broadcastStatus(STATE_FAILED, "当前只支持运行 Lua 文件：" + item.fileName);
+            return;
+        }
 
         if (!running.compareAndSet(false, true)) {
             broadcastStatus(STATE_RUNNING, "已有脚本正在运行");
@@ -194,7 +198,7 @@ public final class EngineService extends Service {
                 JSONObject result = callNativeCommand(
                         "script.run",
                         new JSONObject()
-                                .put("language", "lua")
+                                .put("language", item.language)
                                 .put("code", ScriptCatalog.readScriptText(item.filePath))
                 );
                 message = result.optString("message", "脚本执行完成");
