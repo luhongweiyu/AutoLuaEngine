@@ -10,7 +10,9 @@ extern "C" {
 /**
  * AutoLuaEngine native 系统能力 C ABI。
  *
- * 该接口面向 Lua FFI、JS native binding、Go 插件或其他 so 复用。
+ * 当前内置 Lua 运行时也通过这里调用系统能力。后续 Lua FFI、JS native binding、
+ * Go 插件或其他 so 也复用同一组接口。
+ *
  * C ABI 只暴露稳定、简单的基础类型，不返回 C++ 对象。
  */
 const char* engine_version();
