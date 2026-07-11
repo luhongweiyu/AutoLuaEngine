@@ -1,18 +1,14 @@
 /**
- * 文件用途：注册 Lua 最小 HostApi；print/sleep/log 直接在 native 实现，截图调用 screen_* C ABI。
+ * 文件用途：注册 Lua 最小 HostApi，只负责 Lua 参数转换并调用 libengine.so C ABI。
  */
 #include "host_api.h"
 
-#include <algorithm>
-#include <android/log.h>
-#include <chrono>
 #include <cstdint>
+#include <limits>
 #include <sstream>
 #include <string>
-#include <thread>
 
 #include "../../core/system_c_api.h"
-#include "../common/log_buffer.h"
 #include "lua_runtime.h"
 
 extern "C" {
@@ -21,13 +17,6 @@ extern "C" {
 }
 
 namespace {
-
-constexpr const char* kLogTag = "AutoLuaEngine";
-
-void logInfo(const std::string& message) {
-    __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s", message.c_str());
-    appendLogEntry("info", message);
-}
 
 /**
  * 把 Lua 任意值转成字符串，保持 print(...) 和 Lua 原生 __tostring 行为一致。
@@ -38,6 +27,11 @@ std::string luaValueToString(lua_State* state, int index) {
     std::string result = text == nullptr ? "" : text;
     lua_pop(state, 1);
     return result;
+}
+
+int luaShouldInterrupt(void* context) {
+    auto* runtime = static_cast<LuaRuntime*>(context);
+    return runtime != nullptr && runtime->shouldInterruptNow() ? 1 : 0;
 }
 
 void setFunctionField(lua_State* state, int tableIndex, const char* name, lua_CFunction function) {
@@ -56,7 +50,7 @@ int luaPrint(lua_State* state) {
         output << luaValueToString(state, i);
     }
 
-    logInfo(output.str());
+    runtime_print(output.str().c_str());
     return 0;
 }
 
@@ -65,26 +59,17 @@ int luaSleep(lua_State* state) {
     if (duration < 0) {
         return luaL_error(state, "sleep duration must be greater than or equal to 0");
     }
+    if (duration > std::numeric_limits<int>::max()) {
+        return luaL_error(state, "sleep duration is too large");
+    }
 
     lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 
-    const auto deadline = std::chrono::steady_clock::now()
-            + std::chrono::milliseconds(duration);
-    while (std::chrono::steady_clock::now() < deadline) {
-        if (runtime != nullptr && runtime->shouldInterruptNow()) {
-            return luaL_error(state, "script stopped");
-        }
-
-        auto remaining = deadline - std::chrono::steady_clock::now();
-        auto slice = std::min(
-                std::chrono::duration_cast<std::chrono::milliseconds>(remaining),
-                std::chrono::milliseconds(50)
-        );
-        if (slice.count() > 0) {
-            std::this_thread::sleep_for(slice);
-        }
+    if (!runtime_sleep_interruptible(static_cast<int>(duration), luaShouldInterrupt, runtime)) {
+        const char* error = runtime_last_error();
+        return luaL_error(state, error == nullptr || error[0] == '\0' ? "script stopped" : error);
     }
 
     lua_pushboolean(state, 1);
@@ -93,7 +78,7 @@ int luaSleep(lua_State* state) {
 
 int luaLogPrint(lua_State* state) {
     const char* text = luaL_checkstring(state, 1);
-    logInfo(text == nullptr ? "" : text);
+    runtime_log_print(text == nullptr ? "" : text);
     lua_pushboolean(state, 1);
     return 1;
 }

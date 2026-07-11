@@ -2,7 +2,15 @@
 
 本文记录当前 `libengine.so` 已重写完成的截图核心。当前接口直接返回宽、高和点阵地址，不再返回中间资源句柄。
 
-## C ABI
+## 核心实现和 C ABI
+
+真实截图缓存和 Root 截图分发位于：
+
+```text
+engines/android/app/src/main/cpp/core/api/screen_api.cpp
+```
+
+C ABI 门面位于：
 
 头文件：
 
@@ -51,9 +59,9 @@ const char* screen_last_error();
 - `screen_release_capture()` 后恢复按时间缓存。
 - 脚本开始和结束会调用 `screen_clear_capture_cache()`。
 
-## Lua 临时绑定
+## Lua 绑定
 
-当前 Lua 绑定只保留截图核心：
+当前 Lua 绑定通过 HostApi 调用同一组 C ABI：
 
 ```lua
 local w, h, pixels = m.capture()
@@ -74,4 +82,5 @@ m.releaseCapture()
 m.setCaptureCacheMs(ms)
 ```
 
-其他系统自动化 API 已先从 Lua/协议暴露层清空，等待按新的 C ABI 边界重新实现。
+其他自动化脚本 API 已先从 Lua/协议暴露层清空，等待按
+`core/api -> C ABI -> Lua/JS/Go 绑定` 边界重新实现。

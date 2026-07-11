@@ -1,5 +1,5 @@
 /**
- * 文件用途：声明稳定 C ABI 入口，供当前 Lua 截图绑定和后续跨语言能力复用。
+ * 文件用途：声明稳定 C ABI 门面，供 Lua HostApi、JS/Go 绑定和外部 so 复用。
  */
 #pragma once
 
@@ -8,21 +8,65 @@ extern "C" {
 #endif
 
 /**
- * AutoLuaEngine native 系统能力 C ABI。
+ * 脚本中断检查回调。
  *
- * 当前内置 Lua 运行时也通过这里调用系统能力。后续 Lua FFI、JS native binding、
- * Go 插件或其他 so 也复用同一组接口。
+ * 返回非 0 表示当前脚本应停止；返回 0 表示继续等待。
+ */
+typedef int (*runtime_interrupt_callback)(void* userData);
+
+/**
+ * AutoLuaEngine native 稳定 C ABI。
  *
- * C ABI 只暴露稳定、简单的基础类型，不返回 C++ 对象。
+ * 真实逻辑在 core/api；本文件只暴露跨语言稳定入口。语言绑定层只负责参数转换
+ * 和返回值封装，不在 Lua/JS/Go 各自重复实现命令逻辑。
  */
 const char* engine_version();
 
 /**
- * 返回当前 native 系统能力边界的 JSON 描述。
+ * 返回当前 native 能力边界的 JSON 描述。
  *
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* engine_capabilities_json();
+
+/**
+ * 输出普通脚本日志。
+ *
+ * 返回 1 表示成功，返回 0 表示失败。
+ */
+int runtime_print(const char* text);
+
+/**
+ * 输出日志模块文本。
+ *
+ * 当前和 runtime_print 同级别输出；保留独立入口方便后续区分 print 与 log。
+ */
+int runtime_log_print(const char* text);
+
+/**
+ * 不带中断检查的睡眠。
+ *
+ * 参数单位为毫秒。返回 1 表示完成，返回 0 表示失败。
+ */
+int runtime_sleep(int durationMs);
+
+/**
+ * 可中断睡眠。
+ *
+ * 参数单位为毫秒。shouldInterrupt 可为空；不为空时，睡眠过程中会定期调用它。
+ */
+int runtime_sleep_interruptible(
+        int durationMs,
+        runtime_interrupt_callback shouldInterrupt,
+        void* userData
+);
+
+/**
+ * 返回最近一次运行时 C ABI 失败原因。
+ *
+ * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
+ */
+const char* runtime_last_error();
 
 /**
  * 屏幕截图。
@@ -68,7 +112,7 @@ int screen_set_capture_cache_ms(int durationMs);
 void screen_clear_capture_cache();
 
 /**
- * 返回最近一次 C ABI 调用失败原因。
+ * 返回最近一次截图 C ABI 调用失败原因。
  *
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */

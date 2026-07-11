@@ -3,15 +3,19 @@
 ## 当前原则
 
 - 不保留半成品 API。
-- 新增系统能力先设计 `libengine.so` C ABI。
-- Lua 当前先走 HostApi；其中系统能力再调用 C ABI。
-- JS / Go 后续接系统能力时也优先绑定同一层 C ABI。
+- 新增脚本 API 先做 `libengine.so/core/api` 核心实现。
+- `system_c_api` 只做 C ABI 门面，不写最终业务逻辑。
+- Lua / JS / Go 绑定层只做参数转换和返回值封装。
 - 文档只记录当前真实可用能力。
 - 修改后需要提交并推送。
 
 ## 当前已实现
 
 ```c
+int runtime_print(const char* text);
+int runtime_log_print(const char* text);
+int runtime_sleep(int durationMs);
+int runtime_sleep_interruptible(...);
 int screen_capture(int* width, int* height, unsigned char** pixels);
 void screen_keep_capture();
 void screen_release_capture();

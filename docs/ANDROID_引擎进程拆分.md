@@ -77,9 +77,9 @@ App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访
 └─ libengine.so / engine_command.cpp
 ```
 
-核心能力层仍然是 `libengine.so`。Lua 当前通过 HostApi 进入 native，截图再调用
-C ABI；后续 JS、FFI 和插件接系统能力时也应优先复用同一层 C ABI。Java Service
-只负责进程、权限、Android 系统桥接和 root helper 启动。
+核心能力层仍然是 `libengine.so`。Lua/JS/Go 等语言绑定只做参数转换和返回值封装，
+脚本 API 的真实逻辑统一进入 `libengine.so/core/api`，对外复用通过 `system_c_api`
+C ABI。Java Service 只负责进程、权限、Android 系统桥接和 root helper 启动。
 
 2026-07-09 已完成第二次边界收口：
 
@@ -93,12 +93,12 @@ App 主进程
 ├─ EngineService：进程壳、脚本文件读取、状态广播、强停进程
 ├─ EngineHttpServer：HTTP/JSON-RPC 网络壳
 ├─ NativeEngine：JNI 统一入口
-└─ libengine.so：脚本运行、任务状态、控制命令分发、C ABI 截图核心
+└─ libengine.so：脚本运行、任务状态、控制命令分发、core/api 和 C ABI 门面
 ```
 
 关键规则：
 
-- Java HTTP 层不分发系统能力业务命令。
+- Java HTTP 层不分发脚本 API 业务命令。
 - `EngineHttpServer` 只把 JSON-RPC 的 `method/params` 传给 `NativeEngine.callJson(...)`。
 - `EngineService` 运行、停止、暂停、继续、切换 Root 模式时，也走同一个 native 命令入口。
 - Root 授权准备只在 `:engine` 启动和切换 Root 模式时做，运行脚本时不重复申请。
@@ -139,17 +139,18 @@ FloatingControlService 控制脚本 -> 发送 Intent 给 EngineService
 
 主进程只通过协议或 Service 控制引擎，不直接加载脚本运行状态。
 
-### 4.2 Root 截图能力边界
+### 4.2 脚本 API 能力边界
 
 当前 `m.capture()` 走：
 
 ```text
-Lua -> native _host -> screen_capture -> AndroidBridge -> RootScreenCaptureBridge -> RootHelperBridge
+Lua -> HostApi -> system_c_api C ABI -> core/api/screen_api -> AndroidBridge -> RootScreenCaptureBridge -> RootHelperBridge
 ```
 
 当前规则：
 
-- `screen_capture` 位于 `libengine.so`，返回宽、高和紧凑 RGBA 点阵地址。
+- `screen_api` 位于 `libengine.so/core/api`，负责截图缓存、锁帧和 Root 截图分发。
+- `screen_capture` 位于 `system_c_api`，只做 C ABI 参数检查和转发。
 - `RootHelperBridge` 只在 Root 模式准备时启动或恢复常驻 helper。
 - 截图缓存由 `libengine.so` 按时间和锁帧状态管理。
 - HTTP 不传输大像素数据。

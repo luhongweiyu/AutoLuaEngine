@@ -2,9 +2,24 @@
 
 当前契约只记录已经按新边界整理完成的能力。
 
-## 命名规则
+## 分层规则
 
-C ABI 使用 snake_case，不带项目缩写，不暴露当前底层路线：
+所有脚本 API 的真实逻辑先放在 `libengine.so/core/api`，语言绑定层只负责参数和
+返回值转换。`system_c_api` 只负责把 `core/api` 包成稳定 C ABI。
+
+C ABI 使用 snake_case，不带项目缩写，不暴露当前底层路线。
+
+当前运行时 C ABI：
+
+```c
+runtime_print
+runtime_log_print
+runtime_sleep
+runtime_sleep_interruptible
+runtime_last_error
+```
+
+当前截图 C ABI：
 
 ```c
 screen_capture
@@ -15,8 +30,29 @@ screen_clear_capture_cache
 screen_last_error
 ```
 
-Lua 当前通过 HostApi 暴露脚本函数；其中截图等系统能力由 HostApi 调用同一组
-C ABI。JS / Go 后续接系统能力时也优先绑定这组 C ABI，不各写一套系统调用。
+Lua 当前通过 HostApi 暴露脚本函数，但 HostApi 只做 Lua 类型转换，并调用同一组
+C ABI。JS / Go 后续也按同样方式绑定，不各写一套命令逻辑。
+
+## 运行时 C ABI
+
+```c
+int runtime_print(const char* text);
+int runtime_log_print(const char* text);
+int runtime_sleep(int durationMs);
+int runtime_sleep_interruptible(
+        int durationMs,
+        runtime_interrupt_callback shouldInterrupt,
+        void* userData
+);
+const char* runtime_last_error();
+```
+
+说明：
+
+- `runtime_print`：普通脚本输出。
+- `runtime_log_print`：日志模块输出。
+- `runtime_sleep`：无中断上下文的睡眠。
+- `runtime_sleep_interruptible`：带脚本停止回调的睡眠，Lua 的 `m.sleep` 当前使用它。
 
 ## 截图 C ABI
 
@@ -64,6 +100,9 @@ const char* screen_last_error();
 ## Lua 映射
 
 ```lua
+print(...)
+m.sleep(ms)
+m.log.print(text)
 m.capture()
 m.keepCapture()
 m.releaseCapture()

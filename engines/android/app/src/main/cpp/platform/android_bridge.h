@@ -11,7 +11,8 @@
  * 截图结果。
  *
  * 该结构只在 native 内部使用，C ABI 不直接暴露它。像素在 AndroidBridge 中会被
- * 整理成 width * height * 4 的紧凑 RGBA 缓冲，供 system_c_api 再返回给脚本层。
+ * 整理成 width * height * 4 的紧凑 RGBA 缓冲，供 screen_api 缓存，再由 C ABI
+ * 和语言绑定返回给调用方。
  */
 struct ScreenCaptureResult {
     bool success = false;
@@ -54,8 +55,8 @@ struct RootStatusResult {
 /**
  * Android 平台能力桥。
  *
- * 这里是 libengine.so 到 Java 的唯一 JNI 边界。当前只保留引擎状态、Root 初始化
- * 和 Root 截图入口；其他系统能力未在此层暴露。
+ * 这里是 libengine.so 到 Java 的唯一 JNI 边界。Java 只承接 Android 必须由
+ * Framework 完成的桥接动作，脚本 API 的真实逻辑仍然放在 libengine.so/core/api。
  */
 class AndroidBridge {
 public:
