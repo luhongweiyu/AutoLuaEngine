@@ -22,6 +22,8 @@ typedef struct EngineApi {
     int (*logPrint)(const char* text);
     int (*sleep)(int durationMs);
     int (*sleepInterruptible)(int durationMs, runtime_interrupt_callback cb, void* userData);
+    long long (*systemTime)();
+    long long (*tickCount)();
     const char* (*runtimeLastError)();
     int (*capture)(int* width, int* height, unsigned char** pixels);
     void (*keepCapture)();
@@ -39,4 +41,5 @@ typedef struct EngineApi {
 - 插件只调用 C ABI，不直接访问 C++ 对象。
 - `capture` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
 - `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
+- `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前脚本线程运行耗时。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。

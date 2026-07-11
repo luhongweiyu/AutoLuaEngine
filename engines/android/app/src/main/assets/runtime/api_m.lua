@@ -6,6 +6,8 @@ local host = assert(_G._host, "native host api is not registered")
 local m = {
     print = host.print,
     sleep = host.sleep,
+    systemTime = host.systemTime,
+    tickCount = host.tickCount,
     log = host.log,
     screen = host.screen,
     color = host.color,
@@ -18,4 +20,6 @@ m.setCaptureCacheMs = host.screen.setCaptureCacheMs
 m.findColors = host.color.findColors
 
 _G.print = host.print
+_G.systemTime = host.systemTime
+_G.tickCount = host.tickCount
 _G.m = m

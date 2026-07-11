@@ -42,6 +42,8 @@ typedef struct EngineApi {
             runtime_interrupt_callback shouldInterrupt,
             void* userData
     );
+    long long (*systemTime)();
+    long long (*tickCount)();
     const char* (*runtimeLastError)();
     int (*capture)(int* width, int* height, unsigned char** pixels);
     void (*keepCapture)();
@@ -122,6 +124,20 @@ int engine_sleepInterruptible(
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* engine_runtimeLastError();
+
+/**
+ * 返回系统时间戳，单位毫秒。
+ *
+ * 该值是 Unix epoch 毫秒时间戳，适合记录真实世界时间。
+ */
+long long engine_systemTime();
+
+/**
+ * 返回当前脚本运行时间，单位毫秒。
+ *
+ * 语言运行时会在脚本开始执行前记录起点；该函数返回当前线程距离这个起点的耗时。
+ */
+long long engine_tickCount();
 
 /**
  * 屏幕截图。

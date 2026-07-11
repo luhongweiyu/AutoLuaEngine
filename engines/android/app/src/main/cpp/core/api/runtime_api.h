@@ -38,4 +38,26 @@ void runtimeLogPrint(const std::string& message);
  */
 bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* stopContext);
 
+/**
+ * 记录当前线程脚本开始时间。
+ *
+ * tickCount() 要返回“当前脚本运行了多久”，所以语言运行时在真正执行脚本前
+ * 调用一次这里。使用线程局部数据，避免多个脚本线程互相覆盖计时。
+ */
+void runtimeMarkScriptStart();
+
+/**
+ * 返回系统时间戳，单位毫秒。
+ *
+ * 语义等同 Unix epoch 毫秒时间戳，用于脚本记录真实时间。
+ */
+long long runtimeSystemTimeMs();
+
+/**
+ * 返回当前脚本已运行时间，单位毫秒。
+ *
+ * 如果调用线程还没有记录脚本开始时间，则从第一次调用时开始计时。
+ */
+long long runtimeTickCountMs();
+
 } // namespace autolua::api

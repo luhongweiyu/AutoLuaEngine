@@ -5,6 +5,7 @@
 
 #include <string>
 
+#include "../../core/api/runtime_api.h"
 #include "host_api.h"
 
 extern "C" {
@@ -59,6 +60,7 @@ std::string LuaRuntime::runText(
         return "Lua load failed: " + message;
     }
 
+    autolua::api::runtimeMarkScriptStart();
     int callStatus = lua_pcall(state_, 0, LUA_MULTRET, 0);
     if (callStatus != LUA_OK) {
         const char* error = lua_tostring(state_, -1);

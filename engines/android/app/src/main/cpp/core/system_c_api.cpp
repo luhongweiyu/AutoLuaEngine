@@ -12,18 +12,18 @@
 
 namespace {
 
-constexpr int kEngineAbiVersion = 5;
+constexpr int kEngineAbiVersion = 6;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.5\","
+        "\"abiVersion\":\"0.6\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"go-reserved\",\"plugin-reserved\"],"
         "\"pluginApi\":\"engine_getApi\","
-        "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\"],"
+        "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
         "\"screenCapture\":[\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageFormat\":\"rgba8888\""
@@ -58,6 +58,8 @@ const EngineApi kEngineApi = {
         engine_logPrint,
         engine_sleep,
         engine_sleepInterruptible,
+        engine_systemTime,
+        engine_tickCount,
         engine_runtimeLastError,
         engine_capture,
         engine_keepCapture,
@@ -168,6 +170,24 @@ extern "C" int engine_sleepInterruptible(
  */
 extern "C" const char* engine_runtimeLastError() {
     return gRuntimeLastError.c_str();
+}
+
+/**
+ * 返回系统时间戳，单位毫秒。
+ *
+ * 这里直接转发到 runtime_api，保持 Lua/JS/Go/插件看到同一套时间语义。
+ */
+extern "C" long long engine_systemTime() {
+    return autolua::api::runtimeSystemTimeMs();
+}
+
+/**
+ * 返回当前脚本运行时间，单位毫秒。
+ *
+ * 起点由对应脚本运行时在线程内记录。当前 LuaRuntime 会在 lua_pcall 前设置。
+ */
+extern "C" long long engine_tickCount() {
+    return autolua::api::runtimeTickCountMs();
 }
 
 /**

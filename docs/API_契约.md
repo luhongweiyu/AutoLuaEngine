@@ -16,6 +16,8 @@ engine_print
 engine_logPrint
 engine_sleep
 engine_sleepInterruptible
+engine_systemTime
+engine_tickCount
 engine_runtimeLastError
 ```
 
@@ -57,6 +59,8 @@ int engine_sleepInterruptible(
         runtime_interrupt_callback shouldInterrupt,
         void* userData
 );
+long long engine_systemTime();
+long long engine_tickCount();
 const char* engine_runtimeLastError();
 ```
 
@@ -66,6 +70,8 @@ const char* engine_runtimeLastError();
 - `engine_logPrint`：日志模块输出。
 - `engine_sleep`：无中断上下文的睡眠。
 - `engine_sleepInterruptible`：带脚本停止回调的睡眠，Lua 的 `m.sleep` 当前使用它。
+- `engine_systemTime`：系统 Unix 毫秒时间戳。
+- `engine_tickCount`：当前脚本运行时间，单位毫秒。
 
 ## 截图 C ABI
 
@@ -154,7 +160,11 @@ C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
 
 ```lua
 print(...)
+systemTime()
+tickCount()
 m.sleep(ms)
+m.systemTime()
+m.tickCount()
 m.log.print(text)
 m.capture()
 m.keepCapture()

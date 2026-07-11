@@ -1,9 +1,12 @@
 -- 文件用途：内置示例脚本，用于验证最小 Lua API 和中文标识符支持。
 print("hello lua 5.4")
 print("_VERSION =", _VERSION)
+print("systemTime =", systemTime())
+print("tickCount =", tickCount())
 
 local ok = m.sleep(1000)
 print("sleep result =", ok)
+print("tickCount after sleep =", tickCount())
 
 m.log.print("m.log.print works")
 print("namespace m/lr/cd ready =", type(m), type(lr), type(cd))

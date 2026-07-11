@@ -14,6 +14,8 @@ namespace autolua::api {
 namespace {
 
 constexpr const char* kLogTag = "AutoLuaEngine";
+thread_local bool gScriptStartReady = false;
+thread_local std::chrono::steady_clock::time_point gScriptStartTime;
 
 } // namespace
 
@@ -49,6 +51,25 @@ bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* sto
     }
 
     return true;
+}
+
+void runtimeMarkScriptStart() {
+    gScriptStartTime = std::chrono::steady_clock::now();
+    gScriptStartReady = true;
+}
+
+long long runtimeSystemTimeMs() {
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+}
+
+long long runtimeTickCountMs() {
+    if (!gScriptStartReady) {
+        runtimeMarkScriptStart();
+    }
+
+    const auto elapsed = std::chrono::steady_clock::now() - gScriptStartTime;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
 } // namespace autolua::api

@@ -93,6 +93,28 @@ int luaLogPrint(lua_State* state) {
 }
 
 /**
+ * Lua 系统时间入口。
+ *
+ * 返回 Unix epoch 毫秒时间戳。真实取值由 libengine.so C ABI 提供，Lua 层
+ * 只负责把 64 位整数压回 Lua 栈。
+ */
+int luaSystemTime(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_systemTime()));
+    return 1;
+}
+
+/**
+ * Lua 脚本运行时间入口。
+ *
+ * 返回当前脚本从开始执行到现在的毫秒数。计时起点由 LuaRuntime 在 lua_pcall
+ * 之前写入 runtime_api。
+ */
+int luaTickCount(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_tickCount()));
+    return 1;
+}
+
+/**
  * Lua 截图入口。
  *
  * 成功返回：width, height, pixelsAddress。
@@ -175,6 +197,8 @@ void registerHostApi(lua_State* state) {
 
     setFunctionField(state, hostTableIndex, "print", luaPrint);
     setFunctionField(state, hostTableIndex, "sleep", luaSleep);
+    setFunctionField(state, hostTableIndex, "systemTime", luaSystemTime);
+    setFunctionField(state, hostTableIndex, "tickCount", luaTickCount);
 
     lua_newtable(state);
     int logTableIndex = lua_gettop(state);
