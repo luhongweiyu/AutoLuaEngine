@@ -21,7 +21,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,10 +38,12 @@ public final class FloatingControlService extends Service {
 
     private WindowManager windowManager;
     private View bubbleView;
-    private View panelOverlayView;
+    private View panelView;
     private WindowManager.LayoutParams bubbleLayoutParams;
+    private WindowManager.LayoutParams panelLayoutParams;
     private int bubbleSizePx;
     private boolean scriptRunning;
+    private String scriptState = EngineService.STATE_FINISHED;
     private int touchSlopPx;
     private int lastTouchX;
     private int lastTouchY;
@@ -180,7 +181,7 @@ public final class FloatingControlService extends Service {
     }
 
     private void togglePanel() {
-        if (panelOverlayView == null) {
+        if (panelView == null) {
             showPanelView();
         } else {
             removePanelView();
@@ -188,12 +189,14 @@ public final class FloatingControlService extends Service {
     }
 
     private void showPanelView() {
-        if (panelOverlayView != null) {
+        if (panelView != null) {
             return;
         }
 
-        panelOverlayView = createPanelOverlayView();
-        windowManager.addView(panelOverlayView, createPanelLayoutParams());
+        panelView = createPanelView();
+        panelLayoutParams = createPanelLayoutParams();
+        windowManager.addView(panelView, panelLayoutParams);
+        panelView.post(this::updatePanelPosition);
         EngineSettings.setFloatingPanelExpanded(this, true);
     }
 
@@ -203,61 +206,32 @@ public final class FloatingControlService extends Service {
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
+                getPanelWidthPx(),
+                WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
         );
         params.gravity = Gravity.TOP | Gravity.START;
+        updatePanelPosition(params, dp(96));
         return params;
     }
 
-    private View createPanelOverlayView() {
-        FrameLayout overlay = new FrameLayout(this);
-        overlay.setBackgroundColor(Color.parseColor("#66000000"));
-        overlay.setClickable(true);
-        overlay.setOnClickListener(view -> removePanelView());
-
+    private View createPanelView() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(22), dp(18), dp(22), dp(18));
+        panel.setPadding(dp(12), dp(12), dp(12), dp(10));
         panel.setClickable(true);
-        panel.setBackground(makeRoundDrawable(Color.parseColor("#E6333333"), dp(14)));
-
-        TextView status = new TextView(this);
-        status.setText(scriptRunning ? "脚本运行中" : "脚本未运行");
-        status.setTextColor(Color.WHITE);
-        status.setTextSize(18);
-        status.setGravity(Gravity.START);
-        panel.addView(status, matchWidthWrapContent());
-
-        View divider = new View(this);
-        divider.setBackgroundColor(Color.parseColor("#66FFFFFF"));
-        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(1)
-        );
-        dividerParams.setMargins(0, dp(14), 0, dp(18));
-        panel.addView(divider, dividerParams);
+        panel.setBackground(makeRoundDrawable(Color.parseColor("#E6333333"), dp(12)));
+        panel.setElevation(dp(8));
 
         LinearLayout firstRow = createActionRow();
-        firstRow.addView(createPanelAction(
-                scriptRunning ? "■" : "▶",
-                scriptRunning ? "停止" : "运行",
-                this::toggleScriptRunning
-        ));
+        firstRow.addView(createPanelAction(resolveRunPauseIcon(), resolveRunPauseLabel(), this::runPauseOrResume));
+        firstRow.addView(createPanelAction("■", "停止", this::stopRunningScriptFromPanel));
         firstRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
         firstRow.addView(createPanelAction("停", "强停进程", this::forceStopEngineProcess));
         panel.addView(firstRow, matchWidthWrapContent());
-
-        FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
-                Math.min(dp(360), getResources().getDisplayMetrics().widthPixels - dp(32)),
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
-        );
-        overlay.addView(panel, panelParams);
-        return overlay;
+        return panel;
     }
 
     private LinearLayout createActionRow() {
@@ -285,29 +259,62 @@ public final class FloatingControlService extends Service {
         TextView icon = new TextView(this);
         icon.setText(iconText);
         icon.setTextColor(Color.parseColor("#159FE6"));
-        icon.setTextSize(28);
+        icon.setTextSize(22);
         icon.setGravity(Gravity.CENTER);
         icon.setBackground(makeOvalDrawable(Color.WHITE, Color.TRANSPARENT, 0));
-        item.addView(icon, new LinearLayout.LayoutParams(dp(68), dp(68)));
+        item.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
         TextView label = new TextView(this);
         label.setText(labelText);
         label.setTextColor(Color.WHITE);
-        label.setTextSize(15);
+        label.setTextSize(12);
         label.setGravity(Gravity.CENTER);
+        label.setSingleLine(true);
         LinearLayout.LayoutParams labelParams = matchWidthWrapContent();
-        labelParams.topMargin = dp(8);
+        labelParams.topMargin = dp(5);
         item.addView(label, labelParams);
 
         return item;
     }
 
-    private void toggleScriptRunning() {
-        if (scriptRunning) {
-            stopRunningScriptFromRunAction();
+    private String resolveRunPauseIcon() {
+        if (EngineService.STATE_RUNNING.equals(scriptState)) {
+            return "Ⅱ";
+        }
+        return "▶";
+    }
+
+    private String resolveRunPauseLabel() {
+        if (EngineService.STATE_RUNNING.equals(scriptState)) {
+            return "暂停";
+        }
+        if (EngineService.STATE_PAUSING.equals(scriptState)
+                || EngineService.STATE_PAUSED.equals(scriptState)) {
+            return "继续";
+        }
+        return "运行";
+    }
+
+    private void runPauseOrResume() {
+        if (EngineService.STATE_RUNNING.equals(scriptState)) {
+            EngineService.pauseScript(this);
+            updateRunningState(EngineService.STATE_PAUSING);
+            showToast("已请求暂停脚本");
             return;
         }
 
+        if (EngineService.STATE_PAUSING.equals(scriptState)
+                || EngineService.STATE_PAUSED.equals(scriptState)) {
+            EngineService.resumeScript(this);
+            updateRunningState(EngineService.STATE_RUNNING);
+            showToast("已请求继续脚本");
+            return;
+        }
+
+        runSelectedScriptFromPanel();
+    }
+
+    private void runSelectedScriptFromPanel() {
         ScriptCatalog.ScriptItem item = ScriptCatalog.getSelectedScript(this);
         if (item == null) {
             showToast("脚本目录为空");
@@ -323,7 +330,7 @@ public final class FloatingControlService extends Service {
         showToast("已发送运行命令：" + item.fileName);
     }
 
-    private void stopRunningScriptFromRunAction() {
+    private void stopRunningScriptFromPanel() {
         EngineService.stopScript(this);
         updateRunningState(EngineService.STATE_STOPPING);
         showToast("已请求停止脚本");
@@ -355,6 +362,7 @@ public final class FloatingControlService extends Service {
         bubbleLayoutParams.x = Math.max(0, Math.min(x, maxX));
         bubbleLayoutParams.y = Math.max(0, Math.min(y, maxY));
         windowManager.updateViewLayout(bubbleView, bubbleLayoutParams);
+        updatePanelPosition();
     }
 
     private void snapBubbleToScreenEdge() {
@@ -387,13 +395,55 @@ public final class FloatingControlService extends Service {
     }
 
     private void removePanelView() {
-        if (panelOverlayView == null || windowManager == null) {
+        if (panelView == null || windowManager == null) {
             return;
         }
 
-        windowManager.removeView(panelOverlayView);
-        panelOverlayView = null;
+        windowManager.removeView(panelView);
+        panelView = null;
+        panelLayoutParams = null;
         EngineSettings.setFloatingPanelExpanded(this, false);
+    }
+
+    private int getPanelWidthPx() {
+        return Math.min(dp(320), getResources().getDisplayMetrics().widthPixels - dp(24));
+    }
+
+    private void updatePanelPosition() {
+        if (panelView == null || panelLayoutParams == null || windowManager == null) {
+            return;
+        }
+
+        int panelHeight = panelView.getHeight() > 0 ? panelView.getHeight() : dp(96);
+        updatePanelPosition(panelLayoutParams, panelHeight);
+        windowManager.updateViewLayout(panelView, panelLayoutParams);
+    }
+
+    private void updatePanelPosition(WindowManager.LayoutParams params, int panelHeight) {
+        if (bubbleLayoutParams == null) {
+            return;
+        }
+
+        int margin = dp(8);
+        int spacing = dp(8);
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int panelWidth = getPanelWidthPx();
+
+        int bubbleRight = bubbleLayoutParams.x + bubbleSizePx;
+        int bubbleBottom = bubbleLayoutParams.y + bubbleSizePx;
+        int bubbleCenterX = bubbleLayoutParams.x + bubbleSizePx / 2;
+        int bubbleCenterY = bubbleLayoutParams.y + bubbleSizePx / 2;
+
+        int x = bubbleCenterX < screenWidth / 2
+                ? bubbleLayoutParams.x
+                : bubbleRight - panelWidth;
+        int y = bubbleCenterY < screenHeight / 2
+                ? bubbleBottom + spacing
+                : bubbleLayoutParams.y - spacing - panelHeight;
+
+        params.x = Math.max(margin, Math.min(x, screenWidth - panelWidth - margin));
+        params.y = Math.max(margin, Math.min(y, screenHeight - panelHeight - margin));
     }
 
     private void showToast(String message) {
@@ -401,6 +451,7 @@ public final class FloatingControlService extends Service {
     }
 
     private void updateRunningState(String state) {
+        scriptState = state == null || state.isEmpty() ? EngineService.STATE_FINISHED : state;
         boolean running = EngineService.STATE_RUNNING.equals(state)
                 || EngineService.STATE_PAUSING.equals(state)
                 || EngineService.STATE_PAUSED.equals(state)

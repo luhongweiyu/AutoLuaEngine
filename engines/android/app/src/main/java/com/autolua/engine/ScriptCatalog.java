@@ -6,13 +6,15 @@ package com.autolua.engine;
 import android.content.Context;
 
 import java.io.ByteArrayOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,6 +36,7 @@ public final class ScriptCatalog {
     public static final String DEFAULT_SCRIPT_FILE_NAME = "main.lua";
 
     private static final String ASSET_SCRIPT_DIR = "scripts";
+    private static final int DESCRIPTION_READ_BYTES = 2048;
     private static final int MAX_DESCRIPTION_LENGTH = 42;
     private static final String[] SAMPLE_SCRIPT_NAMES = {
             "main.lua",
@@ -137,7 +140,7 @@ public final class ScriptCatalog {
     private static ScriptItem toScriptItem(Context context, File file) {
         String fileName = file.getName();
         String language = detectLanguage(fileName);
-        String description = readFirstLineDescription(file);
+        String description = readDescriptionPreview(file);
         String displayPath = getScriptDirectory(context).getName() + "/" + fileName;
         return new ScriptItem(
                 fileName,
@@ -201,58 +204,112 @@ public final class ScriptCatalog {
         }
     }
 
-    /**
-     * 读取文件首行注释作为列表备注。
-     *
-     * 这里只接受常见脚本注释前缀，避免把第一行真实代码误当成备注显示。
-     */
-    private static String readFirstLineDescription(File file) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                new FileInputStream(file),
-                StandardCharsets.UTF_8
-        ))) {
-            String firstLine = reader.readLine();
-            return extractDescription(firstLine);
-        } catch (IOException ignored) {
+    private static String readDescriptionPreview(File file) {
+        byte[] bytes = readFilePrefix(file, DESCRIPTION_READ_BYTES);
+        if (bytes.length == 0) {
+            return "";
+        }
+
+        int offset = hasUtf8Bom(bytes) ? 3 : 0;
+        int length = trimIncompleteUtf8Tail(bytes, offset, bytes.length - offset);
+        if (length <= 0) {
+            return "";
+        }
+
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        try {
+            String text = decoder.decode(ByteBuffer.wrap(bytes, offset, length)).toString();
+            return normalizeDescriptionPreview(text);
+        } catch (CharacterCodingException ignored) {
+            // 文件开头不是合法 UTF-8 时，列表备注直接留空，避免把乱码显示到界面上。
             return "";
         }
     }
 
-    private static String extractDescription(String firstLine) {
-        if (firstLine == null) {
-            return "";
+    private static byte[] readFilePrefix(File file, int maxBytes) {
+        if (file.length() <= 0) {
+            return new byte[0];
         }
 
-        String text = firstLine.trim();
-        if (text.startsWith("\uFEFF")) {
-            text = text.substring(1).trim();
-        }
-
-        if (text.startsWith("--")) {
-            text = text.substring(2).trim();
-        } else if (text.startsWith("//")) {
-            text = text.substring(2).trim();
-        } else if (text.startsWith("#")) {
-            text = text.substring(1).trim();
-        } else if (text.startsWith("/*")) {
-            text = text.substring(2).trim();
-            if (text.endsWith("*/")) {
-                text = text.substring(0, text.length() - 2).trim();
+        int limit = (int) Math.min(Math.max(0, file.length()), maxBytes);
+        byte[] buffer = new byte[limit];
+        try (FileInputStream inputStream = new FileInputStream(file)) {
+            int total = 0;
+            while (total < limit) {
+                int readCount = inputStream.read(buffer, total, limit - total);
+                if (readCount == -1) {
+                    break;
+                }
+                total += readCount;
             }
+            return total == limit ? buffer : Arrays.copyOf(buffer, total);
+        } catch (IOException ignored) {
+            return new byte[0];
+        }
+    }
+
+    private static boolean hasUtf8Bom(byte[] bytes) {
+        return bytes.length >= 3
+                && (bytes[0] & 0xFF) == 0xEF
+                && (bytes[1] & 0xFF) == 0xBB
+                && (bytes[2] & 0xFF) == 0xBF;
+    }
+
+    private static int trimIncompleteUtf8Tail(byte[] bytes, int offset, int length) {
+        int end = offset + length;
+        int leadIndex = end - 1;
+        while (leadIndex >= offset && (bytes[leadIndex] & 0xC0) == 0x80) {
+            leadIndex--;
+        }
+        if (leadIndex < offset) {
+            return 0;
+        }
+
+        int leadByte = bytes[leadIndex] & 0xFF;
+        int expectedBytes;
+        if ((leadByte & 0x80) == 0) {
+            return length;
+        } else if ((leadByte & 0xE0) == 0xC0) {
+            expectedBytes = 2;
+        } else if ((leadByte & 0xF0) == 0xE0) {
+            expectedBytes = 3;
+        } else if ((leadByte & 0xF8) == 0xF0) {
+            expectedBytes = 4;
         } else {
+            return length;
+        }
+
+        int actualBytes = end - leadIndex;
+        return actualBytes < expectedBytes ? leadIndex - offset : length;
+    }
+
+    private static String normalizeDescriptionPreview(String text) {
+        if (text == null || text.indexOf('\uFFFD') >= 0) {
             return "";
         }
 
-        if (text.startsWith("文件用途：")) {
-            text = text.substring("文件用途：".length()).trim();
+        StringBuilder builder = new StringBuilder(MAX_DESCRIPTION_LENGTH + 3);
+        boolean pendingSpace = false;
+        String trimmedText = text.trim();
+        for (int index = 0; index < trimmedText.length(); index++) {
+            char value = trimmedText.charAt(index);
+            if (Character.isWhitespace(value) || Character.isISOControl(value)) {
+                pendingSpace = builder.length() > 0;
+                continue;
+            }
+
+            if (pendingSpace) {
+                builder.append(' ');
+                pendingSpace = false;
+            }
+            builder.append(value);
+            if (builder.length() >= MAX_DESCRIPTION_LENGTH) {
+                return builder.toString() + "...";
+            }
         }
-        if (text.startsWith("文件用途:")) {
-            text = text.substring("文件用途:".length()).trim();
-        }
-        if (text.length() > MAX_DESCRIPTION_LENGTH) {
-            text = text.substring(0, MAX_DESCRIPTION_LENGTH) + "...";
-        }
-        return text;
+        return builder.toString();
     }
 
     private static String detectLanguage(String fileName) {

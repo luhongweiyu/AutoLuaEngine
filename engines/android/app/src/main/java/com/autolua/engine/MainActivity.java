@@ -25,6 +25,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.ScrollView;
@@ -205,16 +206,6 @@ public final class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(COLOR_BACKGROUND);
 
-        LinearLayout header = createPageContent();
-
-        LinearLayout runBar = createHorizontalRow();
-        runButton = createPrimaryButton(R.id.button_run_lua, "运行", this::runSelectedScript);
-        runBar.addView(runButton, matchWidthButtonParams());
-        header.addView(runBar, topMarginParams(12));
-        setRunningControls(scriptRunning);
-
-        root.addView(header, matchWidthWrapContent());
-
         ScrollView scrollView = createPageScrollView();
         LinearLayout list = createListContent();
         scrollView.addView(list);
@@ -227,13 +218,24 @@ public final class MainActivity extends Activity {
         ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
         if (scripts.length == 0) {
             list.addView(createEmptyText("当前脚本目录没有文件"), topMarginParams(24));
-            return root;
+        } else {
+            for (ScriptCatalog.ScriptItem item : scripts) {
+                list.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
+            }
         }
 
-        for (ScriptCatalog.ScriptItem item : scripts) {
-            list.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
-        }
+        root.addView(createScriptRunBar(), matchWidthWrapContent());
+        setRunningControls(scriptRunning);
         return root;
+    }
+
+    private View createScriptRunBar() {
+        LinearLayout runBar = createHorizontalRow();
+        runBar.setPadding(dp(PAGE_PADDING), dp(10), dp(PAGE_PADDING), dp(10));
+        runBar.setBackgroundColor(COLOR_SURFACE);
+        runButton = createPrimaryButton(R.id.button_run_lua, "运行", this::runSelectedScript);
+        runBar.addView(runButton, matchWidthButtonParams());
+        return runBar;
     }
 
     private View createScriptRow(ScriptCatalog.ScriptItem item) {
@@ -824,9 +826,10 @@ public final class MainActivity extends Activity {
         return button;
     }
 
-    private TextView createOpenFileButton(ScriptCatalog.ScriptItem item) {
-        TextView button = createText("↗", 20, COLOR_PRIMARY, true);
-        button.setGravity(Gravity.CENTER);
+    private ImageButton createOpenFileButton(ScriptCatalog.ScriptItem item) {
+        ImageButton button = new ImageButton(this);
+        button.setImageResource(R.drawable.ic_script_file);
+        button.setScaleType(ImageButton.ScaleType.CENTER);
         button.setClickable(true);
         button.setContentDescription("打开文件：" + item.fileName);
         button.setBackground(makeRoundDrawable(Color.TRANSPARENT, dp(7), COLOR_LINE));
