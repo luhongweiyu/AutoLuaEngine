@@ -150,7 +150,7 @@ Lua -> HostApi -> system_c_api C ABI -> core/api/screen_api -> AndroidBridge -> 
 当前规则：
 
 - `screen_api` 位于 `libengine.so/core/api`，负责截图缓存、锁帧和 Root 截图分发。
-- `screen_capture` 位于 `system_c_api`，只做 C ABI 参数检查和转发。
+- `engine_capture` 位于 `system_c_api`，只做 C ABI 参数检查和转发。
 - `RootHelperBridge` 只在 Root 模式准备时启动或恢复常驻 helper。
 - 截图缓存由 `libengine.so` 按时间和锁帧状态管理。
 - HTTP 不传输大像素数据。

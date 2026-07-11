@@ -5,7 +5,7 @@
 ## 当前行为
 
 - App 启动或切换到 Root 模式时准备 root 运行层。
-- `screen_capture` 缓存未命中时，通过当前 Android root 截图路线获取 RGBA 点阵。
+- `engine_capture` 缓存未命中时，通过当前 Android root 截图路线获取 RGBA 点阵。
 - 失败时直接返回错误，不做路线兜底。
 
 ## 当前范围
@@ -15,12 +15,12 @@
 ## 截图接口
 
 ```c
-int screen_capture(int* width, int* height, unsigned char** pixels);
-void screen_keep_capture();
-void screen_release_capture();
-int screen_set_capture_cache_ms(int durationMs);
-void screen_clear_capture_cache();
-const char* screen_last_error();
+int engine_capture(int* width, int* height, unsigned char** pixels);
+void engine_keepCapture();
+void engine_releaseCapture();
+int engine_setCaptureCacheMs(int durationMs);
+void engine_clearCaptureCache();
+const char* engine_captureLastError();
 ```
 
 Lua 暂时映射为：

@@ -12,19 +12,19 @@
 
 namespace {
 
-constexpr int kEngineAbiVersion = 4;
+constexpr int kEngineAbiVersion = 5;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.4\","
+        "\"abiVersion\":\"0.5\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"go-reserved\",\"plugin-reserved\"],"
-        "\"pluginApi\":\"engine_get_api\","
-        "\"runtimeApi\":[\"runtime_print\",\"runtime_log_print\",\"runtime_sleep\"],"
-        "\"screenCapture\":[\"screen_capture\",\"screen_capture_cache\",\"screen_keep_capture\"],"
+        "\"pluginApi\":\"engine_getApi\","
+        "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\"],"
+        "\"screenCapture\":[\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
@@ -52,19 +52,19 @@ bool cInterruptAdapter(void* context) {
 
 const EngineApi kEngineApi = {
         kEngineAbiVersion,
-        engine_version,
-        engine_capabilities_json,
-        runtime_print,
-        runtime_log_print,
-        runtime_sleep,
-        runtime_sleep_interruptible,
-        runtime_last_error,
-        screen_capture,
-        screen_keep_capture,
-        screen_release_capture,
-        screen_set_capture_cache_ms,
-        screen_clear_capture_cache,
-        screen_last_error,
+        engine_getVersion,
+        engine_getCapabilitiesJson,
+        engine_print,
+        engine_logPrint,
+        engine_sleep,
+        engine_sleepInterruptible,
+        engine_runtimeLastError,
+        engine_capture,
+        engine_keepCapture,
+        engine_releaseCapture,
+        engine_setCaptureCacheMs,
+        engine_clearCaptureCache,
+        engine_captureLastError,
         engine_findColors,
         engine_findColorsLastError
 };
@@ -76,7 +76,7 @@ const EngineApi kEngineApi = {
  *
  * 返回值由 libengine.so 内部持有，调用方只读，不要释放。
  */
-extern "C" const char* engine_version() {
+extern "C" const char* engine_getVersion() {
     return EngineConfig::kEngineVersion;
 }
 
@@ -85,7 +85,7 @@ extern "C" const char* engine_version() {
  *
  * 这个接口用于外部调用方确认当前 so 支持哪些稳定能力，不参与脚本运行逻辑。
  */
-extern "C" const char* engine_capabilities_json() {
+extern "C" const char* engine_getCapabilitiesJson() {
     return kCapabilitiesJson;
 }
 
@@ -94,7 +94,7 @@ extern "C" const char* engine_capabilities_json() {
  *
  * 这和旧项目 setLrApi 的思路一致，区别是这里由宿主主动导出完整函数表。
  */
-extern "C" const EngineApi* engine_get_api() {
+extern "C" const EngineApi* engine_getApi() {
     return &kEngineApi;
 }
 
@@ -104,7 +104,7 @@ extern "C" const EngineApi* engine_get_api() {
  * Lua 的 print、后续 JS/Go 的同类输出都应该进入这个 C ABI，再由 runtime_api
  * 写入 Android logcat 和 native 日志缓冲。
  */
-extern "C" int runtime_print(const char* text) {
+extern "C" int engine_print(const char* text) {
     autolua::api::runtimePrint(text == nullptr ? "" : text);
     gRuntimeLastError.clear();
     return 1;
@@ -113,9 +113,9 @@ extern "C" int runtime_print(const char* text) {
 /**
  * 输出日志模块文本。
  *
- * 当前和 runtime_print 同级别输出，保留独立入口方便后续区分 print 与 log。
+ * 当前和 engine_print 同级别输出，保留独立入口方便后续区分 print 与 log。
  */
-extern "C" int runtime_log_print(const char* text) {
+extern "C" int engine_logPrint(const char* text) {
     autolua::api::runtimeLogPrint(text == nullptr ? "" : text);
     gRuntimeLastError.clear();
     return 1;
@@ -125,10 +125,10 @@ extern "C" int runtime_log_print(const char* text) {
  * 不带中断检查的睡眠。
  *
  * 适合没有脚本停止上下文的外部调用方；脚本运行时应优先使用
- * runtime_sleep_interruptible。
+ * engine_sleepInterruptible。
  */
-extern "C" int runtime_sleep(int durationMs) {
-    return runtime_sleep_interruptible(durationMs, nullptr, nullptr);
+extern "C" int engine_sleep(int durationMs) {
+    return engine_sleepInterruptible(durationMs, nullptr, nullptr);
 }
 
 /**
@@ -137,7 +137,7 @@ extern "C" int runtime_sleep(int durationMs) {
  * 语言绑定层传入 shouldInterrupt 回调，核心 runtime_api 只关心是否需要停止，
  * 不依赖具体脚本运行时类型。
  */
-extern "C" int runtime_sleep_interruptible(
+extern "C" int engine_sleepInterruptible(
         int durationMs,
         runtime_interrupt_callback shouldInterrupt,
         void* userData
@@ -166,7 +166,7 @@ extern "C" int runtime_sleep_interruptible(
 /**
  * 返回最近一次运行时 C ABI 失败原因。
  */
-extern "C" const char* runtime_last_error() {
+extern "C" const char* engine_runtimeLastError() {
     return gRuntimeLastError.c_str();
 }
 
@@ -176,7 +176,7 @@ extern "C" const char* runtime_last_error() {
  * 成功时写出 width、height 和 pixels；pixels 指向内部缓存，格式固定为紧凑 RGBA。
  * 缓存、锁帧和 Root 截图分发都在 screen_api 中完成。
  */
-extern "C" int screen_capture(int* width, int* height, unsigned char** pixels) {
+extern "C" int engine_capture(int* width, int* height, unsigned char** pixels) {
     if (width == nullptr || height == nullptr || pixels == nullptr) {
         gScreenLastError = "screen capture output pointer is null";
         return 0;
@@ -201,21 +201,21 @@ extern "C" int screen_capture(int* width, int* height, unsigned char** pixels) {
 /**
  * 开启锁帧。
  */
-extern "C" void screen_keep_capture() {
+extern "C" void engine_keepCapture() {
     autolua::api::keepScreenCapture();
 }
 
 /**
  * 取消锁帧。
  */
-extern "C" void screen_release_capture() {
+extern "C" void engine_releaseCapture() {
     autolua::api::releaseScreenCapture();
 }
 
 /**
  * 设置截图缓存时间，单位毫秒。
  */
-extern "C" int screen_set_capture_cache_ms(int durationMs) {
+extern "C" int engine_setCaptureCacheMs(int durationMs) {
     if (!autolua::api::setScreenCaptureCacheMs(durationMs)) {
         gScreenLastError = autolua::api::screenLastError();
         return 0;
@@ -228,7 +228,7 @@ extern "C" int screen_set_capture_cache_ms(int durationMs) {
 /**
  * 清空截图缓存并恢复默认缓存策略。
  */
-extern "C" void screen_clear_capture_cache() {
+extern "C" void engine_clearCaptureCache() {
     autolua::api::clearScreenCaptureCache();
     autolua::api::清空找色缓存();
     gScreenLastError.clear();
@@ -237,7 +237,7 @@ extern "C" void screen_clear_capture_cache() {
 /**
  * 返回最近一次截图 C ABI 失败原因。
  */
-extern "C" const char* screen_last_error() {
+extern "C" const char* engine_captureLastError() {
     return gScreenLastError.c_str();
 }
 
@@ -245,7 +245,7 @@ extern "C" const char* screen_last_error() {
  * 在当前屏幕截图缓存上执行多点找色。
  *
  * 找色核心内部会调用 screen_api，所以这里没有“是否截屏”参数；缓存策略统一由
- * screen_capture/keep/release/setCaptureCacheMs 控制。
+ * engine_capture/engine_keepCapture/engine_releaseCapture/engine_setCaptureCacheMs 控制。
  */
 extern "C" int engine_findColors(
         int x1,

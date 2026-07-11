@@ -59,7 +59,7 @@ int luaPrint(lua_State* state) {
         output << luaValueToString(state, i);
     }
 
-    runtime_print(output.str().c_str());
+    engine_print(output.str().c_str());
     return 0;
 }
 
@@ -76,8 +76,8 @@ int luaSleep(lua_State* state) {
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 
-    if (!runtime_sleep_interruptible(static_cast<int>(duration), luaShouldInterrupt, runtime)) {
-        const char* error = runtime_last_error();
+    if (!engine_sleepInterruptible(static_cast<int>(duration), luaShouldInterrupt, runtime)) {
+        const char* error = engine_runtimeLastError();
         return luaL_error(state, error == nullptr || error[0] == '\0' ? "script stopped" : error);
     }
 
@@ -87,7 +87,7 @@ int luaSleep(lua_State* state) {
 
 int luaLogPrint(lua_State* state) {
     const char* text = luaL_checkstring(state, 1);
-    runtime_log_print(text == nullptr ? "" : text);
+    engine_logPrint(text == nullptr ? "" : text);
     lua_pushboolean(state, 1);
     return 1;
 }
@@ -103,9 +103,9 @@ int luaRootCapture(lua_State* state) {
     int height = 0;
     unsigned char* pixels = nullptr;
 
-    if (!screen_capture(&width, &height, &pixels)) {
+    if (!engine_capture(&width, &height, &pixels)) {
         lua_pushnil(state);
-        lua_pushstring(state, screen_last_error());
+        lua_pushstring(state, engine_captureLastError());
         return 2;
     }
 
@@ -116,22 +116,22 @@ int luaRootCapture(lua_State* state) {
 }
 
 int luaKeepCapture(lua_State* state) {
-    screen_keep_capture();
+    engine_keepCapture();
     lua_pushboolean(state, 1);
     return 1;
 }
 
 int luaReleaseCapture(lua_State* state) {
-    screen_release_capture();
+    engine_releaseCapture();
     lua_pushboolean(state, 1);
     return 1;
 }
 
 int luaSetCaptureCacheMs(lua_State* state) {
     lua_Integer durationMs = luaL_checkinteger(state, 1);
-    if (!screen_set_capture_cache_ms(static_cast<int>(durationMs))) {
+    if (!engine_setCaptureCacheMs(static_cast<int>(durationMs))) {
         lua_pushnil(state);
-        lua_pushstring(state, screen_last_error());
+        lua_pushstring(state, engine_captureLastError());
         return 2;
     }
 

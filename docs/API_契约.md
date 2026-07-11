@@ -12,22 +12,22 @@ C ABI 使用 snake_case，不带项目缩写，不暴露当前底层路线。
 当前运行时 C ABI：
 
 ```c
-runtime_print
-runtime_log_print
-runtime_sleep
-runtime_sleep_interruptible
-runtime_last_error
+engine_print
+engine_logPrint
+engine_sleep
+engine_sleepInterruptible
+engine_runtimeLastError
 ```
 
 当前截图 C ABI：
 
 ```c
-screen_capture
-screen_keep_capture
-screen_release_capture
-screen_set_capture_cache_ms
-screen_clear_capture_cache
-screen_last_error
+engine_capture
+engine_keepCapture
+engine_releaseCapture
+engine_setCaptureCacheMs
+engine_clearCaptureCache
+engine_captureLastError
 ```
 
 当前找色 C ABI：
@@ -40,7 +40,7 @@ engine_findColorsLastError
 当前插件函数表入口：
 
 ```c
-engine_get_api
+engine_getApi
 ```
 
 Lua 当前通过 HostApi 暴露脚本函数，但 HostApi 只做 Lua 类型转换，并调用同一组
@@ -49,28 +49,28 @@ C ABI。JS / Go 后续也按同样方式绑定，不各写一套命令逻辑。
 ## 运行时 C ABI
 
 ```c
-int runtime_print(const char* text);
-int runtime_log_print(const char* text);
-int runtime_sleep(int durationMs);
-int runtime_sleep_interruptible(
+int engine_print(const char* text);
+int engine_logPrint(const char* text);
+int engine_sleep(int durationMs);
+int engine_sleepInterruptible(
         int durationMs,
         runtime_interrupt_callback shouldInterrupt,
         void* userData
 );
-const char* runtime_last_error();
+const char* engine_runtimeLastError();
 ```
 
 说明：
 
-- `runtime_print`：普通脚本输出。
-- `runtime_log_print`：日志模块输出。
-- `runtime_sleep`：无中断上下文的睡眠。
-- `runtime_sleep_interruptible`：带脚本停止回调的睡眠，Lua 的 `m.sleep` 当前使用它。
+- `engine_print`：普通脚本输出。
+- `engine_logPrint`：日志模块输出。
+- `engine_sleep`：无中断上下文的睡眠。
+- `engine_sleepInterruptible`：带脚本停止回调的睡眠，Lua 的 `m.sleep` 当前使用它。
 
 ## 截图 C ABI
 
 ```c
-int screen_capture(int* width, int* height, unsigned char** pixels);
+int engine_capture(int* width, int* height, unsigned char** pixels);
 ```
 
 参数：
@@ -82,7 +82,7 @@ int screen_capture(int* width, int* height, unsigned char** pixels);
 返回：
 
 - `1`：成功。
-- `0`：失败，通过 `screen_last_error()` 取错误。
+- `0`：失败，通过 `engine_captureLastError()` 取错误。
 
 点阵：
 
@@ -94,11 +94,11 @@ int screen_capture(int* width, int* height, unsigned char** pixels);
 ## 截图缓存
 
 ```c
-void screen_keep_capture();
-void screen_release_capture();
-int screen_set_capture_cache_ms(int durationMs);
-void screen_clear_capture_cache();
-const char* screen_last_error();
+void engine_keepCapture();
+void engine_releaseCapture();
+int engine_setCaptureCacheMs(int durationMs);
+void engine_clearCaptureCache();
+const char* engine_captureLastError();
 ```
 
 规则：
@@ -106,9 +106,9 @@ const char* screen_last_error();
 - 默认缓存时间为 `20ms`。
 - 缓存命中直接返回当前点阵。
 - 缓存过期重新截图并覆盖缓存。
-- `screen_keep_capture()` 锁帧。
-- `screen_release_capture()` 取消锁帧。
-- `screen_clear_capture_cache()` 清空截图缓存。
+- `engine_keepCapture()` 锁帧。
+- `engine_releaseCapture()` 取消锁帧。
+- `engine_clearCaptureCache()` 清空截图缓存。
 
 ## 找色 C ABI
 
@@ -134,7 +134,7 @@ const char* engine_findColorsLastError();
 规则：
 
 - `engine_findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
-- 截图是否刷新由 `screen_capture` 的缓存时间、`screen_keep_capture` 和 `screen_release_capture` 控制。
+- 截图是否刷新由 `engine_capture` 的缓存时间、`engine_keepCapture` 和 `engine_releaseCapture` 控制。
 - `dir` 取值为 `1` 到 `8`，沿用旧找色算法扫描方向。
 - `sim` 为默认容差，格式为 `0xRRGGBB`。
 - `colors` 格式示例：`0|0|FFFFFF,10|5|FF0000-101010`。
@@ -144,10 +144,10 @@ const char* engine_findColorsLastError();
 ## 插件函数表
 
 ```c
-const EngineApi* engine_get_api();
+const EngineApi* engine_getApi();
 ```
 
-外部插件 so 可以通过 `engine_get_api()` 取得函数表，复用当前运行时、截图和找色
+外部插件 so 可以通过 `engine_getApi()` 取得函数表，复用当前运行时、截图和找色
 C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
 
 ## Lua 映射

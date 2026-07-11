@@ -12,19 +12,19 @@
 ## 当前已实现
 
 ```c
-int runtime_print(const char* text);
-int runtime_log_print(const char* text);
-int runtime_sleep(int durationMs);
-int runtime_sleep_interruptible(...);
-int screen_capture(int* width, int* height, unsigned char** pixels);
-void screen_keep_capture();
-void screen_release_capture();
-int screen_set_capture_cache_ms(int durationMs);
-void screen_clear_capture_cache();
-const char* screen_last_error();
+int engine_print(const char* text);
+int engine_logPrint(const char* text);
+int engine_sleep(int durationMs);
+int engine_sleepInterruptible(...);
+int engine_capture(int* width, int* height, unsigned char** pixels);
+void engine_keepCapture();
+void engine_releaseCapture();
+int engine_setCaptureCacheMs(int durationMs);
+void engine_clearCaptureCache();
+const char* engine_captureLastError();
 int engine_findColors(...);
 const char* engine_findColorsLastError();
-const EngineApi* engine_get_api();
+const EngineApi* engine_getApi();
 ```
 
 ## 当前已清空
