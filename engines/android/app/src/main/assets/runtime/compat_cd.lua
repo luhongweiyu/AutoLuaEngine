@@ -19,6 +19,7 @@ local cd = {
     releaseCapture = host.screen.releaseCapture,
     setCaptureCacheMs = host.screen.setCaptureCacheMs,
     findColors = host.color.findColors,
+    imeLib = host.ime,
 }
 
 cd.__compat = {

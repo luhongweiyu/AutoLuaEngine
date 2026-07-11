@@ -6,6 +6,7 @@
 #include <string>
 
 #include "api/color_api.h"
+#include "api/ime_api.h"
 #include "api/input_api.h"
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
@@ -13,12 +14,12 @@
 
 namespace {
 
-constexpr int kEngineAbiVersion = 7;
+constexpr int kEngineAbiVersion = 8;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.7\","
+        "\"abiVersion\":\"0.8\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -28,6 +29,7 @@ constexpr const char* kCapabilitiesJson =
         "\"screenCapture\":[\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
+        "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
 
@@ -35,6 +37,7 @@ thread_local std::string gRuntimeLastError;
 thread_local std::string gScreenLastError;
 thread_local std::string gColorLastError;
 thread_local std::string gInputLastError;
+thread_local std::string gImeLastError;
 
 struct CInterruptContext {
     runtime_interrupt_callback callback = nullptr;
@@ -80,7 +83,11 @@ const EngineApi kEngineApi = {
         engine_keyPress,
         engine_inputText,
         engine_getRunEnvType,
-        engine_inputLastError
+        engine_inputLastError,
+        engine_imeLock,
+        engine_imeSetText,
+        engine_imeUnlock,
+        engine_imeLastError
 };
 
 } // namespace
@@ -408,6 +415,49 @@ extern "C" int engine_inputText(const char* text) {
     }
     gInputLastError.clear();
     return 1;
+}
+
+/**
+ * 锁定 AutoLuaEngine 输入法。
+ */
+extern "C" int engine_imeLock() {
+    if (!autolua::api::imeLock()) {
+        gImeLastError = autolua::api::imeLastError();
+        return 0;
+    }
+    gImeLastError.clear();
+    return 1;
+}
+
+/**
+ * 通过已锁定的 AutoLuaEngine 输入法提交完整 Unicode 文本。
+ */
+extern "C" int engine_imeSetText(const char* text) {
+    if (!autolua::api::imeSetText(text)) {
+        gImeLastError = autolua::api::imeLastError();
+        return 0;
+    }
+    gImeLastError.clear();
+    return 1;
+}
+
+/**
+ * 恢复 imeLock 前保存的系统默认输入法。
+ */
+extern "C" int engine_imeUnlock() {
+    if (!autolua::api::imeUnlock()) {
+        gImeLastError = autolua::api::imeLastError();
+        return 0;
+    }
+    gImeLastError.clear();
+    return 1;
+}
+
+/**
+ * 返回最近一次输入法 C ABI 失败原因。
+ */
+extern "C" const char* engine_imeLastError() {
+    return gImeLastError.c_str();
 }
 
 /**

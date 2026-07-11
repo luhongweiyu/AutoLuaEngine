@@ -82,5 +82,5 @@ m.releaseCapture()
 m.setCaptureCacheMs(ms)
 ```
 
-其他自动化脚本 API 已先从 Lua/协议暴露层清空，等待按
-`core/api -> C ABI -> Lua/JS/Go 绑定` 边界重新实现。
+本文只描述截图核心。输入、输入法和其他已实现的脚本 API 仍遵循
+`core/api -> C ABI -> Lua/JS/Go 绑定` 边界，完整列表见 [统一 API 契约](API_契约.md)。

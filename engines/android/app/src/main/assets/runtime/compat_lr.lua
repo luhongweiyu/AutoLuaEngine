@@ -19,6 +19,7 @@ local lr = {
     releaseCapture = host.screen.releaseCapture,
     setCaptureCacheMs = host.screen.setCaptureCacheMs,
     findColors = host.color.findColors,
+    imeLib = host.ime,
 }
 
 lr.__compat = {

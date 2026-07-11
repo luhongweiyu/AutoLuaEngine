@@ -205,5 +205,7 @@ u0_a51 ... com.autolua.engine:engine
 su -c app_process /system/bin com.autolua.engine.RootHelperMain
 ```
 
-该进程 uid=0，第一版用于 root 截图。App 引擎进程通过 stdin/stdout 与它通讯，
-协议为“文本头 + 原始 RGBA 帧”，保持 root 进程启动一次、后续复用。
+该进程 uid=0。App 引擎进程通过 stdin/stdout 与它通讯，截图使用“文本头 + 原始 RGBA
+帧”协议；触摸、按键和输入法切换使用短文本命令。helper 启动一次后由截图和 Root
+输入注入共同复用；只有 `imeLib.lock()` / `imeLib.unlock()` 按系统要求执行一次输入法
+切换命令，`imeLib.setText()` 不创建外部进程。

@@ -19,6 +19,7 @@ local m = {
     log = host.log,
     screen = host.screen,
     color = host.color,
+    ime = host.ime,
 }
 
 m.capture = host.screen.capture
@@ -39,4 +40,5 @@ _G.keyUp = host.keyUp
 _G.keyPress = host.keyPress
 _G.inputText = host.inputText
 _G.getRunEnvType = host.getRunEnvType
+_G.imeLib = host.ime
 _G.m = m

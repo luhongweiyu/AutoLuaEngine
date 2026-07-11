@@ -71,6 +71,10 @@ typedef struct EngineApi {
     int (*inputText)(const char* text);
     const char* (*getRunEnvType)();
     const char* (*inputLastError)();
+    int (*imeLock)();
+    int (*imeSetText)(const char* text);
+    int (*imeUnlock)();
+    const char* (*imeLastError)();
 } EngineApi;
 
 /**
@@ -271,6 +275,28 @@ int engine_keyPress(const char* keyCode);
  * 当前通过 Root 注入 KeyEvent 实现，适合英文、数字和常见符号。
  */
 int engine_inputText(const char* text);
+
+/**
+ * 锁定 AutoLuaEngine 输入法。
+ *
+ * 成功时保存原默认输入法并切换到本应用输入法。该操作只走 Root helper，不走其他路线。
+ */
+int engine_imeLock();
+
+/**
+ * 通过已锁定的 AutoLuaEngine 输入法提交完整 Unicode 文本。
+ */
+int engine_imeSetText(const char* text);
+
+/**
+ * 恢复 imeLock 前保存的系统默认输入法。
+ */
+int engine_imeUnlock();
+
+/**
+ * 返回最近一次输入法 C ABI 失败原因。
+ */
+const char* engine_imeLastError();
 
 /**
  * 返回当前运行环境类型。

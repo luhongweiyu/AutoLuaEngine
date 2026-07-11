@@ -20,7 +20,9 @@ import java.nio.charset.StandardCharsets;
  * 这个类由 `su -c app_process ... com.autolua.engine.RootHelperMain` 启动，
  * 进程 uid=0，不属于普通 App 沙箱。App 的 `:engine` 进程通过 stdin/stdout
  * 与它通讯。协议为“文本头 + 原始二进制帧”，避免 base64 造成大块额外拷贝。
- * 第一版只实现截图命令，保持“启动一次、后续复用”的模型。
+ * 截图、Root 输入注入和输入法切换都通过同一常驻进程完成。普通脚本命令不会反复
+ * 启动外部 shell；只有输入法锁定或解锁时才按 Android 系统要求执行一次 ime/settings
+ * 命令。
  */
 public final class RootHelperMain {
     private static byte[] captureBytes;
@@ -96,6 +98,16 @@ public final class RootHelperMain {
 
             if ("inputText".equals(parts[0])) {
                 writeBoolean(outputStream, handleInputText(parts));
+                continue;
+            }
+
+            if ("imeLock".equals(parts[0])) {
+                handleImeLock(outputStream);
+                continue;
+            }
+
+            if ("imeUnlock".equals(parts[0])) {
+                writeBoolean(outputStream, handleImeUnlock(parts));
                 continue;
             }
 
@@ -203,6 +215,179 @@ public final class RootHelperMain {
             return INPUT_INJECTOR.inputText(new String(bytes, StandardCharsets.UTF_8));
         } catch (IllegalArgumentException exception) {
             return false;
+        }
+    }
+
+    /**
+     * 读取当前默认输入法，启用并切换到 AutoLuaEngine 输入法。
+     *
+     * 旧输入法名称以 Base64 写入协议，避免未来带有特殊字符时破坏文本头格式。这里不做
+     * 按键输入或无障碍回退；切换失败直接把失败结果返回给上层。
+     */
+    private static void handleImeLock(OutputStream outputStream) throws Exception {
+        String previousInputMethod = readDefaultInputMethod();
+        if (previousInputMethod == null || previousInputMethod.isEmpty()) {
+            writeLine(outputStream, "ERR\tunable to read default input method");
+            return;
+        }
+
+        if (!setInputMethodEnabled(EngineImeBridge.inputMethodComponent(), true)
+                || !setDefaultInputMethod(EngineImeBridge.inputMethodComponent())) {
+            writeLine(outputStream, "ERR\tunable to select engine input method");
+            return;
+        }
+
+        String encodedPrevious = Base64.encodeToString(
+                previousInputMethod.getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        writeLine(outputStream, "OK\t" + encodedPrevious);
+    }
+
+    /**
+     * 恢复指定默认输入法并禁用 AutoLuaEngine 输入法。
+     *
+     * 原输入法由 EngineImeBridge 在 lock 成功后持久保存，故 helper 重启后仍然可以完成
+     * unlock。参数全部使用 Base64 传输，不经 shell 拼接。
+     */
+    private static boolean handleImeUnlock(String[] parts) {
+        if (parts.length < 3) {
+            return false;
+        }
+
+        try {
+            String previousInputMethod = new String(
+                    Base64.decode(parts[1], Base64.NO_WRAP),
+                    StandardCharsets.UTF_8
+            );
+            String engineInputMethod = new String(
+                    Base64.decode(parts[2], Base64.NO_WRAP),
+                    StandardCharsets.UTF_8
+            );
+            if (!isValidInputMethodId(previousInputMethod)
+                    || !EngineImeBridge.inputMethodComponent().equals(engineInputMethod)) {
+                return false;
+            }
+
+            return setDefaultInputMethod(previousInputMethod)
+                    && setInputMethodEnabled(engineInputMethod, false);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 读取系统安全设置中的当前默认输入法组件名。
+     */
+    private static String readDefaultInputMethod() {
+        CommandResult result = executeCommand(
+                "/system/bin/settings",
+                "get",
+                "secure",
+                "default_input_method"
+        );
+        if (!result.succeeded()) {
+            return null;
+        }
+
+        String value = result.stdout.trim();
+        return value.isEmpty() || "null".equals(value) ? null : value;
+    }
+
+    /**
+     * 通过系统 ime 命令启用或禁用一个输入法服务。
+     */
+    private static boolean setInputMethodEnabled(String inputMethodId, boolean enabled) {
+        if (!isValidInputMethodId(inputMethodId)) {
+            return false;
+        }
+        CommandResult result = executeCommand(
+                "/system/bin/cmd",
+                "input_method",
+                "ime",
+                enabled ? "enable" : "disable",
+                inputMethodId
+        );
+        return result.succeeded();
+    }
+
+    /**
+     * 通过系统 ime 命令切换默认输入法。
+     */
+    private static boolean setDefaultInputMethod(String inputMethodId) {
+        if (!isValidInputMethodId(inputMethodId)) {
+            return false;
+        }
+        CommandResult result = executeCommand(
+                "/system/bin/cmd",
+                "input_method",
+                "ime",
+                "set",
+                inputMethodId
+        );
+        return result.succeeded();
+    }
+
+    /**
+     * 输入法 ID 只能是单行组件名，拒绝协议或命令分隔符。
+     */
+    private static boolean isValidInputMethodId(String inputMethodId) {
+        return inputMethodId != null
+                && !inputMethodId.isEmpty()
+                && inputMethodId.indexOf('\n') < 0
+                && inputMethodId.indexOf('\r') < 0
+                && inputMethodId.indexOf('\t') < 0;
+    }
+
+    /**
+     * 执行一次固定 Android 系统命令并收集小型标准输出。
+     *
+     * 仅 imeLock/imeUnlock 调用该方法；高频 setText 不会经过这里，也不会创建外部进程。
+     */
+    private static CommandResult executeCommand(String... command) {
+        try {
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start();
+            byte[] stdout = readAll(process.getInputStream());
+            int exitCode = process.waitFor();
+            return new CommandResult(
+                    exitCode,
+                    new String(stdout, StandardCharsets.UTF_8)
+            );
+        } catch (Exception exception) {
+            return new CommandResult(-1, "");
+        }
+    }
+
+    /**
+     * 读取 ime/settings 的短输出。两条命令输出很小，不会形成管道阻塞。
+     */
+    private static byte[] readAll(InputStream inputStream) throws Exception {
+        try (InputStream source = inputStream; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[256];
+            int count;
+            while ((count = source.read(buffer)) != -1) {
+                output.write(buffer, 0, count);
+            }
+            return output.toByteArray();
+        }
+    }
+
+    /**
+     * 固定系统命令的执行结果。
+     */
+    private static final class CommandResult {
+        private final int exitCode;
+        private final String stdout;
+
+        private CommandResult(int exitCode, String stdout) {
+            this.exitCode = exitCode;
+            this.stdout = stdout == null ? "" : stdout;
+        }
+
+        private boolean succeeded() {
+            return exitCode == 0;
         }
     }
 

@@ -11,6 +11,9 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
+当前 `abiVersion` 为 `8`。新增字段只追加到结构体末尾；插件应先检查版本，再访问新增
+能力。
+
 ## 当前函数表能力
 
 ```c
@@ -42,6 +45,10 @@ typedef struct EngineApi {
     int (*inputText)(const char* text);
     const char* (*getRunEnvType)();
     const char* (*inputLastError)();
+    int (*imeLock)();
+    int (*imeSetText)(const char* text);
+    int (*imeUnlock)();
+    const char* (*imeLastError)();
 } EngineApi;
 ```
 
@@ -52,4 +59,6 @@ typedef struct EngineApi {
 - `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
 - `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前脚本线程运行耗时。
 - `touch/key/inputText` 只走 Root helper 常驻进程，不走无障碍。
+- `imeLock/imeUnlock` 通过 Root helper 保存、切换和恢复系统输入法；`imeSetText` 通过
+  已锁定的 AutoLuaEngine 输入法提交 Unicode 文本，不执行额外 Root 命令。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。

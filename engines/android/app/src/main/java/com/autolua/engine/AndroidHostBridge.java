@@ -134,4 +134,25 @@ public final class AndroidHostBridge {
     public static boolean inputText(String text) {
         return RootHelperBridge.inputText(text);
     }
+
+    /**
+     * 锁定 AutoLuaEngine 输入法并保存原默认输入法。
+     */
+    public static boolean imeLock() {
+        return EngineImeBridge.lock();
+    }
+
+    /**
+     * 通过 AutoLuaEngine 输入法向当前焦点输入框提交完整 Unicode 文本。
+     */
+    public static boolean imeSetText(String text) {
+        return EngineImeBridge.setText(text);
+    }
+
+    /**
+     * 恢复 lock 前保存的默认输入法。
+     */
+    public static boolean imeUnlock() {
+        return EngineImeBridge.unlock();
+    }
 }

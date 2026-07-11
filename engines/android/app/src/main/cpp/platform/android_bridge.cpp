@@ -701,3 +701,15 @@ bool AndroidBridge::keyPress(int keyCode) {
 bool AndroidBridge::inputText(const std::string& text) {
     return callBooleanString("inputText", text);
 }
+
+bool AndroidBridge::imeLock() {
+    return callBoolean0("imeLock");
+}
+
+bool AndroidBridge::imeSetText(const std::string& text) {
+    return callBooleanString("imeSetText", text);
+}
+
+bool AndroidBridge::imeUnlock() {
+    return callBoolean0("imeUnlock");
+}

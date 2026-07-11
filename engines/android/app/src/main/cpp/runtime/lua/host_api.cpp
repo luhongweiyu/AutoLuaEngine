@@ -208,6 +208,34 @@ int luaInputText(lua_State* state) {
     return 1;
 }
 
+/**
+ * Lua 输入法锁定入口。
+ *
+ * 固定 Lua API 只做返回值转换；保存原输入法和系统切换由 libengine.so 的 C ABI
+ * 与 Android Root helper 完成。
+ */
+int luaImeLock(lua_State* state) {
+    lua_pushboolean(state, engine_imeLock());
+    return 1;
+}
+
+/**
+ * Lua 输入法文本提交入口。
+ */
+int luaImeSetText(lua_State* state) {
+    const char* text = luaL_checkstring(state, 1);
+    lua_pushboolean(state, engine_imeSetText(text));
+    return 1;
+}
+
+/**
+ * Lua 输入法解锁入口。
+ */
+int luaImeUnlock(lua_State* state) {
+    lua_pushboolean(state, engine_imeUnlock());
+    return 1;
+}
+
 int luaGetRunEnvType(lua_State* state) {
     lua_pushstring(state, engine_getRunEnvType());
     return 1;
@@ -324,6 +352,13 @@ void registerHostApi(lua_State* state) {
     int colorTableIndex = lua_gettop(state);
     setFunctionField(state, colorTableIndex, "findColors", luaColorsFind);
     lua_setfield(state, hostTableIndex, "color");
+
+    lua_newtable(state);
+    int imeTableIndex = lua_gettop(state);
+    setFunctionField(state, imeTableIndex, "lock", luaImeLock);
+    setFunctionField(state, imeTableIndex, "setText", luaImeSetText);
+    setFunctionField(state, imeTableIndex, "unlock", luaImeUnlock);
+    lua_setfield(state, hostTableIndex, "ime");
 
     lua_setglobal(state, "_host");
 }

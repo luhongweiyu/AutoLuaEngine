@@ -84,4 +84,7 @@ public:
     static bool keyUp(int keyCode);
     static bool keyPress(int keyCode);
     static bool inputText(const std::string& text);
+    static bool imeLock();
+    static bool imeSetText(const std::string& text);
+    static bool imeUnlock();
 };

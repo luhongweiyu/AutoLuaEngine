@@ -131,6 +131,59 @@ public final class RootHelperBridge {
         return requestBooleanCommand("inputText\t" + encoded, 5000);
     }
 
+    /**
+     * 保存当前默认输入法并切换到 AutoLuaEngine 输入法。
+     *
+     * 返回值是 Base64 协议解码后的原输入法组件名；失败时返回 null。该操作只在
+     * imeLib.lock 调用时执行一次系统切换，不参与高频文本提交。
+     */
+    public static String lockInputMethod(String engineInputMethod) {
+        if (!EngineImeBridge.inputMethodComponent().equals(engineInputMethod)) {
+            return null;
+        }
+
+        String encodedPrevious = requestStringCommand("imeLock", 5000);
+        if (encodedPrevious == null || encodedPrevious.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return new String(
+                    Base64.decode(encodedPrevious, Base64.NO_WRAP),
+                    StandardCharsets.UTF_8
+            );
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    /**
+     * 恢复 lock 前默认输入法并禁用 AutoLuaEngine 输入法。
+     */
+    public static boolean unlockInputMethod(
+            String previousInputMethod,
+            String engineInputMethod
+    ) {
+        if (previousInputMethod == null
+                || previousInputMethod.isEmpty()
+                || !EngineImeBridge.inputMethodComponent().equals(engineInputMethod)) {
+            return false;
+        }
+
+        String encodedPrevious = Base64.encodeToString(
+                previousInputMethod.getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        String encodedEngine = Base64.encodeToString(
+                engineInputMethod.getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        return requestBooleanCommand(
+                "imeUnlock\t" + encodedPrevious + "\t" + encodedEngine,
+                5000
+        );
+    }
+
     private static boolean requestBooleanCommand(String command, long timeoutMs) {
         synchronized (LOCK) {
             try {
@@ -140,6 +193,22 @@ public final class RootHelperBridge {
             } catch (IOException | RuntimeException exception) {
                 closeSessionLocked();
                 return false;
+            }
+        }
+    }
+
+    /**
+     * 发送返回文本的 Root helper 命令。
+     */
+    private static String requestStringCommand(String command, long timeoutMs) {
+        synchronized (LOCK) {
+            try {
+                RootHelperSession helper = ensureSessionLocked();
+                RootHelperResponse response = helper.request(command, timeoutMs, null, 0);
+                return response.ok ? response.message : null;
+            } catch (IOException | RuntimeException exception) {
+                closeSessionLocked();
+                return null;
             }
         }
     }

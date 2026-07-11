@@ -11,7 +11,8 @@
 userdata 和元方法，再通过 JNI 调用统一 `JavaInteropBridge`。JS / Go 后续复用
 Java 后端，但使用各自对象包装。
 
-C ABI 使用 snake_case，不带项目缩写，不暴露当前底层路线。
+C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层路线。后缀沿用已确定
+脚本 API 的命名，例如 `engine_inputText`、`engine_imeSetText`，避免跨层出现不同名称。
 
 当前运行时 C ABI：
 
@@ -55,6 +56,15 @@ engine_keyPress
 engine_inputText
 engine_getRunEnvType
 engine_inputLastError
+```
+
+当前输入法 C ABI：
+
+```c
+engine_imeLock
+engine_imeSetText
+engine_imeUnlock
+engine_imeLastError
 ```
 
 当前插件函数表入口：
@@ -207,6 +217,24 @@ const char* engine_inputLastError();
 - `keyCode` 支持数字字符串和 `Home`、`Back`、`VolUp` 等常用标识符。
 - `inputText` 当前通过按键事件输入文本，适合英文、数字和常见符号。
 
+## 输入法 C ABI
+
+```c
+int engine_imeLock();
+int engine_imeSetText(const char* text);
+int engine_imeUnlock();
+const char* engine_imeLastError();
+```
+
+规则：
+
+- `engine_imeLock` 保存当前默认输入法后，启用并切换到 AutoLuaEngine 输入法。
+- `engine_imeSetText` 只通过已经活动的 AutoLuaEngine 输入法提交 Unicode 文本；不会重复
+  执行 Root 命令，也不回退到按键注入或无障碍。
+- `engine_imeUnlock` 恢复 lock 前保存的原默认输入法，并禁用 AutoLuaEngine 输入法。
+- `engine_imeLock` / `engine_imeUnlock` 只走 Root helper；调用失败通过
+  `engine_imeLastError` 获取原因。
+
 ## 插件函数表
 
 ```c
@@ -231,6 +259,9 @@ keyDown(keycode)
 keyUp(keycode)
 keyPress(keycode)
 inputText(text)
+imeLib.lock()
+imeLib.setText(text)
+imeLib.unlock()
 m.sleep(ms)
 m.systemTime()
 m.tickCount()
@@ -240,6 +271,9 @@ m.keepCapture()
 m.releaseCapture()
 m.setCaptureCacheMs(ms)
 m.findColors(x1, y1, x2, y2, dir, sim, colors)
+m.ime.lock()
+m.ime.setText(text)
+m.ime.unlock()
 ```
 
 ## 暂未定义契约
