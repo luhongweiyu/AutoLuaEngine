@@ -42,6 +42,7 @@ public final class ScriptCatalog {
             "main.lua",
             "error.lua",
             "loop.lua",
+            "input.lua",
             "screen.lua",
             "screen_benchmark.lua"
     };

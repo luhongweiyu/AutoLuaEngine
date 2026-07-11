@@ -12,12 +12,13 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
+import android.util.Base64;
 
 /**
  * App 引擎进程访问 root helper 的桥。
  *
  * helper 由 `su -c app_process` 启动一次，后续命令通过 stdin/stdout 传输。
- * 第一版只承接高频截图验证。
+ * 截图和输入注入都走这条常驻通道，不为每个脚本命令拉起外部进程。
  */
 public final class RootHelperBridge {
     private static final Object LOCK = new Object();
@@ -93,6 +94,52 @@ public final class RootHelperBridge {
             } catch (IOException | RuntimeException exception) {
                 closeSessionLocked();
                 return ScreenCaptureResult.failure("root helper 截图失败：" + exception.getMessage());
+            }
+        }
+    }
+
+    public static boolean touchDown(int id, int x, int y) {
+        return requestBooleanCommand("touchDown\t" + id + "\t" + x + "\t" + y, 1000);
+    }
+
+    public static boolean touchMove(int id, int x, int y) {
+        return requestBooleanCommand("touchMove\t" + id + "\t" + x + "\t" + y, 1000);
+    }
+
+    public static boolean touchUp(int id) {
+        return requestBooleanCommand("touchUp\t" + id, 1000);
+    }
+
+    public static boolean keyDown(int keyCode) {
+        return requestBooleanCommand("keyDown\t" + keyCode, 1000);
+    }
+
+    public static boolean keyUp(int keyCode) {
+        return requestBooleanCommand("keyUp\t" + keyCode, 1000);
+    }
+
+    public static boolean keyPress(int keyCode) {
+        return requestBooleanCommand("keyPress\t" + keyCode, 1000);
+    }
+
+    public static boolean inputText(String text) {
+        String safeText = text == null ? "" : text;
+        String encoded = Base64.encodeToString(
+                safeText.getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        return requestBooleanCommand("inputText\t" + encoded, 5000);
+    }
+
+    private static boolean requestBooleanCommand(String command, long timeoutMs) {
+        synchronized (LOCK) {
+            try {
+                RootHelperSession helper = ensureSessionLocked();
+                RootHelperResponse response = helper.request(command, timeoutMs, null, 0);
+                return response.ok && "true".equals(response.message);
+            } catch (IOException | RuntimeException exception) {
+                closeSessionLocked();
+                return false;
             }
         }
     }

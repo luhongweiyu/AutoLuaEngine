@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -24,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 public final class RootHelperMain {
     private static byte[] captureBytes;
     private static ByteBuffer captureBuffer;
+    private static final RootInputInjector INPUT_INJECTOR = new RootInputInjector();
 
     private RootHelperMain() {
     }
@@ -59,6 +61,41 @@ public final class RootHelperMain {
 
             if ("capture".equals(parts[0])) {
                 handleCapture(outputStream, parts);
+                continue;
+            }
+
+            if ("touchDown".equals(parts[0])) {
+                writeBoolean(outputStream, handleTouchDown(parts));
+                continue;
+            }
+
+            if ("touchMove".equals(parts[0])) {
+                writeBoolean(outputStream, handleTouchMove(parts));
+                continue;
+            }
+
+            if ("touchUp".equals(parts[0])) {
+                writeBoolean(outputStream, handleTouchUp(parts));
+                continue;
+            }
+
+            if ("keyDown".equals(parts[0])) {
+                writeBoolean(outputStream, handleKeyDown(parts));
+                continue;
+            }
+
+            if ("keyUp".equals(parts[0])) {
+                writeBoolean(outputStream, handleKeyUp(parts));
+                continue;
+            }
+
+            if ("keyPress".equals(parts[0])) {
+                writeBoolean(outputStream, handleKeyPress(parts));
+                continue;
+            }
+
+            if ("inputText".equals(parts[0])) {
+                writeBoolean(outputStream, handleInputText(parts));
                 continue;
             }
 
@@ -107,6 +144,68 @@ public final class RootHelperMain {
         outputStream.flush();
     }
 
+    private static boolean handleTouchDown(String[] parts) {
+        if (parts.length < 4) {
+            return false;
+        }
+        return INPUT_INJECTOR.touchDown(
+                parseInt(parts[1], -1),
+                parseInt(parts[2], -1),
+                parseInt(parts[3], -1)
+        );
+    }
+
+    private static boolean handleTouchMove(String[] parts) {
+        if (parts.length < 4) {
+            return false;
+        }
+        return INPUT_INJECTOR.touchMove(
+                parseInt(parts[1], -1),
+                parseInt(parts[2], -1),
+                parseInt(parts[3], -1)
+        );
+    }
+
+    private static boolean handleTouchUp(String[] parts) {
+        if (parts.length < 2) {
+            return false;
+        }
+        return INPUT_INJECTOR.touchUp(parseInt(parts[1], -1));
+    }
+
+    private static boolean handleKeyDown(String[] parts) {
+        if (parts.length < 2) {
+            return false;
+        }
+        return INPUT_INJECTOR.keyDown(parseInt(parts[1], 0));
+    }
+
+    private static boolean handleKeyUp(String[] parts) {
+        if (parts.length < 2) {
+            return false;
+        }
+        return INPUT_INJECTOR.keyUp(parseInt(parts[1], 0));
+    }
+
+    private static boolean handleKeyPress(String[] parts) {
+        if (parts.length < 2) {
+            return false;
+        }
+        return INPUT_INJECTOR.keyPress(parseInt(parts[1], 0));
+    }
+
+    private static boolean handleInputText(String[] parts) {
+        if (parts.length < 2) {
+            return false;
+        }
+        try {
+            byte[] bytes = Base64.decode(parts[1], Base64.NO_WRAP);
+            return INPUT_INJECTOR.inputText(new String(bytes, StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
     /**
      * 复用 root helper 进程内的整帧缓冲。
      *
@@ -143,6 +242,10 @@ public final class RootHelperMain {
     private static void writeLine(OutputStream outputStream, String text) throws Exception {
         outputStream.write((text + "\n").getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
+    }
+
+    private static void writeBoolean(OutputStream outputStream, boolean value) throws Exception {
+        writeLine(outputStream, value ? "OK\ttrue" : "OK\tfalse");
     }
 
     private static int parseInt(String value, int defaultValue) {

@@ -33,6 +33,15 @@ typedef struct EngineApi {
     const char* (*captureLastError)();
     int (*findColors)(int x1, int y1, int x2, int y2, int dir, int sim, const char* colors, EnginePoint* point);
     const char* (*findColorsLastError)();
+    int (*touchDown)(int id, int x, int y);
+    int (*touchMove)(int id, int x, int y);
+    int (*touchUp)(int id);
+    int (*keyDown)(const char* keyCode);
+    int (*keyUp)(const char* keyCode);
+    int (*keyPress)(const char* keyCode);
+    int (*inputText)(const char* text);
+    const char* (*getRunEnvType)();
+    const char* (*inputLastError)();
 } EngineApi;
 ```
 
@@ -42,4 +51,5 @@ typedef struct EngineApi {
 - `capture` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
 - `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
 - `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前脚本线程运行耗时。
+- `touch/key/inputText` 只走 Root helper 常驻进程，不走无障碍。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。

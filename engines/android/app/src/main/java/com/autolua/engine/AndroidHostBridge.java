@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
  * Java 平台能力桥。
  *
  * JNI 层只依赖这个稳定类。当前阶段只保留引擎真正需要的入口：
- * 状态读取、Root 模式设置、Root 运行层准备、Root helper 准备和截图。
+ * 状态读取、Root 模式设置、Root helper 准备、截图和 Root 输入注入。
  */
 public final class AndroidHostBridge {
     private static Context appContext;
@@ -95,5 +95,33 @@ public final class AndroidHostBridge {
      */
     public static ScreenCaptureResult captureRootScreen(ByteBuffer targetBuffer, int targetCapacity) {
         return RootScreenCaptureBridge.captureFrame(targetBuffer, targetCapacity);
+    }
+
+    public static boolean touchDown(int id, int x, int y) {
+        return RootHelperBridge.touchDown(id, x, y);
+    }
+
+    public static boolean touchMove(int id, int x, int y) {
+        return RootHelperBridge.touchMove(id, x, y);
+    }
+
+    public static boolean touchUp(int id) {
+        return RootHelperBridge.touchUp(id);
+    }
+
+    public static boolean keyDown(int keyCode) {
+        return RootHelperBridge.keyDown(keyCode);
+    }
+
+    public static boolean keyUp(int keyCode) {
+        return RootHelperBridge.keyUp(keyCode);
+    }
+
+    public static boolean keyPress(int keyCode) {
+        return RootHelperBridge.keyPress(keyCode);
+    }
+
+    public static boolean inputText(String text) {
+        return RootHelperBridge.inputText(text);
     }
 }

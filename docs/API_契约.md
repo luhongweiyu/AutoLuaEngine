@@ -39,6 +39,20 @@ engine_findColors
 engine_findColorsLastError
 ```
 
+当前输入 C ABI：
+
+```c
+engine_touchDown
+engine_touchMove
+engine_touchUp
+engine_keyDown
+engine_keyUp
+engine_keyPress
+engine_inputText
+engine_getRunEnvType
+engine_inputLastError
+```
+
 当前插件函数表入口：
 
 ```c
@@ -147,6 +161,28 @@ const char* engine_findColorsLastError();
 - 找到返回 `1`，`point.x/point.y` 为命中坐标。
 - 未找到或失败返回 `0`，`point.x/point.y` 为 `-1/-1`，原因通过 `engine_findColorsLastError()` 获取。
 
+## 输入 C ABI
+
+```c
+int engine_touchDown(int id, int x, int y);
+int engine_touchMove(int id, int x, int y);
+int engine_touchUp(int id);
+int engine_keyDown(const char* keyCode);
+int engine_keyUp(const char* keyCode);
+int engine_keyPress(const char* keyCode);
+int engine_inputText(const char* text);
+const char* engine_getRunEnvType();
+const char* engine_inputLastError();
+```
+
+规则：
+
+- 输入注入只走 Root helper 常驻进程，不走无障碍。
+- `touchDown` / `touchUp` 在 Lua 层不返回值；C ABI 返回值只用于内部判断和其他语言绑定。
+- `touchMove`、`keyDown`、`keyUp`、`keyPress`、`inputText` 返回布尔语义。
+- `keyCode` 支持数字字符串和 `Home`、`Back`、`VolUp` 等常用标识符。
+- `inputText` 当前通过按键事件输入文本，适合英文、数字和常见符号。
+
 ## 插件函数表
 
 ```c
@@ -160,8 +196,17 @@ C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
 
 ```lua
 print(...)
+sleep(ms)
 systemTime()
 tickCount()
+getRunEnvType()
+touchDown(id, x, y)
+touchMove(id, x, y)
+touchUp(id)
+keyDown(keycode)
+keyUp(keycode)
+keyPress(keycode)
+inputText(text)
 m.sleep(ms)
 m.systemTime()
 m.tickCount()

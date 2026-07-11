@@ -107,6 +107,60 @@ bool callBoolean1(const char* methodName, bool value) {
     return result == JNI_TRUE;
 }
 
+bool callBoolean1Int(const char* methodName, int value) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "(I)Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(gBridgeClass, methodId, static_cast<jint>(value));
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
+bool callBoolean3Int(const char* methodName, int first, int second, int third) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "(III)Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(
+            gBridgeClass,
+            methodId,
+            static_cast<jint>(first),
+            static_cast<jint>(second),
+            static_cast<jint>(third)
+    );
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
+bool callBooleanString(const char* methodName, const std::string& text) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "(Ljava/lang/String;)Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jstring value = env->NewStringUTF(text.c_str());
+    if (clearExceptionIfNeeded(env) || value == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(gBridgeClass, methodId, value);
+    env->DeleteLocalRef(value);
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
 int callInt0(const char* methodName) {
     JNIEnv* env = getEnv();
     jmethodID methodId = staticMethod(env, methodName, "()I");
@@ -618,4 +672,32 @@ ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, siz
         env->DeleteLocalRef(resultObject);
     }
     return result;
+}
+
+bool AndroidBridge::touchDown(int id, int x, int y) {
+    return callBoolean3Int("touchDown", id, x, y);
+}
+
+bool AndroidBridge::touchMove(int id, int x, int y) {
+    return callBoolean3Int("touchMove", id, x, y);
+}
+
+bool AndroidBridge::touchUp(int id) {
+    return callBoolean1Int("touchUp", id);
+}
+
+bool AndroidBridge::keyDown(int keyCode) {
+    return callBoolean1Int("keyDown", keyCode);
+}
+
+bool AndroidBridge::keyUp(int keyCode) {
+    return callBoolean1Int("keyUp", keyCode);
+}
+
+bool AndroidBridge::keyPress(int keyCode) {
+    return callBoolean1Int("keyPress", keyCode);
+}
+
+bool AndroidBridge::inputText(const std::string& text) {
+    return callBooleanString("inputText", text);
 }

@@ -6,18 +6,19 @@
 #include <string>
 
 #include "api/color_api.h"
+#include "api/input_api.h"
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
 #include "../engine/engine_config.h"
 
 namespace {
 
-constexpr int kEngineAbiVersion = 6;
+constexpr int kEngineAbiVersion = 7;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.6\","
+        "\"abiVersion\":\"0.7\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -26,12 +27,14 @@ constexpr const char* kCapabilitiesJson =
         "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
         "\"screenCapture\":[\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
+        "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
 
 thread_local std::string gRuntimeLastError;
 thread_local std::string gScreenLastError;
 thread_local std::string gColorLastError;
+thread_local std::string gInputLastError;
 
 struct CInterruptContext {
     runtime_interrupt_callback callback = nullptr;
@@ -68,7 +71,16 @@ const EngineApi kEngineApi = {
         engine_clearCaptureCache,
         engine_captureLastError,
         engine_findColors,
-        engine_findColorsLastError
+        engine_findColorsLastError,
+        engine_touchDown,
+        engine_touchMove,
+        engine_touchUp,
+        engine_keyDown,
+        engine_keyUp,
+        engine_keyPress,
+        engine_inputText,
+        engine_getRunEnvType,
+        engine_inputLastError
 };
 
 } // namespace
@@ -310,4 +322,106 @@ extern "C" int engine_findColors(
  */
 extern "C" const char* engine_findColorsLastError() {
     return gColorLastError.c_str();
+}
+
+/**
+ * 按住不放。
+ *
+ * Lua 的 touchDown 和后续 JS/Go 的同类调用都走这里，再进入 input_api。
+ */
+extern "C" int engine_touchDown(int id, int x, int y) {
+    if (!autolua::api::inputTouchDown(id, x, y)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 移动已按下的模拟手指。
+ */
+extern "C" int engine_touchMove(int id, int x, int y) {
+    if (!autolua::api::inputTouchMove(id, x, y)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 弹起模拟手指。
+ */
+extern "C" int engine_touchUp(int id) {
+    if (!autolua::api::inputTouchUp(id)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 按下一个按键不弹起。
+ */
+extern "C" int engine_keyDown(const char* keyCode) {
+    if (!autolua::api::inputKeyDown(keyCode)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 弹起一个按键。
+ */
+extern "C" int engine_keyUp(const char* keyCode) {
+    if (!autolua::api::inputKeyUp(keyCode)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 按一下按键并弹起。
+ */
+extern "C" int engine_keyPress(const char* keyCode) {
+    if (!autolua::api::inputKeyPress(keyCode)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 模拟输入文字。
+ */
+extern "C" int engine_inputText(const char* text) {
+    if (!autolua::api::inputText(text)) {
+        gInputLastError = autolua::api::inputLastError();
+        return 0;
+    }
+    gInputLastError.clear();
+    return 1;
+}
+
+/**
+ * 返回当前运行环境类型。
+ */
+extern "C" const char* engine_getRunEnvType() {
+    static thread_local std::string envType;
+    envType = autolua::api::getRunEnvType();
+    return envType.c_str();
+}
+
+/**
+ * 返回最近一次输入 C ABI 失败原因。
+ */
+extern "C" const char* engine_inputLastError() {
+    return gInputLastError.c_str();
 }

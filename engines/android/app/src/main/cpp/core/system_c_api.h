@@ -62,6 +62,15 @@ typedef struct EngineApi {
             EnginePoint* point
     );
     const char* (*findColorsLastError)();
+    int (*touchDown)(int id, int x, int y);
+    int (*touchMove)(int id, int x, int y);
+    int (*touchUp)(int id);
+    int (*keyDown)(const char* keyCode);
+    int (*keyUp)(const char* keyCode);
+    int (*keyPress)(const char* keyCode);
+    int (*inputText)(const char* text);
+    const char* (*getRunEnvType)();
+    const char* (*inputLastError)();
 } EngineApi;
 
 /**
@@ -220,6 +229,60 @@ int engine_findColors(
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* engine_findColorsLastError();
+
+/**
+ * 按住不放。
+ *
+ * id 为模拟手指索引，范围 0 到 4。该函数只走 Root helper 输入注入，不走无障碍。
+ * 返回 1 表示 root helper 注入成功，返回 0 表示失败。
+ */
+int engine_touchDown(int id, int x, int y);
+
+/**
+ * 移动已按下的模拟手指。
+ */
+int engine_touchMove(int id, int x, int y);
+
+/**
+ * 弹起模拟手指。
+ */
+int engine_touchUp(int id);
+
+/**
+ * 按下一个按键不弹起。
+ *
+ * keyCode 支持数字字符串和常用按键标识符，例如 Home、Back、VolUp。
+ */
+int engine_keyDown(const char* keyCode);
+
+/**
+ * 弹起一个按键。
+ */
+int engine_keyUp(const char* keyCode);
+
+/**
+ * 按一下按键并弹起。
+ */
+int engine_keyPress(const char* keyCode);
+
+/**
+ * 模拟输入文字。
+ *
+ * 当前通过 Root 注入 KeyEvent 实现，适合英文、数字和常见符号。
+ */
+int engine_inputText(const char* text);
+
+/**
+ * 返回当前运行环境类型。
+ *
+ * 当前输入注入只认 root；没有可用 Root helper 时返回 none。
+ */
+const char* engine_getRunEnvType();
+
+/**
+ * 返回最近一次输入 C ABI 失败原因。
+ */
+const char* engine_inputLastError();
 
 #ifdef __cplusplus
 }

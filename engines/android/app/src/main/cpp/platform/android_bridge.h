@@ -77,4 +77,11 @@ public:
     static RootStatusResult rootStatus();
 
     static ScreenCaptureResult captureRootScreen(unsigned char** pixels, size_t* capacity);
+    static bool touchDown(int id, int x, int y);
+    static bool touchMove(int id, int x, int y);
+    static bool touchUp(int id);
+    static bool keyDown(int keyCode);
+    static bool keyUp(int keyCode);
+    static bool keyPress(int keyCode);
+    static bool inputText(const std::string& text);
 };

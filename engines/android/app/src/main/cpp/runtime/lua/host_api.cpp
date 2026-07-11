@@ -114,6 +114,77 @@ int luaTickCount(lua_State* state) {
     return 1;
 }
 
+const char* luaKeyCodeToString(lua_State* state, int index) {
+    if (lua_isinteger(state, index)) {
+        lua_pushfstring(state, "%I", lua_tointeger(state, index));
+        return lua_tostring(state, -1);
+    }
+    return luaL_checkstring(state, index);
+}
+
+int luaTouchDown(lua_State* state) {
+    int id = luaCheckInt(state, 1, "id");
+    int x = luaCheckInt(state, 2, "x");
+    int y = luaCheckInt(state, 3, "y");
+    engine_touchDown(id, x, y);
+    return 0;
+}
+
+int luaTouchMove(lua_State* state) {
+    int id = luaCheckInt(state, 1, "id");
+    int x = luaCheckInt(state, 2, "x");
+    int y = luaCheckInt(state, 3, "y");
+    lua_pushboolean(state, engine_touchMove(id, x, y));
+    return 1;
+}
+
+int luaTouchUp(lua_State* state) {
+    int id = luaCheckInt(state, 1, "id");
+    engine_touchUp(id);
+    return 0;
+}
+
+int luaKeyDown(lua_State* state) {
+    const char* keyCode = luaKeyCodeToString(state, 1);
+    bool ok = engine_keyDown(keyCode) != 0;
+    if (lua_isinteger(state, 1)) {
+        lua_pop(state, 1);
+    }
+    lua_pushboolean(state, ok);
+    return 1;
+}
+
+int luaKeyUp(lua_State* state) {
+    const char* keyCode = luaKeyCodeToString(state, 1);
+    bool ok = engine_keyUp(keyCode) != 0;
+    if (lua_isinteger(state, 1)) {
+        lua_pop(state, 1);
+    }
+    lua_pushboolean(state, ok);
+    return 1;
+}
+
+int luaKeyPress(lua_State* state) {
+    const char* keyCode = luaKeyCodeToString(state, 1);
+    bool ok = engine_keyPress(keyCode) != 0;
+    if (lua_isinteger(state, 1)) {
+        lua_pop(state, 1);
+    }
+    lua_pushboolean(state, ok);
+    return 1;
+}
+
+int luaInputText(lua_State* state) {
+    const char* text = luaL_checkstring(state, 1);
+    lua_pushboolean(state, engine_inputText(text));
+    return 1;
+}
+
+int luaGetRunEnvType(lua_State* state) {
+    lua_pushstring(state, engine_getRunEnvType());
+    return 1;
+}
+
 /**
  * Lua 截图入口。
  *
@@ -199,6 +270,14 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, hostTableIndex, "sleep", luaSleep);
     setFunctionField(state, hostTableIndex, "systemTime", luaSystemTime);
     setFunctionField(state, hostTableIndex, "tickCount", luaTickCount);
+    setFunctionField(state, hostTableIndex, "touchDown", luaTouchDown);
+    setFunctionField(state, hostTableIndex, "touchMove", luaTouchMove);
+    setFunctionField(state, hostTableIndex, "touchUp", luaTouchUp);
+    setFunctionField(state, hostTableIndex, "keyDown", luaKeyDown);
+    setFunctionField(state, hostTableIndex, "keyUp", luaKeyUp);
+    setFunctionField(state, hostTableIndex, "keyPress", luaKeyPress);
+    setFunctionField(state, hostTableIndex, "inputText", luaInputText);
+    setFunctionField(state, hostTableIndex, "getRunEnvType", luaGetRunEnvType);
 
     lua_newtable(state);
     int logTableIndex = lua_gettop(state);
