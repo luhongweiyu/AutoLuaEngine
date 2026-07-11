@@ -3,8 +3,9 @@
 ## 当前原则
 
 - 不保留半成品 API。
-- 新增能力先设计 `libengine.so` C ABI。
-- Lua / JS / Go 都绑定同一层 C ABI。
+- 新增系统能力先设计 `libengine.so` C ABI。
+- Lua 当前先走 HostApi；其中系统能力再调用 C ABI。
+- JS / Go 后续接系统能力时也优先绑定同一层 C ABI。
 - 文档只记录当前真实可用能力。
 - 修改后需要提交并推送。
 

@@ -15,7 +15,8 @@ screen_clear_capture_cache
 screen_last_error
 ```
 
-Lua / JS / Go 后续都绑定同一组 C ABI，不各写一套系统调用。
+Lua 当前通过 HostApi 暴露脚本函数；其中截图等系统能力由 HostApi 调用同一组
+C ABI。JS / Go 后续接系统能力时也优先绑定这组 C ABI，不各写一套系统调用。
 
 ## 截图 C ABI
 

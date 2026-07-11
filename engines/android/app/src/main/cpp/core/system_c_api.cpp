@@ -1,5 +1,5 @@
 /**
- * 文件用途：实现给其他语言或 ffi 使用的 C ABI 系统 API 包装。
+ * 文件用途：实现稳定 C ABI 系统能力，供 Lua HostApi 和后续跨语言绑定复用。
  */
 #include "system_c_api.h"
 

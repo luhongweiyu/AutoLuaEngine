@@ -1,8 +1,8 @@
 -- 文件用途：定义 AutoLuaEngine 自己的最小 m 命名空间脚本 API。
 local host = assert(_G._host, "native host api is not registered")
 
--- 当前只暴露已经按新边界整理过的能力。
--- 截图固定走 screen_capture(&w, &h, &pixels) C ABI。
+-- 当前只暴露已经整理过的最小 HostApi 能力。
+-- print/sleep/log 直接走 Lua HostApi，截图固定走 screen_capture(&w, &h, &pixels) C ABI。
 local m = {
     print = host.print,
     sleep = host.sleep,

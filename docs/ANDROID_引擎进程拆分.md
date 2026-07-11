@@ -77,8 +77,9 @@ App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访
 └─ libengine.so / engine_command.cpp
 ```
 
-核心 API 层仍然是 `libengine.so`。Lua、后续 JS、FFI 和插件都应绑定这层统一 API；
-Java Service 只负责进程、权限、Android 系统桥接和 root helper 启动。
+核心能力层仍然是 `libengine.so`。Lua 当前通过 HostApi 进入 native，截图再调用
+C ABI；后续 JS、FFI 和插件接系统能力时也应优先复用同一层 C ABI。Java Service
+只负责进程、权限、Android 系统桥接和 root helper 启动。
 
 2026-07-09 已完成第二次边界收口：
 

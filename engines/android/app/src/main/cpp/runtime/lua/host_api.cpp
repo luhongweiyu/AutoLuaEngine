@@ -1,5 +1,5 @@
 /**
- * 文件用途：注册 Lua 最小 HostApi，把脚本侧 m.capture 等函数连接到 libengine.so 的 screen_* C ABI。
+ * 文件用途：注册 Lua 最小 HostApi；print/sleep/log 直接在 native 实现，截图调用 screen_* C ABI。
  */
 #include "host_api.h"
 

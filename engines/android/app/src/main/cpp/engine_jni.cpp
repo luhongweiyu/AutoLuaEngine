@@ -58,8 +58,8 @@ Java_com_autolua_engine_NativeEngine_nativeCallJson(JNIEnv* env,
                                                     jstring luaRuntimeBootstrap) {
     (void) clazz;
 
-    // Java/HTTP/Service 只传 method + params；实际命令校验、任务控制和系统 API
-    // 调度都在 libengine.so 内完成，保证 IDE、插件和脚本语言后续复用同一入口。
+    // Java/HTTP/Service 只传 method + params；控制命令校验、任务控制和状态查询
+    // 都在 libengine.so 内完成，保证 App、IDE 和后续控制端插件复用同一入口。
     std::string result = handleEngineCommand(
             gEngine,
             jStringToString(env, method),
