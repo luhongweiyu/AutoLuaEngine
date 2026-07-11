@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.PixelFormat;
@@ -22,6 +23,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -64,6 +66,7 @@ public final class FloatingControlService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        RootDaemonService.ensureForCurrentMode(this);
         EngineService.ensureStarted(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         bubbleSizePx = dp(28);
@@ -228,8 +231,8 @@ public final class FloatingControlService extends Service {
         LinearLayout firstRow = createActionRow();
         firstRow.addView(createPanelAction(resolveRunPauseIcon(), resolveRunPauseLabel(), this::runPauseOrResume));
         firstRow.addView(createPanelAction("■", "停止", this::stopRunningScriptFromPanel));
-        firstRow.addView(createPanelAction("隐", "隐藏", this::hideBubbleAndRemember));
-        firstRow.addView(createPanelAction("停", "强停进程", this::forceStopEngineProcess));
+        firstRow.addView(createPanelAction(R.drawable.ic_visibility_off, "隐藏", this::hideBubbleAndRemember));
+        firstRow.addView(createPanelAction(R.drawable.ic_force_stop, "强停进程", this::forceStopEngineProcess));
         panel.addView(firstRow, matchWidthWrapContent());
         return panel;
     }
@@ -242,6 +245,33 @@ public final class FloatingControlService extends Service {
     }
 
     private View createPanelAction(String iconText, String labelText, Runnable action) {
+        TextView icon = new TextView(this);
+        icon.setText(iconText);
+        icon.setTextColor(Color.parseColor("#159FE6"));
+        icon.setTextSize(22);
+        icon.setGravity(Gravity.CENTER);
+        icon.setBackground(makeOvalDrawable(Color.WHITE, Color.TRANSPARENT, 0));
+        return createPanelAction(icon, labelText, action);
+    }
+
+    /**
+     * 创建带矢量图标的悬浮控制项。
+     *
+     * 隐藏和强停使用可辨识图标，避免在紧凑悬浮窗口里依赖单个汉字表达操作。
+     */
+    private View createPanelAction(int iconResource, String labelText, Runnable action) {
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconResource);
+        icon.setImageTintList(ColorStateList.valueOf(Color.parseColor("#159FE6")));
+        icon.setPadding(dp(10), dp(10), dp(10), dp(10));
+        icon.setBackground(makeOvalDrawable(Color.WHITE, Color.TRANSPARENT, 0));
+        return createPanelAction(icon, labelText, action);
+    }
+
+    /**
+     * 组装悬浮控制项的统一点击区域和文字标签。
+     */
+    private View createPanelAction(View icon, String labelText, Runnable action) {
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
@@ -256,12 +286,6 @@ public final class FloatingControlService extends Service {
             action.run();
         });
 
-        TextView icon = new TextView(this);
-        icon.setText(iconText);
-        icon.setTextColor(Color.parseColor("#159FE6"));
-        icon.setTextSize(22);
-        icon.setGravity(Gravity.CENTER);
-        icon.setBackground(makeOvalDrawable(Color.WHITE, Color.TRANSPARENT, 0));
         item.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
         TextView label = new TextView(this);
@@ -332,7 +356,6 @@ public final class FloatingControlService extends Service {
 
     private void stopRunningScriptFromPanel() {
         EngineService.stopScript(this);
-        updateRunningState(EngineService.STATE_STOPPING);
         showToast("已请求停止脚本");
     }
 

@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Root 输入注入器。
  *
- * 该类只在 `su -c app_process ... RootHelperMain` 启动的 root helper 进程中使用。
+ * 该类只在 `su -c app_process ... RootDaemonMain` 启动的 RootDaemon 特权进程中使用。
  * 所有事件直接通过系统 InputManager 注入，不走无障碍，也不每次拉起外部 input 命令。
  */
 final class RootInputInjector {

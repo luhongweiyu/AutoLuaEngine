@@ -1,5 +1,5 @@
 /**
- * 文件用途：Root helper 进程入口，在 su 环境中执行高频 Root 能力。
+ * 文件用途：RootDaemon 的特权命令分发器，执行截图、输入和输入法 Root 能力。
  */
 package com.autolua.engine;
 
@@ -15,16 +15,19 @@ import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 
 /**
- * root helper 常驻进程入口。
+ * RootDaemon 特权命令分发器。
  *
- * 这个类由 `su -c app_process ... com.autolua.engine.RootHelperMain` 启动，
- * 进程 uid=0，不属于普通 App 沙箱。App 的 `:engine` 进程通过 stdin/stdout
- * 与它通讯。协议为“文本头 + 原始二进制帧”，避免 base64 造成大块额外拷贝。
- * 截图、Root 输入注入和输入法切换都通过同一常驻进程完成。普通脚本命令不会反复
- * 启动外部 shell；只有输入法锁定或解锁时才按 Android 系统要求执行一次 ime/settings
- * 命令。
+ * 此类不再作为独立进程入口。RootDaemonMain 负责受限的 loopback socket、客户端认证和
+ * 生命周期；认证完成后把命令交给本类。截图使用“文本头 + 原始二进制帧”，避免 Base64
+ * 造成整帧额外复制。普通脚本命令不会拉起外部 shell；只有输入法锁定或解锁时才按 Android
+ * 系统要求执行一次 ime/settings 命令。
  */
 public final class RootHelperMain {
+    /**
+     * Root 注入器和截图缓冲属于进程内单例。RootDaemon 允许多个客户端连接，但同一时刻
+     * 只允许一个命令操作这些状态，避免二进制截图流与输入事件交叉。
+     */
+    private static final Object COMMAND_LOCK = new Object();
     private static byte[] captureBytes;
     private static ByteBuffer captureBuffer;
     private static final RootInputInjector INPUT_INJECTOR = new RootInputInjector();
@@ -32,86 +35,80 @@ public final class RootHelperMain {
     private RootHelperMain() {
     }
 
-    public static void main(String[] args) {
-        try {
-            runLoop();
-        } catch (Throwable throwable) {
-            writeLine("ERR\troot helper crashed: " + throwable.getMessage());
-        }
-    }
-
-    private static void runLoop() throws Exception {
-        InputStream inputStream = System.in;
-        OutputStream outputStream = System.out;
-
-        String line;
-        while ((line = readLine(inputStream)) != null) {
-            String[] parts = line.split("\t");
-            if (parts.length == 0) {
-                continue;
+    /**
+     * 分发一条已经完成认证的 Root 命令。
+     *
+     * 返回 false 表示当前客户端应关闭，RootDaemon 本身不会因此退出。
+     */
+    static boolean dispatchCommand(OutputStream outputStream, String[] parts) throws Exception {
+        synchronized (COMMAND_LOCK) {
+            if (parts == null || parts.length == 0 || parts[0].isEmpty()) {
+                writeLine(outputStream, "ERR\tunknown command");
+                return true;
             }
 
             if ("ping".equals(parts[0])) {
                 writeLine(outputStream, "OK\tpong");
-                continue;
+                return true;
             }
 
             if ("exit".equals(parts[0])) {
                 writeLine(outputStream, "OK\tbye");
-                return;
+                return false;
             }
 
             if ("capture".equals(parts[0])) {
                 handleCapture(outputStream, parts);
-                continue;
+                return true;
             }
 
             if ("touchDown".equals(parts[0])) {
                 writeBoolean(outputStream, handleTouchDown(parts));
-                continue;
+                return true;
             }
 
             if ("touchMove".equals(parts[0])) {
                 writeBoolean(outputStream, handleTouchMove(parts));
-                continue;
+                return true;
             }
 
             if ("touchUp".equals(parts[0])) {
                 writeBoolean(outputStream, handleTouchUp(parts));
-                continue;
+                return true;
             }
 
             if ("keyDown".equals(parts[0])) {
                 writeBoolean(outputStream, handleKeyDown(parts));
-                continue;
+                return true;
             }
 
             if ("keyUp".equals(parts[0])) {
                 writeBoolean(outputStream, handleKeyUp(parts));
-                continue;
+                return true;
             }
 
             if ("keyPress".equals(parts[0])) {
                 writeBoolean(outputStream, handleKeyPress(parts));
-                continue;
+                return true;
             }
 
             if ("inputText".equals(parts[0])) {
                 writeBoolean(outputStream, handleInputText(parts));
-                continue;
+                return true;
             }
 
             if ("imeLock".equals(parts[0])) {
                 handleImeLock(outputStream);
-                continue;
+                return true;
             }
 
             if ("imeUnlock".equals(parts[0])) {
                 writeBoolean(outputStream, handleImeUnlock(parts));
-                continue;
+                return true;
             }
 
             writeLine(outputStream, "ERR\tunknown command");
+            return true;
         }
     }
 
@@ -408,22 +405,6 @@ public final class RootHelperMain {
         return captureBuffer;
     }
 
-    private static String readLine(InputStream inputStream) throws Exception {
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream(128);
-        int value;
-        while ((value = inputStream.read()) != -1) {
-            if (value == '\n') {
-                return outputStream.toString(StandardCharsets.UTF_8.name());
-            }
-            if (value != '\r') {
-                outputStream.write(value);
-            }
-        }
-        return outputStream.size() == 0
-                ? null
-                : outputStream.toString(StandardCharsets.UTF_8.name());
-    }
-
     private static void writeLine(OutputStream outputStream, String text) throws Exception {
         outputStream.write((text + "\n").getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
@@ -441,12 +422,4 @@ public final class RootHelperMain {
         }
     }
 
-    private static void writeLine(String text) {
-        try {
-            System.out.write((text + "\n").getBytes(StandardCharsets.UTF_8));
-            System.out.flush();
-        } catch (Exception ignored) {
-            // helper 即将退出时不再递归处理输出错误。
-        }
-    }
 }

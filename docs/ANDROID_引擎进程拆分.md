@@ -67,19 +67,23 @@ App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访
 主进程 com.autolua.engine
 ├─ MainActivity
 ├─ FloatingControlService
+├─ RootDaemonService / RootDaemonManager
 └─ Root 模式和悬浮窗权限入口
+
+RootDaemon（uid=0）
+└─ RootDaemonMain：受认证的本机 Root 命令服务
 
 引擎进程 com.autolua.engine:engine
 ├─ EngineService
 ├─ EngineHttpServer
 ├─ NativeEngine
-├─ RootShellBridge / RootHelperBridge
+├─ RootHelperBridge：到 RootDaemon 的已认证 socket 客户端
 └─ libengine.so / engine_command.cpp
 ```
 
 核心能力层仍然是 `libengine.so`。Lua/JS/Go 等语言绑定只做参数转换和返回值封装，
 脚本 API 的真实逻辑统一进入 `libengine.so/core/api`，对外复用通过 `system_c_api`
-C ABI。Java Service 只负责进程、权限、Android 系统桥接和 root helper 启动。
+C ABI。Java Service 只负责进程、权限、Android 系统桥接和 RootDaemon 生命周期。
 
 2026-07-09 已完成第二次边界收口：
 
@@ -87,7 +91,8 @@ C ABI。Java Service 只负责进程、权限、Android 系统桥接和 root hel
 App 主进程
 ├─ MainActivity：UI、脚本选择、Root 模式、悬浮窗权限、状态展示
 ├─ FloatingControlService：悬浮按钮和控制面板
-└─ EngineLocalClient：通过本地 JSON-RPC 查询引擎
+├─ EngineLocalClient：通过本地 JSON-RPC 查询引擎
+└─ RootDaemonService：只在 Root 模式下准备或关闭 RootDaemon
 
 :engine 进程
 ├─ EngineService：进程壳、脚本文件读取、状态广播、强停进程
@@ -101,8 +106,8 @@ App 主进程
 - Java HTTP 层不分发脚本 API 业务命令。
 - `EngineHttpServer` 只把 JSON-RPC 的 `method/params` 传给 `NativeEngine.callJson(...)`。
 - `EngineService` 运行、停止、暂停、继续、切换 Root 模式时，也走同一个 native 命令入口。
-- Root 授权准备只在 `:engine` 启动和切换 Root 模式时做，运行脚本时不重复申请。
-- 强停进程是硬控制，收到强停命令后直接释放服务资源并 kill `:engine`，不等待脚本协作停止。
+- Root 授权和 `su -c app_process` 只由 App 主进程的 RootDaemonService 执行；`:engine` 从不执行 `su`。
+- 强停进程是硬控制，收到强停命令后直接释放 `:engine` 的服务资源并 kill 该进程；主进程和 RootDaemon 保持存活。
 
 验证记录：
 
@@ -145,13 +150,14 @@ FloatingControlService 控制脚本 -> 发送 Intent 给 EngineService
 
 ```text
 Lua -> HostApi -> system_c_api C ABI -> core/api/screen_api -> AndroidBridge -> RootScreenCaptureBridge -> RootHelperBridge
+    -> RootDaemonMain -> RootHelperMain
 ```
 
 当前规则：
 
 - `screen_api` 位于 `libengine.so/core/api`，负责截图缓存、锁帧和 Root 截图分发。
 - `engine_capture` 位于 `system_c_api`，只做 C ABI 参数检查和转发。
-- `RootHelperBridge` 只在 Root 模式准备时启动或恢复常驻 helper。
+- `RootHelperBridge` 只复用 `:engine` 到 RootDaemon 的已认证 socket；它不会探测 Root、启动 `su` 或创建特权进程。
 - 截图缓存由 `libengine.so` 按时间和锁帧状态管理。
 - HTTP 不传输大像素数据。
 
@@ -188,7 +194,7 @@ u0_a51 ... com.autolua.engine:engine
 ```text
 脚本短任务结束 -> 保持 EngineService 存活，方便 IDE 连续运行
 严重崩溃恢复 -> 重启 :engine 进程
-用户手动强停进程 -> 直接 kill :engine，并释放 HTTP server / native runtime
+用户手动强停进程 -> 直接 kill :engine，并释放 HTTP server / native runtime；RootDaemon 不退出
 ```
 
 ## 5. 当前不做
@@ -197,15 +203,28 @@ u0_a51 ... com.autolua.engine:engine
 - 多脚本并发进程池
 - 每次脚本运行都新建进程
 
-## 6. root helper
+## 6. RootDaemon
 
-当前已新增 root helper：
+Root 特权边界已从引擎进程移到 App 主进程：
 
 ```text
-su -c app_process /system/bin com.autolua.engine.RootHelperMain
+MainActivity / FloatingControlService / Root 模式切换
+    -> RootDaemonService（主进程）
+    -> RootDaemonManager
+    -> su -c app_process ... RootDaemonMain（uid=0）
+
+:engine 的 RootHelperBridge
+    -> 127.0.0.1:18381 认证 socket
+    -> RootDaemonMain
+    -> RootHelperMain 命令分发器
 ```
 
-该进程 uid=0。App 引擎进程通过 stdin/stdout 与它通讯，截图使用“文本头 + 原始 RGBA
-帧”协议；触摸、按键和输入法切换使用短文本命令。helper 启动一次后由截图和 Root
-输入注入共同复用；只有 `imeLib.lock()` / `imeLib.unlock()` 按系统要求执行一次输入法
+RootDaemon 只监听回环地址，客户端必须先提交随机令牌。令牌保存在 App 私有目录，RootDaemon
+会监视主进程 PID；主进程消失时主动退出，避免遗留特权服务。
+
+截图仍使用“文本头 + 原始 RGBA 帧”协议；触摸、按键和输入法切换使用短文本命令。RootDaemon
+由截图和 Root 输入注入共同复用，`imeLib.lock()` / `imeLib.unlock()` 才按系统要求执行输入法
 切换命令，`imeLib.setText()` 不创建外部进程。
+
+在 RootDaemon 已就绪后，强停 `:engine` 只会断开该进程的 socket。下次运行脚本会重连同一个
+RootDaemon，不会再次触发 `su` 授权。

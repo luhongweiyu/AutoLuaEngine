@@ -4,13 +4,18 @@
 
 ## 当前行为
 
-- App 启动或切换到 Root 模式时准备 root 运行层。
+- App 主进程在启动或切换到 Root 模式时，通过 `RootDaemonService` 启动一次 RootDaemon。
+- RootDaemon 由 `su -c app_process` 创建，监听仅限本机的认证 socket；`:engine` 只连接它，绝不执行 `su`。
 - `engine_capture` 缓存未命中时，通过当前 Android root 截图路线获取 RGBA 点阵。
 - `touchDown`、`touchMove`、`touchUp`、`keyDown`、`keyUp`、`keyPress`、`inputText`
-  通过常驻 Root helper 注入，不为每条命令拉起 `input` 外部进程。
-- `engine_imeLock` / `engine_imeUnlock` 通过 Root helper 执行系统输入法切换；
+  通过 RootDaemon 注入，不为每条命令拉起 `input` 外部进程。
+- `engine_imeLock` / `engine_imeUnlock` 通过 RootDaemon 执行系统输入法切换；
   `engine_imeSetText` 直接调用已活动的应用输入法，不执行 Root 命令。
 - 失败时直接返回错误，不做路线兜底。
+
+强制停止 `:engine` 时，只会关闭引擎与 RootDaemon 的 socket。RootDaemon 仍由 App 主进程
+持有，因此下次运行脚本会直接重连，不会重新申请 Root 授权。关闭 Root 模式或 App 主进程结束
+时才关闭 RootDaemon。
 
 ## 当前范围
 

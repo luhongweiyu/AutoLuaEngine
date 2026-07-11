@@ -200,8 +200,18 @@ public final class EngineHttpServer {
             return;
         }
 
-        if ("script.stop".equals(method)) {
-            broadcastStatus(EngineService.STATE_STOPPING, "已请求停止脚本");
+        if ("script.stop".equals(method) && result instanceof JSONObject) {
+            JSONObject stopResult = (JSONObject) result;
+            boolean accepted = stopResult.optBoolean("accepted", false);
+            String status = stopResult.optString("status", "unknown");
+            if (EngineService.STATE_STOPPING.equals(status)) {
+                broadcastStatus(
+                        EngineService.STATE_STOPPING,
+                        accepted ? "已请求停止脚本" : "脚本正在停止"
+                );
+            } else {
+                broadcastStatus(EngineService.STATE_FINISHED, "当前没有运行脚本");
+            }
             return;
         }
 

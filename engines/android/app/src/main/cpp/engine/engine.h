@@ -49,8 +49,11 @@ public:
      * 请求停止当前脚本。
      *
      * 当前使用 Lua debug hook 协作取消。不会强杀线程。
+     *
+     * @return true 表示存在运行、暂停或等待暂停的脚本，并已接受停止请求；false 表示
+     * 当前没有可停止脚本，或脚本已经处于 stopping 状态。
      */
-    void requestStop();
+    bool requestStop();
 
     /**
      * 请求暂停当前脚本。

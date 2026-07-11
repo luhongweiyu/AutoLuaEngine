@@ -1,5 +1,5 @@
 /**
- * 文件用途：管理常驻 Root helper 进程，用于高效执行截图等 Root 能力。
+ * 文件用途：管理 :engine 到常驻 RootDaemon 的本地会话，用于高效执行 Root 能力。
  */
 package com.autolua.engine;
 
@@ -12,13 +12,15 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.net.Socket;
 import android.util.Base64;
 
 /**
  * App 引擎进程访问 root helper 的桥。
  *
- * helper 由 `su -c app_process` 启动一次，后续命令通过 stdin/stdout 传输。
- * 截图和输入注入都走这条常驻通道，不为每个脚本命令拉起外部进程。
+ * RootDaemon 由 App 主进程提前通过 `su -c app_process` 启动。:engine 这里只保持一个
+ * 已认证 socket 会话；强停 :engine 只会断开本客户端，不会结束 RootDaemon 或重新执行 su。
+ * 截图和输入注入都走该二进制安全通道，不为每个脚本命令拉起外部进程。
  */
 public final class RootHelperBridge {
     private static final Object LOCK = new Object();
@@ -249,37 +251,29 @@ public final class RootHelperBridge {
     }
 
     private static final class RootHelperSession {
-        private final Process process;
+        private final Socket socket;
         private final BufferedWriter writer;
         private final InputStream rawReader;
         private final ReadableByteChannel rawChannel;
 
-        private RootHelperSession(Process process) {
-            this.process = process;
-            this.rawReader = process.getInputStream();
+        private RootHelperSession(Socket socket) throws IOException {
+            this.socket = socket;
+            this.rawReader = socket.getInputStream();
             this.rawChannel = Channels.newChannel(rawReader);
             this.writer = new BufferedWriter(
-                    new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)
+                    new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
             );
-            startStderrDrainer(process.getErrorStream());
         }
 
         private static RootHelperSession start() throws IOException {
-            String classPath = AndroidHostBridge.appContext().getPackageCodePath();
-            String command = "CLASSPATH="
-                    + RootShellBridge.shellQuote(classPath)
-                    + " app_process /system/bin com.autolua.engine.RootHelperMain";
-            Process process = new ProcessBuilder("su", "-c", command).start();
-            return new RootHelperSession(process);
+            return new RootHelperSession(RootDaemonClient.openAuthenticatedSocket(
+                    AndroidHostBridge.appContext(),
+                    RootDaemonProtocol.CONNECT_TIMEOUT_MS
+            ));
         }
 
         private boolean isAlive() {
-            try {
-                process.exitValue();
-                return false;
-            } catch (IllegalThreadStateException ignored) {
-                return true;
-            }
+            return socket.isConnected() && !socket.isClosed();
         }
 
         private RootHelperResponse request(
@@ -292,37 +286,41 @@ public final class RootHelperBridge {
             writer.write('\n');
             writer.flush();
 
-            long deadline = System.currentTimeMillis() + timeoutMs;
-            while (System.currentTimeMillis() < deadline) {
-                if (rawReader.available() > 0) {
-                    String line = readLine(rawReader);
-                    if (line == null) {
-                        return RootHelperResponse.error("root helper 已退出");
-                    }
-                    if (line.startsWith("OK\t")) {
-                        String message = line.substring(3);
-                        RootHelperPayload payload = readPixelBytesIfNeeded(
-                                message,
-                                targetBuffer,
-                                targetCapacity
-                        );
-                        return RootHelperResponse.ok(message, payload);
-                    }
-                    if (line.startsWith("ERR\t")) {
-                        return RootHelperResponse.error(line.substring(4));
-                    }
-                    continue;
+            // 直接阻塞等待 socket 响应，避免旧轮询方案每条命令额外等待 0 到 10ms。
+            // 响应头及紧随其后的每次原始像素流读取都受 socket 超时保护。
+            socket.setSoTimeout(toSocketTimeout(timeoutMs));
+            try {
+                String line = readLine(rawReader);
+                if (line == null) {
+                    return RootHelperResponse.error("RootDaemon 已关闭");
                 }
-
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    return RootHelperResponse.error("root helper 请求被中断");
+                if (line.startsWith("OK\t")) {
+                    String message = line.substring(3);
+                    RootHelperPayload payload = readPixelBytesIfNeeded(
+                            message,
+                            targetBuffer,
+                            targetCapacity
+                    );
+                    return RootHelperResponse.ok(message, payload);
                 }
+                if (line.startsWith("ERR\t")) {
+                    return RootHelperResponse.error(line.substring(4));
+                }
+                return RootHelperResponse.error("RootDaemon 响应无效");
+            } finally {
+                // 空闲 socket 不保留读超时；下一条命令按自己的时限重新设置。
+                socket.setSoTimeout(0);
             }
+        }
 
-            return RootHelperResponse.error("root helper 请求超时");
+        /**
+         * Socket 超时以 int 表示。业务超时均很短，但此处仍做上限保护，避免 long 转换溢出。
+         */
+        private int toSocketTimeout(long timeoutMs) {
+            if (timeoutMs <= 0L) {
+                return 1;
+            }
+            return (int) Math.min(timeoutMs, Integer.MAX_VALUE);
         }
 
         private String readLine(InputStream inputStream) throws IOException {
@@ -385,30 +383,12 @@ public final class RootHelperBridge {
             return RootHelperPayload.bytes(bytes);
         }
 
-        private void startStderrDrainer(InputStream inputStream) {
-            Thread thread = new Thread(() -> {
-                try (InputStream source = inputStream) {
-                    byte[] buffer = new byte[1024];
-                    while (source.read(buffer) != -1) {
-                        // app_process/su 的 stderr 只需要排空，错误会通过协议返回。
-                    }
-                } catch (IOException ignored) {
-                    // helper 退出时自然结束。
-                }
-            }, "RootHelperStderr");
-            thread.setDaemon(true);
-            thread.start();
-        }
-
-
         private void close() {
             try {
-                writer.write("exit\n");
-                writer.flush();
+                socket.close();
             } catch (IOException ignored) {
-                // helper 可能已经退出。
+                // :engine 退出或 RootDaemon 已关闭时 socket 可能已经断开。
             }
-            process.destroy();
         }
     }
 

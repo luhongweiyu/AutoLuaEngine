@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 文件用途：悬浮控制面板“强停进程”操作的八角停止图标。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,2L16,2L22,8L22,16L16,22L8,22L2,16L2,8Z"
+        android:strokeColor="#159FE6"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8.5,8.5L15.5,15.5M15.5,8.5L8.5,15.5"
+        android:strokeColor="#159FE6"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.1" />
+</vector>

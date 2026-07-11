@@ -58,6 +58,9 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
+    /**
+     * 请求引擎运行共享脚本目录中的真实文件路径。
+     */
     public static void runScriptFile(Context context, String scriptPath) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_RUN_SCRIPT_FILE);
@@ -101,10 +104,8 @@ public final class EngineService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        ScriptCatalog.ensureScriptDirectory(getApplicationContext());
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
-        prepareRootRuntimeOnServiceStart();
     }
 
     @Override
@@ -164,7 +165,6 @@ public final class EngineService extends Service {
     private void shutdownRuntime() {
         EngineHttpServer.stop();
         RootHelperBridge.shutdown();
-        RootShellBridge.shutdown();
     }
 
     private void runScriptFileInternal(String scriptPath) {
@@ -175,7 +175,7 @@ public final class EngineService extends Service {
 
         ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(this, scriptPath);
         if (item == null) {
-            broadcastStatus(STATE_FAILED, "脚本文件不存在：" + scriptPath);
+            broadcastStatus(STATE_FAILED, "脚本文件不存在或脚本目录不可访问");
             return;
         }
         if (!item.runnable) {
@@ -223,32 +223,23 @@ public final class EngineService extends Service {
         worker.start();
     }
 
-    private void prepareRootRuntimeOnServiceStart() {
-        if (!EngineSettings.isRootModeEnabled(this)) {
-            return;
-        }
-
-        try {
-            JSONObject result = callNativeCommand(
-                    "device.setRootModeEnabled",
-                    new JSONObject().put("enabled", true)
-            );
-            if (result.optBoolean("rootAvailable", false)) {
-                broadcastStatus(STATE_FINISHED, "Root 运行层已就绪");
-            } else {
-                broadcastStatus(STATE_FAILED, "Root 模式已开启，但 Root 权限不可用");
-            }
-        } catch (JSONException exception) {
-            broadcastStatus(STATE_FAILED, "Root 初始化参数错误：" + exception.getMessage());
-        } catch (RuntimeException exception) {
-            broadcastStatus(STATE_FAILED, "Root 初始化失败：" + exception.getMessage());
-        }
-    }
-
     private void requestScriptStop() {
         try {
-            callNativeCommand("script.stop", new JSONObject());
-            broadcastStatus(STATE_STOPPING, "已请求停止脚本");
+            JSONObject result = callNativeCommand("script.stop", new JSONObject());
+            boolean accepted = result.optBoolean("accepted", false);
+            String status = result.optString("status", "unknown");
+
+            // 停止命令的实际接受状态由 native 引擎原子判断。这里不能因为用户点击了
+            // “停止”就直接把界面改成 stopping，否则空闲时点击会把悬浮按钮错误标绿。
+            if (STATE_STOPPING.equals(status)) {
+                broadcastStatus(
+                        STATE_STOPPING,
+                        accepted ? "已请求停止脚本" : "脚本正在停止"
+                );
+                return;
+            }
+
+            broadcastStatus(STATE_FINISHED, "当前没有运行脚本");
         } catch (RuntimeException exception) {
             broadcastStatus(STATE_FAILED, "停止脚本失败：" + exception.getMessage());
         }

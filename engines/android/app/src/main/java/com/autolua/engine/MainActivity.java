@@ -3,12 +3,15 @@
  */
 package com.autolua.engine;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -51,6 +54,7 @@ import androidx.core.content.FileProvider;
  */
 public final class MainActivity extends Activity {
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
+    private static final int REQUEST_SCRIPT_STORAGE_PERMISSION = 1003;
     private static final int TAB_SCRIPT = 0;
     private static final int TAB_STATUS = 1;
     private static final int TAB_MARKET = 2;
@@ -88,13 +92,14 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        ensureAppFilesDir();
+        RootDaemonService.ensureForCurrentMode(this);
         EngineService.ensureStarted(this);
-        selectedScript = ScriptCatalog.getSelectedScript(this);
+        selectedScript = null;
         ensureFloatingControlIfEnabled();
         configureSystemBars();
         setContentView(createContentView());
         showTab(TAB_SCRIPT);
+        ensureScriptStorageAccess();
     }
 
     @Override
@@ -215,12 +220,21 @@ public final class MainActivity extends Activity {
                 1f
         ));
 
-        ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
-        if (scripts.length == 0) {
-            list.addView(createEmptyText("当前脚本目录没有文件"), topMarginParams(24));
+        if (!ScriptCatalog.isScriptStorageAccessible(this)) {
+            list.addView(createEmptyText("脚本目录未授权"), topMarginParams(24));
+            list.addView(createSecondaryButton(
+                    View.generateViewId(),
+                    "授权脚本目录",
+                    this::ensureScriptStorageAccess
+            ), topMarginParams(12));
         } else {
-            for (ScriptCatalog.ScriptItem item : scripts) {
-                list.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
+            ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
+            if (scripts.length == 0) {
+                list.addView(createEmptyText("当前脚本目录没有文件"), topMarginParams(24));
+            } else {
+                for (ScriptCatalog.ScriptItem item : scripts) {
+                    list.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
+                }
             }
         }
 
@@ -331,6 +345,19 @@ public final class MainActivity extends Activity {
         TextView floatingHint = createSmallText("悬浮按钮在主进程显示，只负责发送运行、暂停、停止等控制命令。");
         page.addView(floatingHint, topMarginParams(4));
 
+        TextView scriptDirectory = createSmallText(
+                "脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath()
+        );
+        page.addView(scriptDirectory, topMarginParams(SECTION_MARGIN));
+
+        LinearLayout scriptStorageRow = createHorizontalRow();
+        scriptStorageRow.addView(createSecondaryButton(
+                View.generateViewId(),
+                "脚本存储授权",
+                this::ensureScriptStorageAccess
+        ), weightedButtonParams(1f, false));
+        page.addView(scriptStorageRow, topMarginParams(8));
+
         settingsPermissionView = createSmallText("");
         settingsPermissionView.setTextSize(14);
         page.addView(settingsPermissionView, topMarginParams(SECTION_MARGIN));
@@ -361,7 +388,10 @@ public final class MainActivity extends Activity {
 
     private void refreshVisiblePage() {
         selectedScript = ScriptCatalog.getSelectedScript(this);
-        if (currentTab == TAB_STATUS) {
+        if (currentTab == TAB_SCRIPT) {
+            // 从外部编辑器返回后重建列表，立即读取磁盘上的真实文件状态。
+            showTab(TAB_SCRIPT);
+        } else if (currentTab == TAB_STATUS) {
             queryStatusSummary();
         } else if (currentTab == TAB_SETTINGS) {
             updateSettingsPermissionView();
@@ -398,12 +428,12 @@ public final class MainActivity extends Activity {
 
     private void stopRunningScriptFromRunButton() {
         EngineService.stopScript(this);
-        setRunningControls(true);
         setMessage("已请求停止脚本");
     }
 
     private void handleRootModeChanged(CompoundButton button, boolean enabled) {
         EngineSettings.setRootModeEnabled(this, enabled);
+        RootDaemonService.setRootModeEnabled(this, enabled);
         EngineService.setRootModeEnabled(this, enabled);
         setMessage(enabled ? "运行模式已切换为 Root 模式" : "运行模式已切换为无障碍优先");
         updateSettingsPermissionView();
@@ -531,9 +561,9 @@ public final class MainActivity extends Activity {
     }
 
     private void openScriptFile(ScriptCatalog.ScriptItem item) {
-        File file = new File(item.filePath);
-        if (!file.exists()) {
-            setMessage("文件不存在：" + item.fileName);
+        File file = item == null ? null : new File(item.filePath);
+        if (file == null || !file.isFile()) {
+            setMessage("文件不存在：" + (item == null ? "" : item.fileName));
             return;
         }
 
@@ -542,16 +572,22 @@ public final class MainActivity extends Activity {
                 getPackageName() + ".fileprovider",
                 file
         );
-        Intent intent = new Intent(Intent.ACTION_VIEW);
+        // ACTION_EDIT 明确要求外部应用打开可写的共享文件 URI；ClipData 让目录授权在
+        // Android 的 chooser 和目标编辑器之间稳定传递，避免编辑器保存时失去写权限。
+        Intent intent = new Intent(Intent.ACTION_EDIT);
         intent.setDataAndType(uri, resolveMimeType(item.fileName));
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        intent.setClipData(ClipData.newRawUri("脚本文件", uri));
+        int grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+        intent.addFlags(grantFlags);
 
         try {
-            startActivity(Intent.createChooser(intent, "打开文件"));
-            setMessage("已请求打开文件：" + item.fileName);
+            Intent chooser = Intent.createChooser(intent, "编辑文件");
+            chooser.addFlags(grantFlags);
+            startActivity(chooser);
+            setMessage("已交给外部编辑器：" + item.fileName);
         } catch (ActivityNotFoundException exception) {
-            setMessage("没有可打开该文件的应用：" + item.fileName);
+            setMessage("没有可编辑该文件的应用：" + item.fileName);
         }
     }
 
@@ -634,6 +670,9 @@ public final class MainActivity extends Activity {
                 + "\nRoot 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
                 + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
                 + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
+                + "\n脚本存储权限："
+                + formatEnabled(ScriptCatalog.isScriptStorageAccessible(this))
+                + "\n脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath()
                 + "\n调试端口：127.0.0.1:" + EngineSettings.getHttpPort(this));
     }
 
@@ -704,6 +743,11 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_SCRIPT_STORAGE_PERMISSION) {
+            completeScriptStorageSetup();
+            return;
+        }
+
         if (requestCode == REQUEST_OVERLAY_PERMISSION) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                     || Settings.canDrawOverlays(this)) {
@@ -720,9 +764,84 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void ensureAppFilesDir() {
-        getFilesDir();
-        ScriptCatalog.ensureScriptDirectory(this);
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_SCRIPT_STORAGE_PERMISSION) {
+            return;
+        }
+
+        boolean granted = grantResults.length == 2
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                && grantResults[1] == PackageManager.PERMISSION_GRANTED;
+        if (!granted) {
+            setMessage("脚本存储权限未开启");
+            if (pageContainer != null) {
+                showTab(currentTab);
+            }
+            return;
+        }
+        completeScriptStorageSetup();
+    }
+
+    /**
+     * 请求访问真实脚本目录所需的系统授权。
+     *
+     * Android 11 及以上使用所有文件访问页；Android 10 及以下申请传统读写权限。授权完成后
+     * 直接操作固定的 /sdcard/AutoLuaEngine/scripts，不经过目录选择器或私有副本。
+     */
+    private void ensureScriptStorageAccess() {
+        if (ScriptCatalog.isScriptStorageAccessible(this)) {
+            completeScriptStorageSetup();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Intent intent = new Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:" + getPackageName())
+            );
+            startActivityForResult(intent, REQUEST_SCRIPT_STORAGE_PERMISSION);
+            setMessage("请开启所有文件访问权限");
+            return;
+        }
+
+        requestPermissions(
+                new String[] {
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                },
+                REQUEST_SCRIPT_STORAGE_PERMISSION
+        );
+    }
+
+    /**
+     * 在存储权限可用后创建固定目录、复制内置示例并刷新当前页面。
+     */
+    private void completeScriptStorageSetup() {
+        if (!ScriptCatalog.isScriptStorageAccessible(this)) {
+            setMessage("脚本存储权限未开启");
+            if (pageContainer != null) {
+                showTab(currentTab);
+            }
+            return;
+        }
+        if (!ScriptCatalog.ensureScriptDirectory(this)) {
+            setMessage("无法创建脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath());
+            if (pageContainer != null) {
+                showTab(currentTab);
+            }
+            return;
+        }
+
+        selectedScript = ScriptCatalog.getSelectedScript(this);
+        if (pageContainer != null) {
+            showTab(currentTab);
+        }
+        setMessage("脚本目录已就绪：" + ScriptCatalog.getScriptDirectoryDisplayPath());
     }
 
     private void setMessage(String message) {

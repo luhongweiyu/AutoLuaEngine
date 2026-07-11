@@ -221,12 +221,6 @@ std::string commandResult(Engine& engine,
             throw CommandError(-32000, "切换 Root 模式失败");
         }
 
-        if (enabled) {
-            AndroidBridge::prepareRootRuntime();
-            if (AndroidBridge::isRootRuntimeReady()) {
-                AndroidBridge::prepareRootHelper();
-            }
-        }
         return makeDeviceInfoJson();
     }
 
@@ -235,8 +229,15 @@ std::string commandResult(Engine& engine,
     }
 
     if (method == "script.stop") {
-        engine.requestStop();
-        return "{\"accepted\":true}";
+        bool accepted = engine.requestStop();
+        JsonValue status;
+        std::string parseError;
+        parseJsonText(engine.statusJson(0), &status, &parseError);
+        return "{\"accepted\":"
+                + boolText(accepted)
+                + ",\"status\":"
+                + quoteJsonString(status.stringOr("status", "unknown"))
+                + "}";
     }
 
     if (method == "script.pause") {

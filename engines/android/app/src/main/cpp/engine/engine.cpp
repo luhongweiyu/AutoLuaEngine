@@ -138,15 +138,19 @@ std::string Engine::statusJson(int taskId) const {
     return output.str();
 }
 
-void Engine::requestStop() {
+bool Engine::requestStop() {
+    std::lock_guard<std::mutex> lock(taskMutex_);
+    if (!isActiveStatusLocked()) {
+        return false;
+    }
+
+    // stopping 是终止中的明确状态。重复 stop 不重新修改控制位，调用方可以据此保持
+    // UI 的“停止中”状态，而不是把没有运行中的任务误标成运行状态。
+    lastStatus_ = "stopping";
     stopRequested_.store(true);
     pauseRequested_.store(false);
     controlCondition_.notify_all();
-
-    std::lock_guard<std::mutex> lock(taskMutex_);
-    if (isActiveStatusLocked()) {
-        lastStatus_ = "stopping";
-    }
+    return true;
 }
 
 bool Engine::requestPause() {

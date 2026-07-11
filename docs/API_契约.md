@@ -14,6 +14,10 @@ Java 后端，但使用各自对象包装。
 C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层路线。后缀沿用已确定
 脚本 API 的命名，例如 `engine_inputText`、`engine_imeSetText`，避免跨层出现不同名称。
 
+Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`，
+AndroidBridge 再通过 `:engine` 的认证 socket 请求主进程预先启动的 RootDaemon。脚本、JS、Go 和
+插件不会各自启动 `su`，也不需要感知 RootDaemon 的端口或令牌。
+
 当前运行时 C ABI：
 
 ```c
@@ -211,7 +215,7 @@ const char* engine_inputLastError();
 
 规则：
 
-- 输入注入只走 Root helper 常驻进程，不走无障碍。
+- 输入注入只走 RootDaemon 常驻特权进程，不走无障碍。
 - `touchDown` / `touchUp` 在 Lua 层不返回值；C ABI 返回值只用于内部判断和其他语言绑定。
 - `touchMove`、`keyDown`、`keyUp`、`keyPress`、`inputText` 返回布尔语义。
 - `keyCode` 支持数字字符串和 `Home`、`Back`、`VolUp` 等常用标识符。
@@ -232,7 +236,7 @@ const char* engine_imeLastError();
 - `engine_imeSetText` 只通过已经活动的 AutoLuaEngine 输入法提交 Unicode 文本；不会重复
   执行 Root 命令，也不回退到按键注入或无障碍。
 - `engine_imeUnlock` 恢复 lock 前保存的原默认输入法，并禁用 AutoLuaEngine 输入法。
-- `engine_imeLock` / `engine_imeUnlock` 只走 Root helper；调用失败通过
+- `engine_imeLock` / `engine_imeUnlock` 只走 RootDaemon；调用失败通过
   `engine_imeLastError` 获取原因。
 
 ## 插件函数表

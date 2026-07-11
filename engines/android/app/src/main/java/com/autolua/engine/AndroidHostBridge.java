@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
  * Java 平台能力桥。
  *
  * JNI 层只依赖这个稳定类。当前阶段只保留引擎真正需要的入口：
- * 状态读取、Root 模式设置、Root helper 准备、截图和 Root 输入注入。
+ * 状态读取、Root 模式设置、RootDaemon 连接、截图和 Root 输入注入。
  */
 public final class AndroidHostBridge {
     private static Context appContext;
@@ -65,23 +65,25 @@ public final class AndroidHostBridge {
         }
 
         EngineSettings.setRootModeEnabled(appContext, enabled);
+        RootDaemonService.setRootModeEnabled(appContext, enabled);
         return true;
     }
 
     public static boolean isRootAvailable() {
-        return RootShellBridge.isRootAvailable();
+        return RootDaemonClient.status(appContext).available;
     }
 
     public static RootStatus rootStatus() {
-        return RootShellBridge.status();
+        return RootDaemonClient.status(appContext);
     }
 
     public static boolean isRootRuntimeReady() {
-        return RootShellBridge.isRootRuntimeReady();
+        return RootDaemonClient.isReady(appContext);
     }
 
     public static boolean prepareRootRuntime() {
-        return RootShellBridge.prepareRootRuntime().available;
+        // :engine 只能检查主进程已经准备好的 RootDaemon，不能在脚本路径重新执行 su。
+        return RootDaemonClient.isReady(appContext);
     }
 
     public static boolean prepareRootHelper() {
