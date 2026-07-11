@@ -43,14 +43,11 @@ import java.util.Locale;
  * 控制引擎，避免 UI 进程直接持有脚本线程。
  */
 public final class MainActivity extends Activity {
-    public static final String ACTION_REQUEST_SCREEN_CAPTURE =
-            "com.autolua.engine.action.REQUEST_SCREEN_CAPTURE";
     public static final String ACTION_SHOW_LOGS =
             "com.autolua.engine.action.SHOW_LOGS";
     public static final String ACTION_SHOW_SETTINGS =
             "com.autolua.engine.action.SHOW_SETTINGS";
 
-    private static final int REQUEST_SCREEN_CAPTURE = 1001;
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
     private static final int TAB_SCRIPT = 0;
     private static final int TAB_STATUS = 1;
@@ -90,7 +87,6 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ensureAppFilesDir();
-        ScreenCaptureBridge.init(getApplicationContext());
         EngineService.ensureStarted(this);
         selectedScript = ScriptCatalog.getSelectedScript(this);
         ensureFloatingControlIfEnabled();
@@ -128,12 +124,6 @@ public final class MainActivity extends Activity {
 
     private void handleIntent(Intent intent) {
         if (intent == null) {
-            return;
-        }
-
-        if (ACTION_REQUEST_SCREEN_CAPTURE.equals(intent.getAction())) {
-            showTab(TAB_SETTINGS);
-            requestScreenCapture();
             return;
         }
 
@@ -363,15 +353,10 @@ public final class MainActivity extends Activity {
 
         LinearLayout permissionRow = createHorizontalRow();
         permissionRow.addView(createSecondaryButton(
-                R.id.button_request_capture,
-                "截图授权",
-                this::requestScreenCapture
-        ), weightedButtonParams(1f, false));
-        permissionRow.addView(createSecondaryButton(
                 View.generateViewId(),
                 "无障碍设置",
                 this::openAccessibilitySettings
-        ), weightedButtonParams(1f, true));
+        ), weightedButtonParams(1f, false));
         page.addView(permissionRow, topMarginParams(12));
         return scrollView;
     }
@@ -519,15 +504,6 @@ public final class MainActivity extends Activity {
                 || EngineService.STATE_STOPPING.equals(state);
     }
 
-    private void requestScreenCapture() {
-        Intent intent = ScreenCaptureBridge.createCaptureIntent(this);
-        if (intent == null) {
-            setMessage("当前设备不支持截图授权");
-            return;
-        }
-        startActivityForResult(intent, REQUEST_SCREEN_CAPTURE);
-    }
-
     private void startFloatingControl() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
@@ -590,7 +566,6 @@ public final class MainActivity extends Activity {
                     + "\nRoot 模式：" + formatEnabled(deviceInfo.optBoolean("rootModeEnabled", true))
                     + "\nRoot 权限：" + formatEnabled(deviceInfo.optBoolean("rootAvailable", false))
                     + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
-                    + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
                     + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
                     + "\n就绪状态：" + resolveReadyText(deviceInfo, overlayEnabled)
                     + "\n当前脚本：" + (currentScript == null ? "未选择" : currentScript.fileName);
@@ -644,7 +619,6 @@ public final class MainActivity extends Activity {
         settingsPermissionView.setText("权限状态"
                 + "\nRoot 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
                 + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
-                + "\n截图授权：" + formatEnabled(ScreenCaptureBridge.hasPermission())
                 + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
                 + "\n调试端口：127.0.0.1:" + EngineSettings.getHttpPort(this));
     }
@@ -716,18 +690,6 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_SCREEN_CAPTURE) {
-            if (resultCode == RESULT_OK && data != null) {
-                ScreenCaptureBridge.savePermission(resultCode, data);
-                EngineService.saveScreenCapturePermission(this, resultCode, data);
-                setMessage("截图授权已开启");
-            } else {
-                setMessage("截图授权已取消");
-            }
-            updateSettingsPermissionView();
-            return;
-        }
-
         if (requestCode == REQUEST_OVERLAY_PERMISSION) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                     || Settings.canDrawOverlays(this)) {

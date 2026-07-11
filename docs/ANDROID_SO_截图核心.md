@@ -1,6 +1,6 @@
 # Android SO 截图核心
 
-本文记录当前 `libengine.so` 已重写完成的截图核心。旧的图片句柄池、`id` 元信息、`getPixel/getPixels` 暂时已从 native 对外路径移除。
+本文记录当前 `libengine.so` 已重写完成的截图核心。当前接口直接返回宽、高和点阵地址，不再返回中间资源句柄。
 
 ## C ABI
 

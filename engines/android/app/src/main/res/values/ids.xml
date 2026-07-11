@@ -1,22 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="button_run_lua" type="id" />
-    <item name="button_run_error" type="id" />
-    <item name="button_run_loop" type="id" />
-    <item name="button_root_mode_root" type="id" />
-    <item name="button_root_mode_accessibility" type="id" />
-    <item name="button_run_touch" type="id" />
-    <item name="button_request_capture" type="id" />
-    <item name="button_run_screen" type="id" />
-    <item name="button_start_floating" type="id" />
-    <item name="button_pause" type="id" />
-    <item name="button_resume" type="id" />
-    <item name="button_stop" type="id" />
-    <item name="button_script_main" type="id" />
-    <item name="button_script_error" type="id" />
-    <item name="button_script_loop" type="id" />
-    <item name="button_script_touch" type="id" />
-    <item name="button_script_screen" type="id" />
-    <item name="button_script_screen_benchmark" type="id" />
-    <item name="text_output" type="id" />
 </resources>

@@ -1,5 +1,5 @@
 /**
- * 文件用途：声明 Android 平台桥接口，供 SystemApi 调用 Java 侧系统能力。
+ * 文件用途：声明 libengine.so 访问 Android Java 层的最小平台桥。
  */
 #pragma once
 
@@ -7,6 +7,12 @@
 #include <string>
 #include <vector>
 
+/**
+ * 截图结果。
+ *
+ * 该结构只在 native 内部使用，C ABI 不直接暴露它。像素在 AndroidBridge 中会被
+ * 整理成 width * height * 4 的紧凑 RGBA 缓冲，供 system_c_api 再返回给脚本层。
+ */
 struct ScreenCaptureResult {
     bool success = false;
     std::vector<unsigned char> pixels;
@@ -14,21 +20,14 @@ struct ScreenCaptureResult {
     int height = 0;
     int rowStride = 0;
     int pixelStride = 0;
-    std::string format;
     std::string source;
     long long captureDurationMs = 0;
     std::string error;
 };
 
-struct RootExecResult {
-    bool success = false;
-    int exitCode = -1;
-    std::string stdoutText;
-    std::string stderrText;
-    bool timedOut = false;
-    std::string error;
-};
-
+/**
+ * Root 授权探测的一次尝试记录。
+ */
 struct RootProbeAttempt {
     std::string commandMode;
     std::string suPath;
@@ -39,6 +38,9 @@ struct RootProbeAttempt {
     std::string error;
 };
 
+/**
+ * Root 运行层状态。
+ */
 struct RootStatusResult {
     bool available = false;
     std::string commandMode;
@@ -52,8 +54,8 @@ struct RootStatusResult {
 /**
  * Android 平台能力桥。
  *
- * Native 层需要调用 Java/Kotlin 系统能力时统一从这里进入。
- * 当前用于 root 状态检测、截图、文件、设备和应用控制。
+ * 这里是 libengine.so 到 Java 的唯一 JNI 边界。当前只保留引擎状态、Root 初始化
+ * 和 Root 截图入口；其他系统能力未在此层暴露。
  */
 class AndroidBridge {
 public:
@@ -63,6 +65,7 @@ public:
     static int apiLevel();
     static int httpPort();
     static std::string packageName();
+
     static bool isRootModeEnabled();
     static bool setRootModeEnabled(bool enabled);
     static bool isRootAvailable();
@@ -70,69 +73,6 @@ public:
     static bool prepareRootRuntime();
     static bool prepareRootHelper();
     static RootStatusResult rootStatus();
-    static RootExecResult rootExec(const std::string& command, int timeoutMs);
-    static RootExecResult rootFileExists(const std::string& path);
-    static RootExecResult rootFileReadText(const std::string& path, int timeoutMs);
-    static RootExecResult rootFileWriteText(
-            const std::string& path,
-            const std::string& content,
-            int timeoutMs
-    );
-    static RootExecResult rootFileStat(const std::string& path);
-    static RootExecResult rootFileList(const std::string& path);
-    static RootExecResult rootFileRemove(const std::string& path, bool recursive);
-    static RootExecResult rootFileMkdir(const std::string& path, bool recursive);
-    static RootExecResult rootFileChmod(const std::string& path, const std::string& mode);
-    static RootExecResult rootFileChown(const std::string& path, const std::string& owner);
-    static RootExecResult rootProcessPidOf(const std::string& processName);
-    static RootExecResult rootProcessList();
-    static RootExecResult rootProcessInfo(const std::string& pidOrName);
-    static RootExecResult rootProcessStats(const std::string& pidOrName);
-    static RootExecResult rootProcessKill(const std::string& pidOrName, int signal);
-    static RootExecResult deviceScreenState();
-    static RootExecResult deviceWake();
-    static RootExecResult deviceSleep();
-    static RootExecResult deviceBattery();
-    static RootExecResult deviceRotation();
-    static RootExecResult deviceSetRotation(int rotation, bool locked);
-    static RootExecResult deviceSettingsGet(const std::string& namespaceName, const std::string& key);
-    static RootExecResult deviceSettingsPut(
-            const std::string& namespaceName,
-            const std::string& key,
-            const std::string& value
-    );
-    static RootExecResult deviceSettingsDelete(const std::string& namespaceName, const std::string& key);
-    static RootExecResult devicePropGet(const std::string& key);
-    static RootExecResult devicePropSet(const std::string& key, const std::string& value);
-    static RootExecResult deviceDisplayInfo();
-    static RootExecResult deviceDisplaySetSize(int width, int height);
-    static RootExecResult deviceDisplayResetSize();
-    static RootExecResult deviceDisplaySetDensity(int density);
-    static RootExecResult deviceDisplayResetDensity();
-    static RootExecResult deviceDisplaySetBrightness(int brightness);
-    static RootExecResult deviceDisplaySetAutoBrightness(bool enabled);
-    static bool appIsInstalled(const std::string& packageName);
-    static bool appOpen(const std::string& packageName);
-    static bool appStop(const std::string& packageName);
-    static bool appClearData(const std::string& packageName);
-    static bool appGrantPermission(
-            const std::string& packageName,
-            const std::string& permissionName
-    );
-    static bool appRevokePermission(
-            const std::string& packageName,
-            const std::string& permissionName
-    );
-    static RootExecResult appCurrent();
-    static bool appInstall(const std::string& apkPath, bool replace);
-    static bool appUninstall(const std::string& packageName, bool keepData);
-    static bool appDisable(const std::string& packageName);
-    static bool appEnable(const std::string& packageName);
-    static bool appDisableComponent(const std::string& componentName);
-    static bool appEnableComponent(const std::string& componentName);
-    static bool hasScreenCapturePermission();
-    static ScreenCaptureResult captureScreen();
-    static ScreenCaptureResult captureRootScreen();
 
-private:
+    static ScreenCaptureResult captureRootScreen();
 };

@@ -34,8 +34,6 @@ public final class EngineService extends Service {
             "com.autolua.engine.action.RESUME_SCRIPT";
     public static final String ACTION_SET_ROOT_MODE =
             "com.autolua.engine.action.SET_ROOT_MODE";
-    public static final String ACTION_SAVE_SCREEN_CAPTURE_PERMISSION =
-            "com.autolua.engine.action.SAVE_SCREEN_CAPTURE_PERMISSION";
     public static final String ACTION_FORCE_STOP_ENGINE_PROCESS =
             "com.autolua.engine.action.FORCE_STOP_ENGINE_PROCESS";
     public static final String ACTION_STATUS =
@@ -43,8 +41,6 @@ public final class EngineService extends Service {
 
     public static final String EXTRA_SCRIPT_PATH = "scriptPath";
     public static final String EXTRA_ENABLED = "enabled";
-    public static final String EXTRA_RESULT_CODE = "resultCode";
-    public static final String EXTRA_RESULT_DATA = "resultData";
     public static final String EXTRA_STATE = "state";
     public static final String EXTRA_MESSAGE = "message";
 
@@ -102,19 +98,10 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
-    public static void saveScreenCapturePermission(Context context, int resultCode, Intent resultData) {
-        Intent intent = new Intent(context, EngineService.class);
-        intent.setAction(ACTION_SAVE_SCREEN_CAPTURE_PERMISSION);
-        intent.putExtra(EXTRA_RESULT_CODE, resultCode);
-        intent.putExtra(EXTRA_RESULT_DATA, resultData);
-        context.startService(intent);
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
         ScriptCatalog.ensureScriptDirectory(getApplicationContext());
-        ScreenCaptureBridge.init(getApplicationContext());
         NativeEngine.init(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
         prepareRootRuntimeOnServiceStart();
@@ -157,19 +144,6 @@ public final class EngineService extends Service {
 
         if (ACTION_SET_ROOT_MODE.equals(intent.getAction())) {
             setRootModeFromNative(intent.getBooleanExtra(EXTRA_ENABLED, true));
-            return START_STICKY;
-        }
-
-        if (ACTION_SAVE_SCREEN_CAPTURE_PERMISSION.equals(intent.getAction())) {
-            int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0);
-            Intent resultData = intent.getParcelableExtra(EXTRA_RESULT_DATA);
-            if (resultData == null) {
-                broadcastStatus(STATE_FAILED, "截图授权数据为空");
-                return START_STICKY;
-            }
-
-            ScreenCaptureBridge.savePermission(resultCode, resultData);
-            broadcastStatus(STATE_FINISHED, "截图授权已同步到引擎进程");
             return START_STICKY;
         }
 

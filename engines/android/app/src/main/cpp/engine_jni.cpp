@@ -6,10 +6,8 @@
 
 #include "engine/engine.h"
 #include "engine/engine_command.h"
-#include "core/system_api.h"
+#include "platform/android_bridge.h"
 #include "runtime/common/log_buffer.h"
-
-using autolua::core::SystemApi;
 
 namespace {
 
@@ -46,7 +44,7 @@ Java_com_autolua_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
     // Lua Runtime 会在下一阶段接入，避免一次改动混入太多变量。
     JavaVM* javaVm = nullptr;
     env->GetJavaVM(&javaVm);
-    SystemApi::init(javaVm);
+    AndroidBridge::init(javaVm);
 
     gEngine.init();
     logInfo("native engine initialized");

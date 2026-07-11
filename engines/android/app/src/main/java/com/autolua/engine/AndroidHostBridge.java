@@ -1,5 +1,5 @@
 /**
- * 文件用途：给 libengine.so 暴露 Android 平台能力入口，并把调用分发到具体 Bridge。
+ * 文件用途：给 libengine.so 暴露 Android 平台状态、Root 初始化和 Root 截图入口。
  */
 package com.autolua.engine;
 
@@ -8,8 +8,8 @@ import android.content.Context;
 /**
  * Java 平台能力桥。
  *
- * Native HostApi 需要调用 Android 系统能力时，统一通过这里进入 Java 层。
- * 这样 JNI 只依赖一个稳定类，不直接散落调用 Activity 或 Service。
+ * JNI 层只依赖这个稳定类。当前阶段只保留引擎真正需要的入口：
+ * 状态读取、Root 模式设置、Root 运行层准备、Root helper 准备和截图。
  */
 public final class AndroidHostBridge {
     private static Context appContext;
@@ -43,6 +43,19 @@ public final class AndroidHostBridge {
         return appContext == null ? "" : appContext.getPackageName();
     }
 
+    public static boolean isRootModeEnabled() {
+        return appContext == null || EngineSettings.isRootModeEnabled(appContext);
+    }
+
+    public static boolean setRootModeEnabled(boolean enabled) {
+        if (appContext == null) {
+            return false;
+        }
+
+        EngineSettings.setRootModeEnabled(appContext, enabled);
+        return true;
+    }
+
     public static boolean isRootAvailable() {
         return RootShellBridge.isRootAvailable();
     }
@@ -63,225 +76,12 @@ public final class AndroidHostBridge {
         return RootHelperBridge.prepare();
     }
 
-    public static boolean isRootModeEnabled() {
-        return isRootModeEnabledInternal();
-    }
-
-    public static boolean setRootModeEnabled(boolean enabled) {
-        if (appContext == null) {
-            return false;
-        }
-        EngineSettings.setRootModeEnabled(appContext, enabled);
-        return true;
-    }
-
-    public static RootCommandResult rootExec(String command, int timeoutMs) {
-        return RootShellBridge.exec(command, timeoutMs);
-    }
-
-    public static RootCommandResult rootFileExists(String path) {
-        return RootShellBridge.fileExists(path);
-    }
-
-    public static RootCommandResult rootFileReadText(String path, int timeoutMs) {
-        return RootShellBridge.readTextFile(path, timeoutMs);
-    }
-
-    public static RootCommandResult rootFileWriteText(String path, String content, int timeoutMs) {
-        return RootShellBridge.writeTextFile(path, content, timeoutMs);
-    }
-
-    public static RootCommandResult rootFileStat(String path) {
-        return RootShellBridge.statFile(path);
-    }
-
-    public static RootCommandResult rootFileList(String path) {
-        return RootShellBridge.listFiles(path);
-    }
-
-    public static RootCommandResult rootFileRemove(String path, boolean recursive) {
-        return RootShellBridge.removeFile(path, recursive);
-    }
-
-    public static RootCommandResult rootFileMkdir(String path, boolean recursive) {
-        return RootShellBridge.makeDirectory(path, recursive);
-    }
-
-    public static RootCommandResult rootFileChmod(String path, String mode) {
-        return RootShellBridge.chmod(path, mode);
-    }
-
-    public static RootCommandResult rootFileChown(String path, String owner) {
-        return RootShellBridge.chown(path, owner);
-    }
-
-    public static RootCommandResult rootProcessPidOf(String processName) {
-        return RootShellBridge.pidOf(processName);
-    }
-
-    public static RootCommandResult rootProcessList() {
-        return RootShellBridge.listProcesses();
-    }
-
-    public static RootCommandResult rootProcessInfo(String pidOrName) {
-        return RootShellBridge.processInfo(pidOrName);
-    }
-
-    public static RootCommandResult rootProcessStats(String pidOrName) {
-        return RootShellBridge.processStats(pidOrName);
-    }
-
-    public static RootCommandResult rootProcessKill(String pidOrName, int signal) {
-        return RootShellBridge.killProcess(pidOrName, signal);
-    }
-
-    public static RootCommandResult deviceScreenState() {
-        return DeviceControlBridge.screenState();
-    }
-
-    public static RootCommandResult deviceWake() {
-        return DeviceControlBridge.wake();
-    }
-
-    public static RootCommandResult deviceSleep() {
-        return DeviceControlBridge.sleep();
-    }
-
-    public static RootCommandResult deviceBattery() {
-        return DeviceControlBridge.battery();
-    }
-
-    public static RootCommandResult deviceRotation() {
-        return DeviceControlBridge.rotation();
-    }
-
-    public static RootCommandResult deviceSetRotation(int rotation, boolean locked) {
-        return DeviceControlBridge.setRotation(rotation, locked);
-    }
-
-    public static RootCommandResult deviceSettingsGet(String namespace, String key) {
-        return DeviceSystemBridge.settingsGet(namespace, key);
-    }
-
-    public static RootCommandResult deviceSettingsPut(String namespace, String key, String value) {
-        return DeviceSystemBridge.settingsPut(namespace, key, value);
-    }
-
-    public static RootCommandResult deviceSettingsDelete(String namespace, String key) {
-        return DeviceSystemBridge.settingsDelete(namespace, key);
-    }
-
-    public static RootCommandResult devicePropGet(String key) {
-        return DeviceSystemBridge.propGet(key);
-    }
-
-    public static RootCommandResult devicePropSet(String key, String value) {
-        return DeviceSystemBridge.propSet(key, value);
-    }
-
-    public static RootCommandResult deviceDisplayInfo() {
-        return DeviceDisplayBridge.info();
-    }
-
-    public static RootCommandResult deviceDisplaySetSize(int width, int height) {
-        return DeviceDisplayBridge.setSize(width, height);
-    }
-
-    public static RootCommandResult deviceDisplayResetSize() {
-        return DeviceDisplayBridge.resetSize();
-    }
-
-    public static RootCommandResult deviceDisplaySetDensity(int density) {
-        return DeviceDisplayBridge.setDensity(density);
-    }
-
-    public static RootCommandResult deviceDisplayResetDensity() {
-        return DeviceDisplayBridge.resetDensity();
-    }
-
-    public static RootCommandResult deviceDisplaySetBrightness(int brightness) {
-        return DeviceDisplayBridge.setBrightness(brightness);
-    }
-
-    public static RootCommandResult deviceDisplaySetAutoBrightness(boolean enabled) {
-        return DeviceDisplayBridge.setAutoBrightness(enabled);
-    }
-
-    public static boolean appIsInstalled(String packageName) {
-        return appContext != null && AppControlBridge.isInstalled(appContext, packageName);
-    }
-
-    public static boolean appOpen(String packageName) {
-        return appContext != null
-                && AppControlBridge.open(appContext, packageName, isRootModeEnabledInternal());
-    }
-
-    public static boolean appStop(String packageName) {
-        return AppControlBridge.stop(packageName);
-    }
-
-    public static boolean appClearData(String packageName) {
-        return AppControlBridge.clearData(packageName);
-    }
-
-    public static boolean appGrantPermission(String packageName, String permissionName) {
-        return AppControlBridge.grantPermission(packageName, permissionName);
-    }
-
-    public static boolean appRevokePermission(String packageName, String permissionName) {
-        return AppControlBridge.revokePermission(packageName, permissionName);
-    }
-
-    public static RootCommandResult appCurrent() {
-        return AppControlBridge.current();
-    }
-
-    public static boolean appInstall(String apkPath, boolean replace) {
-        return AppControlBridge.install(apkPath, replace);
-    }
-
-    public static boolean appUninstall(String packageName, boolean keepData) {
-        return AppControlBridge.uninstall(packageName, keepData);
-    }
-
-    public static boolean appDisable(String packageName) {
-        return AppControlBridge.disable(packageName);
-    }
-
-    public static boolean appEnable(String packageName) {
-        return AppControlBridge.enable(packageName);
-    }
-
-    public static boolean appDisableComponent(String componentName) {
-        return AppControlBridge.disableComponent(componentName);
-    }
-
-    public static boolean appEnableComponent(String componentName) {
-        return AppControlBridge.enableComponent(componentName);
-    }
-
-    public static boolean hasScreenCapturePermission() {
-        return isRootModeEnabledInternal()
-                ? RootShellBridge.isRootRuntimeReady()
-                : ScreenCaptureBridge.hasPermission();
-    }
-
-    public static ScreenCaptureResult captureScreen() {
-        return isRootModeEnabledInternal()
-                ? RootScreenCaptureBridge.captureFrame()
-                : ScreenCaptureBridge.captureFrame();
-    }
-
     /**
-     * 只走 root 的截图入口。
+     * Root 截图入口。
      *
-     * 这个接口只走 root 模式截图路线，不在失败后切到 MediaProjection。
+     * C ABI 的 screen_capture 只走这里，不在失败时切换到其他截图路线。
      */
     public static ScreenCaptureResult captureRootScreen() {
         return RootScreenCaptureBridge.captureFrame();
-    }
-
-    private static boolean isRootModeEnabledInternal() {
-        return appContext == null || EngineSettings.isRootModeEnabled(appContext);
     }
 }

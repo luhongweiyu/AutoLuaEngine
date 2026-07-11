@@ -253,7 +253,6 @@ public final class FloatingControlService extends Service {
         panel.addView(firstRow, matchWidthWrapContent());
 
         LinearLayout secondRow = createActionRow();
-        secondRow.addView(createPanelAction("照", "截图", this::openScreenCapturePermission));
         secondRow.addView(createPanelAction("志", "日志", this::openLogPanel));
         secondRow.addView(createPanelAction("设", "设置", this::openSettingsPanel));
         LinearLayout.LayoutParams secondRowParams = matchWidthWrapContent();
@@ -348,14 +347,6 @@ public final class FloatingControlService extends Service {
         EngineSettings.setFloatingPanelExpanded(this, false);
         removePanelView();
         showToast("已强制停止引擎进程");
-    }
-
-    private void openScreenCapturePermission() {
-        EngineSettings.setFloatingPanelExpanded(this, false);
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setAction(MainActivity.ACTION_REQUEST_SCREEN_CAPTURE);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
     }
 
     private void openLogPanel() {

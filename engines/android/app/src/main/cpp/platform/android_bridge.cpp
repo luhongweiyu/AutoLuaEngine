@@ -1,15 +1,16 @@
 /**
- * 文件用途：实现 native 到 Java AndroidHostBridge 的 JNI 平台调用桥。
+ * 文件用途：实现 libengine.so 到 AndroidHostBridge 的最小 JNI 调用桥。
  */
 #include "android_bridge.h"
 
 #include <cstring>
+#include <mutex>
 
 namespace {
 
 JavaVM* gJavaVm = nullptr;
-
-std::string jStringToString(JNIEnv* env, jstring value);
+jclass gBridgeClass = nullptr;
+std::mutex gBridgeMutex;
 
 JNIEnv* getEnv() {
     if (gJavaVm == nullptr) {
@@ -22,283 +23,11 @@ JNIEnv* getEnv() {
         return env;
     }
 
-    if (result == JNI_EDETACHED) {
-        if (gJavaVm->AttachCurrentThread(&env, nullptr) == JNI_OK) {
-            return env;
-        }
+    if (result == JNI_EDETACHED && gJavaVm->AttachCurrentThread(&env, nullptr) == JNI_OK) {
+        return env;
     }
 
     return nullptr;
-}
-
-bool callStaticBooleanMethod0(const char* methodName, const char* signature) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
-}
-
-int callStaticIntMethod0(const char* methodName, const char* signature) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return 0;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return 0;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return 0;
-    }
-
-    jint result = env->CallStaticIntMethod(bridgeClass, methodId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return 0;
-    }
-
-    env->DeleteLocalRef(bridgeClass);
-    return static_cast<int>(result);
-}
-
-std::string callStaticStringMethod0(const char* methodName, const char* signature) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return "";
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return "";
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return "";
-    }
-
-    jstring value = static_cast<jstring>(env->CallStaticObjectMethod(bridgeClass, methodId));
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return "";
-    }
-
-    std::string result = jStringToString(env, value);
-    if (value != nullptr) {
-        env->DeleteLocalRef(value);
-    }
-    env->DeleteLocalRef(bridgeClass);
-    return result;
-}
-
-bool callStaticBooleanMethod1(const char* methodName, const char* signature, jint value) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId, value);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
-}
-
-bool callStaticBooleanStringMethod(const char* methodName,
-                                   const char* signature,
-                                   const std::string& value) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jstring javaValue = env->NewStringUTF(value.c_str());
-    if (javaValue == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(bridgeClass, methodId, javaValue);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(javaValue);
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(javaValue);
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
-}
-
-bool callStaticBooleanStringStringMethod(const char* methodName,
-                                         const char* signature,
-                                         const std::string& first,
-                                         const std::string& second) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jstring firstString = env->NewStringUTF(first.c_str());
-    jstring secondString = env->NewStringUTF(second.c_str());
-    if (firstString == nullptr || secondString == nullptr) {
-        if (firstString != nullptr) {
-            env->DeleteLocalRef(firstString);
-        }
-        if (secondString != nullptr) {
-            env->DeleteLocalRef(secondString);
-        }
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(
-            bridgeClass,
-            methodId,
-            firstString,
-            secondString
-    );
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(secondString);
-        env->DeleteLocalRef(firstString);
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(secondString);
-    env->DeleteLocalRef(firstString);
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
-}
-
-bool callStaticBooleanStringBooleanMethod(const char* methodName,
-                                          const char* signature,
-                                          const std::string& value,
-                                          bool flag) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return false;
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return false;
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jstring javaValue = env->NewStringUTF(value.c_str());
-    if (javaValue == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    jboolean result = env->CallStaticBooleanMethod(
-            bridgeClass,
-            methodId,
-            javaValue,
-            flag ? JNI_TRUE : JNI_FALSE
-    );
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(javaValue);
-        env->DeleteLocalRef(bridgeClass);
-        return false;
-    }
-
-    env->DeleteLocalRef(javaValue);
-    env->DeleteLocalRef(bridgeClass);
-    return result == JNI_TRUE;
 }
 
 std::string jStringToString(JNIEnv* env, jstring value) {
@@ -316,490 +45,123 @@ std::string jStringToString(JNIEnv* env, jstring value) {
     return result;
 }
 
-ScreenCaptureResult makeCaptureFailure(const std::string& error) {
+jclass bridgeClass(JNIEnv* env) {
+    if (env == nullptr || gBridgeClass == nullptr) {
+        return nullptr;
+    }
+    return gBridgeClass;
+}
+
+bool clearExceptionIfNeeded(JNIEnv* env) {
+    if (env != nullptr && env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return true;
+    }
+    return false;
+}
+
+jmethodID staticMethod(JNIEnv* env, const char* methodName, const char* signature) {
+    jclass clazz = bridgeClass(env);
+    if (clazz == nullptr) {
+        return nullptr;
+    }
+
+    jmethodID methodId = env->GetStaticMethodID(clazz, methodName, signature);
+    if (methodId == nullptr) {
+        clearExceptionIfNeeded(env);
+    }
+    return methodId;
+}
+
+bool callBoolean0(const char* methodName) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "()Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(gBridgeClass, methodId);
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
+bool callBoolean1(const char* methodName, bool value) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "(Z)Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(
+            gBridgeClass,
+            methodId,
+            value ? JNI_TRUE : JNI_FALSE
+    );
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
+int callInt0(const char* methodName) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "()I");
+    if (env == nullptr || methodId == nullptr) {
+        return 0;
+    }
+
+    jint result = env->CallStaticIntMethod(gBridgeClass, methodId);
+    if (clearExceptionIfNeeded(env)) {
+        return 0;
+    }
+    return static_cast<int>(result);
+}
+
+std::string callString0(const char* methodName) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "()Ljava/lang/String;");
+    if (env == nullptr || methodId == nullptr) {
+        return "";
+    }
+
+    jstring value = static_cast<jstring>(env->CallStaticObjectMethod(gBridgeClass, methodId));
+    if (clearExceptionIfNeeded(env)) {
+        return "";
+    }
+
+    std::string result = jStringToString(env, value);
+    if (value != nullptr) {
+        env->DeleteLocalRef(value);
+    }
+    return result;
+}
+
+ScreenCaptureResult captureFailure(const std::string& error) {
     ScreenCaptureResult result;
     result.success = false;
     result.error = error;
     return result;
 }
 
-RootExecResult makeRootExecFailure(const std::string& error) {
-    RootExecResult result;
-    result.success = false;
-    result.exitCode = -1;
-    result.error = error;
-    return result;
-}
-
-RootStatusResult makeRootStatusFailure(const std::string& error) {
+RootStatusResult rootStatusFailure(const std::string& error) {
     RootStatusResult result;
     result.available = false;
     result.error = error;
     return result;
 }
 
-RootExecResult readRootExecResult(JNIEnv* env,
-                                  jobject resultObject,
-                                  jclass bridgeClass,
-                                  const std::string& failurePrefix) {
-    if (resultObject == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " returned empty result");
-    }
-
-    jclass resultClass = env->GetObjectClass(resultObject);
-    if (resultClass == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(resultObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " result class is not available");
-    }
-
-    jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
-    jfieldID exitCodeField = env->GetFieldID(resultClass, "exitCode", "I");
-    jfieldID stdoutField = env->GetFieldID(resultClass, "stdout", "Ljava/lang/String;");
-    jfieldID stderrField = env->GetFieldID(resultClass, "stderr", "Ljava/lang/String;");
-    jfieldID timedOutField = env->GetFieldID(resultClass, "timedOut", "Z");
-    jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
-    if (successField == nullptr
-            || exitCodeField == nullptr
-            || stdoutField == nullptr
-            || stderrField == nullptr
-            || timedOutField == nullptr
-            || errorField == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(resultClass);
-        env->DeleteLocalRef(resultObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " result fields are not available");
-    }
-
-    RootExecResult result;
-    result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
-    result.exitCode = env->GetIntField(resultObject, exitCodeField);
-    result.timedOut = env->GetBooleanField(resultObject, timedOutField) == JNI_TRUE;
-
-    jstring stdoutValue = static_cast<jstring>(env->GetObjectField(resultObject, stdoutField));
-    jstring stderrValue = static_cast<jstring>(env->GetObjectField(resultObject, stderrField));
-    jstring errorValue = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
-    result.stdoutText = jStringToString(env, stdoutValue);
-    result.stderrText = jStringToString(env, stderrValue);
-    result.error = jStringToString(env, errorValue);
-
-    if (stdoutValue != nullptr) {
-        env->DeleteLocalRef(stdoutValue);
-    }
-    if (stderrValue != nullptr) {
-        env->DeleteLocalRef(stderrValue);
-    }
-    if (errorValue != nullptr) {
-        env->DeleteLocalRef(errorValue);
-    }
-    env->DeleteLocalRef(resultClass);
-    env->DeleteLocalRef(resultObject);
-    env->DeleteLocalRef(bridgeClass);
-
-    return result;
-}
-
-RootExecResult callStaticRootResultNoArgMethod(const char* methodName,
-                                               const char* signature,
-                                               const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(bridgeClass, methodId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultStringMethod(const char* methodName,
-                                                const char* signature,
-                                                const std::string& path,
-                                                const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jstring pathString = env->NewStringUTF(path.c_str());
-    if (pathString == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file path string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(bridgeClass, methodId, pathString);
-    env->DeleteLocalRef(pathString);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultStringIntMethod(const char* methodName,
-                                                   const char* signature,
-                                                   const std::string& value,
-                                                   int number,
-                                                   const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jstring javaValue = env->NewStringUTF(value.c_str());
-    if (javaValue == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            javaValue,
-            static_cast<jint>(number)
-    );
-    env->DeleteLocalRef(javaValue);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultIntMethod(const char* methodName,
-                                             const char* signature,
-                                             int value,
-                                             const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            static_cast<jint>(value)
-    );
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultBooleanMethod(const char* methodName,
-                                                 const char* signature,
-                                                 bool value,
-                                                 const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            value ? JNI_TRUE : JNI_FALSE
-    );
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultIntIntMethod(const char* methodName,
-                                                const char* signature,
-                                                int first,
-                                                int second,
-                                                const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            static_cast<jint>(first),
-            static_cast<jint>(second)
-    );
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultStringBooleanMethod(const char* methodName,
-                                                       const char* signature,
-                                                       const std::string& value,
-                                                       bool flag,
-                                                       const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jstring javaValue = env->NewStringUTF(value.c_str());
-    if (javaValue == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            javaValue,
-            flag ? JNI_TRUE : JNI_FALSE
-    );
-    env->DeleteLocalRef(javaValue);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultStringStringMethod(const char* methodName,
-                                                      const char* signature,
-                                                      const std::string& first,
-                                                      const std::string& second,
-                                                      const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jstring firstString = env->NewStringUTF(first.c_str());
-    jstring secondString = env->NewStringUTF(second.c_str());
-    if (firstString == nullptr || secondString == nullptr) {
-        if (firstString != nullptr) {
-            env->DeleteLocalRef(firstString);
-        }
-        if (secondString != nullptr) {
-            env->DeleteLocalRef(secondString);
-        }
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            firstString,
-            secondString
-    );
-    env->DeleteLocalRef(firstString);
-    env->DeleteLocalRef(secondString);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootExecResult callStaticRootResultStringStringStringMethod(const char* methodName,
-                                                            const char* signature,
-                                                            const std::string& first,
-                                                            const std::string& second,
-                                                            const std::string& third,
-                                                            const std::string& failurePrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(bridgeClass, methodName, signature);
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " method is not available");
-    }
-
-    jstring firstString = env->NewStringUTF(first.c_str());
-    jstring secondString = env->NewStringUTF(second.c_str());
-    jstring thirdString = env->NewStringUTF(third.c_str());
-    if (firstString == nullptr || secondString == nullptr || thirdString == nullptr) {
-        if (firstString != nullptr) {
-            env->DeleteLocalRef(firstString);
-        }
-        if (secondString != nullptr) {
-            env->DeleteLocalRef(secondString);
-        }
-        if (thirdString != nullptr) {
-            env->DeleteLocalRef(thirdString);
-        }
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            firstString,
-            secondString,
-            thirdString
-    );
-    env->DeleteLocalRef(firstString);
-    env->DeleteLocalRef(secondString);
-    env->DeleteLocalRef(thirdString);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure(failurePrefix + " java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, failurePrefix);
-}
-
-RootProbeAttempt readRootProbeAttempt(JNIEnv* env, jobject attemptObject) {
+RootProbeAttempt readProbeAttempt(JNIEnv* env, jobject attemptObject) {
     RootProbeAttempt attempt;
-    if (attemptObject == nullptr) {
+    if (env == nullptr || attemptObject == nullptr) {
         attempt.error = "root probe attempt is empty";
         return attempt;
     }
 
     jclass attemptClass = env->GetObjectClass(attemptObject);
     if (attemptClass == nullptr) {
-        env->ExceptionClear();
+        clearExceptionIfNeeded(env);
         attempt.error = "root probe attempt class is not available";
         return attempt;
     }
@@ -818,7 +180,7 @@ RootProbeAttempt readRootProbeAttempt(JNIEnv* env, jobject attemptObject) {
             || stderrField == nullptr
             || timedOutField == nullptr
             || errorField == nullptr) {
-        env->ExceptionClear();
+        clearExceptionIfNeeded(env);
         env->DeleteLocalRef(attemptClass);
         attempt.error = "root probe attempt fields are not available";
         return attempt;
@@ -826,17 +188,17 @@ RootProbeAttempt readRootProbeAttempt(JNIEnv* env, jobject attemptObject) {
 
     jstring commandMode = static_cast<jstring>(env->GetObjectField(attemptObject, commandModeField));
     jstring suPath = static_cast<jstring>(env->GetObjectField(attemptObject, suPathField));
-    jstring stdoutValue = static_cast<jstring>(env->GetObjectField(attemptObject, stdoutField));
-    jstring stderrValue = static_cast<jstring>(env->GetObjectField(attemptObject, stderrField));
-    jstring errorValue = static_cast<jstring>(env->GetObjectField(attemptObject, errorField));
+    jstring stdoutText = static_cast<jstring>(env->GetObjectField(attemptObject, stdoutField));
+    jstring stderrText = static_cast<jstring>(env->GetObjectField(attemptObject, stderrField));
+    jstring errorText = static_cast<jstring>(env->GetObjectField(attemptObject, errorField));
 
     attempt.commandMode = jStringToString(env, commandMode);
     attempt.suPath = jStringToString(env, suPath);
     attempt.exitCode = env->GetIntField(attemptObject, exitCodeField);
-    attempt.stdoutText = jStringToString(env, stdoutValue);
-    attempt.stderrText = jStringToString(env, stderrValue);
+    attempt.stdoutText = jStringToString(env, stdoutText);
+    attempt.stderrText = jStringToString(env, stderrText);
     attempt.timedOut = env->GetBooleanField(attemptObject, timedOutField) == JNI_TRUE;
-    attempt.error = jStringToString(env, errorValue);
+    attempt.error = jStringToString(env, errorText);
 
     if (commandMode != nullptr) {
         env->DeleteLocalRef(commandMode);
@@ -844,110 +206,263 @@ RootProbeAttempt readRootProbeAttempt(JNIEnv* env, jobject attemptObject) {
     if (suPath != nullptr) {
         env->DeleteLocalRef(suPath);
     }
-    if (stdoutValue != nullptr) {
-        env->DeleteLocalRef(stdoutValue);
+    if (stdoutText != nullptr) {
+        env->DeleteLocalRef(stdoutText);
     }
-    if (stderrValue != nullptr) {
-        env->DeleteLocalRef(stderrValue);
+    if (stderrText != nullptr) {
+        env->DeleteLocalRef(stderrText);
     }
-    if (errorValue != nullptr) {
-        env->DeleteLocalRef(errorValue);
+    if (errorText != nullptr) {
+        env->DeleteLocalRef(errorText);
     }
     env->DeleteLocalRef(attemptClass);
     return attempt;
 }
 
+void readProbeAttempts(JNIEnv* env, jobject attemptsObject, RootStatusResult* status) {
+    if (env == nullptr || attemptsObject == nullptr || status == nullptr) {
+        return;
+    }
+
+    jclass listClass = env->FindClass("java/util/List");
+    if (listClass == nullptr) {
+        clearExceptionIfNeeded(env);
+        return;
+    }
+
+    jmethodID sizeMethod = env->GetMethodID(listClass, "size", "()I");
+    jmethodID getMethod = env->GetMethodID(listClass, "get", "(I)Ljava/lang/Object;");
+    if (sizeMethod == nullptr || getMethod == nullptr) {
+        clearExceptionIfNeeded(env);
+        env->DeleteLocalRef(listClass);
+        return;
+    }
+
+    jint size = env->CallIntMethod(attemptsObject, sizeMethod);
+    if (clearExceptionIfNeeded(env)) {
+        env->DeleteLocalRef(listClass);
+        return;
+    }
+
+    for (jint index = 0; index < size; ++index) {
+        jobject item = env->CallObjectMethod(attemptsObject, getMethod, index);
+        if (clearExceptionIfNeeded(env)) {
+            break;
+        }
+        if (item != nullptr) {
+            status->attempts.push_back(readProbeAttempt(env, item));
+            env->DeleteLocalRef(item);
+        }
+    }
+
+    env->DeleteLocalRef(listClass);
+}
+
+ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
+    if (env == nullptr || resultObject == nullptr) {
+        return captureFailure("root capture returned empty result");
+    }
+
+    jclass resultClass = env->GetObjectClass(resultObject);
+    if (resultClass == nullptr) {
+        clearExceptionIfNeeded(env);
+        return captureFailure("root capture result class is not available");
+    }
+
+    jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
+    jfieldID pixelBufferField = env->GetFieldID(resultClass, "pixelBuffer", "Ljava/nio/ByteBuffer;");
+    jfieldID widthField = env->GetFieldID(resultClass, "width", "I");
+    jfieldID heightField = env->GetFieldID(resultClass, "height", "I");
+    jfieldID rowStrideField = env->GetFieldID(resultClass, "rowStride", "I");
+    jfieldID pixelStrideField = env->GetFieldID(resultClass, "pixelStride", "I");
+    jfieldID sourceField = env->GetFieldID(resultClass, "source", "Ljava/lang/String;");
+    jfieldID durationField = env->GetFieldID(resultClass, "captureDurationMs", "J");
+    jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
+    jmethodID closeMethod = env->GetMethodID(resultClass, "close", "()V");
+    if (successField == nullptr
+            || pixelBufferField == nullptr
+            || widthField == nullptr
+            || heightField == nullptr
+            || rowStrideField == nullptr
+            || pixelStrideField == nullptr
+            || sourceField == nullptr
+            || durationField == nullptr
+            || errorField == nullptr
+            || closeMethod == nullptr) {
+        clearExceptionIfNeeded(env);
+        env->DeleteLocalRef(resultClass);
+        return captureFailure("root capture result fields are not available");
+    }
+
+    ScreenCaptureResult result;
+    result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
+    result.width = env->GetIntField(resultObject, widthField);
+    result.height = env->GetIntField(resultObject, heightField);
+    result.rowStride = env->GetIntField(resultObject, rowStrideField);
+    result.pixelStride = env->GetIntField(resultObject, pixelStrideField);
+    result.captureDurationMs = static_cast<long long>(env->GetLongField(resultObject, durationField));
+
+    jobject pixelBuffer = env->GetObjectField(resultObject, pixelBufferField);
+    jstring source = static_cast<jstring>(env->GetObjectField(resultObject, sourceField));
+    jstring error = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
+    result.source = jStringToString(env, source);
+    result.error = jStringToString(env, error);
+
+    if (result.success) {
+        if (result.width <= 0 || result.height <= 0) {
+            result.success = false;
+            result.error = "root capture size is invalid";
+        } else if (result.pixelStride < 4) {
+            result.success = false;
+            result.error = "root capture pixel stride is unsupported";
+        } else {
+            unsigned char* sourceBytes = pixelBuffer == nullptr
+                    ? nullptr
+                    : static_cast<unsigned char*>(env->GetDirectBufferAddress(pixelBuffer));
+            jlong sourceCapacity = pixelBuffer == nullptr ? 0 : env->GetDirectBufferCapacity(pixelBuffer);
+            int compactRowStride = result.width * 4;
+            size_t targetSize = static_cast<size_t>(compactRowStride)
+                    * static_cast<size_t>(result.height);
+            size_t requiredSourceSize = static_cast<size_t>(result.rowStride)
+                    * static_cast<size_t>(result.height - 1)
+                    + static_cast<size_t>(result.width) * static_cast<size_t>(result.pixelStride);
+
+            if (sourceBytes == nullptr || sourceCapacity <= 0) {
+                result.success = false;
+                result.error = "root capture pixel buffer is not direct";
+            } else if (static_cast<size_t>(sourceCapacity) < requiredSourceSize) {
+                result.success = false;
+                result.error = "root capture pixel buffer is incomplete";
+            } else {
+                result.pixels.resize(targetSize);
+                for (int y = 0; y < result.height; ++y) {
+                    const unsigned char* sourceRow = sourceBytes
+                            + static_cast<size_t>(y) * static_cast<size_t>(result.rowStride);
+                    unsigned char* targetRow = result.pixels.data()
+                            + static_cast<size_t>(y) * static_cast<size_t>(compactRowStride);
+
+                    if (result.pixelStride == 4) {
+                        std::memcpy(targetRow, sourceRow, static_cast<size_t>(compactRowStride));
+                        continue;
+                    }
+
+                    for (int x = 0; x < result.width; ++x) {
+                        const unsigned char* sourcePixel = sourceRow
+                                + static_cast<size_t>(x) * static_cast<size_t>(result.pixelStride);
+                        unsigned char* targetPixel = targetRow + static_cast<size_t>(x) * 4;
+                        targetPixel[0] = sourcePixel[0];
+                        targetPixel[1] = sourcePixel[1];
+                        targetPixel[2] = sourcePixel[2];
+                        targetPixel[3] = sourcePixel[3];
+                    }
+                }
+                result.rowStride = compactRowStride;
+                result.pixelStride = 4;
+            }
+        }
+    } else if (result.error.empty()) {
+        result.error = "root capture failed";
+    }
+
+    env->CallVoidMethod(resultObject, closeMethod);
+    clearExceptionIfNeeded(env);
+
+    if (pixelBuffer != nullptr) {
+        env->DeleteLocalRef(pixelBuffer);
+    }
+    if (source != nullptr) {
+        env->DeleteLocalRef(source);
+    }
+    if (error != nullptr) {
+        env->DeleteLocalRef(error);
+    }
+    env->DeleteLocalRef(resultClass);
+    return result;
+}
+
 } // namespace
 
 void AndroidBridge::init(JavaVM* javaVm) {
+    std::lock_guard<std::mutex> lock(gBridgeMutex);
     gJavaVm = javaVm;
+
+    JNIEnv* env = getEnv();
+    if (env == nullptr) {
+        return;
+    }
+
+    if (gBridgeClass != nullptr) {
+        env->DeleteGlobalRef(gBridgeClass);
+        gBridgeClass = nullptr;
+    }
+
+    jclass localClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    if (localClass == nullptr) {
+        clearExceptionIfNeeded(env);
+        return;
+    }
+
+    gBridgeClass = static_cast<jclass>(env->NewGlobalRef(localClass));
+    env->DeleteLocalRef(localClass);
 }
 
 bool AndroidBridge::isAccessibilityEnabled() {
-    return callStaticBooleanMethod0("isAccessibilityEnabled", "()Z");
+    return callBoolean0("isAccessibilityEnabled");
 }
 
 int AndroidBridge::apiLevel() {
-    return callStaticIntMethod0("apiLevel", "()I");
+    return callInt0("apiLevel");
 }
 
 int AndroidBridge::httpPort() {
-    return callStaticIntMethod0("httpPort", "()I");
+    return callInt0("httpPort");
 }
 
 std::string AndroidBridge::packageName() {
-    return callStaticStringMethod0("packageName", "()Ljava/lang/String;");
+    return callString0("packageName");
 }
 
 bool AndroidBridge::isRootModeEnabled() {
-    return callStaticBooleanMethod0("isRootModeEnabled", "()Z");
+    return callBoolean0("isRootModeEnabled");
 }
 
 bool AndroidBridge::setRootModeEnabled(bool enabled) {
-    return callStaticBooleanMethod1(
-            "setRootModeEnabled",
-            "(Z)Z",
-            enabled ? JNI_TRUE : JNI_FALSE
-    );
+    return callBoolean1("setRootModeEnabled", enabled);
 }
 
 bool AndroidBridge::isRootAvailable() {
-    return callStaticBooleanMethod0("isRootAvailable", "()Z");
+    return callBoolean0("isRootAvailable");
 }
 
 bool AndroidBridge::isRootRuntimeReady() {
-    return callStaticBooleanMethod0("isRootRuntimeReady", "()Z");
+    return callBoolean0("isRootRuntimeReady");
 }
 
 bool AndroidBridge::prepareRootRuntime() {
-    return callStaticBooleanMethod0("prepareRootRuntime", "()Z");
+    return callBoolean0("prepareRootRuntime");
 }
 
 bool AndroidBridge::prepareRootHelper() {
-    return callStaticBooleanMethod0("prepareRootHelper", "()Z");
+    return callBoolean0("prepareRootHelper");
 }
 
 RootStatusResult AndroidBridge::rootStatus() {
     JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootStatusFailure("jni environment is not available");
+    jmethodID methodId = staticMethod(env, "rootStatus", "()Lcom/autolua/engine/RootStatus;");
+    if (env == nullptr || methodId == nullptr) {
+        return rootStatusFailure("root status method is not available");
     }
 
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootStatusFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(
-            bridgeClass,
-            "rootStatus",
-            "()Lcom/autolua/engine/RootStatus;"
-    );
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootStatusFailure("root status method is not available");
-    }
-
-    jobject statusObject = env->CallStaticObjectMethod(bridgeClass, methodId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootStatusFailure("root status java call failed");
-    }
-
-    if (statusObject == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootStatusFailure("root status returned empty result");
+    jobject statusObject = env->CallStaticObjectMethod(gBridgeClass, methodId);
+    if (clearExceptionIfNeeded(env) || statusObject == nullptr) {
+        return rootStatusFailure("root status java call failed");
     }
 
     jclass statusClass = env->GetObjectClass(statusObject);
     if (statusClass == nullptr) {
-        env->ExceptionClear();
+        clearExceptionIfNeeded(env);
         env->DeleteLocalRef(statusObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootStatusFailure("root status class is not available");
+        return rootStatusFailure("root status class is not available");
     }
 
     jfieldID availableField = env->GetFieldID(statusClass, "available", "Z");
@@ -964,55 +479,25 @@ RootStatusResult AndroidBridge::rootStatus() {
             || cacheExpireAtField == nullptr
             || errorField == nullptr
             || attemptsField == nullptr) {
-        env->ExceptionClear();
+        clearExceptionIfNeeded(env);
         env->DeleteLocalRef(statusClass);
         env->DeleteLocalRef(statusObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootStatusFailure("root status fields are not available");
+        return rootStatusFailure("root status fields are not available");
     }
 
-    RootStatusResult result;
-    result.available = env->GetBooleanField(statusObject, availableField) == JNI_TRUE;
-    result.cached = env->GetBooleanField(statusObject, cachedField) == JNI_TRUE;
-    result.cacheExpireAt = static_cast<long long>(env->GetLongField(statusObject, cacheExpireAtField));
+    RootStatusResult status;
+    status.available = env->GetBooleanField(statusObject, availableField) == JNI_TRUE;
+    status.cached = env->GetBooleanField(statusObject, cachedField) == JNI_TRUE;
+    status.cacheExpireAt = static_cast<long long>(env->GetLongField(statusObject, cacheExpireAtField));
 
     jstring commandMode = static_cast<jstring>(env->GetObjectField(statusObject, commandModeField));
     jstring suPath = static_cast<jstring>(env->GetObjectField(statusObject, suPathField));
     jstring error = static_cast<jstring>(env->GetObjectField(statusObject, errorField));
-    result.commandMode = jStringToString(env, commandMode);
-    result.suPath = jStringToString(env, suPath);
-    result.error = jStringToString(env, error);
-
-    jobject attemptsList = env->GetObjectField(statusObject, attemptsField);
-    if (attemptsList != nullptr) {
-        jclass listClass = env->FindClass("java/util/List");
-        jmethodID sizeMethod = listClass == nullptr ? nullptr : env->GetMethodID(listClass, "size", "()I");
-        jmethodID getMethod = listClass == nullptr ? nullptr : env->GetMethodID(listClass, "get", "(I)Ljava/lang/Object;");
-        if (listClass != nullptr && sizeMethod != nullptr && getMethod != nullptr) {
-            jint size = env->CallIntMethod(attemptsList, sizeMethod);
-            if (!env->ExceptionCheck()) {
-                for (jint i = 0; i < size; ++i) {
-                    jobject attemptObject = env->CallObjectMethod(attemptsList, getMethod, i);
-                    if (env->ExceptionCheck()) {
-                        env->ExceptionClear();
-                        break;
-                    }
-                    result.attempts.push_back(readRootProbeAttempt(env, attemptObject));
-                    if (attemptObject != nullptr) {
-                        env->DeleteLocalRef(attemptObject);
-                    }
-                }
-            } else {
-                env->ExceptionClear();
-            }
-        } else {
-            env->ExceptionClear();
-        }
-        if (listClass != nullptr) {
-            env->DeleteLocalRef(listClass);
-        }
-        env->DeleteLocalRef(attemptsList);
-    }
+    jobject attempts = env->GetObjectField(statusObject, attemptsField);
+    status.commandMode = jStringToString(env, commandMode);
+    status.suPath = jStringToString(env, suPath);
+    status.error = jStringToString(env, error);
+    readProbeAttempts(env, attempts, &status);
 
     if (commandMode != nullptr) {
         env->DeleteLocalRef(commandMode);
@@ -1023,731 +508,33 @@ RootStatusResult AndroidBridge::rootStatus() {
     if (error != nullptr) {
         env->DeleteLocalRef(error);
     }
+    if (attempts != nullptr) {
+        env->DeleteLocalRef(attempts);
+    }
     env->DeleteLocalRef(statusClass);
     env->DeleteLocalRef(statusObject);
-    env->DeleteLocalRef(bridgeClass);
-    return result;
-}
-
-RootExecResult AndroidBridge::rootExec(const std::string& command, int timeoutMs) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(
-            bridgeClass,
-            "rootExec",
-            "(Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;"
-    );
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root exec method is not available");
-    }
-
-    jstring commandString = env->NewStringUTF(command.c_str());
-    if (commandString == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root command string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            commandString,
-            static_cast<jint>(timeoutMs)
-    );
-    env->DeleteLocalRef(commandString);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root exec java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, "root exec");
-}
-
-RootExecResult AndroidBridge::rootFileExists(const std::string& path) {
-    return callStaticRootResultStringMethod(
-            "rootFileExists",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            "root file exists"
-    );
-}
-
-RootExecResult AndroidBridge::rootFileReadText(const std::string& path, int timeoutMs) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(
-            bridgeClass,
-            "rootFileReadText",
-            "(Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;"
-    );
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file read method is not available");
-    }
-
-    jstring pathString = env->NewStringUTF(path.c_str());
-    if (pathString == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file path string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            pathString,
-            static_cast<jint>(timeoutMs)
-    );
-    env->DeleteLocalRef(pathString);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file read java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, "root file read");
-}
-
-RootExecResult AndroidBridge::rootFileWriteText(const std::string& path,
-                                                const std::string& content,
-                                                int timeoutMs) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(
-            bridgeClass,
-            "rootFileWriteText",
-            "(Ljava/lang/String;Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;"
-    );
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file write method is not available");
-    }
-
-    jstring pathString = env->NewStringUTF(path.c_str());
-    jstring contentString = env->NewStringUTF(content.c_str());
-    if (pathString == nullptr || contentString == nullptr) {
-        if (pathString != nullptr) {
-            env->DeleteLocalRef(pathString);
-        }
-        if (contentString != nullptr) {
-            env->DeleteLocalRef(contentString);
-        }
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file write string is invalid");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            pathString,
-            contentString,
-            static_cast<jint>(timeoutMs)
-    );
-    env->DeleteLocalRef(pathString);
-    env->DeleteLocalRef(contentString);
-
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("root file write java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, "root file write");
-}
-
-RootExecResult AndroidBridge::rootFileStat(const std::string& path) {
-    return callStaticRootResultStringMethod(
-            "rootFileStat",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            "root file stat"
-    );
-}
-
-RootExecResult AndroidBridge::rootFileList(const std::string& path) {
-    return callStaticRootResultStringMethod(
-            "rootFileList",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            "root file list"
-    );
-}
-
-RootExecResult AndroidBridge::rootFileRemove(const std::string& path, bool recursive) {
-    return callStaticRootResultStringBooleanMethod(
-            "rootFileRemove",
-            "(Ljava/lang/String;Z)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            recursive,
-            "root file remove"
-    );
-}
-
-RootExecResult AndroidBridge::rootFileMkdir(const std::string& path, bool recursive) {
-    return callStaticRootResultStringBooleanMethod(
-            "rootFileMkdir",
-            "(Ljava/lang/String;Z)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            recursive,
-            "root file mkdir"
-    );
-}
-
-RootExecResult AndroidBridge::rootFileChmod(const std::string& path, const std::string& mode) {
-    return callStaticRootResultStringStringMethod(
-            "rootFileChmod",
-            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            mode,
-            "root file chmod"
-    );
-}
-
-RootExecResult AndroidBridge::rootFileChown(const std::string& path, const std::string& owner) {
-    return callStaticRootResultStringStringMethod(
-            "rootFileChown",
-            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            path,
-            owner,
-            "root file chown"
-    );
-}
-
-RootExecResult AndroidBridge::rootProcessPidOf(const std::string& processName) {
-    return callStaticRootResultStringMethod(
-            "rootProcessPidOf",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            processName,
-            "root process pidOf"
-    );
-}
-
-RootExecResult AndroidBridge::rootProcessList() {
-    return callStaticRootResultNoArgMethod(
-            "rootProcessList",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "root process list"
-    );
-}
-
-RootExecResult AndroidBridge::rootProcessInfo(const std::string& pidOrName) {
-    return callStaticRootResultStringMethod(
-            "rootProcessInfo",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            pidOrName,
-            "root process info"
-    );
-}
-
-RootExecResult AndroidBridge::rootProcessStats(const std::string& pidOrName) {
-    return callStaticRootResultStringMethod(
-            "rootProcessStats",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            pidOrName,
-            "root process stats"
-    );
-}
-
-RootExecResult AndroidBridge::rootProcessKill(const std::string& pidOrName, int signal) {
-    return callStaticRootResultStringIntMethod(
-            "rootProcessKill",
-            "(Ljava/lang/String;I)Lcom/autolua/engine/RootCommandResult;",
-            pidOrName,
-            signal,
-            "root process kill"
-    );
-}
-
-RootExecResult AndroidBridge::deviceScreenState() {
-    return callStaticRootResultNoArgMethod(
-            "deviceScreenState",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device screen state"
-    );
-}
-
-RootExecResult AndroidBridge::deviceWake() {
-    return callStaticRootResultNoArgMethod(
-            "deviceWake",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device wake"
-    );
-}
-
-RootExecResult AndroidBridge::deviceSleep() {
-    return callStaticRootResultNoArgMethod(
-            "deviceSleep",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device sleep"
-    );
-}
-
-RootExecResult AndroidBridge::deviceBattery() {
-    return callStaticRootResultNoArgMethod(
-            "deviceBattery",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device battery"
-    );
-}
-
-RootExecResult AndroidBridge::deviceRotation() {
-    return callStaticRootResultNoArgMethod(
-            "deviceRotation",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device rotation"
-    );
-}
-
-RootExecResult AndroidBridge::deviceSetRotation(int rotation, bool locked) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeRootExecFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeRootExecFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(
-            bridgeClass,
-            "deviceSetRotation",
-            "(IZ)Lcom/autolua/engine/RootCommandResult;"
-    );
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("device set rotation method is not available");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(
-            bridgeClass,
-            methodId,
-            static_cast<jint>(rotation),
-            locked ? JNI_TRUE : JNI_FALSE
-    );
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeRootExecFailure("device set rotation java call failed");
-    }
-
-    return readRootExecResult(env, resultObject, bridgeClass, "device set rotation");
-}
-
-RootExecResult AndroidBridge::deviceSettingsGet(const std::string& namespaceName,
-                                                const std::string& key) {
-    return callStaticRootResultStringStringMethod(
-            "deviceSettingsGet",
-            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            namespaceName,
-            key,
-            "device settings get"
-    );
-}
-
-RootExecResult AndroidBridge::deviceSettingsPut(const std::string& namespaceName,
-                                                const std::string& key,
-                                                const std::string& value) {
-    return callStaticRootResultStringStringStringMethod(
-            "deviceSettingsPut",
-            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            namespaceName,
-            key,
-            value,
-            "device settings put"
-    );
-}
-
-RootExecResult AndroidBridge::deviceSettingsDelete(const std::string& namespaceName,
-                                                   const std::string& key) {
-    return callStaticRootResultStringStringMethod(
-            "deviceSettingsDelete",
-            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            namespaceName,
-            key,
-            "device settings delete"
-    );
-}
-
-RootExecResult AndroidBridge::devicePropGet(const std::string& key) {
-    return callStaticRootResultStringMethod(
-            "devicePropGet",
-            "(Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            key,
-            "device prop get"
-    );
-}
-
-RootExecResult AndroidBridge::devicePropSet(const std::string& key, const std::string& value) {
-    return callStaticRootResultStringStringMethod(
-            "devicePropSet",
-            "(Ljava/lang/String;Ljava/lang/String;)Lcom/autolua/engine/RootCommandResult;",
-            key,
-            value,
-            "device prop set"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplayInfo() {
-    return callStaticRootResultNoArgMethod(
-            "deviceDisplayInfo",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device display info"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplaySetSize(int width, int height) {
-    return callStaticRootResultIntIntMethod(
-            "deviceDisplaySetSize",
-            "(II)Lcom/autolua/engine/RootCommandResult;",
-            width,
-            height,
-            "device display set size"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplayResetSize() {
-    return callStaticRootResultNoArgMethod(
-            "deviceDisplayResetSize",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device display reset size"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplaySetDensity(int density) {
-    return callStaticRootResultIntMethod(
-            "deviceDisplaySetDensity",
-            "(I)Lcom/autolua/engine/RootCommandResult;",
-            density,
-            "device display set density"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplayResetDensity() {
-    return callStaticRootResultNoArgMethod(
-            "deviceDisplayResetDensity",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "device display reset density"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplaySetBrightness(int brightness) {
-    return callStaticRootResultIntMethod(
-            "deviceDisplaySetBrightness",
-            "(I)Lcom/autolua/engine/RootCommandResult;",
-            brightness,
-            "device display set brightness"
-    );
-}
-
-RootExecResult AndroidBridge::deviceDisplaySetAutoBrightness(bool enabled) {
-    return callStaticRootResultBooleanMethod(
-            "deviceDisplaySetAutoBrightness",
-            "(Z)Lcom/autolua/engine/RootCommandResult;",
-            enabled,
-            "device display set auto brightness"
-    );
-}
-
-bool AndroidBridge::appIsInstalled(const std::string& packageName) {
-    return callStaticBooleanStringMethod("appIsInstalled", "(Ljava/lang/String;)Z", packageName);
-}
-
-bool AndroidBridge::appOpen(const std::string& packageName) {
-    return callStaticBooleanStringMethod("appOpen", "(Ljava/lang/String;)Z", packageName);
-}
-
-bool AndroidBridge::appStop(const std::string& packageName) {
-    return callStaticBooleanStringMethod("appStop", "(Ljava/lang/String;)Z", packageName);
-}
-
-bool AndroidBridge::appClearData(const std::string& packageName) {
-    return callStaticBooleanStringMethod("appClearData", "(Ljava/lang/String;)Z", packageName);
-}
-
-bool AndroidBridge::appGrantPermission(const std::string& packageName,
-                                       const std::string& permissionName) {
-    return callStaticBooleanStringStringMethod(
-            "appGrantPermission",
-            "(Ljava/lang/String;Ljava/lang/String;)Z",
-            packageName,
-            permissionName
-    );
-}
-
-bool AndroidBridge::appRevokePermission(const std::string& packageName,
-                                        const std::string& permissionName) {
-    return callStaticBooleanStringStringMethod(
-            "appRevokePermission",
-            "(Ljava/lang/String;Ljava/lang/String;)Z",
-            packageName,
-            permissionName
-    );
-}
-
-RootExecResult AndroidBridge::appCurrent() {
-    return callStaticRootResultNoArgMethod(
-            "appCurrent",
-            "()Lcom/autolua/engine/RootCommandResult;",
-            "app current"
-    );
-}
-
-bool AndroidBridge::appInstall(const std::string& apkPath, bool replace) {
-    return callStaticBooleanStringBooleanMethod(
-            "appInstall",
-            "(Ljava/lang/String;Z)Z",
-            apkPath,
-            replace
-    );
-}
-
-bool AndroidBridge::appUninstall(const std::string& packageName, bool keepData) {
-    return callStaticBooleanStringBooleanMethod(
-            "appUninstall",
-            "(Ljava/lang/String;Z)Z",
-            packageName,
-            keepData
-    );
-}
-
-bool AndroidBridge::appDisable(const std::string& packageName) {
-    return callStaticBooleanStringMethod("appDisable", "(Ljava/lang/String;)Z", packageName);
-}
-
-bool AndroidBridge::appEnable(const std::string& packageName) {
-    return callStaticBooleanStringMethod("appEnable", "(Ljava/lang/String;)Z", packageName);
-}
-
-bool AndroidBridge::appDisableComponent(const std::string& componentName) {
-    return callStaticBooleanStringMethod(
-            "appDisableComponent",
-            "(Ljava/lang/String;)Z",
-            componentName
-    );
-}
-
-bool AndroidBridge::appEnableComponent(const std::string& componentName) {
-    return callStaticBooleanStringMethod(
-            "appEnableComponent",
-            "(Ljava/lang/String;)Z",
-            componentName
-    );
-}
-
-bool AndroidBridge::hasScreenCapturePermission() {
-    return callStaticBooleanMethod0("hasScreenCapturePermission", "()Z");
-}
-
-ScreenCaptureResult callScreenCaptureMethod(const char* methodName, const char* errorPrefix) {
-    JNIEnv* env = getEnv();
-    if (env == nullptr) {
-        return makeCaptureFailure("jni environment is not available");
-    }
-
-    jclass bridgeClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
-    if (bridgeClass == nullptr) {
-        env->ExceptionClear();
-        return makeCaptureFailure("android host bridge is not available");
-    }
-
-    jmethodID methodId = env->GetStaticMethodID(
-            bridgeClass,
-            methodName,
-            "()Lcom/autolua/engine/ScreenCaptureResult;"
-    );
-    if (methodId == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure(std::string(errorPrefix) + " method is not available");
-    }
-
-    jobject resultObject = env->CallStaticObjectMethod(bridgeClass, methodId);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure(std::string(errorPrefix) + " java call failed");
-    }
-
-    if (resultObject == nullptr) {
-        env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure(std::string(errorPrefix) + " returned empty result");
-    }
-
-    jclass resultClass = env->GetObjectClass(resultObject);
-    if (resultClass == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(resultObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure(std::string(errorPrefix) + " result class is not available");
-    }
-
-    jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
-    jfieldID pixelBufferField = env->GetFieldID(resultClass, "pixelBuffer", "Ljava/nio/ByteBuffer;");
-    jfieldID widthField = env->GetFieldID(resultClass, "width", "I");
-    jfieldID heightField = env->GetFieldID(resultClass, "height", "I");
-    jfieldID rowStrideField = env->GetFieldID(resultClass, "rowStride", "I");
-    jfieldID pixelStrideField = env->GetFieldID(resultClass, "pixelStride", "I");
-    jfieldID formatField = env->GetFieldID(resultClass, "format", "Ljava/lang/String;");
-    jfieldID sourceField = env->GetFieldID(resultClass, "source", "Ljava/lang/String;");
-    jfieldID durationField = env->GetFieldID(resultClass, "captureDurationMs", "J");
-    jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
-    jmethodID closeMethod = env->GetMethodID(resultClass, "close", "()V");
-
-    if (successField == nullptr
-            || pixelBufferField == nullptr
-            || widthField == nullptr
-            || heightField == nullptr
-            || rowStrideField == nullptr
-            || pixelStrideField == nullptr
-            || formatField == nullptr
-            || sourceField == nullptr
-            || durationField == nullptr
-            || errorField == nullptr
-            || closeMethod == nullptr) {
-        env->ExceptionClear();
-        env->DeleteLocalRef(resultClass);
-        env->DeleteLocalRef(resultObject);
-        env->DeleteLocalRef(bridgeClass);
-        return makeCaptureFailure(std::string(errorPrefix) + " result fields are not available");
-    }
-
-    ScreenCaptureResult result;
-    result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
-    result.width = env->GetIntField(resultObject, widthField);
-    result.height = env->GetIntField(resultObject, heightField);
-    result.rowStride = env->GetIntField(resultObject, rowStrideField);
-    result.pixelStride = env->GetIntField(resultObject, pixelStrideField);
-    result.captureDurationMs = static_cast<long long>(env->GetLongField(resultObject, durationField));
-
-    jobject pixelBuffer = env->GetObjectField(resultObject, pixelBufferField);
-    jstring format = static_cast<jstring>(env->GetObjectField(resultObject, formatField));
-    jstring sourceName = static_cast<jstring>(env->GetObjectField(resultObject, sourceField));
-    jstring error = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
-    result.format = jStringToString(env, format);
-    result.source = jStringToString(env, sourceName);
-    result.error = jStringToString(env, error);
-
-    if (result.success && pixelBuffer != nullptr) {
-        auto* source = static_cast<unsigned char*>(env->GetDirectBufferAddress(pixelBuffer));
-        jlong sourceCapacity = env->GetDirectBufferCapacity(pixelBuffer);
-
-        int compactRowStride = result.width * 4;
-        size_t targetSize = static_cast<size_t>(compactRowStride) * static_cast<size_t>(result.height);
-        size_t requiredSourceSize = static_cast<size_t>(result.rowStride)
-                * static_cast<size_t>(result.height - 1)
-                + static_cast<size_t>(result.width) * static_cast<size_t>(result.pixelStride);
-
-        if (source == nullptr || sourceCapacity <= 0) {
-            result.success = false;
-            result.error = std::string(errorPrefix) + " pixel buffer is not direct";
-        } else if (static_cast<size_t>(sourceCapacity) < requiredSourceSize) {
-            result.success = false;
-            result.error = std::string(errorPrefix) + " pixel buffer is incomplete";
-        } else if (result.pixelStride < 4) {
-            result.success = false;
-            result.error = std::string(errorPrefix) + " pixel stride is unsupported";
-        } else if (result.pixelStride == 4) {
-            result.pixels.resize(targetSize);
-            for (int y = 0; y < result.height; ++y) {
-                const unsigned char* sourceRow = source + static_cast<size_t>(y) * result.rowStride;
-                unsigned char* targetRow = result.pixels.data()
-                        + static_cast<size_t>(y) * compactRowStride;
-                std::memcpy(targetRow, sourceRow, static_cast<size_t>(compactRowStride));
-            }
-            result.rowStride = compactRowStride;
-            result.pixelStride = 4;
-        } else {
-            result.pixels.resize(targetSize);
-            for (int y = 0; y < result.height; ++y) {
-                const unsigned char* sourceRow = source + static_cast<size_t>(y) * result.rowStride;
-                unsigned char* targetRow = result.pixels.data()
-                        + static_cast<size_t>(y) * compactRowStride;
-
-                for (int x = 0; x < result.width; ++x) {
-                    const unsigned char* sourcePixel = sourceRow
-                            + static_cast<size_t>(x) * result.pixelStride;
-                    unsigned char* targetPixel = targetRow + static_cast<size_t>(x) * 4;
-                    targetPixel[0] = sourcePixel[0];
-                    targetPixel[1] = sourcePixel[1];
-                    targetPixel[2] = sourcePixel[2];
-                    targetPixel[3] = sourcePixel[3];
-                }
-            }
-            result.rowStride = compactRowStride;
-            result.pixelStride = 4;
-        }
-    } else if (result.success) {
-        result.success = false;
-        result.error = std::string(errorPrefix) + " pixel buffer is empty";
-    }
-
-    env->CallVoidMethod(resultObject, closeMethod);
-    if (env->ExceptionCheck()) {
-        env->ExceptionClear();
-    }
-
-    if (pixelBuffer != nullptr) {
-        env->DeleteLocalRef(pixelBuffer);
-    }
-    if (format != nullptr) {
-        env->DeleteLocalRef(format);
-    }
-    if (sourceName != nullptr) {
-        env->DeleteLocalRef(sourceName);
-    }
-    if (error != nullptr) {
-        env->DeleteLocalRef(error);
-    }
-    env->DeleteLocalRef(resultClass);
-    env->DeleteLocalRef(resultObject);
-    env->DeleteLocalRef(bridgeClass);
-
-    if (!result.success && result.error.empty()) {
-        result.error = std::string(errorPrefix) + " failed";
-    }
-
-    return result;
-}
-
-ScreenCaptureResult AndroidBridge::captureScreen() {
-    return callScreenCaptureMethod("captureScreen", "screen capture");
+    return status;
 }
 
 ScreenCaptureResult AndroidBridge::captureRootScreen() {
-    return callScreenCaptureMethod("captureRootScreen", "root screen capture");
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "captureRootScreen",
+            "()Lcom/autolua/engine/ScreenCaptureResult;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        return captureFailure("root capture method is not available");
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(gBridgeClass, methodId);
+    if (clearExceptionIfNeeded(env)) {
+        return captureFailure("root capture java call failed");
+    }
+
+    ScreenCaptureResult result = readScreenCaptureResult(env, resultObject);
+    if (resultObject != nullptr) {
+        env->DeleteLocalRef(resultObject);
+    }
+    return result;
 }

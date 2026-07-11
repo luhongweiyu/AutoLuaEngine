@@ -1,5 +1,5 @@
 /**
- * 文件用途：基于 MediaProjection 和 ImageReader 实现非 Root 截图。
+ * 文件用途：基于系统隐藏 Surface 截图 API，为 Root helper 提供高速屏幕位图。
  */
 package com.autolua.engine;
 
@@ -20,9 +20,8 @@ import java.nio.ByteBuffer;
  * 这条路线参考旧项目的 NativeService 截图实现：优先直接请求系统当前显示内容，
  * 避免每帧执行 `su screencap` 带来的进程启动、stdout 大块传输和原始数据解析开销。
  *
- * 注意：这些都是 Android 隐藏 API，不同系统可能限制普通 App 进程调用。第一版把
- * 它作为 root 模式的首选高频路线；如果当前设备拒绝访问，后续会把同样的调用下沉到
- * root helper/app_process 常驻进程中执行。
+ * 注意：这些都是 Android 隐藏 API，当前只作为 root helper/app_process 常驻进程内
+ * 的截图实现使用，不作为普通 App 进程截图接口暴露。
  */
 public final class SurfaceScreenCaptureBridge {
     private static final String SOURCE_SURFACE_CONTROL = "root-surface";

@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "../engine/engine_config.h"
-#include "system_api.h"
+#include "../platform/android_bridge.h"
 
 namespace {
 
@@ -22,11 +22,11 @@ constexpr const char* kCapabilitiesJson =
         "{"
         "\"abiVersion\":\"0.2\","
         "\"library\":\"libengine.so\","
-        "\"core\":\"SystemApi\","
+        "\"core\":\"system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"plugin-reserved\"],"
-        "\"automationModes\":[\"root\",\"accessibility\"],"
-        "\"rootCommandMode\":\"persistent-su-shell\","
+        "\"automationModes\":[\"root\"],"
+        "\"rootCommandMode\":\"persistent-root-helper\","
         "\"screenCapture\":[\"root-capture-cache\"],"
         "\"imageFormat\":\"rgba8888\","
         "\"screenCaptureApi\":\"screen_capture(int* width,int* height,unsigned char** pixels)\""
@@ -121,7 +121,7 @@ extern "C" int screen_capture(int* width, int* height, unsigned char** pixels) {
         return 1;
     }
 
-    ScreenCaptureResult result = autolua::core::SystemApi::captureRootScreen();
+    ScreenCaptureResult result = AndroidBridge::captureRootScreen();
     if (!validateCaptureResultLocked(result)) {
         *width = 0;
         *height = 0;
