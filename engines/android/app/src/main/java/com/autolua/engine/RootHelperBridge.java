@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -42,14 +44,21 @@ public final class RootHelperBridge {
         }
     }
 
-    public static ScreenCaptureResult captureFrame(int width, int height) {
+    public static ScreenCaptureResult captureFrame(
+            int width,
+            int height,
+            ByteBuffer targetBuffer,
+            int targetCapacity
+    ) {
         synchronized (LOCK) {
             try {
                 RootHelperSession helper = ensureSessionLocked();
                 long startTime = System.nanoTime();
                 RootHelperResponse response = helper.request(
                         "capture\t" + width + "\t" + height,
-                        5000
+                        5000,
+                        targetBuffer,
+                        targetCapacity
                 );
                 long durationMs = elapsedMillis(startTime);
                 if (!response.ok) {
@@ -63,12 +72,19 @@ public final class RootHelperBridge {
 
                 int frameWidth = parseInt(fields[0], 0);
                 int frameHeight = parseInt(fields[1], 0);
-                byte[] pixels = response.pixelBytes;
-                ByteBuffer buffer = ByteBuffer.allocateDirect(pixels.length);
-                buffer.put(pixels);
-                buffer.position(0);
-                return ScreenCaptureResult.successFromRgbaBuffer(
-                        buffer,
+                if (response.wroteToTargetBuffer) {
+                    return ScreenCaptureResult.successFromNativeBuffer(
+                            targetBuffer,
+                            response.pixelByteLength,
+                            frameWidth,
+                            frameHeight,
+                            "root-helper",
+                            durationMs
+                    );
+                }
+
+                return ScreenCaptureResult.successFromRgbaBytes(
+                        response.pixelBytes,
                         frameWidth,
                         frameHeight,
                         "root-helper",
@@ -88,7 +104,7 @@ public final class RootHelperBridge {
 
         closeSessionLocked();
         session = RootHelperSession.start();
-        RootHelperResponse response = session.request("ping", 2500);
+        RootHelperResponse response = session.request("ping", 2500, null, 0);
         if (!response.ok) {
             closeSessionLocked();
             throw new IOException(response.message);
@@ -120,10 +136,12 @@ public final class RootHelperBridge {
         private final Process process;
         private final BufferedWriter writer;
         private final InputStream rawReader;
+        private final ReadableByteChannel rawChannel;
 
         private RootHelperSession(Process process) {
             this.process = process;
             this.rawReader = process.getInputStream();
+            this.rawChannel = Channels.newChannel(rawReader);
             this.writer = new BufferedWriter(
                     new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)
             );
@@ -148,7 +166,12 @@ public final class RootHelperBridge {
             }
         }
 
-        private RootHelperResponse request(String command, long timeoutMs) throws IOException {
+        private RootHelperResponse request(
+                String command,
+                long timeoutMs,
+                ByteBuffer targetBuffer,
+                int targetCapacity
+        ) throws IOException {
             writer.write(command);
             writer.write('\n');
             writer.flush();
@@ -162,8 +185,12 @@ public final class RootHelperBridge {
                     }
                     if (line.startsWith("OK\t")) {
                         String message = line.substring(3);
-                        byte[] pixelBytes = readPixelBytesIfNeeded(message);
-                        return RootHelperResponse.ok(message, pixelBytes);
+                        RootHelperPayload payload = readPixelBytesIfNeeded(
+                                message,
+                                targetBuffer,
+                                targetCapacity
+                        );
+                        return RootHelperResponse.ok(message, payload);
                     }
                     if (line.startsWith("ERR\t")) {
                         return RootHelperResponse.error(line.substring(4));
@@ -198,15 +225,36 @@ public final class RootHelperBridge {
                     : outputStream.toString(StandardCharsets.UTF_8.name());
         }
 
-        private byte[] readPixelBytesIfNeeded(String message) throws IOException {
+        private RootHelperPayload readPixelBytesIfNeeded(
+                String message,
+                ByteBuffer targetBuffer,
+                int targetCapacity
+        ) throws IOException {
             String[] fields = message.split("\t");
             if (fields.length != 3) {
-                return new byte[0];
+                return RootHelperPayload.empty();
             }
 
             int byteLength = parseInt(fields[2], 0);
             if (byteLength <= 0) {
-                return new byte[0];
+                return RootHelperPayload.empty();
+            }
+
+            if (targetBuffer != null
+                    && targetBuffer.isDirect()
+                    && targetCapacity >= byteLength
+                    && targetBuffer.capacity() >= byteLength) {
+                targetBuffer.position(0);
+                targetBuffer.limit(byteLength);
+                while (targetBuffer.hasRemaining()) {
+                    int readCount = rawChannel.read(targetBuffer);
+                    if (readCount < 0) {
+                        throw new IOException("root helper pixel stream ended");
+                    }
+                }
+                targetBuffer.position(0);
+                targetBuffer.limit(targetBuffer.capacity());
+                return RootHelperPayload.nativeBuffer(byteLength);
             }
 
             byte[] bytes = new byte[byteLength];
@@ -218,7 +266,7 @@ public final class RootHelperBridge {
                 }
                 offset += readCount;
             }
-            return bytes;
+            return RootHelperPayload.bytes(bytes);
         }
 
         private void startStderrDrainer(InputStream inputStream) {
@@ -252,19 +300,48 @@ public final class RootHelperBridge {
         private final boolean ok;
         private final String message;
         private final byte[] pixelBytes;
+        private final int pixelByteLength;
+        private final boolean wroteToTargetBuffer;
 
-        private RootHelperResponse(boolean ok, String message, byte[] pixelBytes) {
+        private RootHelperResponse(boolean ok, String message, RootHelperPayload payload) {
             this.ok = ok;
             this.message = message == null ? "" : message;
-            this.pixelBytes = pixelBytes == null ? new byte[0] : pixelBytes;
+            RootHelperPayload actualPayload = payload == null ? RootHelperPayload.empty() : payload;
+            this.pixelBytes = actualPayload.pixelBytes;
+            this.pixelByteLength = actualPayload.pixelByteLength;
+            this.wroteToTargetBuffer = actualPayload.wroteToTargetBuffer;
         }
 
-        private static RootHelperResponse ok(String message, byte[] pixelBytes) {
-            return new RootHelperResponse(true, message, pixelBytes);
+        private static RootHelperResponse ok(String message, RootHelperPayload payload) {
+            return new RootHelperResponse(true, message, payload);
         }
 
         private static RootHelperResponse error(String message) {
-            return new RootHelperResponse(false, message, new byte[0]);
+            return new RootHelperResponse(false, message, RootHelperPayload.empty());
+        }
+    }
+
+    private static final class RootHelperPayload {
+        private final byte[] pixelBytes;
+        private final int pixelByteLength;
+        private final boolean wroteToTargetBuffer;
+
+        private RootHelperPayload(byte[] pixelBytes, int pixelByteLength, boolean wroteToTargetBuffer) {
+            this.pixelBytes = pixelBytes == null ? new byte[0] : pixelBytes;
+            this.pixelByteLength = pixelByteLength;
+            this.wroteToTargetBuffer = wroteToTargetBuffer;
+        }
+
+        private static RootHelperPayload empty() {
+            return new RootHelperPayload(new byte[0], 0, false);
+        }
+
+        private static RootHelperPayload bytes(byte[] pixelBytes) {
+            return new RootHelperPayload(pixelBytes, pixelBytes == null ? 0 : pixelBytes.length, false);
+        }
+
+        private static RootHelperPayload nativeBuffer(int pixelByteLength) {
+            return new RootHelperPayload(new byte[0], pixelByteLength, true);
         }
     }
 }

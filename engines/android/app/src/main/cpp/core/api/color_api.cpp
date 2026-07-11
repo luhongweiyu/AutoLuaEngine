@@ -4,284 +4,275 @@
 #include "color_api.h"
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
-#include <limits>
-#include <mutex>
+#include <cstdlib>
 #include <string>
-#include <vector>
 
 #include "screen_api.h"
 
 namespace autolua::api {
 namespace {
 
-// 当前 screen_api 固定返回紧凑 RGBA8888 点阵，每个像素占 4 字节。
-constexpr int kPixelBytes = 4;
-
-// 保持旧项目限制：单次多点找色最多解析 500 个颜色点。
-constexpr int kMaxColorItems = 500;
+// 保持旧项目限制：单次多点找色最多解析 500 个颜色点，避免热路径动态分配。
+constexpr int 最大颜色点数 = 500;
 
 /**
  * 预处理后的颜色比较项。
  *
- * offset 是相对锚点的像素偏移，解析阶段已根据扫描方向决定是否按转置点阵计算。
- * 比较阶段只需要 anchorIndex + offset，不再做坐标乘加。
+ * 偏移在解析阶段按方向提前算好，扫描阶段只做一次锚点索引加法。
  */
 struct 颜色比较项 {
-    int offset = 0;
-    int16_t rMin = 0;
-    int16_t gMin = 0;
-    int16_t bMin = 0;
-    uint16_t rRange = 0;
-    uint16_t gRange = 0;
-    uint16_t bRange = 0;
+    int 偏移 = 0;
+    int16_t r下界 = 0;
+    int16_t g下界 = 0;
+    int16_t b下界 = 0;
+    uint16_t r跨度 = 0;
+    uint16_t g跨度 = 0;
+    uint16_t b跨度 = 0;
 };
 
 /**
- * 解析 colors 后得到的热路径数据。
+ * 解析 colors 后得到的全部热路径数据。
+ *
+ * 这里使用固定数组，避免每次找色产生堆分配和容量判断。
  */
 struct 已解析颜色 {
-    std::array<颜色比较项, kMaxColorItems> items;
-    int count = 0;
-    int minRelativeX = 0;
-    int maxRelativeX = 0;
-    int minRelativeY = 0;
-    int maxRelativeY = 0;
+    颜色比较项 颜色项[最大颜色点数];
+    int 颜色长度 = 0;
+    int 最小相对x = 0;
+    int 最大相对x = 0;
+    int 最小相对y = 0;
+    int 最大相对y = 0;
 };
 
-std::mutex gColorMutex;
-std::vector<unsigned char> g转置点阵;
+// 转置点阵缓存直接用裸指针和 realloc，和旧项目保持同类实现方式。
+uint32_t* g转置点阵 = nullptr;
+size_t g转置容量 = 0;
 int g转置宽度 = 0;
 int g转置高度 = 0;
 long long g转置帧编号 = -1;
-std::string gLastError;
 
-int 十六进制字符转数值(char value) {
-    if (value >= '0' && value <= '9') {
-        return value - '0';
+// 错误字符串不是热路径；保留 std::string 只用于失败时返回错误。
+std::string g最近错误;
+
+int 十六进制字符转数值(char 字符) {
+    if (字符 >= '0' && 字符 <= '9') {
+        return 字符 - '0';
     }
-    if (value >= 'a' && value <= 'f') {
-        return value - 'a' + 10;
+    if (字符 >= 'a' && 字符 <= 'f') {
+        return 字符 - 'a' + 10;
     }
-    if (value >= 'A' && value <= 'F') {
-        return value - 'A' + 10;
+    if (字符 >= 'A' && 字符 <= 'F') {
+        return 字符 - 'A' + 10;
     }
     return -1;
 }
 
-bool 解析有符号整数(const char*& cursor, int& result) {
-    const char* start = cursor;
-    bool negative = false;
+bool 解析有符号整数(const char*& 游标, int& 结果) {
+    const char* 起始位置 = 游标;
+    bool 是否负数 = false;
 
-    if (*cursor == '-' || *cursor == '+') {
-        negative = (*cursor == '-');
-        ++cursor;
+    if (*游标 == '-' || *游标 == '+') {
+        是否负数 = (*游标 == '-');
+        ++游标;
     }
 
-    if (*cursor < '0' || *cursor > '9') {
-        cursor = start;
+    if (*游标 < '0' || *游标 > '9') {
+        游标 = 起始位置;
         return false;
     }
 
-    long long value = 0;
-    while (*cursor >= '0' && *cursor <= '9') {
-        value = value * 10 + (*cursor - '0');
-        long long limit = negative
-                ? static_cast<long long>(std::numeric_limits<int>::max()) + 1
-                : static_cast<long long>(std::numeric_limits<int>::max());
-        if (value > limit) {
-            cursor = start;
-            return false;
-        }
-        ++cursor;
+    int 累计值 = 0;
+    while (*游标 >= '0' && *游标 <= '9') {
+        累计值 = 累计值 * 10 + (*游标 - '0');
+        ++游标;
     }
 
-    result = negative ? static_cast<int>(-value) : static_cast<int>(value);
+    结果 = 是否负数 ? -累计值 : 累计值;
     return true;
 }
 
-bool 解析6位十六进制(const char*& cursor, int& result) {
-    const char* start = cursor;
-    if (cursor[0] == '0' && (cursor[1] == 'x' || cursor[1] == 'X')) {
-        cursor += 2;
+bool 解析6位十六进制(const char*& 游标, int& 结果) {
+    const char* 起始位置 = 游标;
+    if (游标[0] == '0' && (游标[1] == 'x' || 游标[1] == 'X')) {
+        游标 += 2;
     }
 
-    int value = 0;
-    for (int index = 0; index < 6; ++index) {
-        int halfByte = 十六进制字符转数值(*cursor);
-        if (halfByte < 0) {
-            cursor = start;
+    int 累计值 = 0;
+    for (int 位序 = 0; 位序 < 6; ++位序) {
+        int 半字节值 = 十六进制字符转数值(*游标);
+        if (半字节值 < 0) {
+            游标 = 起始位置;
             return false;
         }
-        value = (value << 4) | halfByte;
-        ++cursor;
+        累计值 = (累计值 << 4) | 半字节值;
+        ++游标;
     }
 
-    result = value;
+    结果 = 累计值;
     return true;
 }
 
 bool 解析颜色片段(
-        const char*& cursor,
-        int& x,
-        int& y,
-        int& color,
-        bool& hasOwnTolerance,
-        int& tolerance
+        const char*& 游标,
+        int& 坐标x,
+        int& 坐标y,
+        int& 颜色值,
+        bool& 有独立容差,
+        int& 容差值
 ) {
-    const char* start = cursor;
+    const char* 起始位置 = 游标;
 
-    if (!解析有符号整数(cursor, x) || *cursor != '|') {
-        cursor = start;
+    if (!解析有符号整数(游标, 坐标x) || *游标 != '|') {
+        游标 = 起始位置;
         return false;
     }
-    ++cursor;
+    ++游标;
 
-    if (!解析有符号整数(cursor, y) || *cursor != '|') {
-        cursor = start;
+    if (!解析有符号整数(游标, 坐标y) || *游标 != '|') {
+        游标 = 起始位置;
         return false;
     }
-    ++cursor;
+    ++游标;
 
-    if (!解析6位十六进制(cursor, color)) {
-        cursor = start;
+    if (!解析6位十六进制(游标, 颜色值)) {
+        游标 = 起始位置;
         return false;
     }
 
-    hasOwnTolerance = false;
-    if (*cursor == '-' || *cursor == '|') {
-        ++cursor;
-        if (!解析6位十六进制(cursor, tolerance)) {
-            cursor = start;
+    有独立容差 = false;
+    if (*游标 == '-' || *游标 == '|') {
+        ++游标;
+        if (!解析6位十六进制(游标, 容差值)) {
+            游标 = 起始位置;
             return false;
         }
-        hasOwnTolerance = true;
+        有独立容差 = true;
     }
 
     return true;
 }
 
-bool 写入错误Locked(const std::string& error) {
-    gLastError = error;
+bool 写入错误(const char* 错误) {
+    g最近错误 = 错误 == nullptr ? "" : 错误;
     return false;
 }
 
-void 写入未找到坐标(找色坐标* point) {
-    if (point != nullptr) {
-        point->x = -1;
-        point->y = -1;
+void 写入未找到坐标(找色坐标* 坐标) {
+    if (坐标 != nullptr) {
+        坐标->x = -1;
+        坐标->y = -1;
     }
 }
 
-bool 是否转置方向(int dir) {
-    return dir == 1 || dir == 4 || dir == 5 || dir == 8;
+bool 是否转置方向(int 方向) {
+    return 方向 == 1 || 方向 == 4 || 方向 == 5 || 方向 == 8;
 }
 
-bool 解析颜色字符串Locked(
+bool 解析颜色字符串(
         const char* colors,
-        int width,
-        int height,
+        int 宽度,
+        int 高度,
         bool 使用转置点阵,
-        int sim,
-        已解析颜色* parsed
+        int 默认容差,
+        已解析颜色* 解析结果
 ) {
-    if (colors == nullptr || parsed == nullptr) {
-        return 写入错误Locked("找色参数为空");
-    }
-    if (sim < 0 || sim > 0xFFFFFF) {
-        return 写入错误Locked("找色容差必须在 0x000000 到 0xFFFFFF 之间");
+    if (colors == nullptr || 解析结果 == nullptr) {
+        return 写入错误("找色参数为空");
     }
 
-    int anchorX = 0;
-    int anchorY = 0;
-    bool hasAnchor = false;
-    const char* cursor = colors;
+    int 锚点x = 0;
+    int 锚点y = 0;
+    bool 已有锚点 = false;
+    const char* 扫描指针 = colors;
 
-    while (*cursor != '\0') {
-        int pointX = 0;
-        int pointY = 0;
-        int color = 0;
-        int tolerance = sim;
-        bool hasOwnTolerance = false;
-        const char* pieceStart = cursor;
+    while (*扫描指针 != '\0') {
+        int 点x = 0;
+        int 点y = 0;
+        int 颜色值 = 0;
+        int 容差值 = 默认容差;
+        bool 有独立容差 = false;
+        const char* 片段起始 = 扫描指针;
 
-        if (!解析颜色片段(cursor, pointX, pointY, color, hasOwnTolerance, tolerance)) {
-            cursor = pieceStart + 1;
+        if (!解析颜色片段(扫描指针, 点x, 点y, 颜色值, 有独立容差, 容差值)) {
+            扫描指针 = 片段起始 + 1;
             continue;
         }
 
-        if (!hasOwnTolerance) {
-            tolerance = sim;
-        }
-        if (tolerance < 0 || tolerance > 0xFFFFFF) {
-            return 写入错误Locked("找色独立容差必须在 0x000000 到 0xFFFFFF 之间");
+        if (!有独立容差) {
+            容差值 = 默认容差;
         }
 
-        if (!hasAnchor) {
-            anchorX = pointX;
-            anchorY = pointY;
-            hasAnchor = true;
+        if (!已有锚点) {
+            锚点x = 点x;
+            锚点y = 点y;
+            已有锚点 = true;
         }
 
-        if (parsed->count >= kMaxColorItems) {
-            return 写入错误Locked("找色颜色点数量超过 500");
+        if (解析结果->颜色长度 >= 最大颜色点数) {
+            return 写入错误("找色颜色点数量超过 500");
         }
 
-        int relativeX = pointX - anchorX;
-        int relativeY = pointY - anchorY;
+        const int 相对x = 点x - 锚点x;
+        const int 相对y = 点y - 锚点y;
+        const int 目标r = (颜色值 >> 16) & 0xff;
+        const int 目标g = (颜色值 >> 8) & 0xff;
+        const int 目标b = 颜色值 & 0xff;
+        const int 容差r = (容差值 >> 16) & 0xff;
+        const int 容差g = (容差值 >> 8) & 0xff;
+        const int 容差b = 容差值 & 0xff;
 
-        颜色比较项 item;
-        item.offset = 使用转置点阵
-                ? relativeX * height + relativeY
-                : relativeY * width + relativeX;
+        颜色比较项 比较项;
+        比较项.偏移 = 使用转置点阵
+                ? 相对x * 高度 + 相对y
+                : 相对y * 宽度 + 相对x;
+        比较项.r下界 = static_cast<int16_t>(目标r - 容差r);
+        比较项.g下界 = static_cast<int16_t>(目标g - 容差g);
+        比较项.b下界 = static_cast<int16_t>(目标b - 容差b);
+        比较项.r跨度 = static_cast<uint16_t>(容差r * 2);
+        比较项.g跨度 = static_cast<uint16_t>(容差g * 2);
+        比较项.b跨度 = static_cast<uint16_t>(容差b * 2);
 
-        int targetR = (color >> 16) & 0xff;
-        int targetG = (color >> 8) & 0xff;
-        int targetB = color & 0xff;
-        int toleranceR = (tolerance >> 16) & 0xff;
-        int toleranceG = (tolerance >> 8) & 0xff;
-        int toleranceB = tolerance & 0xff;
-
-        item.rMin = static_cast<int16_t>(targetR - toleranceR);
-        item.gMin = static_cast<int16_t>(targetG - toleranceG);
-        item.bMin = static_cast<int16_t>(targetB - toleranceB);
-        item.rRange = static_cast<uint16_t>(toleranceR * 2);
-        item.gRange = static_cast<uint16_t>(toleranceG * 2);
-        item.bRange = static_cast<uint16_t>(toleranceB * 2);
-
-        if (parsed->count == 0) {
-            parsed->minRelativeX = relativeX;
-            parsed->maxRelativeX = relativeX;
-            parsed->minRelativeY = relativeY;
-            parsed->maxRelativeY = relativeY;
+        if (解析结果->颜色长度 == 0) {
+            解析结果->最小相对x = 相对x;
+            解析结果->最大相对x = 相对x;
+            解析结果->最小相对y = 相对y;
+            解析结果->最大相对y = 相对y;
         } else {
-            parsed->minRelativeX = std::min(parsed->minRelativeX, relativeX);
-            parsed->maxRelativeX = std::max(parsed->maxRelativeX, relativeX);
-            parsed->minRelativeY = std::min(parsed->minRelativeY, relativeY);
-            parsed->maxRelativeY = std::max(parsed->maxRelativeY, relativeY);
+            if (相对x < 解析结果->最小相对x) {
+                解析结果->最小相对x = 相对x;
+            }
+            if (相对x > 解析结果->最大相对x) {
+                解析结果->最大相对x = 相对x;
+            }
+            if (相对y < 解析结果->最小相对y) {
+                解析结果->最小相对y = 相对y;
+            }
+            if (相对y > 解析结果->最大相对y) {
+                解析结果->最大相对y = 相对y;
+            }
         }
 
-        parsed->items[parsed->count] = item;
-        ++parsed->count;
+        解析结果->颜色项[解析结果->颜色长度] = 比较项;
+        ++解析结果->颜色长度;
     }
 
-    if (!hasAnchor || parsed->count <= 0) {
-        return 写入错误Locked("找色颜色字符串没有有效颜色点");
+    if (!已有锚点 || 解析结果->颜色长度 <= 0) {
+        return 写入错误("找色颜色字符串没有有效颜色点");
     }
 
-    if (parsed->count > 1) {
+    if (解析结果->颜色长度 > 1) {
         std::sort(
-                parsed->items.begin(),
-                parsed->items.begin() + parsed->count,
-                [](const 颜色比较项& left, const 颜色比较项& right) {
-                    unsigned int leftScore = static_cast<unsigned int>(left.rRange)
-                            + static_cast<unsigned int>(left.gRange)
-                            + static_cast<unsigned int>(left.bRange);
-                    unsigned int rightScore = static_cast<unsigned int>(right.rRange)
-                            + static_cast<unsigned int>(right.gRange)
-                            + static_cast<unsigned int>(right.bRange);
-                    return leftScore < rightScore;
+                解析结果->颜色项,
+                解析结果->颜色项 + 解析结果->颜色长度,
+                [](const 颜色比较项& 左项, const 颜色比较项& 右项) {
+                    const unsigned int 左项评分 = static_cast<unsigned int>(左项.r跨度)
+                            + static_cast<unsigned int>(左项.g跨度)
+                            + static_cast<unsigned int>(左项.b跨度);
+                    const unsigned int 右项评分 = static_cast<unsigned int>(右项.r跨度)
+                            + static_cast<unsigned int>(右项.g跨度)
+                            + static_cast<unsigned int>(右项.b跨度);
+                    return 左项评分 < 右项评分;
                 }
         );
     }
@@ -289,212 +280,220 @@ bool 解析颜色字符串Locked(
     return true;
 }
 
-bool 修正查找范围Locked(
-        int width,
-        int height,
-        const 已解析颜色& parsed,
+bool 修正查找范围(
+        int 宽度,
+        int 高度,
+        const 已解析颜色& 解析结果,
         int& x1,
         int& y1,
         int& x2,
         int& y2
 ) {
-    if ((0 - parsed.minRelativeX) > x1) {
-        x1 = 0 - parsed.minRelativeX;
+    if ((0 - 解析结果.最小相对x) > x1) {
+        x1 = 0 - 解析结果.最小相对x;
     }
-    if ((0 - parsed.minRelativeY) > y1) {
-        y1 = 0 - parsed.minRelativeY;
+    if ((0 - 解析结果.最小相对y) > y1) {
+        y1 = 0 - 解析结果.最小相对y;
     }
-    if ((x2 + parsed.maxRelativeX) > (width - 1)) {
-        x2 = width - 1 - parsed.maxRelativeX;
+    if ((x2 + 解析结果.最大相对x) > (宽度 - 1)) {
+        x2 = 宽度 - 1 - 解析结果.最大相对x;
     }
-    if ((y2 + parsed.maxRelativeY) > (height - 1)) {
-        y2 = height - 1 - parsed.maxRelativeY;
+    if ((y2 + 解析结果.最大相对y) > (高度 - 1)) {
+        y2 = 高度 - 1 - 解析结果.最大相对y;
     }
 
     if (x1 > x2 || y1 > y2) {
-        return 写入错误Locked("找色范围为空");
+        return 写入错误("找色范围为空");
     }
-
     return true;
 }
 
 bool 比较颜色项(
-        const unsigned char* pixels,
-        const 已解析颜色& parsed,
-        int anchorIndex
+        const uint32_t* 点阵数据,
+        const 颜色比较项* 颜色项,
+        int 颜色长度,
+        int 锚点索引
 ) {
-    for (int index = 0; index < parsed.count; ++index) {
-        const 颜色比较项& item = parsed.items[index];
-        const unsigned char* pixel = pixels + (anchorIndex + item.offset) * kPixelBytes;
+    for (int 索引 = 0; 索引 < 颜色长度; ++索引) {
+        const 颜色比较项& 比较项 = 颜色项[索引];
+        const uint8_t* 像素通道 = reinterpret_cast<const uint8_t*>(
+                &点阵数据[锚点索引 + 比较项.偏移]
+        );
 
-        if ((unsigned) ((int) pixel[0] - (int) item.rMin) > (unsigned) item.rRange) {
+        if ((unsigned) ((int) 像素通道[0] - (int) 比较项.r下界) > (unsigned) 比较项.r跨度) {
             return false;
         }
-        if ((unsigned) ((int) pixel[1] - (int) item.gMin) > (unsigned) item.gRange) {
+        if ((unsigned) ((int) 像素通道[1] - (int) 比较项.g下界) > (unsigned) 比较项.g跨度) {
             return false;
         }
-        if ((unsigned) ((int) pixel[2] - (int) item.bMin) > (unsigned) item.bRange) {
+        if ((unsigned) ((int) 像素通道[2] - (int) 比较项.b下界) > (unsigned) 比较项.b跨度) {
             return false;
         }
     }
     return true;
 }
 
-bool 重建转置点阵Locked(
-        const unsigned char* pixels,
-        int width,
-        int height,
-        long long frameId
+bool 重建转置点阵(
+        const uint32_t* 源点阵,
+        int 宽度,
+        int 高度,
+        long long 帧编号
 ) {
-    if (g转置帧编号 == frameId
-            && g转置宽度 == width
-            && g转置高度 == height
-            && !g转置点阵.empty()) {
+    if (g转置帧编号 == 帧编号
+            && g转置宽度 == 宽度
+            && g转置高度 == 高度
+            && g转置点阵 != nullptr) {
         return true;
     }
 
-    size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
-    g转置点阵.resize(pixelCount * kPixelBytes);
+    const size_t 像素总数 = static_cast<size_t>(宽度) * static_cast<size_t>(高度);
+    if (像素总数 > g转置容量) {
+        void* 新缓冲 = std::realloc(g转置点阵, 像素总数 * sizeof(uint32_t));
+        if (新缓冲 == nullptr) {
+            return 写入错误("转置点阵内存不足");
+        }
+        g转置点阵 = static_cast<uint32_t*>(新缓冲);
+        g转置容量 = 像素总数;
+    }
 
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            size_t source = (static_cast<size_t>(y) * width + x) * kPixelBytes;
-            size_t target = (static_cast<size_t>(x) * height + y) * kPixelBytes;
-            g转置点阵[target] = pixels[source];
-            g转置点阵[target + 1] = pixels[source + 1];
-            g转置点阵[target + 2] = pixels[source + 2];
-            g转置点阵[target + 3] = pixels[source + 3];
+    for (int y = 0; y < 高度; ++y) {
+        const int 行起始 = y * 宽度;
+        for (int x = 0; x < 宽度; ++x) {
+            g转置点阵[x * 高度 + y] = 源点阵[行起始 + x];
         }
     }
 
-    g转置宽度 = width;
-    g转置高度 = height;
-    g转置帧编号 = frameId;
+    g转置宽度 = 宽度;
+    g转置高度 = 高度;
+    g转置帧编号 = 帧编号;
     return true;
 }
 
-bool 扫描颜色Locked(
-        const unsigned char* pixels,
-        int width,
-        int height,
+bool 扫描颜色(
+        const uint32_t* 点阵数据,
+        int 宽度,
+        int 高度,
         int x1,
         int y1,
         int x2,
         int y2,
-        int dir,
-        const 已解析颜色& parsed,
-        找色坐标* point
+        int 方向,
+        const 已解析颜色& 解析结果,
+        找色坐标* 坐标
 ) {
-    switch (dir) {
+    const 颜色比较项* 颜色项 = 解析结果.颜色项;
+    const int 颜色长度 = 解析结果.颜色长度;
+
+    switch (方向) {
         case 1:
             for (int x = x1; x <= x2; ++x) {
-                int anchorIndex = x * height + y1;
+                int 锚点索引 = x * 高度 + y1;
                 for (int y = y1; y <= y2; ++y) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    ++anchorIndex;
+                    ++锚点索引;
                 }
             }
             break;
         case 2:
             for (int y = y1; y <= y2; ++y) {
-                int anchorIndex = y * width + x1;
+                int 锚点索引 = y * 宽度 + x1;
                 for (int x = x1; x <= x2; ++x) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    ++anchorIndex;
+                    ++锚点索引;
                 }
             }
             break;
         case 3:
             for (int y = y1; y <= y2; ++y) {
-                int anchorIndex = y * width + x2;
+                int 锚点索引 = y * 宽度 + x2;
                 for (int x = x2; x >= x1; --x) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    --anchorIndex;
+                    --锚点索引;
                 }
             }
             break;
         case 4:
             for (int x = x2; x >= x1; --x) {
-                int anchorIndex = x * height + y1;
+                int 锚点索引 = x * 高度 + y1;
                 for (int y = y1; y <= y2; ++y) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    ++anchorIndex;
+                    ++锚点索引;
                 }
             }
             break;
         case 5:
             for (int x = x2; x >= x1; --x) {
-                int anchorIndex = x * height + y2;
+                int 锚点索引 = x * 高度 + y2;
                 for (int y = y2; y >= y1; --y) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    --anchorIndex;
+                    --锚点索引;
                 }
             }
             break;
         case 6:
             for (int y = y2; y >= y1; --y) {
-                int anchorIndex = y * width + x2;
+                int 锚点索引 = y * 宽度 + x2;
                 for (int x = x2; x >= x1; --x) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    --anchorIndex;
+                    --锚点索引;
                 }
             }
             break;
         case 7:
             for (int y = y2; y >= y1; --y) {
-                int anchorIndex = y * width + x1;
+                int 锚点索引 = y * 宽度 + x1;
                 for (int x = x1; x <= x2; ++x) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    ++anchorIndex;
+                    ++锚点索引;
                 }
             }
             break;
         case 8:
             for (int x = x1; x <= x2; ++x) {
-                int anchorIndex = x * height + y2;
+                int 锚点索引 = x * 高度 + y2;
                 for (int y = y2; y >= y1; --y) {
-                    if (比较颜色项(pixels, parsed, anchorIndex)) {
-                        point->x = x;
-                        point->y = y;
+                    if (比较颜色项(点阵数据, 颜色项, 颜色长度, 锚点索引)) {
+                        坐标->x = x;
+                        坐标->y = y;
                         return true;
                     }
-                    --anchorIndex;
+                    --锚点索引;
                 }
             }
             break;
         default:
-            return 写入错误Locked("找色方向必须是 1 到 8");
+            return 写入错误("找色方向必须是 1 到 8");
     }
 
-    return 写入错误Locked("未找到匹配颜色");
+    return 写入错误("未找到匹配颜色");
 }
 
 } // namespace
@@ -513,35 +512,34 @@ bool 在点阵中多点找色(
         const char* colors,
         找色坐标* point
 ) {
-    std::lock_guard<std::mutex> lock(gColorMutex);
     写入未找到坐标(point);
 
     if (point == nullptr) {
-        return 写入错误Locked("找色输出坐标为空");
+        return 写入错误("找色输出坐标为空");
     }
     if (pixels == nullptr || width <= 0 || height <= 0) {
-        return 写入错误Locked("找色点阵为空");
+        return 写入错误("找色点阵为空");
     }
 
     bool 使用转置点阵 = 是否转置方向(dir);
-    已解析颜色 parsed;
-    if (!解析颜色字符串Locked(colors, width, height, 使用转置点阵, sim, &parsed)) {
+    已解析颜色 解析结果;
+    if (!解析颜色字符串(colors, width, height, 使用转置点阵, sim, &解析结果)) {
         return false;
     }
-    if (!修正查找范围Locked(width, height, parsed, x1, y1, x2, y2)) {
+    if (!修正查找范围(width, height, 解析结果, x1, y1, x2, y2)) {
         return false;
     }
 
-    const unsigned char* searchPixels = pixels;
+    const uint32_t* 当前点阵 = reinterpret_cast<const uint32_t*>(pixels);
     if (使用转置点阵) {
-        if (!重建转置点阵Locked(pixels, width, height, frameId)) {
+        if (!重建转置点阵(当前点阵, width, height, frameId)) {
             return false;
         }
-        searchPixels = g转置点阵.data();
+        当前点阵 = g转置点阵;
     }
 
-    bool found = 扫描颜色Locked(
-            searchPixels,
+    bool 找到 = 扫描颜色(
+            当前点阵,
             width,
             height,
             x1,
@@ -549,13 +547,13 @@ bool 在点阵中多点找色(
             x2,
             y2,
             dir,
-            parsed,
+            解析结果,
             point
     );
-    if (found) {
-        gLastError.clear();
+    if (找到) {
+        g最近错误.clear();
     }
-    return found;
+    return 找到;
 }
 
 bool 在屏幕中多点找色(
@@ -572,8 +570,8 @@ bool 在屏幕中多点找色(
 
     ScreenFrame frame;
     if (!captureScreen(&frame)) {
-        std::lock_guard<std::mutex> lock(gColorMutex);
-        return 写入错误Locked(screenLastError());
+        g最近错误 = screenLastError();
+        return false;
     }
 
     return 在点阵中多点找色(
@@ -593,18 +591,17 @@ bool 在屏幕中多点找色(
 }
 
 void 清空找色缓存() {
-    std::lock_guard<std::mutex> lock(gColorMutex);
-    g转置点阵.clear();
-    g转置点阵.shrink_to_fit();
+    std::free(g转置点阵);
+    g转置点阵 = nullptr;
+    g转置容量 = 0;
     g转置宽度 = 0;
     g转置高度 = 0;
     g转置帧编号 = -1;
-    gLastError.clear();
+    g最近错误.clear();
 }
 
 std::string 取找色错误() {
-    std::lock_guard<std::mutex> lock(gColorMutex);
-    return gLastError;
+    return g最近错误;
 }
 
 } // namespace autolua::api

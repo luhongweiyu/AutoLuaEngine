@@ -5,6 +5,8 @@ package com.autolua.engine;
 
 import android.content.Context;
 
+import java.nio.ByteBuffer;
+
 /**
  * Java 平台能力桥。
  *
@@ -82,6 +84,16 @@ public final class AndroidHostBridge {
      * C ABI 的 screen_capture 只走这里，不在失败时切换到其他截图路线。
      */
     public static ScreenCaptureResult captureRootScreen() {
-        return RootScreenCaptureBridge.captureFrame();
+        return captureRootScreen(null, 0);
+    }
+
+    /**
+     * Root 截图入口。
+     *
+     * targetBuffer 来自 libengine.so 的截图缓存。容量足够时，Root helper 的像素流会
+     * 直接读入该 native 缓冲，避免在 Java 引擎进程里再分配整帧 byte[]。
+     */
+    public static ScreenCaptureResult captureRootScreen(ByteBuffer targetBuffer, int targetCapacity) {
+        return RootScreenCaptureBridge.captureFrame(targetBuffer, targetCapacity);
     }
 }

@@ -3,6 +3,8 @@
  */
 package com.autolua.engine;
 
+import java.nio.ByteBuffer;
+
 /**
  * Root 截图桥。
  *
@@ -14,10 +16,14 @@ public final class RootScreenCaptureBridge {
     }
 
     public static ScreenCaptureResult captureFrame() {
+        return captureFrame(null, 0);
+    }
+
+    public static ScreenCaptureResult captureFrame(ByteBuffer targetBuffer, int targetCapacity) {
         if (!RootShellBridge.isRootRuntimeReady()) {
             return ScreenCaptureResult.failure("Root 运行层未就绪");
         }
 
-        return RootHelperBridge.captureFrame(0, 0);
+        return RootHelperBridge.captureFrame(0, 0, targetBuffer, targetCapacity);
     }
 }

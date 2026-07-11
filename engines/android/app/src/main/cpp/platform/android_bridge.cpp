@@ -3,7 +3,9 @@
  */
 #include "android_bridge.h"
 
+#include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <mutex>
 
 namespace {
@@ -258,7 +260,12 @@ void readProbeAttempts(JNIEnv* env, jobject attemptsObject, RootStatusResult* st
     env->DeleteLocalRef(listClass);
 }
 
-ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
+ScreenCaptureResult readScreenCaptureResult(
+        JNIEnv* env,
+        jobject resultObject,
+        unsigned char** targetPixels,
+        size_t* targetCapacity
+) {
     if (env == nullptr || resultObject == nullptr) {
         return captureFailure("root capture returned empty result");
     }
@@ -270,7 +277,8 @@ ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
     }
 
     jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
-    jfieldID pixelBufferField = env->GetFieldID(resultClass, "pixelBuffer", "Ljava/nio/ByteBuffer;");
+    jfieldID pixelsField = env->GetFieldID(resultClass, "pixels", "[B");
+    jfieldID pixelBytesField = env->GetFieldID(resultClass, "pixelBytes", "I");
     jfieldID widthField = env->GetFieldID(resultClass, "width", "I");
     jfieldID heightField = env->GetFieldID(resultClass, "height", "I");
     jfieldID rowStrideField = env->GetFieldID(resultClass, "rowStride", "I");
@@ -280,7 +288,8 @@ ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
     jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
     jmethodID closeMethod = env->GetMethodID(resultClass, "close", "()V");
     if (successField == nullptr
-            || pixelBufferField == nullptr
+            || pixelsField == nullptr
+            || pixelBytesField == nullptr
             || widthField == nullptr
             || heightField == nullptr
             || rowStrideField == nullptr
@@ -296,13 +305,14 @@ ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
 
     ScreenCaptureResult result;
     result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
+    result.pixelBytes = static_cast<size_t>(env->GetIntField(resultObject, pixelBytesField));
     result.width = env->GetIntField(resultObject, widthField);
     result.height = env->GetIntField(resultObject, heightField);
     result.rowStride = env->GetIntField(resultObject, rowStrideField);
     result.pixelStride = env->GetIntField(resultObject, pixelStrideField);
     result.captureDurationMs = static_cast<long long>(env->GetLongField(resultObject, durationField));
 
-    jobject pixelBuffer = env->GetObjectField(resultObject, pixelBufferField);
+    jbyteArray pixelsArray = static_cast<jbyteArray>(env->GetObjectField(resultObject, pixelsField));
     jstring source = static_cast<jstring>(env->GetObjectField(resultObject, sourceField));
     jstring error = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
     result.source = jStringToString(env, source);
@@ -315,47 +325,94 @@ ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
         } else if (result.pixelStride < 4) {
             result.success = false;
             result.error = "root capture pixel stride is unsupported";
+        } else if (targetPixels == nullptr || targetCapacity == nullptr) {
+            result.success = false;
+            result.error = "root capture target buffer is null";
         } else {
-            unsigned char* sourceBytes = pixelBuffer == nullptr
-                    ? nullptr
-                    : static_cast<unsigned char*>(env->GetDirectBufferAddress(pixelBuffer));
-            jlong sourceCapacity = pixelBuffer == nullptr ? 0 : env->GetDirectBufferCapacity(pixelBuffer);
             int compactRowStride = result.width * 4;
             size_t targetSize = static_cast<size_t>(compactRowStride)
                     * static_cast<size_t>(result.height);
             size_t requiredSourceSize = static_cast<size_t>(result.rowStride)
                     * static_cast<size_t>(result.height - 1)
                     + static_cast<size_t>(result.width) * static_cast<size_t>(result.pixelStride);
+            jsize sourceLength = pixelsArray == nullptr ? 0 : env->GetArrayLength(pixelsArray);
 
-            if (sourceBytes == nullptr || sourceCapacity <= 0) {
+            if (pixelsArray == nullptr) {
+                if (*targetPixels == nullptr || *targetCapacity < targetSize) {
+                    result.success = false;
+                    result.error = "root capture native cache is smaller than returned frame";
+                } else if (result.pixelBytes < targetSize) {
+                    result.success = false;
+                    result.error = "root capture native buffer is incomplete";
+                } else {
+                    result.pixelBytes = targetSize;
+                    result.rowStride = compactRowStride;
+                    result.pixelStride = 4;
+                }
+            } else if (sourceLength <= 0) {
                 result.success = false;
-                result.error = "root capture pixel buffer is not direct";
-            } else if (static_cast<size_t>(sourceCapacity) < requiredSourceSize) {
+                result.error = "root capture pixel array is empty";
+            } else if (static_cast<size_t>(sourceLength) < requiredSourceSize) {
                 result.success = false;
                 result.error = "root capture pixel buffer is incomplete";
+            } else if (targetSize > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
+                result.success = false;
+                result.error = "root capture pixel buffer is too large for JNI copy";
             } else {
-                result.pixels.resize(targetSize);
-                for (int y = 0; y < result.height; ++y) {
-                    const unsigned char* sourceRow = sourceBytes
-                            + static_cast<size_t>(y) * static_cast<size_t>(result.rowStride);
-                    unsigned char* targetRow = result.pixels.data()
-                            + static_cast<size_t>(y) * static_cast<size_t>(compactRowStride);
-
-                    if (result.pixelStride == 4) {
-                        std::memcpy(targetRow, sourceRow, static_cast<size_t>(compactRowStride));
-                        continue;
-                    }
-
-                    for (int x = 0; x < result.width; ++x) {
-                        const unsigned char* sourcePixel = sourceRow
-                                + static_cast<size_t>(x) * static_cast<size_t>(result.pixelStride);
-                        unsigned char* targetPixel = targetRow + static_cast<size_t>(x) * 4;
-                        targetPixel[0] = sourcePixel[0];
-                        targetPixel[1] = sourcePixel[1];
-                        targetPixel[2] = sourcePixel[2];
-                        targetPixel[3] = sourcePixel[3];
+                if (*targetPixels == nullptr || *targetCapacity < targetSize) {
+                    void* newBuffer = std::realloc(*targetPixels, targetSize);
+                    if (newBuffer == nullptr) {
+                        result.success = false;
+                        result.error = "root capture native cache memory is not enough";
+                    } else {
+                        *targetPixels = static_cast<unsigned char*>(newBuffer);
+                        *targetCapacity = targetSize;
                     }
                 }
+
+                if (!result.success) {
+                    // 上面的扩容已经写入错误。
+                } else if (result.pixelStride == 4 && result.rowStride == compactRowStride) {
+                    env->GetByteArrayRegion(
+                            pixelsArray,
+                            0,
+                            static_cast<jsize>(targetSize),
+                            reinterpret_cast<jbyte*>(*targetPixels)
+                    );
+                    result.pixelBytes = targetSize;
+                } else {
+                    jbyte* sourceBytes = env->GetByteArrayElements(pixelsArray, nullptr);
+                    if (sourceBytes == nullptr) {
+                        result.success = false;
+                        result.error = "root capture pixel array is not available";
+                    } else {
+                        const auto* source = reinterpret_cast<const unsigned char*>(sourceBytes);
+                        for (int y = 0; y < result.height; ++y) {
+                            const unsigned char* sourceRow = source
+                                    + static_cast<size_t>(y) * static_cast<size_t>(result.rowStride);
+                            unsigned char* targetRow = *targetPixels
+                                    + static_cast<size_t>(y) * static_cast<size_t>(compactRowStride);
+
+                            if (result.pixelStride == 4) {
+                                std::memcpy(targetRow, sourceRow, static_cast<size_t>(compactRowStride));
+                                continue;
+                            }
+
+                            for (int x = 0; x < result.width; ++x) {
+                                const unsigned char* sourcePixel = sourceRow
+                                        + static_cast<size_t>(x) * static_cast<size_t>(result.pixelStride);
+                                unsigned char* targetPixel = targetRow + static_cast<size_t>(x) * 4;
+                                targetPixel[0] = sourcePixel[0];
+                                targetPixel[1] = sourcePixel[1];
+                                targetPixel[2] = sourcePixel[2];
+                                targetPixel[3] = sourcePixel[3];
+                            }
+                        }
+                        env->ReleaseByteArrayElements(pixelsArray, sourceBytes, JNI_ABORT);
+                        result.pixelBytes = targetSize;
+                    }
+                }
+
                 result.rowStride = compactRowStride;
                 result.pixelStride = 4;
             }
@@ -367,8 +424,8 @@ ScreenCaptureResult readScreenCaptureResult(JNIEnv* env, jobject resultObject) {
     env->CallVoidMethod(resultObject, closeMethod);
     clearExceptionIfNeeded(env);
 
-    if (pixelBuffer != nullptr) {
-        env->DeleteLocalRef(pixelBuffer);
+    if (pixelsArray != nullptr) {
+        env->DeleteLocalRef(pixelsArray);
     }
     if (source != nullptr) {
         env->DeleteLocalRef(source);
@@ -516,23 +573,47 @@ RootStatusResult AndroidBridge::rootStatus() {
     return status;
 }
 
-ScreenCaptureResult AndroidBridge::captureRootScreen() {
+ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, size_t* capacity) {
     JNIEnv* env = getEnv();
     jmethodID methodId = staticMethod(
             env,
             "captureRootScreen",
-            "()Lcom/autolua/engine/ScreenCaptureResult;"
+            "(Ljava/nio/ByteBuffer;I)Lcom/autolua/engine/ScreenCaptureResult;"
     );
     if (env == nullptr || methodId == nullptr) {
         return captureFailure("root capture method is not available");
     }
 
-    jobject resultObject = env->CallStaticObjectMethod(gBridgeClass, methodId);
+    jobject targetBuffer = nullptr;
+    jint targetCapacity = 0;
+    if (pixels != nullptr
+            && capacity != nullptr
+            && *pixels != nullptr
+            && *capacity > 0
+            && *capacity <= static_cast<size_t>(std::numeric_limits<jint>::max())) {
+        targetBuffer = env->NewDirectByteBuffer(*pixels, static_cast<jlong>(*capacity));
+        if (clearExceptionIfNeeded(env) || targetBuffer == nullptr) {
+            targetBuffer = nullptr;
+            targetCapacity = 0;
+        } else {
+            targetCapacity = static_cast<jint>(*capacity);
+        }
+    }
+
+    jobject resultObject = env->CallStaticObjectMethod(
+            gBridgeClass,
+            methodId,
+            targetBuffer,
+            targetCapacity
+    );
+    if (targetBuffer != nullptr) {
+        env->DeleteLocalRef(targetBuffer);
+    }
     if (clearExceptionIfNeeded(env)) {
         return captureFailure("root capture java call failed");
     }
 
-    ScreenCaptureResult result = readScreenCaptureResult(env, resultObject);
+    ScreenCaptureResult result = readScreenCaptureResult(env, resultObject, pixels, capacity);
     if (resultObject != nullptr) {
         env->DeleteLocalRef(resultObject);
     }

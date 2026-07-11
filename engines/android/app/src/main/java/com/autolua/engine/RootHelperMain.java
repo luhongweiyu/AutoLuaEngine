@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
  * 第一版只实现截图命令，保持“启动一次、后续复用”的模型。
  */
 public final class RootHelperMain {
+    private static byte[] captureBytes;
+    private static ByteBuffer captureBuffer;
+
     private RootHelperMain() {
     }
 
@@ -90,7 +93,7 @@ public final class RootHelperMain {
         int bitmapWidth = bitmap.getWidth();
         int bitmapHeight = bitmap.getHeight();
         int pixelBytes = bitmapWidth * bitmapHeight * 4;
-        ByteBuffer pixels = ByteBuffer.allocate(pixelBytes).order(ByteOrder.nativeOrder());
+        ByteBuffer pixels = ensureCaptureBuffer(pixelBytes);
         bitmap.copyPixelsToBuffer(pixels);
         bitmap.recycle();
 
@@ -100,8 +103,25 @@ public final class RootHelperMain {
                 + bitmapHeight
                 + "\t"
                 + pixelBytes);
-        outputStream.write(pixels.array());
+        outputStream.write(captureBytes, 0, pixelBytes);
         outputStream.flush();
+    }
+
+    /**
+     * 复用 root helper 进程内的整帧缓冲。
+     *
+     * Bitmap.copyPixelsToBuffer 每次都需要一个可写 Buffer。这里让 ByteBuffer 包在同一块
+     * byte[] 上，屏幕尺寸不变时不再反复分配整帧数组。
+     */
+    private static ByteBuffer ensureCaptureBuffer(int pixelBytes) {
+        if (captureBytes == null || captureBytes.length < pixelBytes) {
+            captureBytes = new byte[pixelBytes];
+            captureBuffer = ByteBuffer.wrap(captureBytes).order(ByteOrder.nativeOrder());
+        }
+
+        captureBuffer.clear();
+        captureBuffer.limit(pixelBytes);
+        return captureBuffer;
     }
 
     private static String readLine(InputStream inputStream) throws Exception {

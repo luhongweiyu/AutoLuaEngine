@@ -4,11 +4,10 @@
 #include "screen_api.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <limits>
 #include <mutex>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "../../platform/android_bridge.h"
 
@@ -22,9 +21,11 @@ constexpr int kPixelBytes = 4;
 constexpr int kDefaultCaptureCacheMs = 20;
 
 // 截图缓存的所有状态都由 gCaptureMutex 保护。
-// pixels 指针会直接返回给调用方，所以 vector 只能在持锁状态下替换或清空。
+// pixels 指针会直接返回给调用方，所以只能在持锁状态下替换或清空。
 std::mutex gCaptureMutex;
-std::vector<unsigned char> gCapturePixels;
+unsigned char* gCapturePixels = nullptr;
+size_t gCaptureCapacity = 0;
+size_t gCaptureSize = 0;
 int gCaptureWidth = 0;
 int gCaptureHeight = 0;
 long long gCaptureStoredAtMs = 0;
@@ -49,10 +50,10 @@ long long steadyNowMs() {
  * 判断当前是否已经有一帧可返回的截图缓存。
  *
  * 调用方必须已经持有 gCaptureMutex；函数名里的 Locked 用来提醒不要在未加锁
- * 的情况下读取宽高和 vector 状态。
+ * 的情况下读取宽高和裸指针状态。
  */
 bool hasCachedFrameLocked() {
-    return gCaptureWidth > 0 && gCaptureHeight > 0 && !gCapturePixels.empty();
+    return gCaptureWidth > 0 && gCaptureHeight > 0 && gCapturePixels != nullptr && gCaptureSize > 0;
 }
 
 /**
@@ -82,7 +83,7 @@ bool isCacheUsableLocked() {
 void writeCaptureResultLocked(ScreenFrame* frame) {
     frame->width = gCaptureWidth;
     frame->height = gCaptureHeight;
-    frame->pixels = gCapturePixels.data();
+    frame->pixels = gCapturePixels;
     frame->frameId = gCaptureFrameId;
 }
 
@@ -116,7 +117,7 @@ bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
         return setErrorLocked("root capture pixel buffer is too large");
     }
 
-    if (result.pixels.size() < static_cast<size_t>(expectedLength)) {
+    if (result.pixelBytes < static_cast<size_t>(expectedLength)) {
         return setErrorLocked("root capture pixel buffer is incomplete");
     }
 
@@ -138,7 +139,7 @@ bool captureScreen(ScreenFrame* frame) {
         return true;
     }
 
-    ScreenCaptureResult result = AndroidBridge::captureRootScreen();
+    ScreenCaptureResult result = AndroidBridge::captureRootScreen(&gCapturePixels, &gCaptureCapacity);
     if (!validateCaptureResultLocked(result)) {
         frame->width = 0;
         frame->height = 0;
@@ -150,10 +151,7 @@ bool captureScreen(ScreenFrame* frame) {
     size_t expectedLength = static_cast<size_t>(result.width)
             * static_cast<size_t>(result.height)
             * static_cast<size_t>(kPixelBytes);
-    gCapturePixels = std::move(result.pixels);
-    if (gCapturePixels.size() > expectedLength) {
-        gCapturePixels.resize(expectedLength);
-    }
+    gCaptureSize = expectedLength;
 
     gCaptureWidth = result.width;
     gCaptureHeight = result.height;
@@ -191,8 +189,10 @@ bool setScreenCaptureCacheMs(int durationMs) {
 void clearScreenCaptureCache() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
-    gCapturePixels.clear();
-    gCapturePixels.shrink_to_fit();
+    std::free(gCapturePixels);
+    gCapturePixels = nullptr;
+    gCaptureCapacity = 0;
+    gCaptureSize = 0;
     gCaptureWidth = 0;
     gCaptureHeight = 0;
     gCaptureStoredAtMs = 0;

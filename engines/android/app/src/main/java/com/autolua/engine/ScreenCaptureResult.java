@@ -8,12 +8,12 @@ import java.nio.ByteBuffer;
 /**
  * 截图结果对象。
  *
- * Java 层把 Root helper 得到的 Bitmap 像素整理成 direct ByteBuffer，Native 层
- * 直接复制该缓冲到 libengine.so 内部截图缓存，避免 PNG 编码和磁盘 IO。
+ * Java 层把 Root helper 得到的原始 RGBA 像素直接交给 Native 层。
  */
 public final class ScreenCaptureResult {
     public final boolean success;
-    public final ByteBuffer pixelBuffer;
+    public final byte[] pixels;
+    public final int pixelBytes;
     public final int width;
     public final int height;
     public final int rowStride;
@@ -27,7 +27,8 @@ public final class ScreenCaptureResult {
 
     private ScreenCaptureResult(
             boolean success,
-            ByteBuffer pixelBuffer,
+            byte[] pixels,
+            int pixelBytes,
             int width,
             int height,
             int rowStride,
@@ -38,7 +39,8 @@ public final class ScreenCaptureResult {
             String error
     ) {
         this.success = success;
-        this.pixelBuffer = pixelBuffer;
+        this.pixels = pixels;
+        this.pixelBytes = pixelBytes;
         this.width = width;
         this.height = height;
         this.rowStride = rowStride;
@@ -75,16 +77,55 @@ public final class ScreenCaptureResult {
             return failure("screen capture pixel buffer is incomplete");
         }
 
-        ByteBuffer buffer = ByteBuffer.allocateDirect(expectedLength);
-        buffer.put(pixels, 0, expectedLength);
-        buffer.position(0);
-
         return new ScreenCaptureResult(
                 true,
-                buffer,
+                pixels,
+                expectedLength,
                 width,
                 height,
                 rowStride,
+                4,
+                "rgba8888",
+                source,
+                captureDurationMs,
+                null
+        );
+    }
+
+    public static ScreenCaptureResult successFromNativeBuffer(
+            ByteBuffer targetBuffer,
+            int pixelBytes,
+            int width,
+            int height,
+            String source,
+            long captureDurationMs
+    ) {
+        if (targetBuffer == null || !targetBuffer.isDirect()) {
+            return failure("screen capture native buffer is not direct");
+        }
+
+        if (width <= 0 || height <= 0) {
+            return failure("screen capture size is invalid");
+        }
+
+        long expectedLengthLong = (long) width * (long) height * 4L;
+        if (expectedLengthLong > Integer.MAX_VALUE) {
+            return failure("screen capture pixel buffer is too large");
+        }
+
+        int expectedLength = (int) expectedLengthLong;
+        if (pixelBytes < expectedLength || targetBuffer.capacity() < expectedLength) {
+            return failure("screen capture native buffer is incomplete");
+        }
+
+        targetBuffer.position(0);
+        return new ScreenCaptureResult(
+                true,
+                null,
+                expectedLength,
+                width,
+                height,
+                width * 4,
                 4,
                 "rgba8888",
                 source,
@@ -119,9 +160,12 @@ public final class ScreenCaptureResult {
         }
 
         buffer.position(0);
+        byte[] pixels = new byte[expectedLength];
+        buffer.get(pixels, 0, expectedLength);
         return new ScreenCaptureResult(
                 true,
-                buffer,
+                pixels,
+                expectedLength,
                 width,
                 height,
                 width * 4,
@@ -134,7 +178,7 @@ public final class ScreenCaptureResult {
     }
 
     public static ScreenCaptureResult failure(String error) {
-        return new ScreenCaptureResult(false, null, 0, 0, 0, 0, null, "", 0, error);
+        return new ScreenCaptureResult(false, null, 0, 0, 0, 0, 0, null, "", 0, error);
     }
 
     public void close() {

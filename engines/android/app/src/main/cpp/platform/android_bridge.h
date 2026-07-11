@@ -4,6 +4,7 @@
 #pragma once
 
 #include <jni.h>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -16,7 +17,7 @@
  */
 struct ScreenCaptureResult {
     bool success = false;
-    std::vector<unsigned char> pixels;
+    size_t pixelBytes = 0;
     int width = 0;
     int height = 0;
     int rowStride = 0;
@@ -75,5 +76,5 @@ public:
     static bool prepareRootHelper();
     static RootStatusResult rootStatus();
 
-    static ScreenCaptureResult captureRootScreen();
+    static ScreenCaptureResult captureRootScreen(unsigned char** pixels, size_t* capacity);
 };
