@@ -5,27 +5,33 @@
 
 #include <string>
 
+#include "api/color_api.h"
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
 #include "../engine/engine_config.h"
 
 namespace {
 
+constexpr int kEngineAbiVersion = 4;
+
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.3\","
+        "\"abiVersion\":\"0.4\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"go-reserved\",\"plugin-reserved\"],"
+        "\"pluginApi\":\"engine_get_api\","
         "\"runtimeApi\":[\"runtime_print\",\"runtime_log_print\",\"runtime_sleep\"],"
         "\"screenCapture\":[\"screen_capture\",\"screen_capture_cache\",\"screen_keep_capture\"],"
+        "\"colorApi\":[\"color_find\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
 
 thread_local std::string gRuntimeLastError;
 thread_local std::string gScreenLastError;
+thread_local std::string gColorLastError;
 
 struct CInterruptContext {
     runtime_interrupt_callback callback = nullptr;
@@ -43,6 +49,25 @@ bool cInterruptAdapter(void* context) {
             && interrupt->callback != nullptr
             && interrupt->callback(interrupt->userData) != 0;
 }
+
+const EngineApi kEngineApi = {
+        kEngineAbiVersion,
+        engine_version,
+        engine_capabilities_json,
+        runtime_print,
+        runtime_log_print,
+        runtime_sleep,
+        runtime_sleep_interruptible,
+        runtime_last_error,
+        screen_capture,
+        screen_keep_capture,
+        screen_release_capture,
+        screen_set_capture_cache_ms,
+        screen_clear_capture_cache,
+        screen_last_error,
+        color_find,
+        color_last_error
+};
 
 } // namespace
 
@@ -62,6 +87,15 @@ extern "C" const char* engine_version() {
  */
 extern "C" const char* engine_capabilities_json() {
     return kCapabilitiesJson;
+}
+
+/**
+ * 返回外部插件 so 使用的引擎函数表。
+ *
+ * 这和旧项目 setLrApi 的思路一致，区别是这里由宿主主动导出完整函数表。
+ */
+extern "C" const EngineApi* engine_get_api() {
+    return &kEngineApi;
 }
 
 /**
@@ -196,6 +230,7 @@ extern "C" int screen_set_capture_cache_ms(int durationMs) {
  */
 extern "C" void screen_clear_capture_cache() {
     autolua::api::clearScreenCaptureCache();
+    autolua::api::clearColorCache();
     gScreenLastError.clear();
 }
 
@@ -204,4 +239,55 @@ extern "C" void screen_clear_capture_cache() {
  */
 extern "C" const char* screen_last_error() {
     return gScreenLastError.c_str();
+}
+
+/**
+ * 在当前屏幕截图缓存上执行多点找色。
+ *
+ * 找色核心内部会调用 screen_api，所以这里没有“是否截屏”参数；缓存策略统一由
+ * screen_capture/keep/release/setCaptureCacheMs 控制。
+ */
+extern "C" int color_find(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        int dir,
+        int sim,
+        const char* colors,
+        EnginePoint* point
+) {
+    if (point == nullptr) {
+        gColorLastError = "color find output point is null";
+        return 0;
+    }
+
+    autolua::api::ColorPoint colorPoint;
+    bool found = autolua::api::findColorOnScreen(
+            x1,
+            y1,
+            x2,
+            y2,
+            dir,
+            sim,
+            colors,
+            &colorPoint
+    );
+
+    point->x = colorPoint.x;
+    point->y = colorPoint.y;
+    if (!found) {
+        gColorLastError = autolua::api::colorLastError();
+        return 0;
+    }
+
+    gColorLastError.clear();
+    return 1;
+}
+
+/**
+ * 返回最近一次找色 C ABI 失败原因。
+ */
+extern "C" const char* color_last_error() {
+    return gColorLastError.c_str();
 }

@@ -15,6 +15,54 @@ extern "C" {
 typedef int (*runtime_interrupt_callback)(void* userData);
 
 /**
+ * C ABI 通用坐标。
+ *
+ * 找到目标时 x/y 为命中坐标；未找到或失败时调用方会收到 -1/-1。
+ */
+typedef struct EnginePoint {
+    int x;
+    int y;
+} EnginePoint;
+
+/**
+ * 给外部插件 so 使用的函数表。
+ *
+ * 插件可以通过 engine_get_api() 取得这张表，然后调用同一套引擎能力，不需要
+ * 自己重复声明每个 dlsym 符号。
+ */
+typedef struct EngineApi {
+    int abiVersion;
+    const char* (*engine_version)();
+    const char* (*engine_capabilities_json)();
+    int (*runtime_print)(const char* text);
+    int (*runtime_log_print)(const char* text);
+    int (*runtime_sleep)(int durationMs);
+    int (*runtime_sleep_interruptible)(
+            int durationMs,
+            runtime_interrupt_callback shouldInterrupt,
+            void* userData
+    );
+    const char* (*runtime_last_error)();
+    int (*screen_capture)(int* width, int* height, unsigned char** pixels);
+    void (*screen_keep_capture)();
+    void (*screen_release_capture)();
+    int (*screen_set_capture_cache_ms)(int durationMs);
+    void (*screen_clear_capture_cache)();
+    const char* (*screen_last_error)();
+    int (*color_find)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            int dir,
+            int sim,
+            const char* colors,
+            EnginePoint* point
+    );
+    const char* (*color_last_error)();
+} EngineApi;
+
+/**
  * AutoLuaEngine native 稳定 C ABI。
  *
  * 真实逻辑在 core/api；本文件只暴露跨语言稳定入口。语言绑定层只负责参数转换
@@ -28,6 +76,13 @@ const char* engine_version();
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* engine_capabilities_json();
+
+/**
+ * 返回给外部插件 so 使用的引擎函数表。
+ *
+ * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
+ */
+const EngineApi* engine_get_api();
 
 /**
  * 输出普通脚本日志。
@@ -117,6 +172,38 @@ void screen_clear_capture_cache();
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* screen_last_error();
+
+/**
+ * 在当前屏幕截图缓存上执行多点找色。
+ *
+ * 参数：
+ * - x1/y1/x2/y2：查找范围。
+ * - dir：扫描方向，取值 1 到 8，语义沿用旧找色算法。
+ * - sim：默认颜色容差，格式为 0xRRGGBB。
+ * - colors：颜色描述，例如 "0|0|FFFFFF,10|5|FF0000-101010"。
+ * - point：输出命中坐标。
+ *
+ * 返回：
+ * - 1：找到颜色，point 写入命中坐标。
+ * - 0：未找到或失败，point 写入 -1/-1，可通过 color_last_error() 读取原因。
+ */
+int color_find(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        int dir,
+        int sim,
+        const char* colors,
+        EnginePoint* point
+);
+
+/**
+ * 返回最近一次找色 C ABI 调用失败原因。
+ *
+ * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
+ */
+const char* color_last_error();
 
 #ifdef __cplusplus
 }

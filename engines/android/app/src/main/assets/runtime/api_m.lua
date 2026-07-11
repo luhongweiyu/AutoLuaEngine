@@ -8,12 +8,14 @@ local m = {
     sleep = host.sleep,
     log = host.log,
     screen = host.screen,
+    color = host.color,
 }
 
 m.capture = host.screen.capture
 m.keepCapture = host.screen.keepCapture
 m.releaseCapture = host.screen.releaseCapture
 m.setCaptureCacheMs = host.screen.setCaptureCacheMs
+m.findColor = host.color.find
 
 _G.print = host.print
 _G.m = m

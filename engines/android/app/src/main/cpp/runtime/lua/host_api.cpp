@@ -39,6 +39,15 @@ void setFunctionField(lua_State* state, int tableIndex, const char* name, lua_CF
     lua_setfield(state, tableIndex, name);
 }
 
+int luaCheckInt(lua_State* state, int index, const char* name) {
+    lua_Integer value = luaL_checkinteger(state, index);
+    if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
+        luaL_error(state, "%s is out of int range", name);
+        return 0;
+    }
+    return static_cast<int>(value);
+}
+
 int luaPrint(lua_State* state) {
     int count = lua_gettop(state);
     std::ostringstream output;
@@ -130,6 +139,34 @@ int luaSetCaptureCacheMs(lua_State* state) {
     return 1;
 }
 
+/**
+ * Lua 找色入口。
+ *
+ * 参数：x1, y1, x2, y2, dir, sim, colors。
+ * 成功返回：x, y。
+ * 失败返回：nil, errorMessage。
+ */
+int luaColorFind(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    int dir = luaCheckInt(state, 5, "dir");
+    int sim = luaCheckInt(state, 6, "sim");
+    const char* colors = luaL_checkstring(state, 7);
+
+    EnginePoint point{-1, -1};
+    if (!color_find(x1, y1, x2, y2, dir, sim, colors, &point)) {
+        lua_pushnil(state);
+        lua_pushstring(state, color_last_error());
+        return 2;
+    }
+
+    lua_pushinteger(state, point.x);
+    lua_pushinteger(state, point.y);
+    return 2;
+}
+
 } // namespace
 
 void registerHostApi(lua_State* state) {
@@ -151,6 +188,11 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, screenTableIndex, "releaseCapture", luaReleaseCapture);
     setFunctionField(state, screenTableIndex, "setCaptureCacheMs", luaSetCaptureCacheMs);
     lua_setfield(state, hostTableIndex, "screen");
+
+    lua_newtable(state);
+    int colorTableIndex = lua_gettop(state);
+    setFunctionField(state, colorTableIndex, "find", luaColorFind);
+    lua_setfield(state, hostTableIndex, "color");
 
     lua_setglobal(state, "_host");
 }

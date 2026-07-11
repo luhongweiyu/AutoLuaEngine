@@ -30,6 +30,7 @@ int gCaptureHeight = 0;
 long long gCaptureStoredAtMs = 0;
 int gCaptureCacheMs = kDefaultCaptureCacheMs;
 bool gKeepCapture = false;
+long long gCaptureRevision = 0;
 std::string gLastError;
 
 /**
@@ -82,6 +83,7 @@ void writeCaptureResultLocked(ScreenFrame* frame) {
     frame->width = gCaptureWidth;
     frame->height = gCaptureHeight;
     frame->pixels = gCapturePixels.data();
+    frame->revision = gCaptureRevision;
 }
 
 /**
@@ -141,6 +143,7 @@ bool captureScreen(ScreenFrame* frame) {
         frame->width = 0;
         frame->height = 0;
         frame->pixels = nullptr;
+        frame->revision = gCaptureRevision;
         return false;
     }
 
@@ -155,6 +158,7 @@ bool captureScreen(ScreenFrame* frame) {
     gCaptureWidth = result.width;
     gCaptureHeight = result.height;
     gCaptureStoredAtMs = steadyNowMs();
+    ++gCaptureRevision;
     gLastError.clear();
 
     writeCaptureResultLocked(frame);
@@ -194,12 +198,18 @@ void clearScreenCaptureCache() {
     gCaptureStoredAtMs = 0;
     gCaptureCacheMs = kDefaultCaptureCacheMs;
     gKeepCapture = false;
+    ++gCaptureRevision;
     gLastError.clear();
 }
 
 std::string screenLastError() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
     return gLastError;
+}
+
+long long screenCaptureRevision() {
+    std::lock_guard<std::mutex> lock(gCaptureMutex);
+    return gCaptureRevision;
 }
 
 } // namespace autolua::api

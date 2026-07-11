@@ -30,6 +30,19 @@ screen_clear_capture_cache
 screen_last_error
 ```
 
+当前找色 C ABI：
+
+```c
+color_find
+color_last_error
+```
+
+当前插件函数表入口：
+
+```c
+engine_get_api
+```
+
 Lua 当前通过 HostApi 暴露脚本函数，但 HostApi 只做 Lua 类型转换，并调用同一组
 C ABI。JS / Go 后续也按同样方式绑定，不各写一套命令逻辑。
 
@@ -97,6 +110,46 @@ const char* screen_last_error();
 - `screen_release_capture()` 取消锁帧。
 - `screen_clear_capture_cache()` 清空截图缓存。
 
+## 找色 C ABI
+
+```c
+typedef struct EnginePoint {
+    int x;
+    int y;
+} EnginePoint;
+
+int color_find(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        int dir,
+        int sim,
+        const char* colors,
+        EnginePoint* point
+);
+const char* color_last_error();
+```
+
+规则：
+
+- `color_find` 直接使用当前截图缓存，不带“是否截屏”参数。
+- 截图是否刷新由 `screen_capture` 的缓存时间、`screen_keep_capture` 和 `screen_release_capture` 控制。
+- `dir` 取值为 `1` 到 `8`，沿用旧找色算法扫描方向。
+- `sim` 为默认容差，格式为 `0xRRGGBB`。
+- `colors` 格式示例：`0|0|FFFFFF,10|5|FF0000-101010`。
+- 找到返回 `1`，`point.x/point.y` 为命中坐标。
+- 未找到或失败返回 `0`，`point.x/point.y` 为 `-1/-1`，原因通过 `color_last_error()` 获取。
+
+## 插件函数表
+
+```c
+const EngineApi* engine_get_api();
+```
+
+外部插件 so 可以通过 `engine_get_api()` 取得函数表，复用当前运行时、截图和找色
+C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
+
 ## Lua 映射
 
 ```lua
@@ -107,6 +160,7 @@ m.capture()
 m.keepCapture()
 m.releaseCapture()
 m.setCaptureCacheMs(ms)
+m.findColor(x1, y1, x2, y2, dir, sim, colors)
 ```
 
 ## 暂未定义契约

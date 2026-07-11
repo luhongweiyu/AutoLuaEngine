@@ -8,6 +8,7 @@ local lr = {
     keepCapture = host.screen.keepCapture,
     releaseCapture = host.screen.releaseCapture,
     setCaptureCacheMs = host.screen.setCaptureCacheMs,
+    findColor = host.color.find,
 }
 
 lr.__compat = {
