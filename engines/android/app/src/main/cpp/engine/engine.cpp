@@ -6,6 +6,7 @@
 #include "script_task.h"
 #include "../core/api/color_api.h"
 #include "../core/api/screen_api.h"
+#include "../core/api/ui_api.h"
 #include "../runtime/lua/lua_runtime.h"
 
 #include <sstream>
@@ -92,6 +93,9 @@ std::string Engine::runLuaText(const char* code) {
 
     LuaRuntime runtime;
     std::string result = runtime.runText(code, Engine::shouldInterrupt, this);
+    // 脚本结束后必须回收该任务打开的弹窗、HUD 和 HTML 页面。UI 宿主在 App 主进程，
+    // 因此不能依赖 LuaRuntime 析构时的本地对象自动回收。
+    autolua::api::closeAllUiSurfaces();
     autolua::api::clearScreenCaptureCache();
     autolua::api::清空找色缓存();
     pauseRequested_.store(false);

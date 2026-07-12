@@ -11,7 +11,7 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `abiVersion` 为 `8`。新增字段只追加到结构体末尾；插件应先检查版本，再访问新增
+当前 `abiVersion` 为 `9`。新增字段只追加到结构体末尾；插件应先检查版本，再访问新增
 能力。
 
 ## 当前函数表能力
@@ -49,6 +49,19 @@ typedef struct EngineApi {
     int (*imeSetText)(const char* text);
     int (*imeUnlock)();
     const char* (*imeLastError)();
+    long long (*uiOpen)(const char* surface, const char* specJson);
+    int (*uiUpdate)(long long sessionId, const char* specJson);
+    int (*uiPostMessage)(long long sessionId, const char* messageJson);
+    int (*uiClose)(long long sessionId);
+    const char* (*uiWaitEvent)(long long sessionId, int timeoutMs);
+    const char* (*uiWaitEventInterruptible)(
+        long long sessionId,
+        int timeoutMs,
+        runtime_interrupt_callback cb,
+        void* userData
+    );
+    void (*uiCloseAll)();
+    const char* (*uiLastError)();
 } EngineApi;
 ```
 
@@ -61,4 +74,7 @@ typedef struct EngineApi {
 - `touch/key/inputText` 只走 Root helper 常驻进程，不走无障碍。
 - `imeLock/imeUnlock` 通过 Root helper 保存、切换和恢复系统输入法；`imeSetText` 通过
   已锁定的 AutoLuaEngine 输入法提交 Unicode 文本，不执行额外 Root 命令。
+- `uiOpen` 的 `surface` 当前为 `dialog`、`hud`、`web`；配置和消息参数均为 JSON 文本。
+- `uiWaitEvent` 返回 `{"type":...,"data":...}` JSON，`uiWaitEventInterruptible` 适用于
+  需要响应脚本停止请求的语言运行时。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。

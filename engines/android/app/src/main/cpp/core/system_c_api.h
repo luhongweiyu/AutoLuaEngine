@@ -75,6 +75,19 @@ typedef struct EngineApi {
     int (*imeSetText)(const char* text);
     int (*imeUnlock)();
     const char* (*imeLastError)();
+    long long (*uiOpen)(const char* surface, const char* specJson);
+    int (*uiUpdate)(long long sessionId, const char* specJson);
+    int (*uiPostMessage)(long long sessionId, const char* messageJson);
+    int (*uiClose)(long long sessionId);
+    const char* (*uiWaitEvent)(long long sessionId, int timeoutMs);
+    const char* (*uiWaitEventInterruptible)(
+            long long sessionId,
+            int timeoutMs,
+            runtime_interrupt_callback shouldInterrupt,
+            void* userData
+    );
+    void (*uiCloseAll)();
+    const char* (*uiLastError)();
 } EngineApi;
 
 /**
@@ -309,6 +322,61 @@ const char* engine_getRunEnvType();
  * 返回最近一次输入 C ABI 失败原因。
  */
 const char* engine_inputLastError();
+
+/**
+ * 创建脚本 UI 会话。
+ *
+ * surface 支持 dialog、hud、web；specJson 是完整 JSON 对象。成功返回大于 0 的
+ * 会话 ID，失败返回 0，并可通过 engine_uiLastError() 获取原因。
+ */
+long long engine_uiOpen(const char* surface, const char* specJson);
+
+/**
+ * 更新 HUD 会话配置。
+ *
+ * 当前只有 hud 支持更新；其他界面类型返回 0。
+ */
+int engine_uiUpdate(long long sessionId, const char* specJson);
+
+/**
+ * 向 HTML 页面发送 JSON 消息。
+ */
+int engine_uiPostMessage(long long sessionId, const char* messageJson);
+
+/**
+ * 关闭一个脚本 UI 会话。
+ */
+int engine_uiClose(long long sessionId);
+
+/**
+ * 等待 UI 事件。
+ *
+ * 成功返回由 libengine.so 持有的 JSON：{"type":...,"data":...}；timeoutMs 小于
+ * 0 时无限等待。失败返回空字符串，原因通过 engine_uiLastError() 获取。
+ */
+const char* engine_uiWaitEvent(long long sessionId, int timeoutMs);
+
+/**
+ * 带脚本停止检查的 UI 事件等待入口。
+ *
+ * Lua 等脚本运行时应使用该函数，确保弹窗或网页等待期间仍然可以停止脚本。
+ */
+const char* engine_uiWaitEventInterruptible(
+        long long sessionId,
+        int timeoutMs,
+        runtime_interrupt_callback shouldInterrupt,
+        void* userData
+);
+
+/**
+ * 关闭当前脚本产生的全部 UI 会话。
+ */
+void engine_uiCloseAll();
+
+/**
+ * 返回当前线程最近一次 UI C ABI 失败原因。
+ */
+const char* engine_uiLastError();
 
 #ifdef __cplusplus
 }

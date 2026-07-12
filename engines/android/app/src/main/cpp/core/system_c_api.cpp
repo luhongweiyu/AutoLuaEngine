@@ -10,16 +10,17 @@
 #include "api/input_api.h"
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
+#include "api/ui_api.h"
 #include "../engine/engine_config.h"
 
 namespace {
 
-constexpr int kEngineAbiVersion = 8;
+constexpr int kEngineAbiVersion = 9;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.8\","
+        "\"abiVersion\":\"0.9\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -30,6 +31,7 @@ constexpr const char* kCapabilitiesJson =
         "\"colorApi\":[\"engine_findColors\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
+        "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
 
@@ -38,6 +40,8 @@ thread_local std::string gScreenLastError;
 thread_local std::string gColorLastError;
 thread_local std::string gInputLastError;
 thread_local std::string gImeLastError;
+thread_local std::string gUiLastError;
+thread_local std::string gUiEventResult;
 
 struct CInterruptContext {
     runtime_interrupt_callback callback = nullptr;
@@ -87,7 +91,15 @@ const EngineApi kEngineApi = {
         engine_imeLock,
         engine_imeSetText,
         engine_imeUnlock,
-        engine_imeLastError
+        engine_imeLastError,
+        engine_uiOpen,
+        engine_uiUpdate,
+        engine_uiPostMessage,
+        engine_uiClose,
+        engine_uiWaitEvent,
+        engine_uiWaitEventInterruptible,
+        engine_uiCloseAll,
+        engine_uiLastError
 };
 
 } // namespace
@@ -474,4 +486,112 @@ extern "C" const char* engine_getRunEnvType() {
  */
 extern "C" const char* engine_inputLastError() {
     return gInputLastError.c_str();
+}
+
+/**
+ * 创建脚本 UI 会话。
+ *
+ * 固定 C ABI 只负责稳定参数和错误返回；会话表、等待队列和 Android UI 分发集中在
+ * core/api/ui_api，因此 Lua、JS、Go 和插件不会各自维护一套界面状态。
+ */
+extern "C" long long engine_uiOpen(const char* surface, const char* specJson) {
+    long long sessionId = 0;
+    if (!autolua::api::openUiSurface(
+            surface == nullptr ? "" : surface,
+            specJson == nullptr ? "{}" : specJson,
+            &sessionId
+    )) {
+        gUiLastError = autolua::api::uiLastError();
+        return 0;
+    }
+
+    gUiLastError.clear();
+    return sessionId;
+}
+
+/**
+ * 更新脚本 UI 会话。
+ */
+extern "C" int engine_uiUpdate(long long sessionId, const char* specJson) {
+    if (!autolua::api::updateUiSurface(sessionId, specJson == nullptr ? "{}" : specJson)) {
+        gUiLastError = autolua::api::uiLastError();
+        return 0;
+    }
+
+    gUiLastError.clear();
+    return 1;
+}
+
+/**
+ * 向 HTML 页面发送 JSON 消息。
+ */
+extern "C" int engine_uiPostMessage(long long sessionId, const char* messageJson) {
+    if (!autolua::api::postUiMessage(sessionId, messageJson == nullptr ? "null" : messageJson)) {
+        gUiLastError = autolua::api::uiLastError();
+        return 0;
+    }
+
+    gUiLastError.clear();
+    return 1;
+}
+
+/**
+ * 关闭一个脚本 UI 会话。
+ */
+extern "C" int engine_uiClose(long long sessionId) {
+    if (!autolua::api::closeUiSurface(sessionId)) {
+        gUiLastError = autolua::api::uiLastError();
+        return 0;
+    }
+
+    gUiLastError.clear();
+    return 1;
+}
+
+/**
+ * 无脚本中断上下文的 UI 事件等待入口。
+ */
+extern "C" const char* engine_uiWaitEvent(long long sessionId, int timeoutMs) {
+    return engine_uiWaitEventInterruptible(sessionId, timeoutMs, nullptr, nullptr);
+}
+
+/**
+ * 可中断的 UI 事件等待入口。
+ */
+extern "C" const char* engine_uiWaitEventInterruptible(
+        long long sessionId,
+        int timeoutMs,
+        runtime_interrupt_callback shouldInterrupt,
+        void* userData
+) {
+    CInterruptContext interrupt{shouldInterrupt, userData};
+    if (!autolua::api::waitUiEvent(
+            sessionId,
+            timeoutMs,
+            shouldInterrupt == nullptr ? nullptr : cInterruptAdapter,
+            shouldInterrupt == nullptr ? nullptr : &interrupt,
+            &gUiEventResult
+    )) {
+        gUiLastError = autolua::api::uiLastError();
+        gUiEventResult.clear();
+        return gUiEventResult.c_str();
+    }
+
+    gUiLastError.clear();
+    return gUiEventResult.c_str();
+}
+
+/**
+ * 关闭所有脚本 UI 会话。
+ */
+extern "C" void engine_uiCloseAll() {
+    autolua::api::closeAllUiSurfaces();
+    gUiLastError.clear();
+}
+
+/**
+ * 返回最近一次 UI C ABI 失败原因。
+ */
+extern "C" const char* engine_uiLastError() {
+    return gUiLastError.c_str();
 }

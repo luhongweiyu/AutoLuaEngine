@@ -30,6 +30,18 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ScriptDialogActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="false"
+            android:theme="@style/ScriptDialogTheme" />
+
+        <activity
+            android:name=".ScriptWebActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
         <service
             android:name=".AutomationAccessibilityService"
             android:exported="true"
@@ -46,6 +58,10 @@
 
         <service
             android:name=".FloatingControlService"
+            android:exported="false" />
+
+        <service
+            android:name=".ScriptHudService"
             android:exported="false" />
 
         <service

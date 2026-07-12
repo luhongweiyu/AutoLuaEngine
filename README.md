@@ -17,6 +17,7 @@
 - [架构设计](docs/架构设计.md)
 - [统一 API 契约](docs/API_契约.md)
 - [引擎脚本文档](docs/脚本文档.md)
+- [Android 脚本 UI](docs/ANDROID_脚本_UI.md)
 - [构建与运行](docs/构建与运行.md)
 - [引擎通讯协议](shared/protocol/ENGINE_PROTOCOL.md)
 - [旧项目参考记录](docs/旧项目参考记录.md)

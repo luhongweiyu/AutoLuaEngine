@@ -7,7 +7,7 @@
 - `system_c_api` 只做 C ABI 门面，不写最终业务逻辑。
 - Lua / JS / Go 绑定层只做参数转换和返回值封装。
 - 文档只记录当前真实可用能力。
-- 修改后需要提交并推送。
+- 修改后按用户要求提交；不自动推送远程仓库。
 
 ## 当前已实现
 
@@ -24,6 +24,13 @@ void engine_clearCaptureCache();
 const char* engine_captureLastError();
 int engine_findColors(...);
 const char* engine_findColorsLastError();
+long long engine_uiOpen(const char* surface, const char* specJson);
+int engine_uiUpdate(long long sessionId, const char* specJson);
+int engine_uiPostMessage(long long sessionId, const char* messageJson);
+int engine_uiClose(long long sessionId);
+const char* engine_uiWaitEvent(...);
+void engine_uiCloseAll();
+const char* engine_uiLastError();
 const EngineApi* engine_getApi();
 ```
 

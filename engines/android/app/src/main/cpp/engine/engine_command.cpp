@@ -7,6 +7,7 @@
 #include "engine_config.h"
 #include "json_value.h"
 #include "../platform/android_bridge.h"
+#include "../core/api/ui_api.h"
 #include "../runtime/common/log_buffer.h"
 
 #include <sstream>
@@ -207,6 +208,37 @@ std::string drainLogs(const JsonValue& params) {
     return output.str();
 }
 
+/**
+ * 接收 App 主进程的脚本 UI 事件。
+ *
+ * Dialog Activity、HUD Service 和 WebView Activity 都通过本机 EngineHttpServer 调用
+ * ui.event。事件只写入 native UI 会话队列，绝不在 Android 主线程直接进入 Lua VM。
+ */
+std::string deliverUiEventCommand(const JsonValue& params) {
+    const JsonValue* sessionIdValue = requireField(params, "sessionId");
+    if (!sessionIdValue->isNumber()) {
+        throw CommandError(-32602, "sessionId must be a number");
+    }
+
+    long long sessionId = sessionIdValue->longValue();
+    if (sessionId <= 0) {
+        throw CommandError(-32602, "sessionId must be greater than 0");
+    }
+
+    std::string eventType = params.stringOr("event", "event");
+    if (eventType.empty()) {
+        throw CommandError(-32602, "event is required");
+    }
+
+    const JsonValue* data = params.get("data");
+    bool accepted = autolua::api::deliverUiEvent(
+            sessionId,
+            eventType,
+            data == nullptr ? "null" : jsonValueToString(*data)
+    );
+    return "{\"accepted\":" + boolText(accepted) + "}";
+}
+
 std::string commandResult(Engine& engine,
                           const std::string& method,
                           const JsonValue& params,
@@ -270,6 +302,15 @@ std::string commandResult(Engine& engine,
 
     if (method == "log.drain") {
         return drainLogs(params);
+    }
+
+    if (method == "ui.event") {
+        return deliverUiEventCommand(params);
+    }
+
+    if (method == "ui.closeAll") {
+        autolua::api::closeAllUiSurfaces();
+        return "{\"closed\":true}";
     }
 
     throw CommandError(-32601, "method is not found: " + method);

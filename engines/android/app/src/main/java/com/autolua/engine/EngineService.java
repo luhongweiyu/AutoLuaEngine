@@ -163,6 +163,7 @@ public final class EngineService extends Service {
     }
 
     private void shutdownRuntime() {
+        AndroidHostBridge.closeAllScriptUi();
         EngineHttpServer.stop();
         RootHelperBridge.shutdown();
     }

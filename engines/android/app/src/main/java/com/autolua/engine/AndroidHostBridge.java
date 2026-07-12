@@ -4,6 +4,7 @@
 package com.autolua.engine;
 
 import android.content.Context;
+import android.content.Intent;
 
 import java.nio.ByteBuffer;
 
@@ -11,7 +12,7 @@ import java.nio.ByteBuffer;
  * Java 平台能力桥。
  *
  * JNI 层只依赖这个稳定类。当前阶段只保留引擎真正需要的入口：
- * 状态读取、Root 模式设置、RootDaemon 连接、截图和 Root 输入注入。
+ * 状态读取、Root 模式设置、RootDaemon 连接、截图、Root 输入注入和脚本 UI 分发。
  */
 public final class AndroidHostBridge {
     private static Context appContext;
@@ -156,5 +157,91 @@ public final class AndroidHostBridge {
      */
     public static boolean imeUnlock() {
         return EngineImeBridge.unlock();
+    }
+
+    /**
+     * 在 App 主进程打开原生弹窗 Activity。
+     */
+    public static boolean showScriptDialog(long sessionId, String specJson) {
+        if (appContext == null || sessionId <= 0) {
+            return false;
+        }
+        Intent intent = new Intent(appContext, ScriptDialogActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(ScriptUiProtocol.EXTRA_SESSION_ID, sessionId);
+        intent.putExtra(ScriptUiProtocol.EXTRA_SPEC_JSON, specJson == null ? "{}" : specJson);
+        try {
+            appContext.startActivity(intent);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 在 App 主进程创建脚本 HUD。
+     */
+    public static boolean showScriptHud(long sessionId, String specJson) {
+        return ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_SHOW, sessionId, specJson);
+    }
+
+    /**
+     * 更新已有脚本 HUD。
+     */
+    public static boolean updateScriptHud(long sessionId, String specJson) {
+        return ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_UPDATE, sessionId, specJson);
+    }
+
+    /**
+     * 在 App 主进程打开 HTML/WebView Activity。
+     */
+    public static boolean showScriptWeb(long sessionId, String specJson) {
+        if (appContext == null || sessionId <= 0) {
+            return false;
+        }
+        Intent intent = new Intent(appContext, ScriptWebActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra(ScriptUiProtocol.EXTRA_SESSION_ID, sessionId);
+        intent.putExtra(ScriptUiProtocol.EXTRA_SPEC_JSON, specJson == null ? "{}" : specJson);
+        try {
+            appContext.startActivity(intent);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 向指定 HTML 页面推送 JSON 消息。
+     */
+    public static boolean postScriptWebMessage(long sessionId, String messageJson) {
+        if (appContext == null || sessionId <= 0) {
+            return false;
+        }
+        ScriptUiProtocol.sendWebMessage(appContext, sessionId, messageJson);
+        return true;
+    }
+
+    /**
+     * 关闭一个脚本 UI 会话。Activity 通过广播关闭，HUD 通过主进程 Service 命令关闭。
+     */
+    public static boolean closeScriptUi(long sessionId) {
+        if (appContext == null || sessionId <= 0) {
+            return false;
+        }
+        ScriptUiProtocol.sendClose(appContext, sessionId);
+        ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_CLOSE, sessionId, "{}");
+        return true;
+    }
+
+    /**
+     * 强停引擎进程前关闭全部脚本界面，避免 UI 宿主留在屏幕上。
+     */
+    public static void closeAllScriptUi() {
+        if (appContext == null) {
+            return;
+        }
+        ScriptUiProtocol.sendCloseAll(appContext);
+        ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_CLOSE_ALL, 0, "{}");
     }
 }

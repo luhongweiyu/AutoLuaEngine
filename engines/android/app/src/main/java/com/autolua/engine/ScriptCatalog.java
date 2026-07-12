@@ -48,7 +48,9 @@ public final class ScriptCatalog {
             "input.lua",
             "java_import.lua",
             "screen.lua",
-            "screen_benchmark.lua"
+            "screen_benchmark.lua",
+            "ui.lua",
+            "ui_demo.html"
     };
 
     private ScriptCatalog() {

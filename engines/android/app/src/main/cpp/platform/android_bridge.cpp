@@ -161,6 +161,58 @@ bool callBooleanString(const char* methodName, const std::string& text) {
     return result == JNI_TRUE;
 }
 
+/**
+ * 调用签名为 (long, String) -> boolean 的 Java 平台方法。
+ *
+ * 脚本 UI 会话使用 long ID 区分多个 HUD、网页和弹窗，JSON 参数保持跨语言稳定，
+ * 不让 JNI 层了解具体控件字段。
+ */
+bool callBooleanLongString(const char* methodName, long long id, const std::string& text) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "(JLjava/lang/String;)Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jstring value = env->NewStringUTF(text.c_str());
+    if (clearExceptionIfNeeded(env) || value == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(
+            gBridgeClass,
+            methodId,
+            static_cast<jlong>(id),
+            value
+    );
+    env->DeleteLocalRef(value);
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
+/**
+ * 调用签名为 (long) -> boolean 的 Java 平台方法。
+ */
+bool callBooleanLong(const char* methodName, long long id) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(env, methodName, "(J)Z");
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jboolean result = env->CallStaticBooleanMethod(
+            gBridgeClass,
+            methodId,
+            static_cast<jlong>(id)
+    );
+    if (clearExceptionIfNeeded(env)) {
+        return false;
+    }
+    return result == JNI_TRUE;
+}
+
 int callInt0(const char* methodName) {
     JNIEnv* env = getEnv();
     jmethodID methodId = staticMethod(env, methodName, "()I");
@@ -712,4 +764,28 @@ bool AndroidBridge::imeSetText(const std::string& text) {
 
 bool AndroidBridge::imeUnlock() {
     return callBoolean0("imeUnlock");
+}
+
+bool AndroidBridge::showScriptDialog(long long sessionId, const std::string& specJson) {
+    return callBooleanLongString("showScriptDialog", sessionId, specJson);
+}
+
+bool AndroidBridge::showScriptHud(long long sessionId, const std::string& specJson) {
+    return callBooleanLongString("showScriptHud", sessionId, specJson);
+}
+
+bool AndroidBridge::updateScriptHud(long long sessionId, const std::string& specJson) {
+    return callBooleanLongString("updateScriptHud", sessionId, specJson);
+}
+
+bool AndroidBridge::showScriptWeb(long long sessionId, const std::string& specJson) {
+    return callBooleanLongString("showScriptWeb", sessionId, specJson);
+}
+
+bool AndroidBridge::postScriptWebMessage(long long sessionId, const std::string& messageJson) {
+    return callBooleanLongString("postScriptWebMessage", sessionId, messageJson);
+}
+
+bool AndroidBridge::closeScriptUi(long long sessionId) {
+    return callBooleanLong("closeScriptUi", sessionId);
 }

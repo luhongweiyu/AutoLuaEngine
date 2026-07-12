@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoLuaEngine UI 示例</title>
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; padding: 24px; color: #1f2937; background: #f5f7fa; font: 16px sans-serif; }
+    main { max-width: 480px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: 24px; font-weight: 600; }
+    p { margin: 0 0 24px; color: #6b7280; }
+    label { display: block; margin: 0 0 8px; font-size: 14px; }
+    input { box-sizing: border-box; width: 100%; height: 44px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; font-size: 16px; }
+    .actions { display: flex; gap: 10px; margin-top: 16px; }
+    button { min-height: 42px; padding: 0 16px; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; color: #1f2937; font-size: 15px; }
+    button.primary { border-color: #2563eb; background: #2563eb; color: #ffffff; }
+    #status { min-height: 24px; margin-top: 18px; color: #15803d; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>脚本 HTML 界面</h1>
+    <p>网页事件会直接返回正在运行的 Lua 脚本。</p>
+    <label for="name">名称</label>
+    <input id="name" autocomplete="off" placeholder="输入内容">
+    <div class="actions">
+      <button class="primary" id="submit">发送给 Lua</button>
+      <button id="close">关闭</button>
+    </div>
+    <div id="status"></div>
+  </main>
+  <script>
+    const nameInput = document.getElementById('name');
+    const status = document.getElementById('status');
+
+    document.getElementById('submit').addEventListener('click', () => {
+      AutoLua.emit('submit', { name: nameInput.value });
+    });
+    document.getElementById('close').addEventListener('click', () => AutoLua.close());
+
+    AutoLua.onMessage = (data) => {
+      status.textContent = data && data.message ? data.message : JSON.stringify(data);
+    };
+  </script>
+</body>
+</html>

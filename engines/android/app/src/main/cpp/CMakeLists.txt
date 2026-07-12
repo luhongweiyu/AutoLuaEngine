@@ -11,6 +11,7 @@ add_library(engine SHARED
         core/api/input_api.cpp
         core/api/runtime_api.cpp
         core/api/screen_api.cpp
+        core/api/ui_api.cpp
         core/system_c_api.cpp
         engine/engine.cpp
         engine/engine_command.cpp

@@ -87,4 +87,17 @@ public:
     static bool imeLock();
     static bool imeSetText(const std::string& text);
     static bool imeUnlock();
+
+    /**
+     * 在 App 主进程打开原生脚本弹窗、HUD 或 HTML 页面。
+     *
+     * libengine.so 只传递会话 ID 和 JSON 配置；Android 组件、窗口和 WebView 均由
+     * Java 宿主处理，因此脚本引擎进程不会直接持有 Android View。
+     */
+    static bool showScriptDialog(long long sessionId, const std::string& specJson);
+    static bool showScriptHud(long long sessionId, const std::string& specJson);
+    static bool updateScriptHud(long long sessionId, const std::string& specJson);
+    static bool showScriptWeb(long long sessionId, const std::string& specJson);
+    static bool postScriptWebMessage(long long sessionId, const std::string& messageJson);
+    static bool closeScriptUi(long long sessionId);
 };

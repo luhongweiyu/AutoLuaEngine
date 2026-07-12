@@ -71,6 +71,19 @@ engine_imeUnlock
 engine_imeLastError
 ```
 
+当前脚本 UI C ABI：
+
+```c
+engine_uiOpen
+engine_uiUpdate
+engine_uiPostMessage
+engine_uiClose
+engine_uiWaitEvent
+engine_uiWaitEventInterruptible
+engine_uiCloseAll
+engine_uiLastError
+```
+
 当前插件函数表入口：
 
 ```c
@@ -239,14 +252,43 @@ const char* engine_imeLastError();
 - `engine_imeLock` / `engine_imeUnlock` 只走 RootDaemon；调用失败通过
   `engine_imeLastError` 获取原因。
 
+## 脚本 UI C ABI
+
+```c
+long long engine_uiOpen(const char* surface, const char* specJson);
+int engine_uiUpdate(long long sessionId, const char* specJson);
+int engine_uiPostMessage(long long sessionId, const char* messageJson);
+int engine_uiClose(long long sessionId);
+const char* engine_uiWaitEvent(long long sessionId, int timeoutMs);
+const char* engine_uiWaitEventInterruptible(
+        long long sessionId,
+        int timeoutMs,
+        runtime_interrupt_callback shouldInterrupt,
+        void* userData
+);
+void engine_uiCloseAll();
+const char* engine_uiLastError();
+```
+
+规则：
+
+- `surface` 当前支持 `dialog`、`hud`、`web`，配置和消息均使用完整 JSON 文本。
+- 成功创建时 `engine_uiOpen` 返回大于 `0` 的会话 ID；失败返回 `0`，原因通过
+  `engine_uiLastError()` 获取。
+- `engine_uiWaitEvent*` 成功时返回 `{"type":...,"data":...}` JSON；超时也是正常事件
+  `{"type":"timeout","data":null}`。失败返回空字符串。
+- Lua 等脚本语言必须使用 `engine_uiWaitEventInterruptible`，这样停止脚本可以中断等待。
+- Android UI 线程只把事件投递进 native 会话队列，不能直接执行语言运行时。
+- `engine_uiCloseAll` 在脚本结束、停止和引擎销毁时调用，确保 App 主进程没有遗留界面。
+
 ## 插件函数表
 
 ```c
 const EngineApi* engine_getApi();
 ```
 
-外部插件 so 可以通过 `engine_getApi()` 取得函数表，复用当前运行时、截图和找色
-C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
+外部插件 so 可以通过 `engine_getApi()` 取得函数表，复用当前运行时、截图、找色、输入、
+输入法和脚本 UI C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
 
 ## Lua 映射
 
@@ -278,6 +320,19 @@ m.findColors(x1, y1, x2, y2, dir, sim, colors)
 m.ime.lock()
 m.ime.setText(text)
 m.ime.unlock()
+m.dialog.alert(...)
+m.dialog.confirm(...)
+m.dialog.input(...)
+m.dialog.select(...)
+m.ui.form(spec)
+m.hud.show(id, spec)
+m.hud.update(id, patch)
+m.hud.hide(id)
+m.hud.waitEvent(id, timeoutMs)
+m.web.open(spec)
+m.web.waitEvent(handle, timeoutMs)
+m.web.postMessage(handle, data)
+m.web.close(handle)
 ```
 
 ## 暂未定义契约

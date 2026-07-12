@@ -5,11 +5,17 @@
 
 #include <cstdint>
 #include <chrono>
+#include <cmath>
+#include <iomanip>
 #include <limits>
+#include <map>
 #include <sstream>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "../../core/system_c_api.h"
+#include "../../engine/json_value.h"
 #include "java_bridge.h"
 #include "lua_runtime.h"
 
@@ -48,6 +54,234 @@ int luaCheckInt(lua_State* state, int index, const char* name) {
         return 0;
     }
     return static_cast<int>(value);
+}
+
+/**
+ * 将 Lua 值序列化为 JSON。
+ *
+ * 脚本 UI 的配置在 Lua 中自然地写成 table，而稳定 C ABI 只接收 JSON 文本。这里的
+ * 转换仅属于 Lua 绑定层，不把 Lua table 或 userdata 泄露到 core/api。连续的 1..n
+ * 整数键 table 输出 JSON 数组，其余 table 输出 JSON 对象。
+ */
+bool luaValueToJson(
+        lua_State* state,
+        int index,
+        std::string* output,
+        std::string* error,
+        int depth,
+        std::unordered_set<const void*>* visitingTables
+);
+
+bool isLuaSequenceTable(lua_State* state, int index, size_t* length) {
+    int absoluteIndex = lua_absindex(state, index);
+    size_t sequenceLength = lua_rawlen(state, absoluteIndex);
+    bool isSequence = true;
+
+    lua_pushnil(state);
+    while (lua_next(state, absoluteIndex) != 0) {
+        if (!lua_isinteger(state, -2)) {
+            isSequence = false;
+        } else {
+            lua_Integer key = lua_tointeger(state, -2);
+            if (key < 1 || static_cast<size_t>(key) > sequenceLength) {
+                isSequence = false;
+            }
+        }
+        lua_pop(state, 1);
+        if (!isSequence) {
+            // 提前结束 lua_next 时栈上仍保留当前 key，需要主动弹出。
+            lua_pop(state, 1);
+            break;
+        }
+    }
+
+    if (length != nullptr) {
+        *length = sequenceLength;
+    }
+    return isSequence && sequenceLength > 0;
+}
+
+bool luaTableToJson(
+        lua_State* state,
+        int index,
+        std::string* output,
+        std::string* error,
+        int depth,
+        std::unordered_set<const void*>* visitingTables
+) {
+    if (depth > 32) {
+        *error = "UI 配置 table 嵌套层级过深";
+        return false;
+    }
+
+    int absoluteIndex = lua_absindex(state, index);
+    const void* tablePointer = lua_topointer(state, absoluteIndex);
+    if (tablePointer != nullptr && !visitingTables->insert(tablePointer).second) {
+        *error = "UI 配置 table 不能循环引用";
+        return false;
+    }
+
+    size_t sequenceLength = 0;
+    bool isSequence = isLuaSequenceTable(state, absoluteIndex, &sequenceLength);
+    std::ostringstream json;
+    if (isSequence) {
+        json << "[";
+        for (size_t i = 1; i <= sequenceLength; ++i) {
+            lua_rawgeti(state, absoluteIndex, static_cast<lua_Integer>(i));
+            std::string item;
+            bool ok = luaValueToJson(state, -1, &item, error, depth + 1, visitingTables);
+            lua_pop(state, 1);
+            if (!ok) {
+                if (tablePointer != nullptr) {
+                    visitingTables->erase(tablePointer);
+                }
+                return false;
+            }
+            if (i > 1) {
+                json << ",";
+            }
+            json << item;
+        }
+        json << "]";
+    } else {
+        std::map<std::string, std::string> objectItems;
+        lua_pushnil(state);
+        while (lua_next(state, absoluteIndex) != 0) {
+            std::string key;
+            if (lua_type(state, -2) == LUA_TSTRING) {
+                const char* text = lua_tostring(state, -2);
+                key = text == nullptr ? "" : text;
+            } else if (lua_isinteger(state, -2)) {
+                key = std::to_string(lua_tointeger(state, -2));
+            } else {
+                lua_pop(state, 1);
+                if (tablePointer != nullptr) {
+                    visitingTables->erase(tablePointer);
+                }
+                *error = "UI 配置 table 的键只能是字符串或整数";
+                return false;
+            }
+
+            std::string item;
+            bool ok = luaValueToJson(state, -1, &item, error, depth + 1, visitingTables);
+            lua_pop(state, 1);
+            if (!ok) {
+                if (tablePointer != nullptr) {
+                    visitingTables->erase(tablePointer);
+                }
+                return false;
+            }
+            objectItems[key] = item;
+        }
+
+        json << "{";
+        bool first = true;
+        for (const auto& item : objectItems) {
+            if (!first) {
+                json << ",";
+            }
+            first = false;
+            json << quoteJsonString(item.first) << ":" << item.second;
+        }
+        json << "}";
+    }
+
+    if (tablePointer != nullptr) {
+        visitingTables->erase(tablePointer);
+    }
+    *output = json.str();
+    return true;
+}
+
+bool luaValueToJson(
+        lua_State* state,
+        int index,
+        std::string* output,
+        std::string* error,
+        int depth,
+        std::unordered_set<const void*>* visitingTables
+) {
+    switch (lua_type(state, index)) {
+        case LUA_TNIL:
+            *output = "null";
+            return true;
+        case LUA_TBOOLEAN:
+            *output = lua_toboolean(state, index) ? "true" : "false";
+            return true;
+        case LUA_TNUMBER: {
+            std::ostringstream json;
+            if (lua_isinteger(state, index)) {
+                json << lua_tointeger(state, index);
+            } else {
+                lua_Number number = lua_tonumber(state, index);
+                if (!std::isfinite(static_cast<double>(number))) {
+                    *error = "UI 配置不能包含 NaN 或无穷大";
+                    return false;
+                }
+                json << std::setprecision(15) << static_cast<double>(number);
+            }
+            *output = json.str();
+            return true;
+        }
+        case LUA_TSTRING: {
+            const char* text = lua_tostring(state, index);
+            *output = quoteJsonString(text == nullptr ? "" : text);
+            return true;
+        }
+        case LUA_TTABLE:
+            return luaTableToJson(state, index, output, error, depth, visitingTables);
+        default:
+            *error = "UI 配置只支持 nil、boolean、number、string 和 table";
+            return false;
+    }
+}
+
+bool luaArgumentToJson(lua_State* state, int index, std::string* output, std::string* error) {
+    std::unordered_set<const void*> visitingTables;
+    return luaValueToJson(state, index, output, error, 0, &visitingTables);
+}
+
+/**
+ * 将 native UI 事件 JSON 转为 Lua 值。
+ */
+void pushJsonValueToLua(lua_State* state, const JsonValue& value, int depth) {
+    if (depth > 32) {
+        lua_pushnil(state);
+        return;
+    }
+
+    if (value.isNull()) {
+        lua_pushnil(state);
+        return;
+    }
+    if (value.isBool()) {
+        lua_pushboolean(state, value.boolValue());
+        return;
+    }
+    if (value.isNumber()) {
+        lua_pushnumber(state, static_cast<lua_Number>(value.numberValue()));
+        return;
+    }
+    if (value.isString()) {
+        lua_pushlstring(state, value.stringValue().c_str(), value.stringValue().size());
+        return;
+    }
+    if (value.isArray()) {
+        const std::vector<JsonValue>& array = value.arrayValue();
+        lua_createtable(state, static_cast<int>(array.size()), 0);
+        for (size_t index = 0; index < array.size(); ++index) {
+            pushJsonValueToLua(state, array[index], depth + 1);
+            lua_rawseti(state, -2, static_cast<lua_Integer>(index + 1));
+        }
+        return;
+    }
+
+    const std::map<std::string, JsonValue>& object = value.objectValue();
+    lua_createtable(state, 0, static_cast<int>(object.size()));
+    for (const auto& item : object) {
+        pushJsonValueToLua(state, item.second, depth + 1);
+        lua_setfield(state, -2, item.first.c_str());
+    }
 }
 
 int luaPrint(lua_State* state) {
@@ -316,6 +550,142 @@ int luaColorsFind(lua_State* state) {
     return 2;
 }
 
+/**
+ * 打开 dialog、hud 或 web UI 会话。
+ *
+ * Lua 层传入 table，HostApi 在这里转为 JSON 后交给统一 C ABI。这样未来 JS、Go
+ * 绑定只需生成同一份 JSON，而不需要依赖 Lua userdata 或 Android View。
+ */
+int luaUiOpen(lua_State* state) {
+    const char* surface = luaL_checkstring(state, 1);
+    std::string specJson;
+    std::string error;
+    if (lua_gettop(state) < 2) {
+        specJson = "{}";
+    } else if (!luaArgumentToJson(state, 2, &specJson, &error)) {
+        return luaL_error(state, "%s", error.c_str());
+    }
+
+    long long sessionId = engine_uiOpen(surface == nullptr ? "" : surface, specJson.c_str());
+    if (sessionId <= 0) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_uiLastError());
+        return 2;
+    }
+
+    lua_pushinteger(state, static_cast<lua_Integer>(sessionId));
+    return 1;
+}
+
+/**
+ * 更新 HUD 配置。
+ */
+int luaUiUpdate(lua_State* state) {
+    lua_Integer sessionId = luaL_checkinteger(state, 1);
+    std::string specJson;
+    std::string error;
+    if (!luaArgumentToJson(state, 2, &specJson, &error)) {
+        return luaL_error(state, "%s", error.c_str());
+    }
+
+    if (!engine_uiUpdate(static_cast<long long>(sessionId), specJson.c_str())) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_uiLastError());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/**
+ * 向 HTML 页面发送 JSON 数据。
+ */
+int luaUiPostMessage(lua_State* state) {
+    lua_Integer sessionId = luaL_checkinteger(state, 1);
+    std::string messageJson;
+    std::string error;
+    if (!luaArgumentToJson(state, 2, &messageJson, &error)) {
+        return luaL_error(state, "%s", error.c_str());
+    }
+
+    if (!engine_uiPostMessage(static_cast<long long>(sessionId), messageJson.c_str())) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_uiLastError());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/**
+ * 关闭 UI 会话。
+ */
+int luaUiClose(lua_State* state) {
+    lua_Integer sessionId = luaL_checkinteger(state, 1);
+    if (!engine_uiClose(static_cast<long long>(sessionId))) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_uiLastError());
+        return 2;
+    }
+
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/**
+ * 等待 UI 事件并转换为 Lua table。
+ */
+int luaUiWaitEvent(lua_State* state) {
+    lua_Integer sessionId = luaL_checkinteger(state, 1);
+    lua_Integer timeoutMs = lua_gettop(state) >= 2 ? luaL_checkinteger(state, 2) : -1;
+    if (timeoutMs < -1 || timeoutMs > std::numeric_limits<int>::max()) {
+        return luaL_error(state, "UI 等待时间必须在 -1 到 int 最大值之间");
+    }
+
+    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+
+    const char* eventText = engine_uiWaitEventInterruptible(
+            static_cast<long long>(sessionId),
+            static_cast<int>(timeoutMs),
+            luaShouldInterrupt,
+            runtime
+    );
+    if (eventText == nullptr || eventText[0] == '\0') {
+        std::string error = engine_uiLastError();
+        if (error == "脚本已停止") {
+            engine_uiClose(static_cast<long long>(sessionId));
+            return luaL_error(state, "%s", error.c_str());
+        }
+        lua_pushnil(state);
+        lua_pushstring(state, error.empty() ? "UI 等待失败" : error.c_str());
+        return 2;
+    }
+
+    JsonValue event;
+    std::string parseError;
+    if (!parseJsonText(eventText, &event, &parseError)) {
+        lua_pushnil(state);
+        lua_pushstring(state, "UI 事件 JSON 无效");
+        return 2;
+    }
+
+    pushJsonValueToLua(state, event, 0);
+    return 1;
+}
+
+/**
+ * 关闭当前脚本所有 UI 会话。
+ */
+int luaUiCloseAll(lua_State* state) {
+    engine_uiCloseAll();
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 } // namespace
 
 void registerHostApi(lua_State* state) {
@@ -359,6 +729,16 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, imeTableIndex, "setText", luaImeSetText);
     setFunctionField(state, imeTableIndex, "unlock", luaImeUnlock);
     lua_setfield(state, hostTableIndex, "ime");
+
+    lua_newtable(state);
+    int uiTableIndex = lua_gettop(state);
+    setFunctionField(state, uiTableIndex, "open", luaUiOpen);
+    setFunctionField(state, uiTableIndex, "update", luaUiUpdate);
+    setFunctionField(state, uiTableIndex, "postMessage", luaUiPostMessage);
+    setFunctionField(state, uiTableIndex, "close", luaUiClose);
+    setFunctionField(state, uiTableIndex, "waitEvent", luaUiWaitEvent);
+    setFunctionField(state, uiTableIndex, "closeAll", luaUiCloseAll);
+    lua_setfield(state, hostTableIndex, "ui");
 
     lua_setglobal(state, "_host");
 }
