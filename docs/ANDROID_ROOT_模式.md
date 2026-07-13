@@ -1,6 +1,6 @@
 # Android Root 模式
 
-当前 Root 模式为已经完成的截图、Root 输入注入和输入法切换服务。
+当前 Root 模式为已经完成的截图、Root 输入注入、输入法切换和物理音量键监听服务。
 
 ## 当前行为
 
@@ -11,11 +11,16 @@
   通过 RootDaemon 注入，不为每条命令拉起 `input` 外部进程。
 - `engine_imeLock` / `engine_imeUnlock` 通过 RootDaemon 执行系统输入法切换；
   `engine_imeSetText` 直接调用已活动的应用输入法，不执行 Root 命令。
+- 设置中的“音量键控制”默认开启。RootDaemon 直接持续读取 `/dev/input/event*`，音量加运行
+  当前选中的脚本，音量减停止脚本；监听过程不启动 `getevent` 等外部进程。
 - 失败时直接返回错误，不做路线兜底。
 
 强制停止 `:engine` 时，只会关闭引擎与 RootDaemon 的 socket。RootDaemon 仍由 App 主进程
 持有，因此下次运行脚本会直接重连，不会重新申请 Root 授权。关闭 Root 模式或 App 主进程结束
 时才关闭 RootDaemon。
+
+非 Root 模式下，已启用的 `AutomationAccessibilityService` 接收同样的全局音量键事件。
+关闭“音量键控制”后，Root 订阅连接和无障碍按键处理都会立即停止生效。
 
 ## 当前范围
 

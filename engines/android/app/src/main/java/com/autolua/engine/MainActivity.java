@@ -82,6 +82,7 @@ public final class MainActivity extends Activity {
     private Button runButton;
     private Switch rootModeCheckBox;
     private Switch floatingCheckBox;
+    private Switch volumeKeyControlCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
     private int currentTab = TAB_SCRIPT;
     private String latestMessage = "就绪";
@@ -395,6 +396,16 @@ public final class MainActivity extends Activity {
                 "在其他应用上方显示脚本控制按钮",
                 floatingCheckBox
         ));
+        behaviorGroup.addView(createSettingsDivider());
+
+        volumeKeyControlCheckBox = createSettingSwitch();
+        volumeKeyControlCheckBox.setChecked(EngineSettings.isVolumeKeyControlEnabled(this));
+        volumeKeyControlCheckBox.setOnCheckedChangeListener(this::handleVolumeKeyControlChanged);
+        behaviorGroup.addView(createSettingRow(
+                "音量键控制",
+                "音量加运行脚本，音量减停止脚本",
+                volumeKeyControlCheckBox
+        ));
         page.addView(behaviorGroup, topMarginParams(8));
 
         page.addView(createSectionLabel("脚本与权限"), topMarginParams(22));
@@ -499,6 +510,13 @@ public final class MainActivity extends Activity {
         RootDaemonService.setRootModeEnabled(this, enabled);
         EngineService.setRootModeEnabled(this, enabled);
         setMessage(enabled ? "运行模式已切换为 Root 模式" : "运行模式已切换为无障碍优先");
+        updateSettingsPermissionView();
+    }
+
+    private void handleVolumeKeyControlChanged(CompoundButton button, boolean enabled) {
+        EngineSettings.setVolumeKeyControlEnabled(this, enabled);
+        RootDaemonService.syncVolumeKeyControl(this);
+        setMessage(enabled ? "音量键控制已开启" : "音量键控制已关闭");
         updateSettingsPermissionView();
     }
 
@@ -738,6 +756,7 @@ public final class MainActivity extends Activity {
         boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                 || Settings.canDrawOverlays(this);
         settingsPermissionView.setText("Root 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
+                + "\n音量键控制：" + formatEnabled(EngineSettings.isVolumeKeyControlEnabled(this))
                 + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
                 + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
                 + "\n脚本存储权限："

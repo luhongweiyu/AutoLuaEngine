@@ -17,6 +17,10 @@ import android.os.IBinder;
 public final class RootDaemonService extends Service {
     private static final String ACTION_PREPARE = "com.autolua.engine.action.PREPARE_ROOT_DAEMON";
     private static final String ACTION_SHUTDOWN = "com.autolua.engine.action.SHUTDOWN_ROOT_DAEMON";
+    private static final String ACTION_SYNC_VOLUME_KEYS =
+            "com.autolua.engine.action.SYNC_ROOT_VOLUME_KEYS";
+
+    private RootVolumeKeyMonitor volumeKeyMonitor;
 
     public static void ensureForCurrentMode(Context context) {
         if (context != null && EngineSettings.isRootModeEnabled(context)) {
@@ -31,6 +35,15 @@ public final class RootDaemonService extends Service {
         sendAction(context, enabled ? ACTION_PREPARE : ACTION_SHUTDOWN);
     }
 
+    /**
+     * 设置页切换音量键控制后，立即同步 Root 监听连接。
+     */
+    public static void syncVolumeKeyControl(Context context) {
+        if (context != null) {
+            sendAction(context, ACTION_SYNC_VOLUME_KEYS);
+        }
+    }
+
     private static void sendAction(Context context, String action) {
         Intent intent = new Intent(context, RootDaemonService.class);
         intent.setAction(action);
@@ -38,9 +51,16 @@ public final class RootDaemonService extends Service {
     }
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        volumeKeyMonitor = new RootVolumeKeyMonitor(getApplicationContext());
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent == null ? ACTION_PREPARE : intent.getAction();
         if (ACTION_SHUTDOWN.equals(action)) {
+            volumeKeyMonitor.stop();
             new Thread(() -> {
                 RootDaemonManager.shutdown(getApplicationContext());
                 broadcastState(EngineService.STATE_FINISHED, "RootDaemon 已关闭");
@@ -49,8 +69,36 @@ public final class RootDaemonService extends Service {
             return START_NOT_STICKY;
         }
 
+        if (ACTION_SYNC_VOLUME_KEYS.equals(action)) {
+            if (!EngineSettings.isRootModeEnabled(this)
+                    || !EngineSettings.isVolumeKeyControlEnabled(this)) {
+                volumeKeyMonitor.stop();
+                return START_STICKY;
+            }
+
+            new Thread(() -> {
+                boolean ready = RootDaemonManager.prepare(getApplicationContext());
+                if (ready
+                        && EngineSettings.isRootModeEnabled(this)
+                        && EngineSettings.isVolumeKeyControlEnabled(this)) {
+                    volumeKeyMonitor.start();
+                } else {
+                    volumeKeyMonitor.stop();
+                }
+                // 这里只同步控制入口，不广播 finished，避免脚本运行中切换设置时误改 UI 状态。
+            }, "RootVolumeKeySync").start();
+            return START_STICKY;
+        }
+
         new Thread(() -> {
             boolean ready = RootDaemonManager.prepare(getApplicationContext());
+            if (ready
+                    && EngineSettings.isRootModeEnabled(this)
+                    && EngineSettings.isVolumeKeyControlEnabled(this)) {
+                volumeKeyMonitor.start();
+            } else {
+                volumeKeyMonitor.stop();
+            }
             broadcastState(
                     ready ? EngineService.STATE_FINISHED : EngineService.STATE_FAILED,
                     ready
@@ -64,6 +112,14 @@ public final class RootDaemonService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onDestroy() {
+        if (volumeKeyMonitor != null) {
+            volumeKeyMonitor.stop();
+        }
+        super.onDestroy();
     }
 
     private void broadcastState(String state, String message) {

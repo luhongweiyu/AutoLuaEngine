@@ -36,7 +36,11 @@ final class RootDaemonManager {
 
         synchronized (LOCK) {
             String previousToken = RootDaemonClient.readToken(appContext);
-            if (previousToken != null && RootDaemonClient.isReady(previousToken, RootDaemonProtocol.CONNECT_TIMEOUT_MS)) {
+            if (previousToken != null && RootDaemonClient.isOwnedBy(
+                    previousToken,
+                    android.os.Process.myPid(),
+                    RootDaemonProtocol.CONNECT_TIMEOUT_MS
+            )) {
                 lastError = "";
                 return true;
             }

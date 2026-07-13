@@ -49,6 +49,28 @@ final class RootDaemonClient {
         }
     }
 
+    /**
+     * 判断现有 daemon 是否确实属于当前 App 主进程。
+     *
+     * APK 覆盖安装或主进程重启时，旧 daemon 可能在 owner watchdog 检查前短暂响应 ping；
+     * 只有 owner PID 一致才能复用，避免刚建立音量键订阅后旧 daemon 随即退出。
+     */
+    static boolean isOwnedBy(String token, int expectedOwnerPid, int timeoutMs) {
+        if (expectedOwnerPid <= 0) {
+            return false;
+        }
+        try (Socket socket = openAuthenticatedSocket(token, timeoutMs)) {
+            RootDaemonProtocol.writeLine(
+                    socket.getOutputStream(),
+                    RootDaemonProtocol.OWNER_PID_COMMAND
+            );
+            String response = RootDaemonProtocol.readLine(socket.getInputStream());
+            return ("OK\townerPid\t" + expectedOwnerPid).equals(response);
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
     static boolean requestShutdown(String token) {
         if (token == null || token.isEmpty()) {
             return false;

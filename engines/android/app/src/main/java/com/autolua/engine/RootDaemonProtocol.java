@@ -22,6 +22,8 @@ final class RootDaemonProtocol {
     static final String TOKEN_FILE_NAME = "root_daemon.token";
     static final String AUTH_COMMAND = "auth";
     static final String SHUTDOWN_COMMAND = "shutdown";
+    static final String OWNER_PID_COMMAND = "ownerPid";
+    static final String SUBSCRIBE_VOLUME_KEYS_COMMAND = "subscribeVolumeKeys";
 
     private RootDaemonProtocol() {
     }

@@ -94,6 +94,20 @@ public final class RootDaemonMain {
                     return;
                 }
 
+                if (parts.length > 0 && RootDaemonProtocol.OWNER_PID_COMMAND.equals(parts[0])) {
+                    RootDaemonProtocol.writeLine(
+                            outputStream,
+                            "OK\townerPid\t" + ownerProcessId
+                    );
+                    continue;
+                }
+
+                if (parts.length > 0
+                        && RootDaemonProtocol.SUBSCRIBE_VOLUME_KEYS_COMMAND.equals(parts[0])) {
+                    RootVolumeKeyEventSource.streamEvents(outputStream);
+                    return;
+                }
+
                 if (!RootHelperMain.dispatchCommand(outputStream, parts)) {
                     return;
                 }
@@ -151,6 +165,7 @@ public final class RootDaemonMain {
             return;
         }
         running = false;
+        RootVolumeKeyEventSource.shutdown();
         if (serverSocket != null) {
             try {
                 serverSocket.close();

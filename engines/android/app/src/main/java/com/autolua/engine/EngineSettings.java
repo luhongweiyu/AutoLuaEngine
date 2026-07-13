@@ -1,5 +1,5 @@
 /**
- * 文件用途：统一保存引擎设置，包括端口、Root 模式、悬浮窗状态和截图授权信息。
+ * 文件用途：统一保存引擎设置，包括端口、Root 模式、悬浮窗状态和音量键控制状态。
  */
 package com.autolua.engine;
 
@@ -24,6 +24,7 @@ public final class EngineSettings {
     private static final String KEY_FLOATING_BUBBLE_HIDDEN = "floating_bubble_hidden";
     private static final String KEY_FLOATING_PANEL_EXPANDED = "floating_panel_expanded";
     private static final String KEY_ROOT_MODE_ENABLED = "root_mode_enabled";
+    private static final String KEY_VOLUME_KEY_CONTROL_ENABLED = "volume_key_control_enabled";
     private static final int MIN_PORT = 1024;
     private static final int MAX_PORT = 65535;
 
@@ -55,6 +56,22 @@ public final class EngineSettings {
         preferences(context)
                 .edit()
                 .putBoolean(KEY_ROOT_MODE_ENABLED, enabled)
+                .apply();
+    }
+
+    /**
+     * 音量键是否用于控制脚本。
+     *
+     * 默认开启：音量加运行当前选中的脚本，音量减停止当前脚本。
+     */
+    public static boolean isVolumeKeyControlEnabled(Context context) {
+        return preferences(context).getBoolean(KEY_VOLUME_KEY_CONTROL_ENABLED, true);
+    }
+
+    public static void setVolumeKeyControlEnabled(Context context, boolean enabled) {
+        preferences(context)
+                .edit()
+                .putBoolean(KEY_VOLUME_KEY_CONTROL_ENABLED, enabled)
                 .apply();
     }
 
