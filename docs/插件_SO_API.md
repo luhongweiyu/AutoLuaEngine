@@ -11,7 +11,7 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `abiVersion` 为 `9`。新增字段只追加到结构体末尾；插件应先检查版本，再访问新增
+当前 `abiVersion` 为 `10`。新增字段只追加到结构体末尾；插件应先检查版本，再访问新增
 能力。
 
 ## 当前函数表能力
@@ -62,6 +62,11 @@ typedef struct EngineApi {
     );
     void (*uiCloseAll)();
     const char* (*uiLastError)();
+    int (*readAlpkgFile)(
+        const char* relativePath,
+        const unsigned char** data,
+        size_t* size
+    );
 } EngineApi;
 ```
 
@@ -77,4 +82,6 @@ typedef struct EngineApi {
 - `uiOpen` 的 `surface` 当前为 `dialog`、`hud`、`web`；配置和消息参数均为 JSON 文本。
 - `uiWaitEvent` 返回 `{"type":...,"data":...}` JSON，`uiWaitEventInterruptible` 适用于
   需要响应脚本停止请求的语言运行时。
+- `readAlpkgFile` 仅在当前调用线程正在运行 `.alpkg` 时可用，只读取 manifest 的
+  `resource` 条目；返回字节由 SO 当前线程持有，插件只读、不释放，并应在下次调用前复制。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。

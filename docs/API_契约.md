@@ -30,6 +30,21 @@ engine_tickCount
 engine_runtimeLastError
 ```
 
+当前 ALPKG 资源 C ABI：
+
+```c
+int engine_readAlpkgFile(
+        const char* relativePath,
+        const unsigned char** data,
+        size_t* size
+);
+```
+
+`engine_readAlpkgFile` 只允许当前 ALPKG 脚本任务线程读取 manifest 中 `resource` 类型的
+项目相对路径。成功返回 `1`，数据由 SO 当前线程持有且只读；失败返回 `0`，原因通过
+`engine_runtimeLastError()` 获取。该数据地址在同线程下一次读取前有效，语言绑定必须复制
+需要长期保存的数据。Lua、未来 JS/Go 和插件都通过这个 ABI 复用同一条读取路径。
+
 当前截图 C ABI：
 
 ```c

@@ -279,7 +279,10 @@ public final class ScriptWebActivity extends Activity {
             return;
         }
 
-        if (!hasScheme(location)) {
+        String packagePath = spec.optString("_alpkgPath", "");
+        if (!packagePath.isEmpty() && !hasScheme(location)) {
+            location = ScriptPackageResources.buildUri(packagePath, location).toString();
+        } else if (!hasScheme(location)) {
             location = Uri.fromFile(new java.io.File(ScriptCatalog.getScriptDirectory(), location)).toString();
         }
         if (!documentStartBridgeAvailable && tryLoadLocalHtmlWithBridge(location)) {

@@ -9,6 +9,7 @@
 #include "../platform/android_bridge.h"
 #include "../core/api/ui_api.h"
 #include "../runtime/common/log_buffer.h"
+#include "../runtime/lua/alpkg_package.h"
 
 #include <sstream>
 #include <stdexcept>
@@ -185,6 +186,43 @@ std::string runScript(Engine& engine,
     return output.str();
 }
 
+/**
+ * 打开并运行 Android 本地已存在的 ALPKG 包。
+ *
+ * Java 只传包的真实路径；ZIP 解析、manifest 校验、字节码认证和 Lua 加载都在
+ * libengine.so 内完成，保证以后 VS Code、Qt、JS 或 Go 都能复用同一条运行路线。
+ */
+std::string runPackageScript(
+        Engine& engine,
+        const JsonValue& params,
+        const std::string& luaRuntimeBootstrap) {
+    std::string packagePath = requireString(params, "packagePath");
+    std::string packageError;
+    std::shared_ptr<AlpkgPackage> package = AlpkgPackage::open(packagePath, &packageError);
+    if (package == nullptr) {
+        throw CommandError(-32602, packageError.empty() ? "脚本包打开失败" : packageError);
+    }
+
+    std::string message = engine.runLuaPackage(package, luaRuntimeBootstrap.c_str());
+    if (message == "Engine is already running") {
+        throw CommandError(-32000, "已有脚本正在运行");
+    }
+
+    JsonValue status;
+    std::string parseError;
+    if (!parseJsonText(engine.statusJson(0), &status, &parseError) || !status.isObject()) {
+        throw CommandError(-32000, "脚本状态解析失败");
+    }
+
+    std::ostringstream output;
+    output << "{";
+    output << "\"taskId\":" << status.intOr("taskId", 0) << ",";
+    output << "\"message\":" << quoteJsonString(message) << ",";
+    output << "\"status\":" << quoteJsonString(status.stringOr("status", "unknown"));
+    output << "}";
+    return output.str();
+}
+
 std::string drainLogs(const JsonValue& params) {
     int afterId = params.intOr("afterId", 0);
     std::vector<LogEntry> entries = drainLogEntries(afterId);
@@ -258,6 +296,10 @@ std::string commandResult(Engine& engine,
 
     if (method == "script.run") {
         return runScript(engine, params, luaRuntimeBootstrap);
+    }
+
+    if (method == "script.runPackage") {
+        return runPackageScript(engine, params, luaRuntimeBootstrap);
     }
 
     if (method == "script.stop") {

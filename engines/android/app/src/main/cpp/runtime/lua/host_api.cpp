@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <iomanip>
 #include <limits>
 #include <map>
@@ -376,6 +377,36 @@ int luaTickCount(lua_State* state) {
     return 1;
 }
 
+/**
+ * 读取当前 ALPKG 中声明为 resource 的原始文件。
+ *
+ * Lua string 本身记录长度，能够无损承载 CSS、JSON、图片等含零字节的二进制内容。
+ * 绑定层不解析 ZIP、不回退读取包外文件，所有路径和类型校验统一由 libengine.so C ABI
+ * 完成，使未来 JS/Go 使用同一 ABI 时与 Lua 具有完全一致的语义。
+ */
+int luaReadAlpkgFile(lua_State* state) {
+    size_t pathLength = 0;
+    const char* relativePath = luaL_checklstring(state, 1, &pathLength);
+    if (relativePath == nullptr || pathLength == 0) {
+        return luaL_argerror(state, 1, "ALPKG 资源路径不能为空");
+    }
+    if (std::strlen(relativePath) != pathLength) {
+        return luaL_argerror(state, 1, "ALPKG 资源路径不能包含零字节");
+    }
+
+    const unsigned char* data = nullptr;
+    size_t dataSize = 0;
+    if (!engine_readAlpkgFile(relativePath, &data, &dataSize)) {
+        const char* error = engine_runtimeLastError();
+        lua_pushnil(state);
+        lua_pushstring(state, error == nullptr || error[0] == '\0' ? "读取 ALPKG 资源失败" : error);
+        return 2;
+    }
+
+    lua_pushlstring(state, reinterpret_cast<const char*>(data), dataSize);
+    return 1;
+}
+
 const char* luaKeyCodeToString(lua_State* state, int index) {
     if (lua_isinteger(state, index)) {
         lua_pushfstring(state, "%I", lua_tointeger(state, index));
@@ -566,6 +597,25 @@ int luaUiOpen(lua_State* state) {
         return luaL_error(state, "%s", error.c_str());
     }
 
+    // 包内 HTML/图片资源不能通过普通 file:// 路径读取。运行时把当前包路径注入 web
+    // 配置，Android 主进程据此从 ZIP 读取资源；普通 .lua 脚本不增加任何字段。
+    if (surface != nullptr && std::string(surface) == "web") {
+        lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+        LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+        lua_pop(state, 1);
+        std::string packagePath = runtime == nullptr ? "" : runtime->packagePath();
+        if (!packagePath.empty()) {
+            JsonValue spec;
+            std::string parseError;
+            if (!parseJsonText(specJson, &spec, &parseError) || !spec.isObject()) {
+                return luaL_error(state, "HTML 配置 JSON 无效");
+            }
+            std::map<std::string, JsonValue> fields = spec.objectValue();
+            fields["_alpkgPath"] = JsonValue::makeString(packagePath);
+            specJson = jsonValueToString(JsonValue::makeObject(std::move(fields)));
+        }
+    }
+
     long long sessionId = engine_uiOpen(surface == nullptr ? "" : surface, specJson.c_str());
     if (sessionId <= 0) {
         lua_pushnil(state);
@@ -696,6 +746,7 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, hostTableIndex, "sleep", luaSleep);
     setFunctionField(state, hostTableIndex, "systemTime", luaSystemTime);
     setFunctionField(state, hostTableIndex, "tickCount", luaTickCount);
+    setFunctionField(state, hostTableIndex, "read_alpkg_file", luaReadAlpkgFile);
     setFunctionField(state, hostTableIndex, "touchDown", luaTouchDown);
     setFunctionField(state, hostTableIndex, "touchMove", luaTouchMove);
     setFunctionField(state, hostTableIndex, "touchUp", luaTouchUp);

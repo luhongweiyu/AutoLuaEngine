@@ -8,6 +8,7 @@ C ABI。
 
 ```text
 script.run
+script.runPackage
 script.stop
 script.pause
 script.resume
@@ -19,6 +20,17 @@ device.setRootModeEnabled
 
 后续如果 IDE、插件或其他语言运行时需要直接调脚本 API，应绑定或转发到
 `libengine.so` 的 C ABI，不重新用 HTTP 实现一套脚本业务逻辑。
+
+`script.runPackage` 接收：
+
+```json
+{
+  "packagePath": "/storage/emulated/0/AutoLuaEngine/scripts/demo.alpkg"
+}
+```
+
+它只接受共享存储中的 `.alpkg` 文件。ZIP 解析、manifest 校验、Lua 字节码认证解密和
+执行均在 `libengine.so` 内完成。
 
 ## 当前截图核心
 

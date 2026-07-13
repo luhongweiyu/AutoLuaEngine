@@ -97,6 +97,13 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/script_file_paths" />
         </provider>
+
+        <!-- 包内 HTML、JS、CSS、图片由 WebView 通过 content URI 读取，不在磁盘解压。 -->
+        <provider
+            android:name=".ScriptPackageResources"
+            android:authorities="com.autolua.engine.package"
+            android:exported="false"
+            android:grantUriPermissions="false" />
     </application>
 
 </manifest>

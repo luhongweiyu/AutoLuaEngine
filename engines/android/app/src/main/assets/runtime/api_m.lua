@@ -8,6 +8,7 @@ local m = {
     sleep = host.sleep,
     systemTime = host.systemTime,
     tickCount = host.tickCount,
+    read_alpkg_file = host.read_alpkg_file,
     touchDown = host.touchDown,
     touchMove = host.touchMove,
     touchUp = host.touchUp,

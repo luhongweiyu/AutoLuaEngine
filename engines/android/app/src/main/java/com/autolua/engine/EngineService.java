@@ -180,7 +180,7 @@ public final class EngineService extends Service {
             return;
         }
         if (!item.runnable) {
-            broadcastStatus(STATE_FAILED, "当前只支持运行 Lua 文件：" + item.fileName);
+            broadcastStatus(STATE_FAILED, "当前文件不可运行：" + item.fileName);
             return;
         }
 
@@ -196,12 +196,20 @@ public final class EngineService extends Service {
             String state = STATE_FINISHED;
             String message;
             try {
-                JSONObject result = callNativeCommand(
-                        "script.run",
-                        new JSONObject()
-                                .put("language", item.language)
-                                .put("code", ScriptCatalog.readScriptText(item.filePath))
-                );
+                JSONObject result;
+                if ("alpkg".equals(item.language)) {
+                    result = callNativeCommand(
+                            "script.runPackage",
+                            new JSONObject().put("packagePath", item.filePath)
+                    );
+                } else {
+                    result = callNativeCommand(
+                            "script.run",
+                            new JSONObject()
+                                    .put("language", item.language)
+                                    .put("code", ScriptCatalog.readScriptText(item.filePath))
+                    );
+                }
                 message = result.optString("message", "脚本执行完成");
                 if (!"finished".equals(result.optString("status", "unknown"))) {
                     state = STATE_FAILED;

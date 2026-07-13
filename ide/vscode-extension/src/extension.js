@@ -17,6 +17,7 @@ function activate(context) {
     vscode.commands.registerCommand('autolua.resumeScript', resumeScript),
     vscode.commands.registerCommand('autolua.stopScript', stopScript),
     vscode.commands.registerCommand('autolua.drainLogs', drainLogs),
+    vscode.commands.registerCommand('autolua.packageWorkspace', packageWorkspace),
     outputChannel,
     ...statusItems
   );
@@ -39,7 +40,8 @@ function createStatusBarItems() {
   const resumeItem = createStatusBarItem('$(debug-continue) Resume', 'autolua.resumeScript', 'Resume paused script', 97);
   const stopItem = createStatusBarItem('$(debug-stop) Stop', 'autolua.stopScript', 'Request current script stop', 96);
   const logsItem = createStatusBarItem('$(output) Logs', 'autolua.drainLogs', 'Drain AutoLuaEngine logs', 95);
-  return [checkItem, runItem, pauseItem, resumeItem, stopItem, logsItem];
+  const packageItem = createStatusBarItem('$(package) 打包', 'autolua.packageWorkspace', 'Package current AutoLua project', 94);
+  return [checkItem, runItem, pauseItem, resumeItem, stopItem, logsItem, packageItem];
 }
 
 function createStatusBarItem(text, command, tooltip, priority) {
@@ -161,6 +163,74 @@ async function drainLogs() {
     outputChannel.appendLine(`[error] ${error.message}`);
     vscode.window.showErrorMessage(`AutoLuaEngine log drain failed: ${error.message}`);
   }
+}
+
+async function packageWorkspace() {
+  const workspaceFolder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+  if (!workspaceFolder) {
+    vscode.window.showWarningMessage('请先用 VS Code 打开脚本项目文件夹。');
+    return;
+  }
+
+  const projectDirectory = workspaceFolder.uri.fsPath;
+  const toolPath = resolvePackToolPath();
+  outputChannel.show(true);
+  outputChannel.appendLine(`[package] ${projectDirectory}`);
+  outputChannel.appendLine(`[package] tool: ${toolPath}`);
+
+  try {
+    await ensurePackTool(toolPath);
+    const result = await execFile(toolPath, [projectDirectory]);
+    if (result.stdout) {
+      outputChannel.appendLine(result.stdout.trim());
+    }
+    if (result.stderr) {
+      outputChannel.appendLine(result.stderr.trim());
+    }
+    vscode.window.showInformationMessage('AutoLuaEngine 脚本包已生成到项目 dist 文件夹。');
+  } catch (error) {
+    outputChannel.appendLine(`[error] ${error.message}`);
+    vscode.window.showErrorMessage(`AutoLuaEngine 打包失败: ${error.message}`);
+  }
+}
+
+function resolvePackToolPath() {
+  const configPath = vscode.workspace.getConfiguration('autolua').get('packToolPath');
+  if (configPath && String(configPath).trim()) {
+    return String(configPath).trim();
+  }
+
+  const path = require('path');
+  return path.resolve(__dirname, '..', '..', '..', 'tools', 'pack', 'build', 'autolua_pack.exe');
+}
+
+function ensurePackTool(toolPath) {
+  const fs = require('fs');
+  if (fs.existsSync(toolPath)) {
+    return Promise.resolve();
+  }
+
+  const path = require('path');
+  const buildScript = path.resolve(__dirname, '..', '..', '..', 'tools', 'pack', '构建打包器.ps1');
+  return execFile('powershell.exe', [
+    '-NoProfile',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', buildScript,
+    '-Release'
+  ]);
+}
+
+function execFile(file, args) {
+  return new Promise((resolve, reject) => {
+    childProcess.execFile(file, args, { windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        const detail = stderr || stdout || error.message;
+        reject(new Error(detail));
+        return;
+      }
+      resolve({ stdout: stdout || '', stderr: stderr || '' });
+    });
+  });
 }
 
 async function drainLogsAfter(afterId) {

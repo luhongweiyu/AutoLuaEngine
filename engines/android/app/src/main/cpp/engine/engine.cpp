@@ -5,9 +5,11 @@
 
 #include "script_task.h"
 #include "../core/api/color_api.h"
+#include "../core/api/package_api.h"
 #include "../core/api/screen_api.h"
 #include "../core/api/ui_api.h"
 #include "../runtime/lua/lua_runtime.h"
+#include "../runtime/lua/alpkg_package.h"
 
 #include <sstream>
 
@@ -60,6 +62,19 @@ void Engine::init() {
 }
 
 std::string Engine::runLuaText(const char* code) {
+    return runLuaInternal(nullptr, code, nullptr);
+}
+
+std::string Engine::runLuaPackage(
+        const std::shared_ptr<AlpkgPackage>& package,
+        const char* runtimeBootstrap) {
+    return runLuaInternal(package, nullptr, runtimeBootstrap);
+}
+
+std::string Engine::runLuaInternal(
+        const std::shared_ptr<AlpkgPackage>& package,
+        const char* code,
+        const char* runtimeBootstrap) {
     // 脚本任务必须在 native 层统一串行化。App、悬浮窗、HTTP 和后续插件都会
     // 进入同一个 libengine.so，如果只在某个 Java 入口加锁，其他入口仍会竞争
     // Lua VM 任务状态和停止/暂停控制位。
@@ -91,8 +106,13 @@ std::string Engine::runLuaText(const char* code) {
     ScriptTask task(taskId);
     task.markRunning();
 
+    // 将当前包绑定到脚本线程。Lua 绑定、未来 JS/Go 绑定和插件 C ABI 都只能读取
+    // 当前任务的 resource 条目；普通脚本传入空包会主动清空上一个任务的上下文。
+    autolua::api::ScopedAlpkgPackageContext packageContext(package);
     LuaRuntime runtime;
-    std::string result = runtime.runText(code, Engine::shouldInterrupt, this);
+    std::string result = package == nullptr
+            ? runtime.runText(code, Engine::shouldInterrupt, this)
+            : runtime.runPackage(package, runtimeBootstrap, Engine::shouldInterrupt, this);
     // 脚本结束后必须回收该任务打开的弹窗、HUD 和 HTML 页面。UI 宿主在 App 主进程，
     // 因此不能依赖 LuaRuntime 析构时的本地对象自动回收。
     autolua::api::closeAllUiSurfaces();

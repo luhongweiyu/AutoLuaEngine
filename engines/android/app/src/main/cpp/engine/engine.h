@@ -4,9 +4,12 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+
+class AlpkgPackage;
 
 /**
  * Native 引擎总入口。
@@ -36,6 +39,12 @@ public:
      * @return 执行结果摘要。
      */
     std::string runLuaText(const char* code);
+
+    /** 运行已经由 Java 校验路径并由 native 打开的 ALPKG 脚本包。 */
+    std::string runLuaPackage(
+            const std::shared_ptr<AlpkgPackage>& package,
+            const char* runtimeBootstrap
+    );
 
     /**
      * 查询任务状态。
@@ -80,6 +89,12 @@ private:
     std::string lastStatus_;
     std::string lastResult_;
     std::string lastError_;
+
+    std::string runLuaInternal(
+            const std::shared_ptr<AlpkgPackage>& package,
+            const char* code,
+            const char* runtimeBootstrap
+    );
 
     static bool shouldInterrupt(void* context);
     bool waitIfPausedOrStopped();

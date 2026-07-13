@@ -5,6 +5,11 @@
 **/local.properties
 **/third_party/*.tar.gz
 
+# 本地 ALPKG 打包器和示例输出
+tools/pack/build/
+tools/pack/示例项目/dist/
+*.alpkg
+
 # IDE
 .idea/
 *.iml

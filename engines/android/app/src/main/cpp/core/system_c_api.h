@@ -3,6 +3,8 @@
  */
 #pragma once
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -88,6 +90,11 @@ typedef struct EngineApi {
     );
     void (*uiCloseAll)();
     const char* (*uiLastError)();
+    int (*readAlpkgFile)(
+            const char* relativePath,
+            const unsigned char** data,
+            size_t* size
+    );
 } EngineApi;
 
 /**
@@ -150,6 +157,24 @@ int engine_sleepInterruptible(
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* engine_runtimeLastError();
+
+/**
+ * 读取当前 ALPKG 脚本任务中的一个 resource 文件。
+ *
+ * relativePath 必须是 manifest.json 中声明的项目相对路径；本函数不会读取包外文件，
+ * 也不会返回 Lua 加密字节码。成功返回 1，并写入二进制数据首地址和长度；空文件也是
+ * 成功，长度为 0。失败返回 0，data/size 会被清零，原因通过 engine_runtimeLastError()
+ * 读取。
+ *
+ * 返回数据由 libengine.so 当前线程持有，只读且无需释放；其有效期到同线程下一次
+ * engine_readAlpkgFile 调用或当前脚本任务结束。JS、Go 和插件应在脚本任务线程内复制
+ * 所需字节，不得把该地址跨线程或跨回调长期保存。
+ */
+int engine_readAlpkgFile(
+        const char* relativePath,
+        const unsigned char** data,
+        size_t* size
+);
 
 /**
  * 返回系统时间戳，单位毫秒。

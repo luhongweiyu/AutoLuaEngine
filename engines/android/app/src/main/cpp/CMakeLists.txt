@@ -9,6 +9,7 @@ add_library(engine SHARED
         core/api/color_api.cpp
         core/api/ime_api.cpp
         core/api/input_api.cpp
+        core/api/package_api.cpp
         core/api/runtime_api.cpp
         core/api/screen_api.cpp
         core/api/ui_api.cpp
@@ -19,9 +20,12 @@ add_library(engine SHARED
         engine/script_task.cpp
         platform/android_bridge.cpp
         runtime/common/log_buffer.cpp
+        runtime/lua/alpkg_package.cpp
         runtime/lua/host_api.cpp
         runtime/lua/java_bridge.cpp
         runtime/lua/lua_runtime.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/package/alpkg_crypto.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/third_party/monocypher/monocypher.c
         ${LUA_SRC_DIR}/lapi.c
         ${LUA_SRC_DIR}/lauxlib.c
         ${LUA_SRC_DIR}/lbaselib.c
@@ -57,6 +61,7 @@ add_library(engine SHARED
 
 target_include_directories(engine PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared
         ${LUA_SRC_DIR})
 
 find_library(log-lib log)

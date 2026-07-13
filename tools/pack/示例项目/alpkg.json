@@ -1,0 +1,4 @@
+{
+  "entry": "main.lua",
+  "exclude": [".git/", ".vscode/", "dist/", "*.bak"]
+}

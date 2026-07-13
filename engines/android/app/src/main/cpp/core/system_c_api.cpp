@@ -4,10 +4,12 @@
 #include "system_c_api.h"
 
 #include <string>
+#include <vector>
 
 #include "api/color_api.h"
 #include "api/ime_api.h"
 #include "api/input_api.h"
+#include "api/package_api.h"
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
 #include "api/ui_api.h"
@@ -15,12 +17,13 @@
 
 namespace {
 
-constexpr int kEngineAbiVersion = 9;
+constexpr int kEngineAbiVersion = 10;
+constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.9\","
+        "\"abiVersion\":\"0.10\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -32,6 +35,7 @@ constexpr const char* kCapabilitiesJson =
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
+        "\"alpkgApi\":[\"engine_readAlpkgFile\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
 
@@ -42,6 +46,9 @@ thread_local std::string gInputLastError;
 thread_local std::string gImeLastError;
 thread_local std::string gUiLastError;
 thread_local std::string gUiEventResult;
+// C ABI 不能把 std::vector 暴露给调用方，因此由当前线程暂存最后一次包资源读取结果。
+// Lua/JS/Go 绑定必须在返回到各自运行时前自行复制需要的内容。
+thread_local std::vector<unsigned char> gAlpkgResourceData;
 
 struct CInterruptContext {
     runtime_interrupt_callback callback = nullptr;
@@ -99,7 +106,8 @@ const EngineApi kEngineApi = {
         engine_uiWaitEvent,
         engine_uiWaitEventInterruptible,
         engine_uiCloseAll,
-        engine_uiLastError
+        engine_uiLastError,
+        engine_readAlpkgFile
 };
 
 } // namespace
@@ -201,6 +209,50 @@ extern "C" int engine_sleepInterruptible(
  */
 extern "C" const char* engine_runtimeLastError() {
     return gRuntimeLastError.c_str();
+}
+
+/**
+ * 读取当前脚本包中由 manifest 声明的普通资源。
+ *
+ * 真实的 ZIP 索引、路径校验和资源类型校验集中在 core/api/package_api。这里仅承担
+ * 稳定 C ABI 的内存所有权约定，供 Lua、未来 JS/Go 和插件使用同一份实现。
+ */
+extern "C" int engine_readAlpkgFile(
+        const char* relativePath,
+        const unsigned char** data,
+        size_t* size
+) {
+    // 即使调用方只传错了一个输出参数，也不能让另一个参数保留上次成功读取的地址或
+    // 长度。先逐个清零，再统一返回参数错误，保持 C ABI 的失败结果可预测。
+    if (data != nullptr) {
+        *data = nullptr;
+    }
+    if (size != nullptr) {
+        *size = 0;
+    }
+    gAlpkgResourceData.clear();
+
+    if (data == nullptr || size == nullptr) {
+        setRuntimeError("ALPKG 资源读取输出参数为空");
+        return 0;
+    }
+
+    if (relativePath == nullptr || relativePath[0] == '\0') {
+        setRuntimeError("ALPKG 资源路径不能为空");
+        return 0;
+    }
+
+    std::string error;
+    if (!autolua::api::readActiveAlpkgResource(relativePath, &gAlpkgResourceData, &error)) {
+        setRuntimeError(error.empty() ? "读取 ALPKG 资源失败" : error);
+        return 0;
+    }
+
+    // 空资源同样是读取成功。使用稳定的非空哨兵避免调用方把空内容误判为失败。
+    *data = gAlpkgResourceData.empty() ? &kEmptyAlpkgResourceData : gAlpkgResourceData.data();
+    *size = gAlpkgResourceData.size();
+    gRuntimeLastError.clear();
+    return 1;
 }
 
 /**

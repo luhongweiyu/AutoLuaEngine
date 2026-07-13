@@ -17,7 +17,8 @@
     "onCommand:autolua.pauseScript",
     "onCommand:autolua.resumeScript",
     "onCommand:autolua.stopScript",
-    "onCommand:autolua.drainLogs"
+    "onCommand:autolua.drainLogs",
+    "onCommand:autolua.packageWorkspace"
   ],
   "main": "./src/extension.js",
   "contributes": {
@@ -48,6 +49,11 @@
           "type": "number",
           "default": 18380,
           "description": "Android engine JSON-RPC port used as the adb forward target."
+        },
+        "autolua.packToolPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to autolua_pack.exe. Empty uses tools/pack/build/autolua_pack.exe in this repository."
         }
       }
     },
@@ -75,6 +81,10 @@
       {
         "command": "autolua.drainLogs",
         "title": "AutoLuaEngine: Drain Logs"
+      },
+      {
+        "command": "autolua.packageWorkspace",
+        "title": "AutoLuaEngine: Package Current Project"
       }
     ]
   }

@@ -37,6 +37,7 @@ public final class ScriptCatalog {
     public static final String STORAGE_ROOT_DIRECTORY_NAME = "AutoLuaEngine";
     public static final String SCRIPTS_DIR_NAME = "scripts";
     public static final String DEFAULT_SCRIPT_FILE_NAME = "main.lua";
+    public static final String PACKAGE_EXTENSION = ".alpkg";
 
     private static final String ASSET_SCRIPT_DIR = "scripts";
     private static final int DESCRIPTION_READ_BYTES = 2048;
@@ -391,6 +392,9 @@ public final class ScriptCatalog {
         if (lowerName.endsWith(".lua")) {
             return "lua";
         }
+        if (lowerName.endsWith(PACKAGE_EXTENSION)) {
+            return "alpkg";
+        }
         if (lowerName.endsWith(".js")) {
             return "js";
         }
@@ -401,7 +405,7 @@ public final class ScriptCatalog {
     }
 
     private static boolean isRunnableLanguage(String language) {
-        return "lua".equals(language);
+        return "lua".equals(language) || "alpkg".equals(language);
     }
 
     public static final class ScriptItem {

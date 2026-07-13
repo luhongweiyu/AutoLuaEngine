@@ -10,6 +10,7 @@
 - `AutoLuaEngine: Resume Script`
 - `AutoLuaEngine: Stop Script`
 - `AutoLuaEngine: Drain Logs`
+- `AutoLuaEngine: Package Current Project`
 
 插件激活后会在 VS Code 底部状态栏显示：
 
@@ -19,6 +20,21 @@
 - `Resume`：请求引擎继续已暂停脚本
 - `Stop`：请求引擎停止当前脚本
 - `Logs`：读取引擎日志到 `AutoLuaEngine` Output 面板
+- `打包`：根据工作区根目录的 `alpkg.json` 生成 `.alpkg` 脚本包
+
+打包项目根目录使用：
+
+```json
+{
+  "entry": "main.lua",
+  "exclude": ["dist/", "*.bak"]
+}
+```
+
+配置不存在时，打包器会自动创建上述默认 `alpkg.json` 后继续执行。
+
+默认调用仓库内的 `tools/pack/build/autolua_pack.exe`。首次尚未构建时，插件会调用
+`tools/pack/构建打包器.ps1 -Release`；也可以通过 `autolua.packToolPath` 指定独立打包器路径。
 
 使用前需要：
 
