@@ -2,7 +2,7 @@
 local host = assert(_G._host, "native host api is not registered")
 
 -- 当前只暴露已经整理过的最小脚本 API。
--- Lua HostApi 只做参数转换，真实逻辑统一通过 C ABI 进入 libengine.so/core/api。
+-- 固定设备能力通过 C ABI 进入 core/api；Lua 多线程直接进入 libengine.so/runtime/lua。
 local m = {
     print = host.print,
     sleep = host.sleep,
@@ -21,6 +21,7 @@ local m = {
     screen = host.screen,
     color = host.color,
     ime = host.ime,
+    thread = host.thread,
     ui = host.ui,
 }
 

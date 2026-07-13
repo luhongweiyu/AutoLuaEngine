@@ -20,6 +20,10 @@ local lr = {
     setCaptureCacheMs = host.screen.setCaptureCacheMs,
     findColors = host.color.findColors,
     imeLib = host.ime,
+    beginThread = host.thread.beginThread,
+    Thread = {
+        newThread = host.thread.newThread,
+    },
 }
 
 lr.__compat = {

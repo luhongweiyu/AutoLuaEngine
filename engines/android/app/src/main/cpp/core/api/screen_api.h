@@ -10,8 +10,8 @@ namespace autolua::api {
 /**
  * 屏幕截图结果。
  *
- * pixels 指向 libengine.so 内部缓存，调用方只读，不释放。下一次缓存过期重新
- * 截图、clearScreenCaptureCache 或脚本结束清理时，该地址可能失效。
+ * pixels 指向 libengine.so 内部缓存，调用方只读，不释放。缓存仅在当前脚本任务
+ * 中保留；脚本结束或分辨率变化导致缓存扩容时，地址可能失效。
  */
 struct ScreenFrame {
     int width = 0;
@@ -43,7 +43,10 @@ void releaseScreenCapture();
 bool setScreenCaptureCacheMs(int durationMs);
 
 /**
- * 清空截图缓存，并恢复默认缓存时间和非锁帧状态。
+ * 释放当前脚本任务的截图缓存。
+ *
+ * 这是引擎任务收尾专用函数，不通过 C ABI 或语言绑定公开，脚本运行中不会主动
+ * 清理截图缓存。
  */
 void clearScreenCaptureCache();
 
@@ -55,8 +58,7 @@ std::string screenLastError();
 /**
  * 返回当前截图缓存帧编号。
  *
- * 每次写入新截图或清空截图缓存都会递增。找色转置缓存用这个编号判断自己是否
- * 还对应当前截图帧。
+ * 每次写入新截图都会递增。找色转置缓存用这个编号判断自己是否还对应当前截图帧。
  */
 long long screenCaptureFrameId();
 

@@ -14,6 +14,7 @@
 #include "../../core/api/runtime_api.h"
 #include "host_api.h"
 #include "java_bridge.h"
+#include "lua_task_scheduler.h"
 
 extern "C" {
 #include "lua.h"
@@ -31,13 +32,18 @@ LuaRuntime::LuaRuntime()
     }
 
     luaL_openlibs(state_);
+    scheduler_ = std::make_unique<LuaTaskScheduler>(state_, this);
     registerHostApi();
     registerLuaJavaBridge(state_, this);
 }
 
 LuaRuntime::~LuaRuntime() {
     if (state_ != nullptr) {
+        if (scheduler_ != nullptr) {
+            scheduler_->stopAndJoinAll();
+        }
         unregisterLuaJavaBridge(state_);
+        scheduler_.reset();
         lua_close(state_);
         state_ = nullptr;
     }
@@ -57,17 +63,23 @@ std::string LuaRuntime::runText(
         return prepareError;
     }
 
-    // luaL_loadstring 只负责编译，lua_pcall 才实际执行。
-    // 分开处理可以给出更明确的错误来源。
-    int loadStatus = luaL_loadstring(state_, code);
+    int registryReference = LUA_NOREF;
+    lua_State* executionState = createExecutionState(&registryReference);
+    if (executionState == nullptr) {
+        return "LuaRuntime main thread init failed";
+    }
+
+    // 主脚本不在根状态运行，保证 Java 异步回调始终可以使用空闲根状态。
+    int loadStatus = luaL_loadstring(executionState, code == nullptr ? "" : code);
     if (loadStatus != LUA_OK) {
-        const char* error = lua_tostring(state_, -1);
+        const char* error = lua_tostring(executionState, -1);
         std::string message = error == nullptr ? "Lua load error" : error;
-        lua_pop(state_, 1);
+        lua_pop(executionState, 1);
+        luaL_unref(state_, LUA_REGISTRYINDEX, registryReference);
         return "Lua load failed: " + message;
     }
 
-    return executeLoadedChunk();
+    return executeLoadedChunk(executionState, registryReference);
 }
 
 std::string LuaRuntime::runPackage(
@@ -90,8 +102,8 @@ std::string LuaRuntime::runPackage(
     }
     installPackageLoaders();
 
-    // 包内入口是预编译字节码，不能像普通脚本一样和 Lua 引导层拼成一段文本。先在同一
-    // lua_State 执行运行时引导，再加载包入口，m/lr/cd/import 与普通 .lua 脚本保持一致。
+    // 包内入口是预编译字节码。运行时引导只在根状态执行一次并立即返回，用户入口随后
+    // 在主任务子状态执行，根状态继续专用于共享全局和 Java 回调。
     const char* bootstrap = runtimeBootstrap == nullptr ? "" : runtimeBootstrap;
     int bootstrapStatus = luaL_loadbufferx(
             state_,
@@ -107,22 +119,33 @@ std::string LuaRuntime::runPackage(
         package_.reset();
         return "Lua load failed: " + message;
     }
-    if (lua_pcall(state_, 0, 0, 0) != LUA_OK) {
-        const char* error = lua_tostring(state_, -1);
-        std::string message = error == nullptr ? "Lua 运行时引导执行失败" : error;
-        lua_pop(state_, 1);
+    std::string bootstrapError = scheduler_->runBootstrap();
+    if (!bootstrapError.empty()) {
         package_.reset();
-        return "Lua run failed: " + message;
+        return "Lua run failed: " + bootstrapError;
+    }
+
+    int registryReference = LUA_NOREF;
+    lua_State* executionState = createExecutionState(&registryReference);
+    if (executionState == nullptr) {
+        package_.reset();
+        return "LuaRuntime main thread init failed";
     }
 
     std::string loadError;
     std::string chunkName = "@" + package_->entryPath();
-    if (loadPackageChunk(state_, package_->entryPath(), chunkName.c_str(), &loadError) != LUA_OK) {
+    if (loadPackageChunk(
+            executionState,
+            package_->entryPath(),
+            chunkName.c_str(),
+            &loadError
+    ) != LUA_OK) {
+        luaL_unref(state_, LUA_REGISTRYINDEX, registryReference);
         package_.reset();
         return "Lua load failed: " + loadError;
     }
 
-    std::string result = executeLoadedChunk();
+    std::string result = executeLoadedChunk(executionState, registryReference);
     package_.reset();
     return result;
 }
@@ -133,22 +156,31 @@ std::string LuaRuntime::prepareRun(bool (*shouldInterrupt)(void*), void* control
     lua_pushlightuserdata(state_, this);
     lua_setfield(state_, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
 
-    // 每执行一批 VM 指令检查一次控制请求。这个 hook 只用于协作暂停/取消，
-    // 不强杀线程，能让 Lua 栈按正常路径等待恢复，或按错误路径展开停止。
-    lua_sethook(state_, LuaRuntime::controlHook, LUA_MASKCOUNT, 1000);
+    // tickCount 表示整个脚本任务的运行时间，所有 native 子线程共享同一个起点。
+    autolua::api::runtimeMarkScriptStart();
+    configureTaskState(state_);
     return "";
 }
 
-std::string LuaRuntime::executeLoadedChunk() {
-    autolua::api::runtimeMarkScriptStart();
-    int callStatus = lua_pcall(state_, 0, LUA_MULTRET, 0);
-    if (callStatus != LUA_OK) {
-        const char* error = lua_tostring(state_, -1);
-        std::string message = error == nullptr ? "Lua runtime error" : error;
-        lua_pop(state_, 1);
-        return "Lua run failed: " + message;
+std::string LuaRuntime::executeLoadedChunk(
+        lua_State* executionState,
+        int registryReference
+) {
+    return scheduler_->runMain(executionState, registryReference);
+}
+
+lua_State* LuaRuntime::createExecutionState(int* registryReference) {
+    if (registryReference == nullptr) {
+        return nullptr;
     }
-    return "Lua script OK";
+
+    lua_State* executionState = lua_newthread(state_);
+    if (executionState == nullptr) {
+        lua_pop(state_, 1);
+        return nullptr;
+    }
+    *registryReference = luaL_ref(state_, LUA_REGISTRYINDEX);
+    return executionState;
 }
 
 void LuaRuntime::installPackageLoaders() {
@@ -288,8 +320,90 @@ void LuaRuntime::registerHostApi() {
     ::registerHostApi(state_);
 }
 
-bool LuaRuntime::shouldInterruptNow() const {
+bool LuaRuntime::shouldInterruptNow(lua_State* state) const {
+    if (scheduler_ != nullptr && scheduler_->isTaskStopRequested(state)) {
+        return true;
+    }
     return shouldInterrupt_ != nullptr && shouldInterrupt_(controlContext_);
+}
+
+LuaRuntime* LuaRuntime::fromState(lua_State* state) {
+    if (state == nullptr) {
+        return nullptr;
+    }
+    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+    return runtime;
+}
+
+void LuaRuntime::configureTaskState(lua_State* state) {
+    if (state == nullptr) {
+        return;
+    }
+
+    // Hook 同时处理停止、暂停、Java 回调和多任务公平让出。单线程时公平让出只读取
+    // 一个原子等待计数，不会在每批指令执行锁操作。
+    lua_sethook(state, LuaRuntime::controlHook, LUA_MASKCOUNT, 1000);
+}
+
+long long LuaRuntime::startChildThread(
+        lua_State* caller,
+        int callbackIndex,
+        int argumentCount,
+        std::string* error
+) {
+    if (scheduler_ == nullptr) {
+        if (error != nullptr) {
+            *error = "Lua 多线程运行时不可用";
+        }
+        return 0;
+    }
+    return scheduler_->startChild(caller, callbackIndex, argumentCount, error);
+}
+
+bool LuaRuntime::stopChildThread(long long taskId, std::string* error) {
+    if (scheduler_ == nullptr) {
+        if (error != nullptr) {
+            *error = "Lua 多线程运行时不可用";
+        }
+        return false;
+    }
+    return scheduler_->stopChildAndWait(taskId, error);
+}
+
+void LuaRuntime::requestStopAllThreads() {
+    if (scheduler_ != nullptr) {
+        scheduler_->requestStopAll();
+    }
+}
+
+bool LuaRuntime::releaseVmForBlocking() {
+    return scheduler_ != nullptr && scheduler_->releaseForBlocking();
+}
+
+void LuaRuntime::reacquireVmAfterBlocking(bool released) {
+    if (scheduler_ != nullptr) {
+        scheduler_->reacquireAfterBlocking(released);
+    }
+}
+
+int LuaRuntime::enterVmFromCallback() {
+    return scheduler_ == nullptr ? 0 : scheduler_->enterFromCallback();
+}
+
+void LuaRuntime::leaveVmFromCallback(int token) {
+    if (scheduler_ != nullptr) {
+        scheduler_->leaveFromCallback(token);
+    }
+}
+
+bool LuaRuntime::isVmOwnedByCurrentThread() const {
+    return scheduler_ != nullptr && scheduler_->isVmOwnedByCurrentThread();
+}
+
+std::shared_ptr<AlpkgPackage> LuaRuntime::package() const {
+    return package_;
 }
 
 std::string LuaRuntime::packagePath() const {
@@ -299,8 +413,8 @@ std::string LuaRuntime::packagePath() const {
 void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
     (void) debug;
 
-    // Java 监听器可能在主线程或 Binder 线程触发。所有跨线程回调先排队，
-    // 再由脚本所属线程在 hook 中执行，避免并发访问同一个 lua_State。
+    // Java 监听器可能在主线程或 Binder 线程触发。排队回调由当前持有 VM Gate 的
+    // Lua 任务处理，不再依赖创建 LuaRuntime 的固定 OS 线程。
     processLuaJavaCallbacks(state);
 
     lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
@@ -311,7 +425,12 @@ void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
         return;
     }
 
-    if (runtime->shouldInterruptNow()) {
+    if (runtime->shouldInterruptNow(state)) {
         luaL_error(state, "script stopped");
+        return;
+    }
+
+    if (runtime->scheduler_ != nullptr) {
+        runtime->scheduler_->yieldIfTaskWaiting();
     }
 }

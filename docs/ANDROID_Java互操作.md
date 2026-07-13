@@ -84,10 +84,10 @@ Lua table 转 Java 数组或集合时读取 `1..n` 连续部分；Java 数组和
 
 Java 回调不会并发访问 `lua_State`：
 
-- Java 方法在当前脚本线程同步触发接口时，直接执行 Lua 回调。
-- Lua 暂停在某次 Java 调用中、其他 Java 线程同步回调时，串行执行后再让原调用返回。
-- 普通异步监听器先进入队列，由 Lua 指令 hook 或 `sleep` 等待点在脚本线程执行。
-- Java `void` 异步回调不阻塞 Android 主线程；需要返回值的接口等待脚本线程处理结果。
+- Java 调用前会释放 Lua VM Gate，返回 Lua 栈前重新取得 Gate。
+- Java 方法同步触发接口时，回调线程取得同一个 Gate 后在空闲根状态执行 Lua 回调。
+- 普通异步监听器先进入队列，由任意持有 Gate 的 Lua 任务在指令 hook 或 `sleep` 等待点处理。
+- 主任务和 native 子线程不再绑定固定 owner thread；JNI 工作线程按需附加到 JavaVM。
 
 ## LuaEngine 兼容方法
 

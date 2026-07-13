@@ -11,8 +11,8 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `abiVersion` 为 `10`。新增字段只追加到结构体末尾；插件应先检查版本，再访问新增
-能力。
+当前 `abiVersion` 为 `11`。版本 11 移除了未使用的 `clearCaptureCache` 字段，因此
+旧插件必须使用当前头文件重编译；后续新增字段只追加到结构体末尾。
 
 ## 当前函数表能力
 
@@ -32,7 +32,6 @@ typedef struct EngineApi {
     void (*keepCapture)();
     void (*releaseCapture)();
     int (*setCaptureCacheMs)(int durationMs);
-    void (*clearCaptureCache)();
     const char* (*captureLastError)();
     int (*findColors)(int x1, int y1, int x2, int y2, int dir, int sim, const char* colors, EnginePoint* point);
     const char* (*findColorsLastError)();
@@ -75,7 +74,7 @@ typedef struct EngineApi {
 - 插件只调用 C ABI，不直接访问 C++ 对象。
 - `capture` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
 - `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
-- `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前脚本线程运行耗时。
+- `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前顶层脚本运行耗时，Lua 主任务和子线程共享起点。
 - `touch/key/inputText` 只走 Root helper 常驻进程，不走无障碍。
 - `imeLock/imeUnlock` 通过 Root helper 保存、切换和恢复系统输入法；`imeSetText` 通过
   已锁定的 AutoLuaEngine 输入法提交 Unicode 文本，不执行额外 Root 命令。

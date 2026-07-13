@@ -6,6 +6,7 @@
 - 新增脚本 API 先做 `libengine.so/core/api` 核心实现。
 - `system_c_api` 只做 C ABI 门面，不写最终业务逻辑。
 - Lua / JS / Go 绑定层只做参数转换和返回值封装。
+- 语言自身的运行时语义放在对应 `runtime/<语言>`；Lua 多线程不伪装成通用 C ABI。
 - 文档只记录当前真实可用能力。
 - 修改后按用户要求提交；不自动推送远程仓库。
 
@@ -20,7 +21,6 @@ int engine_capture(int* width, int* height, unsigned char** pixels);
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);
-void engine_clearCaptureCache();
 const char* engine_captureLastError();
 int engine_findColors(...);
 const char* engine_findColorsLastError();

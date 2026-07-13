@@ -38,7 +38,7 @@ int ok = engine_capture(&w, &h, &pixels);
 - `ok == 1`：成功，`w`、`h`、`pixels` 有效。
 - `ok == 0`：失败，通过 `engine_captureLastError()` 获取错误。
 - `pixels` 固定为紧凑 RGBA，长度为 `w * h * 4`。
-- `pixels` 由 `libengine.so` 内部缓存持有，调用方只读，不释放。
+- `pixels` 由 `libengine.so` 内部缓存持有，调用方只读，不释放；脚本结束后由引擎统一释放。
 
 ## 缓存控制
 
@@ -46,7 +46,6 @@ int ok = engine_capture(&w, &h, &pixels);
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);
-void engine_clearCaptureCache();
 const char* engine_captureLastError();
 ```
 
@@ -57,7 +56,7 @@ const char* engine_captureLastError();
 - 缓存过期时，`engine_capture` 重新截图并覆盖内部点阵缓存。
 - `engine_keepCapture()` 后一直复用当前帧。
 - `engine_releaseCapture()` 后恢复按时间缓存。
-- 脚本开始和结束会调用 `engine_clearCaptureCache()`。
+- 脚本运行中不会主动清空截图缓存；脚本结束时由引擎内部统一释放。
 
 ## Lua 绑定
 

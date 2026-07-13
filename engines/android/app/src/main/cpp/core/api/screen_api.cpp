@@ -21,7 +21,7 @@ constexpr int kPixelBytes = 4;
 constexpr int kDefaultCaptureCacheMs = 20;
 
 // 截图缓存的所有状态都由 gCaptureMutex 保护。
-// pixels 指针会直接返回给调用方，所以只能在持锁状态下替换或清空。
+// pixels 指针会直接返回给调用方，所以只能在持锁状态下替换、扩容或任务结束后释放。
 std::mutex gCaptureMutex;
 unsigned char* gCapturePixels = nullptr;
 size_t gCaptureCapacity = 0;

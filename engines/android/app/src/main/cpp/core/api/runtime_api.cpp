@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <android/log.h>
+#include <atomic>
 #include <chrono>
 #include <thread>
 
@@ -14,8 +15,13 @@ namespace autolua::api {
 namespace {
 
 constexpr const char* kLogTag = "AutoLuaEngine";
-thread_local bool gScriptStartReady = false;
-thread_local std::chrono::steady_clock::time_point gScriptStartTime;
+std::atomic_llong gScriptStartMs{0};
+
+long long steadyNowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+    ).count();
+}
 
 } // namespace
 
@@ -54,8 +60,7 @@ bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* sto
 }
 
 void runtimeMarkScriptStart() {
-    gScriptStartTime = std::chrono::steady_clock::now();
-    gScriptStartReady = true;
+    gScriptStartMs.store(steadyNowMs());
 }
 
 long long runtimeSystemTimeMs() {
@@ -64,12 +69,14 @@ long long runtimeSystemTimeMs() {
 }
 
 long long runtimeTickCountMs() {
-    if (!gScriptStartReady) {
-        runtimeMarkScriptStart();
+    long long startMs = gScriptStartMs.load();
+    if (startMs <= 0) {
+        long long nowMs = steadyNowMs();
+        long long expected = 0;
+        gScriptStartMs.compare_exchange_strong(expected, nowMs);
+        startMs = expected == 0 ? nowMs : expected;
     }
-
-    const auto elapsed = std::chrono::steady_clock::now() - gScriptStartTime;
-    return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+    return steadyNowMs() - startMs;
 }
 
 } // namespace autolua::api

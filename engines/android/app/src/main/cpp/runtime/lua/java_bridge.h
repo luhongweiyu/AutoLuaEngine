@@ -27,9 +27,9 @@ void registerLuaJavaBridge(lua_State* state, LuaRuntime* runtime);
 void unregisterLuaJavaBridge(lua_State* state);
 
 /**
- * 在脚本所属线程处理其他 Java 线程排队的 Lua 接口回调。
+ * 在当前持有 Lua VM Gate 的任务线程处理其他 Java 线程排队的 Lua 接口回调。
  *
- * LuaRuntime 的指令 hook 和 sleep 都会调用此函数，保证监听器回调不会并发访问
- * 同一个 lua_State。
+ * LuaRuntime 的指令 hook 和 sleep 都会调用此函数；主任务和 native 子线程通过同一个
+ * Gate 串行进入根 lua_State，不依赖固定 owner thread。
  */
 void processLuaJavaCallbacks(lua_State* state);

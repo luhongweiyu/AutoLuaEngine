@@ -51,7 +51,6 @@ typedef struct EngineApi {
     void (*keepCapture)();
     void (*releaseCapture)();
     int (*setCaptureCacheMs)(int durationMs);
-    void (*clearCaptureCache)();
     const char* (*captureLastError)();
     int (*findColors)(
             int x1,
@@ -186,7 +185,7 @@ long long engine_systemTime();
 /**
  * 返回当前脚本运行时间，单位毫秒。
  *
- * 语言运行时会在脚本开始执行前记录起点；该函数返回当前线程距离这个起点的耗时。
+ * 语言运行时会在顶层脚本开始执行前记录起点；主任务和全部 native 子线程共享该起点。
  */
 long long engine_tickCount();
 
@@ -204,7 +203,8 @@ long long engine_tickCount();
  *
  * 注意：
  * pixels 指向 libengine.so 内部缓存，调用方只读，不要释放。下一次缓存过期后
- * 重新截图、engine_clearCaptureCache 或脚本结束清理时，该地址可能失效。
+ * 缓存仅在当前脚本任务中保留。脚本结束或分辨率变化导致内部缓存扩容时，该地址
+ * 可能失效。
  */
 int engine_capture(int* width, int* height, unsigned char** pixels);
 
@@ -227,11 +227,6 @@ void engine_releaseCapture();
  * 返回 1 表示设置成功，返回 0 表示参数非法。
  */
 int engine_setCaptureCacheMs(int durationMs);
-
-/**
- * 清空截图缓存，并恢复默认缓存时间和非锁帧状态。
- */
-void engine_clearCaptureCache();
 
 /**
  * 返回最近一次截图 C ABI 调用失败原因。

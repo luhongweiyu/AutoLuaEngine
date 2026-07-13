@@ -17,13 +17,14 @@
 
 namespace {
 
-constexpr int kEngineAbiVersion = 10;
+// 11 移除了未使用的 clearCaptureCache 函数表字段，旧版插件必须按新头文件重编译。
+constexpr int kEngineAbiVersion = 11;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.10\","
+        "\"abiVersion\":\"0.11\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -82,7 +83,6 @@ const EngineApi kEngineApi = {
         engine_keepCapture,
         engine_releaseCapture,
         engine_setCaptureCacheMs,
-        engine_clearCaptureCache,
         engine_captureLastError,
         engine_findColors,
         engine_findColorsLastError,
@@ -267,7 +267,7 @@ extern "C" long long engine_systemTime() {
 /**
  * 返回当前脚本运行时间，单位毫秒。
  *
- * 起点由对应脚本运行时在线程内记录。当前 LuaRuntime 会在 lua_pcall 前设置。
+ * 起点由对应脚本运行时在顶层任务开始前记录，当前 Lua 主任务和全部子线程共享。
  */
 extern "C" long long engine_tickCount() {
     return autolua::api::runtimeTickCountMs();
@@ -326,15 +326,6 @@ extern "C" int engine_setCaptureCacheMs(int durationMs) {
 
     gScreenLastError.clear();
     return 1;
-}
-
-/**
- * 清空截图缓存并恢复默认缓存策略。
- */
-extern "C" void engine_clearCaptureCache() {
-    autolua::api::clearScreenCaptureCache();
-    autolua::api::清空找色缓存();
-    gScreenLastError.clear();
 }
 
 /**

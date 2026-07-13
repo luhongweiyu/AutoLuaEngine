@@ -51,6 +51,7 @@ Engine::Engine()
           nextTaskId_(1),
           stopRequested_(false),
           pauseRequested_(false),
+          activeLuaRuntime_(nullptr),
           lastTaskId_(0),
           lastStatus_("idle") {
 }
@@ -90,7 +91,6 @@ std::string Engine::runLuaInternal(
     stopRequested_.store(false);
     pauseRequested_.store(false);
     controlCondition_.notify_all();
-    autolua::api::clearScreenCaptureCache();
     autolua::api::清空找色缓存();
 
     int taskId;
@@ -110,12 +110,31 @@ std::string Engine::runLuaInternal(
     // 当前任务的 resource 条目；普通脚本传入空包会主动清空上一个任务的上下文。
     autolua::api::ScopedAlpkgPackageContext packageContext(package);
     LuaRuntime runtime;
-    std::string result = package == nullptr
-            ? runtime.runText(code, Engine::shouldInterrupt, this)
-            : runtime.runPackage(package, runtimeBootstrap, Engine::shouldInterrupt, this);
+    {
+        std::lock_guard<std::mutex> lock(runtimeMutex_);
+        activeLuaRuntime_ = &runtime;
+    }
+    std::string result;
+    try {
+        result = package == nullptr
+                ? runtime.runText(code, Engine::shouldInterrupt, this)
+                : runtime.runPackage(package, runtimeBootstrap, Engine::shouldInterrupt, this);
+    } catch (...) {
+        // activeLuaRuntime_ 只在 runtime 对象存活时有效。任何 native 异常向上返回前都要
+        // 先解除注册，避免并发停止请求访问已经开始析构的运行时。
+        std::lock_guard<std::mutex> lock(runtimeMutex_);
+        activeLuaRuntime_ = nullptr;
+        throw;
+    }
+    {
+        std::lock_guard<std::mutex> lock(runtimeMutex_);
+        activeLuaRuntime_ = nullptr;
+    }
     // 脚本结束后必须回收该任务打开的弹窗、HUD 和 HTML 页面。UI 宿主在 App 主进程，
     // 因此不能依赖 LuaRuntime 析构时的本地对象自动回收。
     autolua::api::closeAllUiSurfaces();
+    // 截图点阵只在本次脚本任务中保留。运行期间不主动清理，任务结束后统一释放，
+    // 避免缓存跨脚本保留无意义内存，也确保 keepCapture 状态不会泄漏到下一次运行。
     autolua::api::clearScreenCaptureCache();
     autolua::api::清空找色缓存();
     pauseRequested_.store(false);
@@ -163,16 +182,27 @@ std::string Engine::statusJson(int taskId) const {
 }
 
 bool Engine::requestStop() {
-    std::lock_guard<std::mutex> lock(taskMutex_);
-    if (!isActiveStatusLocked()) {
-        return false;
+    {
+        std::lock_guard<std::mutex> lock(taskMutex_);
+        if (!isActiveStatusLocked()) {
+            return false;
+        }
+
+        // stopping 是终止中的明确状态。重复 stop 不重新修改控制位，调用方可以据此保持
+        // UI 的“停止中”状态，而不是把没有运行中的任务误标成运行状态。
+        lastStatus_ = "stopping";
+        stopRequested_.store(true);
+        pauseRequested_.store(false);
     }
 
-    // stopping 是终止中的明确状态。重复 stop 不重新修改控制位，调用方可以据此保持
-    // UI 的“停止中”状态，而不是把没有运行中的任务误标成运行状态。
-    lastStatus_ = "stopping";
-    stopRequested_.store(true);
-    pauseRequested_.store(false);
+    // 先设置全局停止位，再唤醒全部 Lua 子任务。每个任务会在 sleep/UI 等待回调或
+    // 指令 hook 中看到同一停止状态并正常展开 Lua 栈。
+    {
+        std::lock_guard<std::mutex> lock(runtimeMutex_);
+        if (activeLuaRuntime_ != nullptr) {
+            activeLuaRuntime_->requestStopAllThreads();
+        }
+    }
     controlCondition_.notify_all();
     return true;
 }

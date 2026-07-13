@@ -24,6 +24,8 @@ add_library(engine SHARED
         runtime/lua/host_api.cpp
         runtime/lua/java_bridge.cpp
         runtime/lua/lua_runtime.cpp
+        runtime/lua/lua_task_scheduler.cpp
+        runtime/lua/lua_thread_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/package/alpkg_crypto.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/third_party/monocypher/monocypher.c
         ${LUA_SRC_DIR}/lapi.c

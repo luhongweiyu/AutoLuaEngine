@@ -1,5 +1,5 @@
 /**
- * 文件用途：注册 Lua 固定 HostApi，只负责参数转换并调用 libengine.so C ABI。
+ * 文件用途：注册 Lua HostApi；固定设备能力调用 C ABI，Lua 线程能力接入本运行时调度器。
  */
 #include "host_api.h"
 
@@ -19,6 +19,7 @@
 #include "../../engine/json_value.h"
 #include "java_bridge.h"
 #include "lua_runtime.h"
+#include "lua_thread_api.h"
 
 extern "C" {
 #include "lua.h"
@@ -327,7 +328,14 @@ int luaSleep(lua_State* state) {
         }
 
         int sliceMs = static_cast<int>(remaining > 20 ? 20 : remaining);
-        if (!engine_sleepInterruptible(sliceMs, luaShouldInterrupt, runtime)) {
+        // duration 和 runtime 已经复制到 native 局部变量，此后不再访问 Lua 栈。释放
+        // VM Gate 后，其他真实子线程可以在当前任务休眠期间执行 Lua 字节码。
+        bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+        bool slept = engine_sleepInterruptible(sliceMs, luaShouldInterrupt, runtime) != 0;
+        if (runtime != nullptr) {
+            runtime->reacquireVmAfterBlocking(released);
+        }
+        if (!slept) {
             const char* error = engine_runtimeLastError();
             return luaL_error(
                     state,
@@ -700,12 +708,17 @@ int luaUiWaitEvent(lua_State* state) {
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 
+    // UI 会话 ID 和超时已经复制完成，等待期间不触碰 Lua 栈，因此可以让出 VM Gate。
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
     const char* eventText = engine_uiWaitEventInterruptible(
             static_cast<long long>(sessionId),
             static_cast<int>(timeoutMs),
             luaShouldInterrupt,
             runtime
     );
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
     if (eventText == nullptr || eventText[0] == '\0') {
         std::string error = engine_uiLastError();
         if (error == "脚本已停止") {
@@ -757,6 +770,10 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, hostTableIndex, "keyPress", luaKeyPress);
     setFunctionField(state, hostTableIndex, "inputText", luaInputText);
     setFunctionField(state, hostTableIndex, "getRunEnvType", luaGetRunEnvType);
+
+    // Lua 多线程属于语言运行时能力，直接实现于 libengine.so/runtime/lua，不经过
+    // 语言无关 C ABI；JS 和 Go 后续分别使用自己的任务模型。
+    registerLuaThreadApi(state, hostTableIndex);
 
     lua_newtable(state);
     int logTableIndex = lua_gettop(state);

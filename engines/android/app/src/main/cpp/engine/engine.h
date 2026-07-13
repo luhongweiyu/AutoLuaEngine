@@ -10,6 +10,7 @@
 #include <mutex>
 
 class AlpkgPackage;
+class LuaRuntime;
 
 /**
  * Native 引擎总入口。
@@ -84,7 +85,9 @@ private:
     std::condition_variable controlCondition_;
     std::mutex controlMutex_;
     std::mutex runMutex_;
+    std::mutex runtimeMutex_;
     mutable std::mutex taskMutex_;
+    LuaRuntime* activeLuaRuntime_;
     int lastTaskId_;
     std::string lastStatus_;
     std::string lastResult_;

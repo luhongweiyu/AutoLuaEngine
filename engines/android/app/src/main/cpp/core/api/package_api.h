@@ -12,11 +12,11 @@ class AlpkgPackage;
 namespace autolua::api {
 
 /**
- * 在当前脚本线程绑定一个 ALPKG 包。
+ * 在当前脚本 native 工作线程绑定一个 ALPKG 包。
  *
  * 包资源访问必须依赖“当前任务”的包身份，不能由脚本传入任意 APK 路径。该作用域使用
- * 线程局部状态，允许不同脚本任务将来并发运行时互不串包；析构时恢复外层上下文，避免
- * 普通 Lua、JS 或 Go 任务继承前一个 ALPKG 任务的读取权限。
+ * 线程局部状态由主任务、Lua 子线程和直接 Java 回调分别绑定；析构时恢复外层上下文，
+ * 避免普通 Lua、JS 或 Go 任务继承前一个 ALPKG 任务的读取权限。
  */
 class ScopedAlpkgPackageContext {
 public:

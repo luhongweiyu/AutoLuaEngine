@@ -11,6 +11,10 @@
 userdata 和元方法，再通过 JNI 调用统一 `JavaInteropBridge`。JS / Go 后续复用
 Java 后端，但使用各自对象包装。
 
+语言自身的并发语义同样不伪装成通用 C ABI。Lua 的 `beginThread`、
+`Thread.newThread` 和 VM Gate 位于 `libengine.so/runtime/lua`；JS 和 Go 后续分别使用
+自己的事件循环或 goroutine。
+
 C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层路线。后缀沿用已确定
 脚本 API 的命名，例如 `engine_inputText`、`engine_imeSetText`，避免跨层出现不同名称。
 
@@ -40,7 +44,7 @@ int engine_readAlpkgFile(
 );
 ```
 
-`engine_readAlpkgFile` 只允许当前 ALPKG 脚本任务线程读取 manifest 中 `resource` 类型的
+`engine_readAlpkgFile` 只允许当前 ALPKG 脚本任务及其已绑定上下文的 native 子线程读取 manifest 中 `resource` 类型的
 项目相对路径。成功返回 `1`，数据由 SO 当前线程持有且只读；失败返回 `0`，原因通过
 `engine_runtimeLastError()` 获取。该数据地址在同线程下一次读取前有效，语言绑定必须复制
 需要长期保存的数据。Lua、未来 JS/Go 和插件都通过这个 ABI 复用同一条读取路径。
@@ -52,7 +56,6 @@ engine_capture
 engine_keepCapture
 engine_releaseCapture
 engine_setCaptureCacheMs
-engine_clearCaptureCache
 engine_captureLastError
 ```
 
@@ -183,7 +186,6 @@ int engine_capture(int* width, int* height, unsigned char** pixels);
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);
-void engine_clearCaptureCache();
 const char* engine_captureLastError();
 ```
 
@@ -194,7 +196,7 @@ const char* engine_captureLastError();
 - 缓存过期重新截图并覆盖缓存。
 - `engine_keepCapture()` 锁帧。
 - `engine_releaseCapture()` 取消锁帧。
-- `engine_clearCaptureCache()` 清空截图缓存。
+- 脚本运行中不会主动清空截图缓存；脚本结束时由引擎内部统一释放。
 
 ## 找色 C ABI
 

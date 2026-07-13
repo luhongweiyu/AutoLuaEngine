@@ -29,7 +29,6 @@ int engine_capture(int* width, int* height, unsigned char** pixels);
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);
-void engine_clearCaptureCache();
 const char* engine_captureLastError();
 ```
 

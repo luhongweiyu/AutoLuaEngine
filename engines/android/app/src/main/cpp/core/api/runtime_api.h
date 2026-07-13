@@ -39,10 +39,10 @@ void runtimeLogPrint(const std::string& message);
 bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* stopContext);
 
 /**
- * 记录当前线程脚本开始时间。
+ * 记录当前顶层脚本任务开始时间。
  *
- * tickCount() 要返回“当前脚本运行了多久”，所以语言运行时在真正执行脚本前
- * 调用一次这里。使用线程局部数据，避免多个脚本线程互相覆盖计时。
+ * 同一个脚本创建的 Lua native 子线程必须共享该起点，因此这里保存的是引擎当前
+ * 顶层任务时间，不使用线程局部数据。Engine 当前只允许一个顶层脚本同时运行。
  */
 void runtimeMarkScriptStart();
 

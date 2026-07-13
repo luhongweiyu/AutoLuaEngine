@@ -4,6 +4,7 @@
 #include "java_bridge.h"
 
 #include "lua_runtime.h"
+#include "../../core/api/package_api.h"
 #include "../../core/system_c_api.h"
 
 #include <atomic>
@@ -13,7 +14,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -42,7 +42,7 @@ struct JavaObjectUserdata {
 };
 
 /**
- * 其他 Java 线程提交给脚本线程执行的一次 Lua 接口回调。
+ * 其他 Java 线程提交给持有 VM Gate 的 Lua 任务执行的一次接口回调。
  */
 struct LuaCallbackRequest {
     int reference = LUA_NOREF;
@@ -62,7 +62,6 @@ struct LuaJavaContext {
     lua_State* state = nullptr;
     LuaRuntime* runtime = nullptr;
     std::uint64_t token = 0;
-    std::thread::id ownerThread;
     std::atomic_bool alive{true};
     std::atomic_int callbackDepth{0};
     bool processingCallbacks = false;
@@ -80,6 +79,10 @@ struct LuaJavaContext {
     std::mutex callbackQueueMutex;
     std::deque<std::shared_ptr<LuaCallbackRequest>> callbackQueue;
 };
+
+// beginJavaCall/endJavaCall 可能在同步 Java 回调中嵌套。线程局部栈记录每一层是否
+// 实际释放了 VM Gate，确保 JNI 返回后按相反顺序恢复。
+thread_local std::vector<bool> gJavaVmReleaseStack;
 
 /**
  * 互操作层反复使用的 Java 类、方法和字段缓存。
@@ -553,8 +556,16 @@ void beginJavaCall(const std::shared_ptr<LuaJavaContext>& context) {
     if (context == nullptr) {
         return;
     }
-    std::lock_guard<std::mutex> lock(context->stateMutex);
-    context->javaCallDepth++;
+    {
+        std::lock_guard<std::mutex> lock(context->stateMutex);
+        context->javaCallDepth++;
+    }
+
+    // Java 反射调用可能进行网络、磁盘或等待同步代理回调。参数在调用前已经转换为
+    // JNI 引用，等待期间不访问 Lua 栈，可以释放 Gate 让其他 Lua 任务运行。
+    bool released = context->runtime != nullptr
+            && context->runtime->releaseVmForBlocking();
+    gJavaVmReleaseStack.push_back(released);
 }
 
 /**
@@ -565,14 +576,25 @@ void endJavaCall(const std::shared_ptr<LuaJavaContext>& context) {
         return;
     }
 
-    std::unique_lock<std::mutex> lock(context->stateMutex);
-    if (context->javaCallDepth > 0) {
-        context->javaCallDepth--;
+    {
+        std::unique_lock<std::mutex> lock(context->stateMutex);
+        if (context->javaCallDepth > 0) {
+            context->javaCallDepth--;
+        }
+        if (context->javaCallDepth == 0) {
+            context->stateCondition.wait(lock, [&context]() {
+                return context->activeDirectCallbacks == 0;
+            });
+        }
     }
-    if (context->javaCallDepth == 0) {
-        context->stateCondition.wait(lock, [&context]() {
-            return context->activeDirectCallbacks == 0;
-        });
+
+    bool released = false;
+    if (!gJavaVmReleaseStack.empty()) {
+        released = gJavaVmReleaseStack.back();
+        gJavaVmReleaseStack.pop_back();
+    }
+    if (context->runtime != nullptr) {
+        context->runtime->reacquireVmAfterBlocking(released);
     }
 }
 
@@ -1728,7 +1750,6 @@ void registerLuaJavaBridge(lua_State* state, LuaRuntime* runtime) {
     context->state = state;
     context->runtime = runtime;
     context->token = gNextContextToken.fetch_add(1);
-    context->ownerThread = std::this_thread::get_id();
 
     {
         std::lock_guard<std::mutex> lock(gContextRegistryMutex);
@@ -1803,7 +1824,6 @@ void processLuaJavaCallbacks(lua_State* state) {
     std::shared_ptr<LuaJavaContext> context = contextForState(state);
     if (context == nullptr
             || !context->alive
-            || std::this_thread::get_id() != context->ownerThread
             || context->callbackDepth.load() > 0
             || context->processingCallbacks) {
         return;
@@ -1833,8 +1853,8 @@ void processLuaJavaCallbacks(lua_State* state) {
 /**
  * Java 动态代理回调 native 入口。
  *
- * 同一脚本线程或 Lua 已暂停在 Java 调用中时直接执行；其他时刻排队给脚本线程，
- * 从根本上避免多个线程同时访问 lua_State。
+ * 当前线程已经持有 Gate，或 Lua 已暂停在 Java 调用中时直接执行；其他时刻进入回调
+ * 队列。所有路线最终都通过同一个 Gate，避免多个线程同时访问 lua_State。
  */
 extern "C" JNIEXPORT jobject JNICALL
 Java_com_autolua_engine_interop_LuaCallback_nativeInvoke(
@@ -1865,7 +1885,8 @@ Java_com_autolua_engine_interop_LuaCallback_nativeInvoke(
         localArguments.push_back(env->GetObjectArrayElement(arguments, index));
     }
 
-    bool sameOwnerThread = std::this_thread::get_id() == context->ownerThread;
+    bool sameOwnerThread = context->runtime != nullptr
+            && context->runtime->isVmOwnedByCurrentThread();
     bool directFromPausedJavaCall = false;
     if (!sameOwnerThread) {
         std::lock_guard<std::mutex> lock(context->stateMutex);
@@ -1878,8 +1899,14 @@ Java_com_autolua_engine_interop_LuaCallback_nativeInvoke(
     if (sameOwnerThread || directFromPausedJavaCall) {
         std::string error;
         jobject result = nullptr;
+        int vmToken = context->runtime == nullptr
+                ? 0
+                : context->runtime->enterVmFromCallback();
         {
             std::lock_guard<std::recursive_mutex> callbackLock(context->luaCallbackMutex);
+            autolua::api::ScopedAlpkgPackageContext packageContext(
+                    context->runtime == nullptr ? nullptr : context->runtime->package()
+            );
             result = invokeLuaCallback(
                     context,
                     env,
@@ -1887,6 +1914,9 @@ Java_com_autolua_engine_interop_LuaCallback_nativeInvoke(
                     localArguments,
                     &error
             );
+        }
+        if (context->runtime != nullptr) {
+            context->runtime->leaveVmFromCallback(vmToken);
         }
         for (jobject argument : localArguments) {
             if (argument != nullptr) {
