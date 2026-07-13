@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 文件用途：允许 App 通过 FileProvider 把共享脚本目录中的文件交给外部编辑器打开。 -->
+<!-- 文件用途：允许 App 把用户自定义共享目录中的脚本交给外部编辑器打开。 -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path
-        name="scripts"
-        path="AutoLuaEngine/scripts/" />
+        name="shared_storage"
+        path="." />
 </paths>

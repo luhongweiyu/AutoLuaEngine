@@ -5,6 +5,7 @@ package com.autolua.engine;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Environment;
@@ -28,8 +29,8 @@ import java.util.Locale;
 /**
  * App 侧脚本目录。
  *
- * 用户脚本统一保存在 /sdcard/AutoLuaEngine/scripts。App 获得所有文件访问权限后，直接把
- * 内置示例复制到这个目录，并从这个目录读取文件列表。不存在私有目录、中转副本或迁移流程。
+ * 默认目录是 /sdcard/AutoLuaEngine/scripts，用户也可以在设置页输入共享存储中的其他目录。
+ * App 和引擎始终读取同一真实路径，不存在私有目录、中转副本或迁移流程。
  */
 public final class ScriptCatalog {
     public static final String PREF_NAME = "script_state";
@@ -39,6 +40,8 @@ public final class ScriptCatalog {
     public static final String DEFAULT_SCRIPT_FILE_NAME = "main.lua";
     public static final String PACKAGE_EXTENSION = ".alpkg";
 
+    private static final String KEY_SCRIPT_DIRECTORY_PATH = "script_directory_path";
+    private static final String KEY_SAMPLE_SCRIPTS_INITIALIZED = "sample_scripts_initialized";
     private static final String ASSET_SCRIPT_DIR = "scripts";
     private static final int DESCRIPTION_READ_BYTES = 2048;
     private static final int MAX_DESCRIPTION_LENGTH = 42;
@@ -58,9 +61,23 @@ public final class ScriptCatalog {
     }
 
     /**
-     * 返回唯一共享脚本目录。真实文件路径后续可直接供 Lua、插件和外部工具复用。
+     * 返回当前共享脚本目录。没有用户配置时使用默认目录。
      */
-    public static File getScriptDirectory() {
+    public static File getScriptDirectory(Context context) {
+        String savedPath = preferences(context).getString(KEY_SCRIPT_DIRECTORY_PATH, "");
+        if (savedPath != null && !savedPath.trim().isEmpty()) {
+            File savedDirectory = normalizeSharedStorageDirectory(new File(savedPath));
+            if (savedDirectory != null) {
+                return savedDirectory;
+            }
+        }
+        return getDefaultScriptDirectory();
+    }
+
+    /**
+     * 返回首次安装使用的默认脚本目录。
+     */
+    private static File getDefaultScriptDirectory() {
         return new File(
                 new File(Environment.getExternalStorageDirectory(), STORAGE_ROOT_DIRECTORY_NAME),
                 SCRIPTS_DIR_NAME
@@ -68,10 +85,64 @@ public final class ScriptCatalog {
     }
 
     /**
-     * 返回用户熟悉的脚本目录显示路径。
+     * 返回便于用户识别的脚本目录路径，主共享存储统一显示为 /sdcard。
      */
-    public static String getScriptDirectoryDisplayPath() {
-        return "/sdcard/" + STORAGE_ROOT_DIRECTORY_NAME + "/" + SCRIPTS_DIR_NAME;
+    public static String getScriptDirectoryDisplayPath(Context context) {
+        File directory = getScriptDirectory(context);
+        File storageRoot = Environment.getExternalStorageDirectory();
+        String directoryPath = directory.getAbsolutePath();
+        String rootPath = storageRoot.getAbsolutePath();
+        if (directoryPath.equals(rootPath)) {
+            return "/sdcard";
+        }
+        if (directoryPath.startsWith(rootPath + File.separator)) {
+            return "/sdcard" + directoryPath.substring(rootPath.length()).replace('\\', '/');
+        }
+        return directoryPath;
+    }
+
+    /**
+     * 保存用户选择的脚本目录。仅接受主共享存储下的子目录，确保引擎和插件都能使用真实路径。
+     */
+    public static boolean setScriptDirectory(Context context, File directory) {
+        File normalizedDirectory = normalizeSharedStorageDirectory(directory);
+        File storageRoot = normalizeFile(Environment.getExternalStorageDirectory());
+        if (normalizedDirectory == null
+                || storageRoot == null
+                || normalizedDirectory.equals(storageRoot)) {
+            return false;
+        }
+        if (!normalizedDirectory.exists() && !normalizedDirectory.mkdirs()) {
+            return false;
+        }
+        if (!normalizedDirectory.isDirectory()) {
+            return false;
+        }
+
+        preferences(context)
+                .edit()
+                .putString(KEY_SCRIPT_DIRECTORY_PATH, normalizedDirectory.getAbsolutePath())
+                .remove(KEY_SELECTED_SCRIPT_PATH)
+                .apply();
+        return true;
+    }
+
+    /**
+     * 把用户输入的 /sdcard 或真实共享存储路径转为规范目录。
+     */
+    public static File resolveScriptDirectoryPath(String inputPath) {
+        if (inputPath == null || inputPath.trim().isEmpty()) {
+            return null;
+        }
+
+        String path = inputPath.trim().replace('\\', '/');
+        if (path.equals("/sdcard")) {
+            path = Environment.getExternalStorageDirectory().getAbsolutePath();
+        } else if (path.startsWith("/sdcard/")) {
+            path = Environment.getExternalStorageDirectory().getAbsolutePath()
+                    + path.substring("/sdcard".length());
+        }
+        return normalizeSharedStorageDirectory(new File(path));
     }
 
     /**
@@ -99,7 +170,7 @@ public final class ScriptCatalog {
     }
 
     /**
-     * 创建共享脚本目录，并在不覆盖现有文件的前提下复制内置示例。
+     * 创建共享脚本目录。内置示例只在当前安装第一次成功初始化目录时复制一次。
      *
      * @return 目录可直接读写时返回 true。
      */
@@ -108,7 +179,7 @@ public final class ScriptCatalog {
             return false;
         }
 
-        File scriptDirectory = getScriptDirectory();
+        File scriptDirectory = getScriptDirectory(context);
         if (!scriptDirectory.exists() && !scriptDirectory.mkdirs()) {
             return false;
         }
@@ -116,10 +187,17 @@ public final class ScriptCatalog {
             return false;
         }
 
-        for (String fileName : SAMPLE_SCRIPT_NAMES) {
-            File targetFile = new File(scriptDirectory, fileName);
-            if (!targetFile.exists()) {
-                copyAssetScript(context, fileName, targetFile);
+        SharedPreferences preferences = preferences(context);
+        if (!preferences.getBoolean(KEY_SAMPLE_SCRIPTS_INITIALIZED, false)) {
+            boolean initialized = true;
+            for (String fileName : SAMPLE_SCRIPT_NAMES) {
+                File targetFile = new File(scriptDirectory, fileName);
+                if (!targetFile.exists() && !copyAssetScript(context, fileName, targetFile)) {
+                    initialized = false;
+                }
+            }
+            if (initialized) {
+                preferences.edit().putBoolean(KEY_SAMPLE_SCRIPTS_INITIALIZED, true).apply();
             }
         }
         return true;
@@ -130,7 +208,7 @@ public final class ScriptCatalog {
             return new ScriptItem[0];
         }
 
-        File[] files = getScriptDirectory().listFiles(File::isFile);
+        File[] files = getScriptDirectory(context).listFiles(File::isFile);
         if (files == null || files.length == 0) {
             return new ScriptItem[0];
         }
@@ -141,7 +219,7 @@ public final class ScriptCatalog {
 
         List<ScriptItem> items = new ArrayList<>();
         for (File file : files) {
-            items.add(toScriptItem(file));
+            items.add(toScriptItem(context, file));
         }
         return items.toArray(new ScriptItem[0]);
     }
@@ -183,7 +261,7 @@ public final class ScriptCatalog {
             return null;
         }
 
-        String normalizedPath = normalizeSavedPath(path);
+        String normalizedPath = normalizeSavedPath(context, path);
         ScriptItem[] scripts = listScripts(context);
         for (ScriptItem item : scripts) {
             if (item.filePath.equals(normalizedPath)) {
@@ -193,21 +271,39 @@ public final class ScriptCatalog {
         return null;
     }
 
+    /**
+     * 按真实路径读取共享存储中的脚本文件，不依赖跨进程的目录配置缓存。
+     *
+     * EngineService 使用该入口接收 App 或 IDE 已经选定的完整路径，目录切换后可以立即运行。
+     */
+    public static ScriptItem findSharedFileByPath(Context context, String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return null;
+        }
+
+        File file = normalizeFile(new File(path.trim()));
+        File storageRoot = normalizeFile(Environment.getExternalStorageDirectory());
+        if (file == null || storageRoot == null || !file.isFile()) {
+            return null;
+        }
+        String rootPrefix = storageRoot.getAbsolutePath() + File.separator;
+        if (!file.getAbsolutePath().startsWith(rootPrefix)) {
+            return null;
+        }
+        return toScriptItem(context, file);
+    }
+
     public static String readScriptText(String filePath) throws IOException {
         try (FileInputStream inputStream = new FileInputStream(filePath)) {
             return readAllText(inputStream);
         }
     }
 
-    private static ScriptItem toScriptItem(File file) {
+    private static ScriptItem toScriptItem(Context context, File file) {
         String fileName = file.getName();
         String language = detectLanguage(fileName);
         String description = readDescriptionPreview(file);
-        String displayPath = STORAGE_ROOT_DIRECTORY_NAME
-                + "/"
-                + SCRIPTS_DIR_NAME
-                + "/"
-                + fileName;
+        String displayPath = getScriptDirectoryDisplayPath(context) + "/" + fileName;
         return new ScriptItem(
                 fileName,
                 file.getAbsolutePath(),
@@ -229,7 +325,7 @@ public final class ScriptCatalog {
         return null;
     }
 
-    private static String normalizeSavedPath(String path) {
+    private static String normalizeSavedPath(Context context, String path) {
         String trimmed = path.trim();
         File file = new File(trimmed);
         if (file.isAbsolute()) {
@@ -241,21 +337,57 @@ public final class ScriptCatalog {
         if (separatorIndex >= 0 && separatorIndex + 1 < trimmed.length()) {
             fileName = trimmed.substring(separatorIndex + 1);
         }
-        return new File(getScriptDirectory(), fileName).getAbsolutePath();
+        return new File(getScriptDirectory(context), fileName).getAbsolutePath();
     }
 
     /**
      * 把一个内置示例直接写入共享目录。写入失败会删除半成品，避免列表显示损坏文件。
      */
-    private static void copyAssetScript(Context context, String fileName, File targetFile) {
+    private static boolean copyAssetScript(Context context, String fileName, File targetFile) {
         String assetPath = ASSET_SCRIPT_DIR + "/" + fileName;
         try (InputStream inputStream = context.getAssets().open(assetPath);
              FileOutputStream outputStream = new FileOutputStream(targetFile)) {
             copyStream(inputStream, outputStream);
+            return true;
         } catch (IOException ignored) {
             // 内置示例写入失败不影响用户已存在脚本的扫描。
             targetFile.delete();
+            return false;
         }
+    }
+
+    /**
+     * 规范化并校验目录必须位于主共享存储内，防止保存不可复用的内容提供器路径。
+     */
+    private static File normalizeSharedStorageDirectory(File directory) {
+        File normalizedDirectory = normalizeFile(directory);
+        File storageRoot = normalizeFile(Environment.getExternalStorageDirectory());
+        if (normalizedDirectory == null || storageRoot == null) {
+            return null;
+        }
+        String rootPrefix = storageRoot.getAbsolutePath() + File.separator;
+        return normalizedDirectory.equals(storageRoot)
+                || normalizedDirectory.getAbsolutePath().startsWith(rootPrefix)
+                ? normalizedDirectory
+                : null;
+    }
+
+    /**
+     * 返回不含相对路径片段的规范文件路径。
+     */
+    private static File normalizeFile(File file) {
+        if (file == null) {
+            return null;
+        }
+        try {
+            return file.getCanonicalFile();
+        } catch (IOException exception) {
+            return file.getAbsoluteFile();
+        }
+    }
+
+    private static SharedPreferences preferences(Context context) {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
     }
 
     private static void copyStream(InputStream inputStream, FileOutputStream outputStream)

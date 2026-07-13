@@ -36,6 +36,8 @@ import org.json.JSONObject;
  * 仍然可以点开控制面板。脚本运行统一交给 EngineService，本服务只负责浮窗交互。
  */
 public final class FloatingControlService extends Service {
+    static final String ACTION_SHOW = "com.autolua.engine.action.SHOW_FLOATING_CONTROL";
+
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private WindowManager windowManager;
@@ -72,7 +74,6 @@ public final class FloatingControlService extends Service {
         bubbleSizePx = dp(28);
         touchSlopPx = ViewConfiguration.get(this).getScaledTouchSlop();
         registerEngineStatusReceiver();
-        createBubbleViewIfAllowed();
         refreshRunningStateFromEngine();
     }
 

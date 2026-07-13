@@ -170,6 +170,10 @@ HUD 自动关闭并向脚本发送 `{ type = "closed", data = { reason = "timeou
 local page, errorMessage = m.web.open({
     title = "控制面板",
     file = "panel.html", -- 相对于 /sdcard/AutoLuaEngine/scripts
+    x = 100,
+    y = 200,
+    width = 800,
+    height = 600,
 })
 assert(page, errorMessage)
 
@@ -189,6 +193,10 @@ m.web.close(page)
 ```
 
 `m.web.open(spec)` 的页面来源优先级是 `html`、`url`、`file`：
+
+`x`、`y`、`width`、`height` 的单位都是屏幕物理像素。未传 `width` 和 `height` 时
+保持全屏；传入任意尺寸时显示为无背景变暗的定位窗口，未传的另一个尺寸占满对应方向。
+尺寸和位置超出屏幕时会限制在当前屏幕范围内。
 
 ```lua
 -- HTML 字符串

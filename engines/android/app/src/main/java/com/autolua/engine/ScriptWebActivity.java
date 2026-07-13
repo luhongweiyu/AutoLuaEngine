@@ -10,9 +10,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.Gravity;
+import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -125,7 +130,54 @@ public final class ScriptWebActivity extends Activity {
         webView = new WebView(this);
         configureWebView(webView);
         setContentView(webView);
+        configureWindow();
         loadPage();
+    }
+
+    /**
+     * 根据脚本配置设置 HTML 窗口。
+     *
+     * width、height、x、y 全部使用屏幕物理像素，与截图和触摸坐标保持一致。没有传入
+     * width/height 时保持原来的全屏页面；只要传入任意尺寸，就切换为无背景变暗的定位
+     * 窗口。指定尺寸会限制在当前屏幕像素范围内，避免窗口完全超出可操作区域。
+     */
+    private void configureWindow() {
+        boolean sizedWindow = spec.has("width") || spec.has("height");
+        Window window = getWindow();
+        if (!sizedWindow) {
+            window.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT
+            );
+            return;
+        }
+
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int width = readWindowSize("width", screenWidth);
+        int height = readWindowSize("height", screenHeight);
+
+        window.setBackgroundDrawable(new ColorDrawable(Color.WHITE));
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        WindowManager.LayoutParams params = window.getAttributes();
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.width = width;
+        params.height = height;
+        params.x = clamp(spec.optInt("x", 0), 0, Math.max(0, screenWidth - width));
+        params.y = clamp(spec.optInt("y", 0), 0, Math.max(0, screenHeight - height));
+        window.setAttributes(params);
+    }
+
+    /**
+     * 读取窗口像素尺寸。缺少或非正数时占满对应方向，正数不能超过屏幕尺寸。
+     */
+    private int readWindowSize(String name, int screenSize) {
+        int value = spec.optInt(name, screenSize);
+        return value > 0 ? Math.min(value, screenSize) : screenSize;
+    }
+
+    private static int clamp(int value, int minimum, int maximum) {
+        return Math.max(minimum, Math.min(value, maximum));
     }
 
     @Override
@@ -258,7 +310,7 @@ public final class ScriptWebActivity extends Activity {
         if (!html.isEmpty()) {
             String baseUrl = spec.optString(
                     "baseUrl",
-                    Uri.fromFile(ScriptCatalog.getScriptDirectory()).toString() + "/"
+                    Uri.fromFile(ScriptCatalog.getScriptDirectory(this)).toString() + "/"
             );
             webView.loadDataWithBaseURL(
                     baseUrl,
@@ -283,7 +335,7 @@ public final class ScriptWebActivity extends Activity {
         if (!packagePath.isEmpty() && !hasScheme(location)) {
             location = ScriptPackageResources.buildUri(packagePath, location).toString();
         } else if (!hasScheme(location)) {
-            location = Uri.fromFile(new java.io.File(ScriptCatalog.getScriptDirectory(), location)).toString();
+            location = Uri.fromFile(new java.io.File(ScriptCatalog.getScriptDirectory(this), location)).toString();
         }
         if (!documentStartBridgeAvailable && tryLoadLocalHtmlWithBridge(location)) {
             return;

@@ -40,7 +40,7 @@
             android:name=".ScriptWebActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="false"
-            android:theme="@style/AppTheme" />
+            android:theme="@style/ScriptWebTheme" />
 
         <service
             android:name=".AutomationAccessibilityService"

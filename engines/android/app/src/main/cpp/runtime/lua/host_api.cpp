@@ -689,7 +689,9 @@ int luaUiClose(lua_State* state) {
  */
 int luaUiWaitEvent(lua_State* state) {
     lua_Integer sessionId = luaL_checkinteger(state, 1);
-    lua_Integer timeoutMs = lua_gettop(state) >= 2 ? luaL_checkinteger(state, 2) : -1;
+    // Lua 包装函数可能把省略的可选参数继续传成 nil。none 和 nil 都表示无限等待，
+    // 只有脚本真正提供数值时才执行整数校验。
+    lua_Integer timeoutMs = lua_isnoneornil(state, 2) ? -1 : luaL_checkinteger(state, 2);
     if (timeoutMs < -1 || timeoutMs > std::numeric_limits<int>::max()) {
         return luaL_error(state, "UI 等待时间必须在 -1 到 int 最大值之间");
     }

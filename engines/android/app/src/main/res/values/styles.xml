@@ -15,4 +15,13 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:colorAccent">#2563EB</item>
     </style>
+
+    <!-- HTML 可按脚本指定像素尺寸显示；透明底层确保小窗口之外仍能看到原界面。 -->
+    <style name="ScriptWebTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:colorAccent">#2563EB</item>
+    </style>
 </resources>

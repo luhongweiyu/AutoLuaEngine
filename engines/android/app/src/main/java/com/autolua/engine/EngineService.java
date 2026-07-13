@@ -174,7 +174,7 @@ public final class EngineService extends Service {
             return;
         }
 
-        ScriptCatalog.ScriptItem item = ScriptCatalog.findByPath(this, scriptPath);
+        ScriptCatalog.ScriptItem item = ScriptCatalog.findSharedFileByPath(this, scriptPath);
         if (item == null) {
             broadcastStatus(STATE_FAILED, "脚本文件不存在或脚本目录不可访问");
             return;

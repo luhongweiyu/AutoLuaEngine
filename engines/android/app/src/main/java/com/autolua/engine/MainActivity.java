@@ -5,6 +5,7 @@ package com.autolua.engine;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
@@ -12,26 +13,30 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.MimeTypeMap;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -59,25 +64,24 @@ public final class MainActivity extends Activity {
     private static final int TAB_STATUS = 1;
     private static final int TAB_MARKET = 2;
     private static final int TAB_SETTINGS = 3;
-    private static final int PAGE_PADDING = 18;
-    private static final int SECTION_MARGIN = 18;
-    private static final int ITEM_MARGIN = 10;
+    private static final int PAGE_PADDING = 16;
     private static final int MAX_LOG_LINES = 30;
-    private static final int COLOR_BACKGROUND = Color.rgb(245, 247, 250);
+    private static final int COLOR_BACKGROUND = Color.rgb(243, 245, 247);
     private static final int COLOR_SURFACE = Color.WHITE;
-    private static final int COLOR_TEXT = Color.rgb(31, 41, 55);
-    private static final int COLOR_MUTED = Color.rgb(107, 114, 128);
-    private static final int COLOR_LINE = Color.rgb(226, 232, 240);
-    private static final int COLOR_PRIMARY = Color.rgb(37, 99, 235);
-    private static final int COLOR_SUCCESS = Color.rgb(22, 163, 74);
+    private static final int COLOR_TEXT = Color.rgb(29, 39, 51);
+    private static final int COLOR_MUTED = Color.rgb(103, 114, 128);
+    private static final int COLOR_LINE = Color.rgb(220, 226, 232);
+    private static final int COLOR_PRIMARY = Color.rgb(23, 105, 224);
+    private static final int COLOR_PRIMARY_SOFT = Color.rgb(234, 242, 255);
+    private static final int COLOR_SUCCESS = Color.rgb(22, 138, 85);
 
     private FrameLayout pageContainer;
     private TextView statusDetailView;
     private TextView settingsPermissionView;
     private TextView[] navItems;
     private Button runButton;
-    private CheckBox rootModeCheckBox;
-    private CheckBox floatingCheckBox;
+    private Switch rootModeCheckBox;
+    private Switch floatingCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
     private int currentTab = TAB_SCRIPT;
     private String latestMessage = "就绪";
@@ -95,7 +99,6 @@ public final class MainActivity extends Activity {
         RootDaemonService.ensureForCurrentMode(this);
         EngineService.ensureStarted(this);
         selectedScript = null;
-        ensureFloatingControlIfEnabled();
         configureSystemBars();
         setContentView(createContentView());
         showTab(TAB_SCRIPT);
@@ -127,6 +130,16 @@ public final class MainActivity extends Activity {
         super.onStop();
     }
 
+    /**
+     * 进入 App 时确保已启用的悬浮控制仍然存在。脚本 HTML 关闭后也会回到这里，不能因为
+     * MainActivity 重新获得前台状态而隐藏悬浮按钮。
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ensureFloatingControlIfEnabled();
+    }
+
     private View createContentView() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -147,30 +160,41 @@ public final class MainActivity extends Activity {
     private View createBottomNavigation() {
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
-        nav.setPadding(0, dp(6), 0, dp(6));
+        nav.setPadding(0, dp(4), 0, dp(3));
         nav.setBackgroundColor(COLOR_SURFACE);
 
         navItems = new TextView[] {
-                createNavItem("脚本", TAB_SCRIPT),
-                createNavItem("状态", TAB_STATUS),
-                createNavItem("市场", TAB_MARKET),
-                createNavItem("设置", TAB_SETTINGS)
+                createNavItem("脚本", R.drawable.ic_script_file, TAB_SCRIPT),
+                createNavItem("状态", R.drawable.ic_nav_status, TAB_STATUS),
+                createNavItem("市场", R.drawable.ic_nav_market, TAB_MARKET),
+                createNavItem("设置", R.drawable.ic_nav_settings, TAB_SETTINGS)
         };
 
         for (TextView item : navItems) {
             nav.addView(item, new LinearLayout.LayoutParams(
                     0,
-                    dp(54),
+                    dp(58),
                     1f
             ));
         }
-        return nav;
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setBackgroundColor(COLOR_SURFACE);
+        container.addView(createDivider());
+        container.addView(nav, matchWidthWrapContent());
+        return container;
     }
 
-    private TextView createNavItem(String text, int tabIndex) {
-        TextView item = createText(text, 14, COLOR_MUTED, false);
+    /**
+     * 创建带图标的底部导航项。图标资源编号保存在 tag 中，切页时统一更新颜色。
+     */
+    private TextView createNavItem(String text, int iconResource, int tabIndex) {
+        TextView item = createText(text, 11, COLOR_MUTED, false);
         item.setGravity(Gravity.CENTER);
         item.setClickable(true);
+        item.setCompoundDrawablePadding(dp(2));
+        item.setTag(iconResource);
         item.setOnClickListener(view -> showTab(tabIndex));
         return item;
     }
@@ -221,7 +245,7 @@ public final class MainActivity extends Activity {
         ));
 
         if (!ScriptCatalog.isScriptStorageAccessible(this)) {
-            list.addView(createEmptyText("脚本目录未授权"), topMarginParams(24));
+            list.addView(createEmptyText("脚本目录未授权"), topMarginParams(36));
             list.addView(createSecondaryButton(
                     View.generateViewId(),
                     "授权脚本目录",
@@ -230,10 +254,13 @@ public final class MainActivity extends Activity {
         } else {
             ScriptCatalog.ScriptItem[] scripts = ScriptCatalog.listScripts(this);
             if (scripts.length == 0) {
-                list.addView(createEmptyText("当前脚本目录没有文件"), topMarginParams(24));
+                list.addView(createEmptyText("当前脚本目录没有文件"), topMarginParams(36));
             } else {
-                for (ScriptCatalog.ScriptItem item : scripts) {
-                    list.addView(createScriptRow(item), topMarginParams(ITEM_MARGIN));
+                for (int index = 0; index < scripts.length; index++) {
+                    list.addView(createScriptRow(scripts[index]), matchWidthWrapContent());
+                    if (index + 1 < scripts.length) {
+                        list.addView(createScriptDivider());
+                    }
                 }
             }
         }
@@ -245,35 +272,50 @@ public final class MainActivity extends Activity {
 
     private View createScriptRunBar() {
         LinearLayout runBar = createHorizontalRow();
-        runBar.setPadding(dp(PAGE_PADDING), dp(10), dp(PAGE_PADDING), dp(10));
+        runBar.setPadding(dp(PAGE_PADDING), dp(9), dp(PAGE_PADDING), dp(9));
         runBar.setBackgroundColor(COLOR_SURFACE);
         runButton = createPrimaryButton(R.id.button_run_lua, "运行", this::runSelectedScript);
         runBar.addView(runButton, matchWidthButtonParams());
-        return runBar;
+
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setBackgroundColor(COLOR_SURFACE);
+        container.addView(createDivider());
+        container.addView(runBar, matchWidthWrapContent());
+        return container;
     }
 
     private View createScriptRow(ScriptCatalog.ScriptItem item) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(6), dp(10), dp(6));
-        row.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(8), COLOR_LINE));
+        row.setPadding(dp(14), dp(4), dp(10), dp(4));
+        row.setMinimumHeight(dp(62));
+        row.setTag(item.filePath);
+        updateScriptRowBackground(row, item.filePath);
         row.setClickable(true);
         row.setOnClickListener(view -> selectScript(item));
 
         RadioButton radioButton = new RadioButton(this);
         radioButton.setTag(item.filePath);
+        radioButton.setButtonTintList(new ColorStateList(
+                new int[][] {
+                        new int[] { android.R.attr.state_checked },
+                        new int[] {}
+                },
+                new int[] { COLOR_PRIMARY, Color.rgb(127, 137, 148) }
+        ));
         radioButton.setChecked(selectedScript != null && selectedScript.filePath.equals(item.filePath));
         radioButton.setOnClickListener(view -> selectScript(item));
-        row.addView(radioButton, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        row.addView(radioButton, new LinearLayout.LayoutParams(dp(40), dp(48)));
 
-        TextView nameView = createText(item.fileName, 15, COLOR_TEXT, true);
+        TextView nameView = createText(item.fileName, 14, COLOR_TEXT, true);
         nameView.setSingleLine(true);
         nameView.setEllipsize(TextUtils.TruncateAt.END);
         row.addView(nameView, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                1.2f
+                1.15f
         ));
 
         String rightText = makeScriptDetailText(item);
@@ -284,10 +326,10 @@ public final class MainActivity extends Activity {
         row.addView(detailView, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                1.8f
+                1.55f
         ));
 
-        row.addView(createOpenFileButton(item), new LinearLayout.LayoutParams(dp(42), dp(42)));
+        row.addView(createOpenFileButton(item), new LinearLayout.LayoutParams(dp(44), dp(44)));
         return row;
     }
 
@@ -298,7 +340,10 @@ public final class MainActivity extends Activity {
 
         statusDetailView = createSmallText("正在读取状态...");
         statusDetailView.setTextSize(14);
-        page.addView(statusDetailView, matchWidthWrapContent());
+        statusDetailView.setTextColor(COLOR_TEXT);
+        statusDetailView.setPadding(dp(14), dp(12), dp(14), dp(12));
+        statusDetailView.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(6), COLOR_LINE));
+        page.addView(statusDetailView, topMarginParams(8));
 
         LinearLayout row = createHorizontalRow();
         row.addView(createSecondaryButton(View.generateViewId(), "刷新状态", this::queryStatusSummary),
@@ -310,12 +355,18 @@ public final class MainActivity extends Activity {
     }
 
     private View createMarketPage() {
-        ScrollView scrollView = createPageScrollView();
-        LinearLayout page = createPageContent();
-        scrollView.addView(page);
-
-        page.addView(createEmptyText("暂未开放"), topMarginParams(24));
-        return scrollView;
+        FrameLayout page = new FrameLayout(this);
+        page.setBackgroundColor(COLOR_BACKGROUND);
+        TextView emptyView = createEmptyText("市场暂未开放");
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+        );
+        params.leftMargin = dp(PAGE_PADDING);
+        params.rightMargin = dp(PAGE_PADDING);
+        page.addView(emptyView, params);
+        return page;
     }
 
     private View createSettingsPage() {
@@ -323,53 +374,57 @@ public final class MainActivity extends Activity {
         LinearLayout page = createPageContent();
         scrollView.addView(page);
 
-        rootModeCheckBox = new CheckBox(this);
-        rootModeCheckBox.setText("Root 模式（默认）");
-        rootModeCheckBox.setTextSize(16);
-        rootModeCheckBox.setTextColor(COLOR_TEXT);
+        page.addView(createSectionLabel("运行设置"), matchWidthWrapContent());
+        LinearLayout behaviorGroup = createSettingsGroup();
+
+        rootModeCheckBox = createSettingSwitch();
         rootModeCheckBox.setChecked(EngineSettings.isRootModeEnabled(this));
         rootModeCheckBox.setOnCheckedChangeListener(this::handleRootModeChanged);
-        page.addView(rootModeCheckBox, topMarginParams(12));
+        behaviorGroup.addView(createSettingRow(
+                "Root 模式",
+                "启动时准备常驻 Root 运行层",
+                rootModeCheckBox
+        ));
+        behaviorGroup.addView(createSettingsDivider());
 
-        TextView rootHint = createSmallText("勾选后引擎启动和切换模式时准备 Root 运行层；当前已实现截图核心。");
-        page.addView(rootHint, topMarginParams(4));
-
-        floatingCheckBox = new CheckBox(this);
-        floatingCheckBox.setText("显示悬浮按钮");
-        floatingCheckBox.setTextSize(16);
-        floatingCheckBox.setTextColor(COLOR_TEXT);
+        floatingCheckBox = createSettingSwitch();
         floatingCheckBox.setChecked(isFloatingControlVisible());
         floatingCheckBox.setOnCheckedChangeListener(this::handleFloatingChanged);
-        page.addView(floatingCheckBox, topMarginParams(SECTION_MARGIN));
+        behaviorGroup.addView(createSettingRow(
+                "悬浮控制",
+                "在其他应用上方显示脚本控制按钮",
+                floatingCheckBox
+        ));
+        page.addView(behaviorGroup, topMarginParams(8));
 
-        TextView floatingHint = createSmallText("悬浮按钮在主进程显示，只负责发送运行、暂停、停止等控制命令。");
-        page.addView(floatingHint, topMarginParams(4));
-
-        TextView scriptDirectory = createSmallText(
-                "脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath()
-        );
-        page.addView(scriptDirectory, topMarginParams(SECTION_MARGIN));
+        page.addView(createSectionLabel("脚本与权限"), topMarginParams(22));
+        LinearLayout storageGroup = createSettingsGroup();
+        storageGroup.addView(createScriptDirectoryRow(), matchWidthWrapContent());
+        storageGroup.addView(createSettingsDivider());
 
         LinearLayout scriptStorageRow = createHorizontalRow();
+        scriptStorageRow.setPadding(dp(12), dp(10), dp(12), dp(10));
         scriptStorageRow.addView(createSecondaryButton(
                 View.generateViewId(),
                 "脚本存储授权",
                 this::ensureScriptStorageAccess
         ), weightedButtonParams(1f, false));
-        page.addView(scriptStorageRow, topMarginParams(8));
-
-        settingsPermissionView = createSmallText("");
-        settingsPermissionView.setTextSize(14);
-        page.addView(settingsPermissionView, topMarginParams(SECTION_MARGIN));
-        updateSettingsPermissionView();
-
-        LinearLayout permissionRow = createHorizontalRow();
-        permissionRow.addView(createSecondaryButton(
+        scriptStorageRow.addView(createSecondaryButton(
                 View.generateViewId(),
                 "无障碍设置",
                 this::openAccessibilitySettings
-        ), weightedButtonParams(1f, false));
-        page.addView(permissionRow, topMarginParams(12));
+        ), weightedButtonParams(1f, true));
+        storageGroup.addView(scriptStorageRow, matchWidthWrapContent());
+        page.addView(storageGroup, topMarginParams(8));
+
+        page.addView(createSectionLabel("当前状态"), topMarginParams(22));
+        settingsPermissionView = createSmallText("");
+        settingsPermissionView.setTextSize(13);
+        settingsPermissionView.setTextColor(COLOR_TEXT);
+        settingsPermissionView.setPadding(dp(14), dp(12), dp(14), dp(12));
+        settingsPermissionView.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(6), COLOR_LINE));
+        page.addView(settingsPermissionView, topMarginParams(8));
+        updateSettingsPermissionView();
         return scrollView;
     }
 
@@ -381,8 +436,16 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < navItems.length; i++) {
             TextView item = navItems[i];
             boolean selected = i == currentTab;
-            item.setTextColor(selected ? COLOR_PRIMARY : COLOR_MUTED);
+            int color = selected ? COLOR_PRIMARY : COLOR_MUTED;
+            item.setTextColor(color);
             item.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+            Object iconTag = item.getTag();
+            if (iconTag instanceof Integer) {
+                Drawable icon = getDrawable((Integer) iconTag).mutate();
+                icon.setTint(color);
+                icon.setBounds(0, 0, dp(22), dp(22));
+                item.setCompoundDrawables(null, icon, null, null);
+            }
         }
     }
 
@@ -417,7 +480,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!selectedScript.runnable) {
-            setMessage("当前只支持运行 Lua 文件：" + selectedScript.fileName);
+            setMessage("当前文件不可运行：" + selectedScript.fileName);
             return;
         }
 
@@ -506,6 +569,11 @@ public final class MainActivity extends Activity {
             return;
         }
 
+        Object tag = view.getTag();
+        if (view instanceof LinearLayout && tag instanceof String) {
+            updateScriptRowBackground(view, (String) tag);
+        }
+
         if (!(view instanceof ViewGroup)) {
             return;
         }
@@ -538,8 +606,9 @@ public final class MainActivity extends Activity {
         EngineSettings.setFloatingBubbleHidden(this, false);
         EngineSettings.setFloatingPanelExpanded(this, false);
         Intent serviceIntent = new Intent(this, FloatingControlService.class);
+        serviceIntent.setAction(FloatingControlService.ACTION_SHOW);
         startService(serviceIntent);
-        setMessage("悬浮控制已启动");
+        setMessage("悬浮控制已开启");
     }
 
     private void ensureFloatingControlIfEnabled() {
@@ -551,7 +620,9 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        startService(new Intent(this, FloatingControlService.class));
+        Intent intent = new Intent(this, FloatingControlService.class);
+        intent.setAction(FloatingControlService.ACTION_SHOW);
+        startService(intent);
     }
 
     private void openAccessibilitySettings() {
@@ -666,13 +737,12 @@ public final class MainActivity extends Activity {
 
         boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                 || Settings.canDrawOverlays(this);
-        settingsPermissionView.setText("权限状态"
-                + "\nRoot 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
+        settingsPermissionView.setText("Root 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
                 + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
                 + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
                 + "\n脚本存储权限："
                 + formatEnabled(ScriptCatalog.isScriptStorageAccessible(this))
-                + "\n脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath()
+                + "\n脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath(this)
                 + "\n调试端口：127.0.0.1:" + EngineSettings.getHttpPort(this));
     }
 
@@ -830,7 +900,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!ScriptCatalog.ensureScriptDirectory(this)) {
-            setMessage("无法创建脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath());
+            setMessage("无法创建脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath(this));
             if (pageContainer != null) {
                 showTab(currentTab);
             }
@@ -841,7 +911,7 @@ public final class MainActivity extends Activity {
         if (pageContainer != null) {
             showTab(currentTab);
         }
-        setMessage("脚本目录已就绪：" + ScriptCatalog.getScriptDirectoryDisplayPath());
+        setMessage("脚本目录已就绪：" + ScriptCatalog.getScriptDirectoryDisplayPath(this));
     }
 
     private void setMessage(String message) {
@@ -881,7 +951,8 @@ public final class MainActivity extends Activity {
     private LinearLayout createListContent() {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(PAGE_PADDING), 0, dp(PAGE_PADDING), dp(PAGE_PADDING));
+        list.setPadding(0, dp(4), 0, dp(4));
+        list.setBackgroundColor(COLOR_SURFACE);
         list.setLayoutParams(matchWidthWrapContent());
         return list;
     }
@@ -907,6 +978,13 @@ public final class MainActivity extends Activity {
         TextView textView = createText(text, 15, COLOR_MUTED, false);
         textView.setGravity(Gravity.CENTER);
         return textView;
+    }
+
+    /**
+     * 创建设置页分组标题。标题只用于区分信息层级，不占用独立页面标题空间。
+     */
+    private TextView createSectionLabel(String text) {
+        return createText(text, 12, COLOR_MUTED, true);
     }
 
     private TextView createText(String text, int sp, int color, boolean bold) {
@@ -941,6 +1019,7 @@ public final class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setMinHeight(dp(44));
         button.setPadding(dp(8), 0, dp(8), 0);
+        button.setStateListAnimator(null);
         button.setOnClickListener(view -> action.run());
         return button;
     }
@@ -951,9 +1030,227 @@ public final class MainActivity extends Activity {
         button.setScaleType(ImageButton.ScaleType.CENTER);
         button.setClickable(true);
         button.setContentDescription("打开文件：" + item.fileName);
-        button.setBackground(makeRoundDrawable(Color.TRANSPARENT, dp(7), COLOR_LINE));
+        button.setPadding(dp(10), dp(10), dp(10), dp(10));
+        button.setBackgroundColor(Color.TRANSPARENT);
         button.setOnClickListener(view -> openScriptFile(item));
         return button;
+    }
+
+    /**
+     * 创建可更换目录的设置行。点击文字区域编辑路径，右侧文件夹图标打开当前目录。
+     */
+    private View createScriptDirectoryRow() {
+        LinearLayout row = createHorizontalRow();
+        row.setPadding(dp(14), dp(10), dp(8), dp(10));
+        row.setMinimumHeight(dp(68));
+        row.setClickable(true);
+        row.setOnClickListener(view -> showScriptDirectoryInputDialog());
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        TextView titleView = createText("脚本目录", 15, COLOR_TEXT, false);
+        TextView pathView = createText(
+                ScriptCatalog.getScriptDirectoryDisplayPath(this),
+                12,
+                COLOR_MUTED,
+                false
+        );
+        pathView.setSingleLine(true);
+        pathView.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        pathView.setPadding(0, dp(2), 0, 0);
+        textColumn.addView(titleView, matchWidthWrapContent());
+        textColumn.addView(pathView, matchWidthWrapContent());
+        row.addView(textColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+
+        ImageButton openButton = new ImageButton(this);
+        openButton.setImageResource(R.drawable.ic_script_folder);
+        openButton.setScaleType(ImageButton.ScaleType.CENTER);
+        openButton.setPadding(dp(10), dp(10), dp(10), dp(10));
+        openButton.setBackgroundColor(Color.TRANSPARENT);
+        openButton.setContentDescription("打开脚本目录");
+        openButton.setOnClickListener(view -> openScriptDirectory());
+        row.addView(openButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return row;
+    }
+
+    /**
+     * 显示脚本目录输入框。输入值必须是主共享存储中的绝对路径。
+     */
+    private void showScriptDirectoryInputDialog() {
+        if (!ScriptCatalog.isScriptStorageAccessible(this)) {
+            ensureScriptStorageAccess();
+            return;
+        }
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setText(ScriptCatalog.getScriptDirectoryDisplayPath(this));
+        input.setSelection(input.getText().length());
+        input.setSelectAllOnFocus(false);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+
+        LinearLayout inputContainer = new LinearLayout(this);
+        inputContainer.setPadding(dp(20), 0, dp(20), 0);
+        inputContainer.addView(input, matchWidthWrapContent());
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("脚本目录")
+                .setView(inputContainer)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确定", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(view -> applyScriptDirectoryInput(dialog, input)));
+        dialog.show();
+    }
+
+    /**
+     * 校验并保存输入路径。校验失败时保留弹窗，并在输入框上显示具体原因。
+     */
+    private void applyScriptDirectoryInput(AlertDialog dialog, EditText input) {
+        File directory = ScriptCatalog.resolveScriptDirectoryPath(input.getText().toString());
+        if (directory == null) {
+            input.setError("请输入 /sdcard 下的子文件夹绝对路径");
+            return;
+        }
+        if (!ScriptCatalog.setScriptDirectory(this, directory)
+                || !ScriptCatalog.ensureScriptDirectory(this)) {
+            input.setError("无法创建或访问该目录");
+            return;
+        }
+
+        selectedScript = ScriptCatalog.getSelectedScript(this);
+        showTab(currentTab);
+        setMessage("脚本目录已切换：" + ScriptCatalog.getScriptDirectoryDisplayPath(this));
+        dialog.dismiss();
+    }
+
+    /**
+     * 把当前脚本目录交给用户安装的第三方文件管理器打开。
+     *
+     * 这里使用 FileProvider 暴露可读写的目录 URI，并通过 ACTION_VIEW 调起应用
+     * 选择器；它只负责浏览目录，不使用系统目录选择器修改脚本目录配置。
+     */
+    private void openScriptDirectory() {
+        File directory = ScriptCatalog.getScriptDirectory(this);
+        if (!directory.isDirectory()) {
+            setMessage("脚本目录不存在：" + ScriptCatalog.getScriptDirectoryDisplayPath(this));
+            return;
+        }
+
+        Uri uri = FileProvider.getUriForFile(
+                this,
+                getPackageName() + ".fileprovider",
+                directory
+        );
+        int grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(uri, "resource/folder");
+        intent.setClipData(ClipData.newRawUri("脚本目录", uri));
+        intent.addFlags(grantFlags);
+
+        try {
+            Intent chooser = Intent.createChooser(intent, "选择文件管理器");
+            chooser.addFlags(grantFlags);
+            startActivity(chooser);
+            setMessage("已交给外部文件管理器");
+        } catch (ActivityNotFoundException exception) {
+            setMessage("没有可打开脚本目录的文件管理器");
+        }
+    }
+
+    /**
+     * 脚本行之间从名称区域开始绘制分隔线，避免单行卡片造成过多边框。
+     */
+    private View createScriptDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(COLOR_LINE);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.leftMargin = dp(54);
+        params.rightMargin = dp(12);
+        divider.setLayoutParams(params);
+        return divider;
+    }
+
+    /**
+     * 根据当前选择更新整行底色，让文件选中状态在快速浏览时仍然清晰。
+     */
+    private void updateScriptRowBackground(View row, String filePath) {
+        boolean selected = selectedScript != null && selectedScript.filePath.equals(filePath);
+        int color = selected ? COLOR_PRIMARY_SOFT : COLOR_SURFACE;
+        row.setBackgroundColor(color);
+    }
+
+    /**
+     * 创建设置页的白色分组容器，同类设置共享一个边框和统一内边距。
+     */
+    private LinearLayout createSettingsGroup() {
+        LinearLayout group = new LinearLayout(this);
+        group.setOrientation(LinearLayout.VERTICAL);
+        group.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(6), COLOR_LINE));
+        return group;
+    }
+
+    /**
+     * 创建只显示滑块、不显示 ON/OFF 文本的系统开关。
+     */
+    private Switch createSettingSwitch() {
+        Switch settingSwitch = new Switch(this);
+        settingSwitch.setShowText(false);
+        settingSwitch.setMinWidth(dp(48));
+        settingSwitch.setPadding(dp(8), 0, 0, 0);
+        return settingSwitch;
+    }
+
+    /**
+     * 创建左侧标题说明、右侧开关的设置行。
+     */
+    private View createSettingRow(String title, String summary, Switch settingSwitch) {
+        LinearLayout row = createHorizontalRow();
+        row.setPadding(dp(14), dp(10), dp(12), dp(10));
+        row.setMinimumHeight(dp(68));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        TextView titleView = createText(title, 15, COLOR_TEXT, false);
+        TextView summaryView = createText(summary, 12, COLOR_MUTED, false);
+        summaryView.setPadding(0, dp(2), 0, 0);
+        textColumn.addView(titleView, matchWidthWrapContent());
+        textColumn.addView(summaryView, matchWidthWrapContent());
+        row.addView(textColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+        row.addView(settingSwitch, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        return row;
+    }
+
+    /**
+     * 创建设置分组内部的缩进分隔线。
+     */
+    private View createSettingsDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(COLOR_LINE);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.leftMargin = dp(14);
+        params.rightMargin = dp(14);
+        divider.setLayoutParams(params);
+        return divider;
     }
 
     private View createDivider() {
@@ -1001,7 +1298,7 @@ public final class MainActivity extends Activity {
     private LinearLayout.LayoutParams matchWidthButtonParams() {
         return new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(46)
+                dp(48)
         );
     }
 

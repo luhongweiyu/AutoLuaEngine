@@ -194,6 +194,9 @@ function m.hud.waitEvent(id, timeoutMs)
     if not handle then
         return nil, "HUD 不存在：" .. tostring(id)
     end
+    if timeoutMs == nil then
+        return host.ui.waitEvent(handle)
+    end
     return host.ui.waitEvent(handle, timeoutMs)
 end
 
@@ -206,6 +209,9 @@ function m.web.open(spec)
 end
 
 function m.web.waitEvent(handle, timeoutMs)
+    if timeoutMs == nil then
+        return host.ui.waitEvent(handle)
+    end
     return host.ui.waitEvent(handle, timeoutMs)
 end
 
