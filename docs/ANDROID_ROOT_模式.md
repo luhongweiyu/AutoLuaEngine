@@ -13,6 +13,9 @@
   `engine_imeSetText` 直接调用已活动的应用输入法，不执行 Root 命令。
 - 设置中的“音量键控制”默认开启。RootDaemon 直接持续读取 `/dev/input/event*`，音量加运行
   当前选中的脚本，音量减停止脚本；监听过程不启动 `getevent` 等外部进程。
+- 切换“音量键控制”只启停现有监听连接，绝不检查 Root、创建 RootDaemon 或执行 `su`。若
+  当前 RootDaemon 已不存在，监听连接直接结束；重新打开 App 或重新切换 Root 模式才会按该
+  模式重新准备 RootDaemon。
 - 失败时直接返回错误，不做路线兜底。
 
 强制停止 `:engine` 时，只会关闭引擎与 RootDaemon 的 socket。RootDaemon 仍由 App 主进程

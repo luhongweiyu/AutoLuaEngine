@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8 及以上交给桌面按系统图标蒙版裁切。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/xiaoyv_logo_background" />
+    <foreground android:drawable="@drawable/ic_xiaoyv_mark" />
+</adaptive-icon>

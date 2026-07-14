@@ -68,7 +68,8 @@ public final class FloatingControlService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        RootDaemonService.ensureForCurrentMode(this);
+        // 悬浮按钮只是控制界面，不能因为显示或重建而触发 RootDaemon 准备和 su 授权。
+        // Root 模式仅在打开 App 或用户主动切换运行模式时由 RootDaemonService 初始化。
         EngineService.ensureStarted(this);
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         bubbleSizePx = dp(28);
@@ -123,11 +124,10 @@ public final class FloatingControlService extends Service {
     }
 
     private View createBubbleView() {
-        TextView bubble = new TextView(this);
-        bubble.setText("");
+        ImageView bubble = new ImageView(this);
+        bubble.setImageResource(R.drawable.ic_xiaoyv_mark);
+        bubble.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         bubble.setContentDescription("小鱼精灵 悬浮按钮");
-        bubble.setTextColor(Color.WHITE);
-        bubble.setGravity(Gravity.CENTER);
         bubble.setBackground(makeBubbleDrawable());
         bubble.setElevation(dp(6));
         bubble.setOnTouchListener(this::handleBubbleTouch);

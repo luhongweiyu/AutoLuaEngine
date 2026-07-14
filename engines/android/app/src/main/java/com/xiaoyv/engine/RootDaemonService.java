@@ -36,7 +36,11 @@ public final class RootDaemonService extends Service {
     }
 
     /**
-     * 设置页切换音量键控制后，立即同步 Root 监听连接。
+     * 设置页切换音量键控制后，只同步现有 RootDaemon 的监听连接。
+     *
+     * Root 授权只能由 App 启动或用户切换到 Root 模式时触发。音量键开关只是一个控制入口，
+     * 不得调用 {@link RootDaemonManager#prepare(Context)}：否则 RootDaemon 已退出时，用户每次
+     * 切换开关都会意外执行 {@code su} 并弹出超级用户授权框。
      */
     public static void syncVolumeKeyControl(Context context) {
         if (context != null) {
@@ -76,17 +80,9 @@ public final class RootDaemonService extends Service {
                 return START_STICKY;
             }
 
-            new Thread(() -> {
-                boolean ready = RootDaemonManager.prepare(getApplicationContext());
-                if (ready
-                        && EngineSettings.isRootModeEnabled(this)
-                        && EngineSettings.isVolumeKeyControlEnabled(this)) {
-                    volumeKeyMonitor.start();
-                } else {
-                    volumeKeyMonitor.stop();
-                }
-                // 这里只同步控制入口，不广播 finished，避免脚本运行中切换设置时误改 UI 状态。
-            }, "RootVolumeKeySync").start();
+            // 直接按当前设置启动监听。RootDaemon 已就绪时会立即连上；未就绪时连接线程自然
+            // 结束，不检查 Root、不创建 daemon、更不会申请超级用户权限。
+            volumeKeyMonitor.start();
             return START_STICKY;
         }
 

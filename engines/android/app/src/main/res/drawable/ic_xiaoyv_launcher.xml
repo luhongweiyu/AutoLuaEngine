@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 7 及以下使用的普通 Launcher 图标。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/xiaoyv_logo_background" />
+    <item android:drawable="@drawable/ic_xiaoyv_mark" />
+</layer-list>

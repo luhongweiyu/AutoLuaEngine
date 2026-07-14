@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 小鱼精灵 Logo 的稳定主色，Launcher 与 Android 自适应图标共用。 -->
+    <color name="xiaoyv_logo_background">#1479D1</color>
+</resources>
