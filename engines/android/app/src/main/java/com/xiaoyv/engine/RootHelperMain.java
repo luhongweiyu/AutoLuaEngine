@@ -97,6 +97,11 @@ public final class RootHelperMain {
                 return true;
             }
 
+            if ("exec".equals(parts[0])) {
+                handleExec(outputStream, parts);
+                return true;
+            }
+
             if ("imeLock".equals(parts[0])) {
                 handleImeLock(outputStream);
                 return true;
@@ -213,6 +218,43 @@ public final class RootHelperMain {
         } catch (IllegalArgumentException exception) {
             return false;
         }
+    }
+
+    /**
+     * 以 RootDaemon 所在的特权 uid 执行脚本明确请求的 shell 命令。
+     *
+     * exec 本身就是脚本的命令执行 API，因此这里不判断命令退出码、不做备用命令，也不把
+     * “成功”解释为 shell 的退出状态。只要命令进程能够启动，就把合并后的输出原样回给
+     * 调用方，由脚本自行判断内容。命令和输出均 Base64 编码，避免制表符和换行破坏协议。
+     */
+    private static void handleExec(OutputStream outputStream, String[] parts) throws Exception {
+        if (parts.length < 2) {
+            writeLine(outputStream, "ERR\t命令不能为空");
+            return;
+        }
+
+        final String command;
+        try {
+            command = new String(
+                    Base64.decode(parts[1], Base64.NO_WRAP),
+                    StandardCharsets.UTF_8
+            );
+        } catch (IllegalArgumentException exception) {
+            writeLine(outputStream, "ERR\t命令编码无效");
+            return;
+        }
+
+        if (command.isEmpty()) {
+            writeLine(outputStream, "ERR\t命令不能为空");
+            return;
+        }
+
+        CommandResult result = executeShellCommand(command);
+        String encodedOutput = Base64.encodeToString(
+                result.stdout.getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        writeLine(outputStream, "OK\t" + encodedOutput);
     }
 
     /**
@@ -354,6 +396,28 @@ public final class RootHelperMain {
             );
         } catch (Exception exception) {
             return new CommandResult(-1, "");
+        }
+    }
+
+    /**
+     * 执行一条由脚本显式传入的 shell 命令。
+     *
+     * RootDaemon 已经是 root uid，此处不再套 su，也不建立额外授权路径。错误输出合并到
+     * 标准输出，确保脚本只需读取一个返回字符串即可判断命令实际结果。
+     */
+    private static CommandResult executeShellCommand(String command) {
+        try {
+            Process process = new ProcessBuilder("/system/bin/sh", "-c", command)
+                    .redirectErrorStream(true)
+                    .start();
+            byte[] stdout = readAll(process.getInputStream());
+            int exitCode = process.waitFor();
+            return new CommandResult(
+                    exitCode,
+                    new String(stdout, StandardCharsets.UTF_8)
+            );
+        } catch (Exception exception) {
+            return new CommandResult(-1, "执行命令失败：" + exception.getMessage());
         }
     }
 

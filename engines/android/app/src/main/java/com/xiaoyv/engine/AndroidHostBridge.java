@@ -160,6 +160,16 @@ public final class AndroidHostBridge {
     }
 
     /**
+     * 设备 API 的唯一 Java 平台入口。
+     *
+     * operation 由 libengine.so/core/api 固定生成，argumentsJson 由 native 完成结构化
+     * 序列化；这里不向 Lua 暴露任意 Java 反射或 shell 调用能力。
+     */
+    public static String deviceCall(String operation, String argumentsJson) {
+        return DevicePlatformBridge.call(appContext, operation, argumentsJson);
+    }
+
+    /**
      * 在 App 主进程创建脚本原生对话框悬浮层。
      *
      * 对话框直接由 WindowManager 覆盖在当前应用之上，不启动 Activity、不切换任务；

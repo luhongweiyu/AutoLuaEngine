@@ -246,6 +246,67 @@ std::string callString0(const char* methodName) {
     return result;
 }
 
+/**
+ * 调用签名为 (String, String) -> String 的 Android 平台方法。
+ *
+ * 设备 API 的参数和结果都使用 JSON，避免为几十个低频设备方法分别维护 JNI 签名；固定
+ * operation 仍由 native core/api 控制，Java 不会执行脚本传入的任意类或方法。
+ */
+AndroidDeviceCallResult callDeviceJson(
+        const std::string& operation,
+        const std::string& argumentsJson
+) {
+    AndroidDeviceCallResult result;
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "deviceCall",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        result.error = "Android 设备桥方法不可用";
+        return result;
+    }
+
+    jstring operationText = env->NewStringUTF(operation.c_str());
+    jstring argumentsText = env->NewStringUTF(argumentsJson.c_str());
+    if (clearExceptionIfNeeded(env) || operationText == nullptr || argumentsText == nullptr) {
+        if (operationText != nullptr) {
+            env->DeleteLocalRef(operationText);
+        }
+        if (argumentsText != nullptr) {
+            env->DeleteLocalRef(argumentsText);
+        }
+        result.error = "Android 设备桥参数创建失败";
+        return result;
+    }
+
+    jstring response = static_cast<jstring>(env->CallStaticObjectMethod(
+            gBridgeClass,
+            methodId,
+            operationText,
+            argumentsText
+    ));
+    env->DeleteLocalRef(operationText);
+    env->DeleteLocalRef(argumentsText);
+    if (clearExceptionIfNeeded(env)) {
+        result.error = "Android 设备桥调用异常";
+        return result;
+    }
+
+    result.responseJson = jStringToString(env, response);
+    if (response != nullptr) {
+        env->DeleteLocalRef(response);
+    }
+    if (result.responseJson.empty()) {
+        result.error = "Android 设备桥未返回结果";
+        return result;
+    }
+
+    result.invoked = true;
+    return result;
+}
+
 ScreenCaptureResult captureFailure(const std::string& error) {
     ScreenCaptureResult result;
     result.success = false;
@@ -764,6 +825,13 @@ bool AndroidBridge::imeSetText(const std::string& text) {
 
 bool AndroidBridge::imeUnlock() {
     return callBoolean0("imeUnlock");
+}
+
+AndroidDeviceCallResult AndroidBridge::callDeviceApi(
+        const std::string& operation,
+        const std::string& argumentsJson
+) {
+    return callDeviceJson(operation, argumentsJson);
 }
 
 bool AndroidBridge::showScriptDialog(long long sessionId, const std::string& specJson) {

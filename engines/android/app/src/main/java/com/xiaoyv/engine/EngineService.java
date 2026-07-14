@@ -12,6 +12,7 @@ import android.os.IBinder;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -185,13 +186,16 @@ public final class EngineService extends Service {
                 if ("alpkg".equals(item.language)) {
                     result = callNativeCommand(
                             "script.runPackage",
-                            new JSONObject().put("packagePath", item.filePath)
+                            new JSONObject()
+                                    .put("packagePath", item.filePath)
+                                    .put("workPath", scriptWorkPath(item.filePath))
                     );
                 } else {
                     result = callNativeCommand(
                             "script.run",
                             new JSONObject()
                                     .put("language", item.language)
+                                    .put("workPath", scriptWorkPath(item.filePath))
                                     .put("code", ScriptCatalog.readScriptText(item.filePath))
                     );
                 }
@@ -280,6 +284,21 @@ public final class EngineService extends Service {
         } catch (JSONException exception) {
             throw new IllegalStateException("原生命令 JSON 解析失败：" + method, exception);
         }
+    }
+
+    /**
+     * 脚本工作目录始终使用实际文件所在目录，不依赖当前进程工作目录。
+     *
+     * 普通 Lua 和 .alpkg 都通过同一个字段传给 native，m.getWorkPath() 因而在任意运行
+     * 入口下都能得到稳定的外部脚本目录。
+     */
+    private static String scriptWorkPath(String scriptPath) {
+        if (scriptPath == null || scriptPath.isEmpty()) {
+            return "";
+        }
+        File file = new File(scriptPath);
+        String parent = file.getParent();
+        return parent == null ? "" : parent;
     }
 
     private void broadcastStatus(String state, String message) {

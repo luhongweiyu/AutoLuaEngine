@@ -16,6 +16,14 @@ namespace xiaoyv::api {
 using ShouldStopCallback = bool (*)(void* context);
 
 /**
+ * 顶层脚本停止请求回调。
+ *
+ * core/api 不依赖具体的 Lua/JS/Go 引擎对象。宿主 Engine 在初始化时注册该回调，
+ * exitScript 等跨语言 API 只通过本接口请求停止当前顶层脚本。
+ */
+using RequestScriptStopCallback = bool (*)(void* context);
+
+/**
  * 写入 info 级脚本日志。
  *
  * 当前会同时写入 Android logcat 和 native 日志缓冲。print、log.print、后续
@@ -38,6 +46,16 @@ void runtimeLogPrint(const std::string& message);
  */
 bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* stopContext);
 
+/** 注册当前宿主的顶层脚本停止入口。 */
+void runtimeSetScriptStopRequester(RequestScriptStopCallback callback, void* context);
+
+/**
+ * 请求停止当前顶层脚本。
+ *
+ * 返回 true 表示宿主接受了请求；没有运行中脚本或宿主未初始化时返回 false。
+ */
+bool runtimeRequestScriptStop();
+
 /**
  * 记录当前顶层脚本任务开始时间。
  *
@@ -45,6 +63,17 @@ bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* sto
  * 顶层任务时间，不使用线程局部数据。Engine 当前只允许一个顶层脚本同时运行。
  */
 void runtimeMarkScriptStart();
+
+/**
+ * 设置当前顶层脚本的工作目录。
+ *
+ * Engine 在每次脚本任务开始前写入真实脚本文件或 ALPKG 所在目录；脚本结束后清空，避免
+ * 下一次任务误读上一份脚本路径。
+ */
+void runtimeSetScriptWorkPath(const std::string& path);
+
+/** 返回当前顶层脚本工作目录；当前没有运行脚本时返回空字符串。 */
+std::string runtimeScriptWorkPath();
 
 /**
  * 返回系统时间戳，单位毫秒。

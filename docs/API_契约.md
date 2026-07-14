@@ -89,6 +89,22 @@ engine_imeUnlock
 engine_imeLastError
 ```
 
+当前设备 C ABI：
+
+```c
+engine_getDeviceApi
+engine_appIsFront
+engine_appIsRunning
+engine_frontAppName
+engine_getDisplayInfoJson
+engine_getInstalledAppsJson
+engine_exec
+engine_exitScript
+engine_deviceLastError
+```
+
+完整接口及 Lua 返回结构见 [Android 设备 API](ANDROID_设备_API.md)。
+
 当前脚本 UI C ABI：
 
 ```c
@@ -269,6 +285,32 @@ const char* engine_imeLastError();
 - `engine_imeLock` / `engine_imeUnlock` 只走 RootDaemon；调用失败通过
   `engine_imeLastError` 获取原因。
 
+## 设备 C ABI
+
+设备函数表由 `engine_getDeviceApi()` 返回。应用状态、硬件信息、安装应用列表、系统控制和
+Root shell 都进入同一个 `EngineDeviceApi`，不由 Lua、JS、Go 或插件各自直连 Android。
+
+```c
+const EngineDeviceApi* engine_getDeviceApi();
+int engine_appIsFront(const char* packageName);
+int engine_appIsRunning(const char* packageName);
+const char* engine_frontAppName();
+const char* engine_getDisplayInfoJson();
+const char* engine_getInstalledAppsJson();
+const char* engine_exec(const char* command, int isRet);
+int engine_exitScript();
+const char* engine_deviceLastError();
+```
+
+规则：
+
+- `EngineDeviceApi` 是 `EngineApi::getDeviceApi()` 返回的子函数表，ABI 版本随
+  `EngineApi::abiVersion` 一起升级。
+- 结构化结果一律以 JSON 文本从 C ABI 返回；Lua HostApi 才转换为 table。
+- 设备字符串、JSON 和错误文本由调用线程持有，下一次设备调用可能覆盖内容。
+- `engine_exec` 只返回 shell 合并输出，不根据命令退出码改变成功状态；调用方自行判断。
+- Root 控制命令只请求常驻 RootDaemon，不重复申请 `su`，也没有无障碍回退。
+
 ## 脚本 UI C ABI
 
 ```c
@@ -304,8 +346,9 @@ const char* engine_uiLastError();
 const EngineApi* engine_getApi();
 ```
 
-外部插件 so 可以通过 `engine_getApi()` 取得函数表，复用当前运行时、截图、找色、输入、
-输入法和脚本 UI C ABI。函数表只放稳定 C 类型，不暴露 C++ 对象。
+外部插件 so 可以通过 `engine_getApi()` 取得函数表，再使用 `getDeviceApi()` 访问设备
+能力；运行时、截图、找色、输入、输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放
+稳定 C 类型，不暴露 C++ 对象。
 
 ## Lua 映射
 

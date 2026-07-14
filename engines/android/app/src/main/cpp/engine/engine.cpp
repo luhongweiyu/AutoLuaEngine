@@ -6,6 +6,7 @@
 #include "script_task.h"
 #include "../core/api/color_api.h"
 #include "../core/api/package_api.h"
+#include "../core/api/runtime_api.h"
 #include "../core/api/screen_api.h"
 #include "../core/api/ui_api.h"
 #include "../runtime/lua/lua_runtime.h"
@@ -19,6 +20,23 @@ namespace {
 constexpr const char* kAlreadyRunningMessage = "已有脚本正在运行";
 constexpr const char* kLuaRunFailurePrefix = "Lua 执行失败：";
 constexpr const char* kLuaLoadFailurePrefix = "Lua 加载失败：";
+
+/**
+ * 让 getWorkPath 只在当前顶层脚本生命周期内可见。
+ *
+ * 脚本因 Lua 错误、native 异常或正常结束退出时都会自动清空路径，避免下一份脚本读到
+ * 上一次任务的目录。
+ */
+class ScopedScriptWorkPath {
+public:
+    explicit ScopedScriptWorkPath(const std::string& path) {
+        xiaoyv::api::runtimeSetScriptWorkPath(path);
+    }
+
+    ~ScopedScriptWorkPath() {
+        xiaoyv::api::runtimeSetScriptWorkPath("");
+    }
+};
 
 std::string escapeJsonString(const std::string& text) {
     std::ostringstream output;
@@ -61,26 +79,31 @@ Engine::Engine()
           lastStatus_("idle") {
 }
 
-Engine::~Engine() = default;
+Engine::~Engine() {
+    xiaoyv::api::runtimeSetScriptStopRequester(nullptr, nullptr);
+}
 
 void Engine::init() {
+    xiaoyv::api::runtimeSetScriptStopRequester(Engine::requestStopFromRuntime, this);
     initialized_ = true;
 }
 
-std::string Engine::runLuaText(const char* code) {
-    return runLuaInternal(nullptr, code, nullptr);
+std::string Engine::runLuaText(const char* code, const std::string& workPath) {
+    return runLuaInternal(nullptr, code, nullptr, workPath);
 }
 
 std::string Engine::runLuaPackage(
         const std::shared_ptr<AlpkgPackage>& package,
-        const char* runtimeBootstrap) {
-    return runLuaInternal(package, nullptr, runtimeBootstrap);
+        const char* runtimeBootstrap,
+        const std::string& workPath) {
+    return runLuaInternal(package, nullptr, runtimeBootstrap, workPath);
 }
 
 std::string Engine::runLuaInternal(
         const std::shared_ptr<AlpkgPackage>& package,
         const char* code,
-        const char* runtimeBootstrap) {
+        const char* runtimeBootstrap,
+        const std::string& workPath) {
     // 脚本任务必须在 native 层统一串行化。App、悬浮窗、HTTP 和后续插件都会
     // 进入同一个 libengine.so，如果只在某个 Java 入口加锁，其他入口仍会竞争
     // Lua VM 任务状态和停止/暂停控制位。
@@ -97,6 +120,7 @@ std::string Engine::runLuaInternal(
     pauseRequested_.store(false);
     controlCondition_.notify_all();
     xiaoyv::api::清空找色缓存();
+    ScopedScriptWorkPath scriptWorkPath(workPath);
 
     int taskId;
     {
@@ -145,7 +169,11 @@ std::string Engine::runLuaInternal(
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 
-    if (result.rfind(kLuaRunFailurePrefix, 0) == 0
+    // exitScript 和外部停止都会通过同一协作停止位终止 Lua。它们不是脚本错误，不能让
+    // App 状态页显示“运行失败”；只有停止位未设置时的 Lua 加载/运行错误才标记失败。
+    if (stopRequested_.load()) {
+        task.markFinished("脚本已停止");
+    } else if (result.rfind(kLuaRunFailurePrefix, 0) == 0
             || result.rfind(kLuaLoadFailurePrefix, 0) == 0) {
         task.markFailed(result);
     } else {
@@ -241,6 +269,11 @@ bool Engine::requestResume() {
 bool Engine::shouldInterrupt(void* context) {
     Engine* engine = static_cast<Engine*>(context);
     return engine != nullptr && engine->waitIfPausedOrStopped();
+}
+
+bool Engine::requestStopFromRuntime(void* context) {
+    Engine* engine = static_cast<Engine*>(context);
+    return engine != nullptr && engine->requestStop();
 }
 
 bool Engine::waitIfPausedOrStopped() {

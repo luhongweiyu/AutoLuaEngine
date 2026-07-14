@@ -510,8 +510,310 @@ int luaImeUnlock(lua_State* state) {
 }
 
 int luaGetRunEnvType(lua_State* state) {
-    lua_pushstring(state, engine_getRunEnvType());
+    // m.getRunEnvType 按设备方法契约返回整数：0 为 Root，1 为无障碍，-1 为未就绪。
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getRunEnvTypeCode()));
     return 1;
+}
+
+/**
+ * 将设备 C ABI 返回的 JSON 对象或数组转换为 Lua table。
+ *
+ * 已安装应用、传感器和屏幕详情在 C ABI 中必须保持 JSON，避免 Lua table 进入跨语言 ABI；
+ * 只有 Lua HostApi 在最终边界处执行这一次转换。
+ */
+int pushDeviceJsonToLua(lua_State* state, const char* jsonText) {
+    if (jsonText == nullptr || jsonText[0] == '\0') {
+        lua_pushnil(state);
+        return 1;
+    }
+
+    JsonValue value;
+    std::string error;
+    if (!parseJsonText(jsonText, &value, &error)) {
+        lua_pushnil(state);
+        return 1;
+    }
+    pushJsonValueToLua(state, value, 0);
+    return 1;
+}
+
+/** 返回设备字符串；Android 没有公开该字段时按 Lua 约定返回 nil。 */
+int pushDeviceStringToLua(lua_State* state, const char* value) {
+    if (value == nullptr) {
+        lua_pushnil(state);
+    } else {
+        lua_pushstring(state, value);
+    }
+    return 1;
+}
+
+int luaAppIsFront(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    lua_pushboolean(state, engine_appIsFront(packageName));
+    return 1;
+}
+
+int luaAppIsRunning(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    lua_pushboolean(state, engine_appIsRunning(packageName));
+    return 1;
+}
+
+int luaFrontAppName(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_frontAppName());
+}
+
+int luaGetCurrentActivity(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getCurrentActivity());
+}
+
+int luaRunApp(lua_State* state) {
+    const char* packageName = luaL_checkstring(state, 1);
+    const char* componentName = lua_isnoneornil(state, 2) ? nullptr : luaL_checkstring(state, 2);
+    bool isOpenBySuper = !lua_isnoneornil(state, 3) && lua_toboolean(state, 3);
+    engine_runApp(packageName, componentName, isOpenBySuper ? 1 : 0);
+    return 0;
+}
+
+int luaStopApp(lua_State* state) {
+    engine_stopApp(luaL_checkstring(state, 1));
+    return 0;
+}
+
+int luaRunIntent(lua_State* state) {
+    std::string intentJson;
+    std::string error;
+    if (!luaArgumentToJson(state, 1, &intentJson, &error)) {
+        return luaL_argerror(state, 1, error.c_str());
+    }
+    lua_pushboolean(state, engine_runIntent(intentJson.c_str()));
+    return 1;
+}
+
+int luaInstallApk(lua_State* state) {
+    engine_installApk(luaL_checkstring(state, 1));
+    return 0;
+}
+
+int luaGetInstalledApk(lua_State* state) {
+    return pushDeviceJsonToLua(state, engine_getInstalledApkJson());
+}
+
+int luaGetInstalledApps(lua_State* state) {
+    return pushDeviceJsonToLua(state, engine_getInstalledAppsJson());
+}
+
+int luaGetInsallAppInfos(lua_State* state) {
+    return pushDeviceJsonToLua(state, engine_getInsallAppInfosJson());
+}
+
+int luaGetApkVerInt(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getApkVerInt()));
+    return 1;
+}
+
+int luaExec(lua_State* state) {
+    const char* command = luaL_checkstring(state, 1);
+    bool isRet = lua_isnoneornil(state, 2) || lua_toboolean(state, 2);
+    const char* output = engine_exec(command, isRet ? 1 : 0);
+    if (!isRet) {
+        return 0;
+    }
+    return pushDeviceStringToLua(state, output);
+}
+
+int luaExitScript(lua_State* state) {
+    engine_exitScript();
+    // 设置顶层停止位后立即展开当前 Lua 调用栈，避免 exitScript 后继续执行后续语句。
+    return luaL_error(state, "脚本已停止");
+}
+
+int luaGetXiaoyvApi(lua_State* state) {
+    lua_pushinteger(
+            state,
+            static_cast<lua_Integer>(reinterpret_cast<std::uintptr_t>(engine_getApi()))
+    );
+    return 1;
+}
+
+int luaGetBatteryLevel(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getBatteryLevel()));
+    return 1;
+}
+
+int luaGetBoard(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getBoard());
+}
+
+int luaGetBootLoader(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getBootLoader());
+}
+
+int luaGetBrand(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getBrand());
+}
+
+int luaGetCpuAbi(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getCpuAbi());
+}
+
+int luaGetCpuAbi2(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getCpuAbi2());
+}
+
+int luaGetCpuArch(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getCpuArch()));
+    return 1;
+}
+
+int luaGetDevice(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getDevice());
+}
+
+int luaGetDeviceId(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getDeviceId());
+}
+
+int luaGetDisplayDpi(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getDisplayDpi()));
+    return 1;
+}
+
+int luaGetDisplayInfo(lua_State* state) {
+    return pushDeviceJsonToLua(state, engine_getDisplayInfoJson());
+}
+
+int luaGetDisplayRotate(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getDisplayRotate()));
+    return 1;
+}
+
+int luaGetDisplaySize(lua_State* state) {
+    int width = 0;
+    int height = 0;
+    if (!engine_getDisplaySize(&width, &height)) {
+        lua_pushnil(state);
+        return 1;
+    }
+    lua_pushinteger(state, static_cast<lua_Integer>(width));
+    lua_pushinteger(state, static_cast<lua_Integer>(height));
+    return 2;
+}
+
+int luaGetFingerprint(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getFingerprint());
+}
+
+int luaGetHardware(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getHardware());
+}
+
+int luaGetId(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getId());
+}
+
+int luaGetManufacturer(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getManufacturer());
+}
+
+int luaGetModel(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getModel());
+}
+
+int luaGetNetWorkTime(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getNetWorkTime());
+}
+
+int luaGetOaid(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getOaid());
+}
+
+int luaGetOsVersionName(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getOsVersionName());
+}
+
+int luaGetPackageName(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getPackageName());
+}
+
+int luaGetProduct(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getProduct());
+}
+
+int luaGetSdPath(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getSdPath());
+}
+
+int luaGetSdkVersion(lua_State* state) {
+    lua_pushinteger(state, static_cast<lua_Integer>(engine_getSdkVersion()));
+    return 1;
+}
+
+int luaGetSensorsInfo(lua_State* state) {
+    return pushDeviceJsonToLua(state, engine_getSensorsInfoJson());
+}
+
+int luaGetSimSerialNumber(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getSimSerialNumber());
+}
+
+int luaGetSubscriberId(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getSubscriberId());
+}
+
+int luaGetWifiMac(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getWifiMac());
+}
+
+int luaGetWorkPath(lua_State* state) {
+    return pushDeviceStringToLua(state, engine_getWorkPath());
+}
+
+int luaLockScreen(lua_State*) {
+    engine_lockScreen();
+    return 0;
+}
+
+int luaUnLockScreen(lua_State*) {
+    engine_unLockScreen();
+    return 0;
+}
+
+int luaSetDisplayPowerOff(lua_State* state) {
+    engine_setDisplayPowerOff(lua_toboolean(state, 1) ? 1 : 0);
+    return 0;
+}
+
+int luaSetAirplaneMode(lua_State* state) {
+    engine_setAirplaneMode(lua_toboolean(state, 1) ? 1 : 0);
+    return 0;
+}
+
+int luaSetBTEnable(lua_State* state) {
+    engine_setBTEnable(lua_toboolean(state, 1) ? 1 : 0);
+    return 0;
+}
+
+int luaSetWifiEnable(lua_State* state) {
+    engine_setWifiEnable(lua_toboolean(state, 1) ? 1 : 0);
+    return 0;
+}
+
+int luaPhoneCall(lua_State* state) {
+    const char* number = luaL_checkstring(state, 1);
+    int callState = lua_isnoneornil(state, 2) ? 0 : luaCheckInt(state, 2, "state");
+    engine_phoneCall(number, callState);
+    return 0;
+}
+
+int luaSendSms(lua_State* state) {
+    engine_sendSms(luaL_checkstring(state, 1), luaL_checkstring(state, 2));
+    return 0;
+}
+
+int luaVibrate(lua_State* state) {
+    engine_vibrate(luaCheckInt(state, 1, "durationMs"));
+    return 0;
 }
 
 /**
@@ -770,6 +1072,63 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, hostTableIndex, "keyPress", luaKeyPress);
     setFunctionField(state, hostTableIndex, "inputText", luaInputText);
     setFunctionField(state, hostTableIndex, "getRunEnvType", luaGetRunEnvType);
+
+    // 设备、应用和系统控制固定绑定。它们都通过 system_c_api 调用 libengine.so/core/api，
+    // Lua 这里仅负责参数和返回值转换，不直接触碰 Android Java API。
+    setFunctionField(state, hostTableIndex, "appIsFront", luaAppIsFront);
+    setFunctionField(state, hostTableIndex, "appIsRunning", luaAppIsRunning);
+    setFunctionField(state, hostTableIndex, "frontAppName", luaFrontAppName);
+    setFunctionField(state, hostTableIndex, "getCurrentActivity", luaGetCurrentActivity);
+    setFunctionField(state, hostTableIndex, "runApp", luaRunApp);
+    setFunctionField(state, hostTableIndex, "stopApp", luaStopApp);
+    setFunctionField(state, hostTableIndex, "runIntent", luaRunIntent);
+    setFunctionField(state, hostTableIndex, "installApk", luaInstallApk);
+    setFunctionField(state, hostTableIndex, "getInstalledApk", luaGetInstalledApk);
+    setFunctionField(state, hostTableIndex, "getInstalledApps", luaGetInstalledApps);
+    setFunctionField(state, hostTableIndex, "getInsallAppInfos", luaGetInsallAppInfos);
+    setFunctionField(state, hostTableIndex, "getApkVerInt", luaGetApkVerInt);
+    setFunctionField(state, hostTableIndex, "exec", luaExec);
+    setFunctionField(state, hostTableIndex, "exitScript", luaExitScript);
+    setFunctionField(state, hostTableIndex, "getXiaoyvApi", luaGetXiaoyvApi);
+    setFunctionField(state, hostTableIndex, "getBatteryLevel", luaGetBatteryLevel);
+    setFunctionField(state, hostTableIndex, "getBoard", luaGetBoard);
+    setFunctionField(state, hostTableIndex, "getBootLoader", luaGetBootLoader);
+    setFunctionField(state, hostTableIndex, "getBrand", luaGetBrand);
+    setFunctionField(state, hostTableIndex, "getCpuAbi", luaGetCpuAbi);
+    setFunctionField(state, hostTableIndex, "getCpuAbi2", luaGetCpuAbi2);
+    setFunctionField(state, hostTableIndex, "getCpuArch", luaGetCpuArch);
+    setFunctionField(state, hostTableIndex, "getDevice", luaGetDevice);
+    setFunctionField(state, hostTableIndex, "getDeviceId", luaGetDeviceId);
+    setFunctionField(state, hostTableIndex, "getDisplayDpi", luaGetDisplayDpi);
+    setFunctionField(state, hostTableIndex, "getDisplayInfo", luaGetDisplayInfo);
+    setFunctionField(state, hostTableIndex, "getDisplayRotate", luaGetDisplayRotate);
+    setFunctionField(state, hostTableIndex, "getDisplaySize", luaGetDisplaySize);
+    setFunctionField(state, hostTableIndex, "getFingerprint", luaGetFingerprint);
+    setFunctionField(state, hostTableIndex, "getHardware", luaGetHardware);
+    setFunctionField(state, hostTableIndex, "getId", luaGetId);
+    setFunctionField(state, hostTableIndex, "getManufacturer", luaGetManufacturer);
+    setFunctionField(state, hostTableIndex, "getModel", luaGetModel);
+    setFunctionField(state, hostTableIndex, "getNetWorkTime", luaGetNetWorkTime);
+    setFunctionField(state, hostTableIndex, "getOaid", luaGetOaid);
+    setFunctionField(state, hostTableIndex, "getOsVersionName", luaGetOsVersionName);
+    setFunctionField(state, hostTableIndex, "getPackageName", luaGetPackageName);
+    setFunctionField(state, hostTableIndex, "getProduct", luaGetProduct);
+    setFunctionField(state, hostTableIndex, "getSdPath", luaGetSdPath);
+    setFunctionField(state, hostTableIndex, "getSdkVersion", luaGetSdkVersion);
+    setFunctionField(state, hostTableIndex, "getSensorsInfo", luaGetSensorsInfo);
+    setFunctionField(state, hostTableIndex, "getSimSerialNumber", luaGetSimSerialNumber);
+    setFunctionField(state, hostTableIndex, "getSubscriberId", luaGetSubscriberId);
+    setFunctionField(state, hostTableIndex, "getWifiMac", luaGetWifiMac);
+    setFunctionField(state, hostTableIndex, "getWorkPath", luaGetWorkPath);
+    setFunctionField(state, hostTableIndex, "lockScreen", luaLockScreen);
+    setFunctionField(state, hostTableIndex, "unLockScreen", luaUnLockScreen);
+    setFunctionField(state, hostTableIndex, "setDisplayPowerOff", luaSetDisplayPowerOff);
+    setFunctionField(state, hostTableIndex, "setAirplaneMode", luaSetAirplaneMode);
+    setFunctionField(state, hostTableIndex, "setBTEnable", luaSetBTEnable);
+    setFunctionField(state, hostTableIndex, "setWifiEnable", luaSetWifiEnable);
+    setFunctionField(state, hostTableIndex, "phoneCall", luaPhoneCall);
+    setFunctionField(state, hostTableIndex, "sendSms", luaSendSms);
+    setFunctionField(state, hostTableIndex, "vibrate", luaVibrate);
 
     // Lua 多线程属于语言运行时能力，直接实现于 libengine.so/runtime/lua，不经过
     // 语言无关 C ABI；JS 和 Go 后续分别使用自己的任务模型。

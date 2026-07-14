@@ -7,6 +7,7 @@ set(LUA_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/lua-5.4.8/sr
 add_library(engine SHARED
         engine_jni.cpp
         core/api/color_api.cpp
+        core/api/device_api.cpp
         core/api/ime_api.cpp
         core/api/input_api.cpp
         core/api/package_api.cpp

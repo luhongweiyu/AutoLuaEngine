@@ -54,6 +54,18 @@ struct RootStatusResult {
 };
 
 /**
+ * Android 设备能力调用结果。
+ *
+ * Java 层统一返回 JSON 信封，core/api 在解析前先通过 invoked 区分 JNI 调用失败和
+ * 设备能力本身失败。responseJson 只在 invoked 为 true 时有效。
+ */
+struct AndroidDeviceCallResult {
+    bool invoked = false;
+    std::string responseJson;
+    std::string error;
+};
+
+/**
  * Android 平台能力桥。
  *
  * 这里是 libengine.so 到 Java 的唯一 JNI 边界。Java 只承接 Android 必须由
@@ -87,6 +99,17 @@ public:
     static bool imeLock();
     static bool imeSetText(const std::string& text);
     static bool imeUnlock();
+
+    /**
+     * 调用 Android 平台设备能力。
+     *
+     * operation 和 argumentsJson 都由 core/api 生成，Java 侧只处理固定 operation，
+     * 不允许 Lua/JS/Go 直接把 Java 方法名传入 JNI。
+     */
+    static AndroidDeviceCallResult callDeviceApi(
+            const std::string& operation,
+            const std::string& argumentsJson
+    );
 
     /**
      * 在 App 主进程打开原生脚本弹窗、HUD 或 HTML 页面。

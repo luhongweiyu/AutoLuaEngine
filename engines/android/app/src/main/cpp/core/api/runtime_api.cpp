@@ -7,6 +7,7 @@
 #include <android/log.h>
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <thread>
 
 #include "../../runtime/common/log_buffer.h"
@@ -16,6 +17,11 @@ namespace {
 
 constexpr const char* kLogTag = "小鱼精灵";
 std::atomic_llong gScriptStartMs{0};
+std::mutex gStopRequesterMutex;
+RequestScriptStopCallback gStopRequester = nullptr;
+void* gStopRequesterContext = nullptr;
+std::mutex gScriptWorkPathMutex;
+std::string gScriptWorkPath;
 
 long long steadyNowMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -59,8 +65,35 @@ bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* sto
     return true;
 }
 
+void runtimeSetScriptStopRequester(RequestScriptStopCallback callback, void* context) {
+    std::lock_guard<std::mutex> lock(gStopRequesterMutex);
+    gStopRequester = callback;
+    gStopRequesterContext = context;
+}
+
+bool runtimeRequestScriptStop() {
+    RequestScriptStopCallback callback = nullptr;
+    void* context = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(gStopRequesterMutex);
+        callback = gStopRequester;
+        context = gStopRequesterContext;
+    }
+    return callback != nullptr && callback(context);
+}
+
 void runtimeMarkScriptStart() {
     gScriptStartMs.store(steadyNowMs());
+}
+
+void runtimeSetScriptWorkPath(const std::string& path) {
+    std::lock_guard<std::mutex> lock(gScriptWorkPathMutex);
+    gScriptWorkPath = path;
+}
+
+std::string runtimeScriptWorkPath() {
+    std::lock_guard<std::mutex> lock(gScriptWorkPathMutex);
+    return gScriptWorkPath;
 }
 
 long long runtimeSystemTimeMs() {

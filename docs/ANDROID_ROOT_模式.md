@@ -1,6 +1,6 @@
 # Android Root 模式
 
-当前 Root 模式为已经完成的截图、Root 输入注入、输入法切换和物理音量键监听服务。
+当前 Root 模式为已经完成的截图、Root 输入注入、输入法切换、设备系统控制和物理音量键监听服务。
 
 ## 当前行为
 
@@ -14,6 +14,10 @@
   通过 RootDaemon 注入，不为每条命令拉起 `input` 外部进程。
 - `engine_imeLock` / `engine_imeUnlock` 通过 RootDaemon 执行系统输入法切换；
   `engine_imeSetText` 直接调用已活动的应用输入法，不执行 Root 命令。
+- `m.exec`、前台应用查询、启动/停止应用、APK 安装、飞行模式、蓝牙、Wi-Fi、息屏和拨号
+  通过同一个 RootDaemon 会话执行。`exec` 仅返回命令输出，不根据退出码做兜底或二次执行。
+- RootDaemon 首次启动时会一次性授予本应用已声明的电话状态、拨号和短信运行时权限；脚本
+  调用这些 API 时不会再执行权限申请或 `pm grant`。
 - 设置中的“音量键控制”默认开启。RootDaemon 直接持续读取 `/dev/input/event*`，音量加运行
   当前选中的脚本，音量减停止脚本；监听过程不启动 `getevent` 等外部进程。
 - 切换“音量键控制”只启停现有监听连接，绝不检查 Root、创建 RootDaemon 或执行 `su`。若
@@ -36,6 +40,8 @@
 
 已完成的 Root 能力统一按 `core/api -> system_c_api -> 语言绑定` 分层；尚未实现的
 自动化能力继续按这一边界新增，不在 Java 或 Lua 层单独实现业务逻辑。
+
+设备 API 的参数和 Lua 返回值见 [Android 设备 API](ANDROID_设备_API.md)。
 
 ## 截图接口
 

@@ -39,12 +39,13 @@ public:
      * @param code Lua 源码文本。
      * @return 执行结果摘要。
      */
-    std::string runLuaText(const char* code);
+    std::string runLuaText(const char* code, const std::string& workPath);
 
     /** 运行已经由 Java 校验路径并由 native 打开的 ALPKG 脚本包。 */
     std::string runLuaPackage(
             const std::shared_ptr<AlpkgPackage>& package,
-            const char* runtimeBootstrap
+            const char* runtimeBootstrap,
+            const std::string& workPath
     );
 
     /**
@@ -96,10 +97,12 @@ private:
     std::string runLuaInternal(
             const std::shared_ptr<AlpkgPackage>& package,
             const char* code,
-            const char* runtimeBootstrap
+            const char* runtimeBootstrap,
+            const std::string& workPath
     );
 
     static bool shouldInterrupt(void* context);
+    static bool requestStopFromRuntime(void* context);
     bool waitIfPausedOrStopped();
     bool isActiveStatusLocked() const;
 };

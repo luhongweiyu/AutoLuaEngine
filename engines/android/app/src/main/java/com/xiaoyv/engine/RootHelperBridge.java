@@ -134,6 +134,46 @@ public final class RootHelperBridge {
     }
 
     /**
+     * 执行一条脚本显式请求的 Root shell 命令。
+     *
+     * 该入口仅负责维持与常驻 RootDaemon 的认证会话和协议编码，不检查命令退出码、不尝试
+     * 其他命令。Shell 的合并输出原样返回，脚本可按自己的业务规则判断结果。
+     */
+    public static ShellResult executeShell(String command) {
+        if (command == null || command.isEmpty()) {
+            return ShellResult.failure("命令不能为空");
+        }
+
+        String encoded = Base64.encodeToString(
+                command.getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+        );
+        synchronized (LOCK) {
+            try {
+                RootHelperSession helper = ensureSessionLocked();
+                // exec 的阻塞时长由脚本命令本身决定；socket 使用无限等待，避免框架替用户
+                // 截断一个合法的长时间命令。
+                RootHelperResponse response = helper.request("exec\t" + encoded, 0, null, 0);
+                if (!response.ok) {
+                    return ShellResult.failure(response.message);
+                }
+                try {
+                    String output = new String(
+                            Base64.decode(response.message, Base64.NO_WRAP),
+                            StandardCharsets.UTF_8
+                    );
+                    return ShellResult.success(output);
+                } catch (IllegalArgumentException exception) {
+                    return ShellResult.failure("Root 命令输出编码无效");
+                }
+            } catch (IOException | RuntimeException exception) {
+                closeSessionLocked();
+                return ShellResult.failure("Root 命令执行失败：" + exception.getMessage());
+            }
+        }
+    }
+
+    /**
      * 保存当前默认输入法并切换到 小鱼精灵 输入法。
      *
      * 返回值是 Base64 协议解码后的原输入法组件名；失败时返回 null。该操作只在
@@ -318,7 +358,7 @@ public final class RootHelperBridge {
          */
         private int toSocketTimeout(long timeoutMs) {
             if (timeoutMs <= 0L) {
-                return 1;
+                return 0;
             }
             return (int) Math.min(timeoutMs, Integer.MAX_VALUE);
         }
@@ -438,6 +478,32 @@ public final class RootHelperBridge {
 
         private static RootHelperPayload nativeBuffer(int pixelByteLength) {
             return new RootHelperPayload(new byte[0], pixelByteLength, true);
+        }
+    }
+
+    /**
+     * Root shell 命令的传输结果。
+     *
+     * success 仅表示 RootDaemon 通信与命令进程启动成功，不代表命令的退出码为 0；这是
+     * exec API 的既定语义，脚本应根据 output 内容自行判断。
+     */
+    public static final class ShellResult {
+        public final boolean success;
+        public final String output;
+        public final String error;
+
+        private ShellResult(boolean success, String output, String error) {
+            this.success = success;
+            this.output = output == null ? "" : output;
+            this.error = error == null ? "" : error;
+        }
+
+        private static ShellResult success(String output) {
+            return new ShellResult(true, output, "");
+        }
+
+        private static ShellResult failure(String error) {
+            return new ShellResult(false, "", error);
         }
     }
 }

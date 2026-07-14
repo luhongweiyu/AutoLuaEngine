@@ -11,8 +11,8 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `abiVersion` 为 `11`。版本 11 移除了未使用的 `clearCaptureCache` 字段，因此
-旧插件必须使用当前头文件重编译；后续新增字段只追加到结构体末尾。
+当前 `abiVersion` 为 `12`。版本 12 在顶层函数表末尾新增 `getDeviceApi()`，设备能力
+统一放入独立 `EngineDeviceApi` 子表；旧插件必须使用当前头文件重编译。
 
 ## 当前函数表能力
 
@@ -66,7 +66,20 @@ typedef struct EngineApi {
         const unsigned char** data,
         size_t* size
     );
+    const EngineDeviceApi* (*getDeviceApi)();
 } EngineApi;
+```
+
+设备子表通过 `api->getDeviceApi()` 获取。它包含应用状态、应用启动/停止、安装 APK、
+Root `exec`、硬件信息、屏幕信息、传感器、网络/电话信息和系统控制函数。完整声明不在本文
+重复维护，以 [system_c_api.h](../engines/android/app/src/main/cpp/core/system_c_api.h) 和
+[Android 设备 API](ANDROID_设备_API.md) 为准：
+
+```c
+const EngineDeviceApi* device = api->getDeviceApi();
+int foreground = device->appIsFront("com.example.app");
+const char* output = device->exec("id", 1);
+const char* displayJson = device->getDisplayInfoJson();
 ```
 
 ## 规则
@@ -83,4 +96,6 @@ typedef struct EngineApi {
   需要响应脚本停止请求的语言运行时。
 - `readAlpkgFile` 仅在当前调用线程正在运行 `.alpkg` 时可用，只读取 manifest 的
   `resource` 条目；返回字节由 SO 当前线程持有，插件只读、不释放，并应在下次调用前复制。
+- `getDeviceApi` 返回的字符串、JSON 和 `lastError` 指针由调用线程持有，下一次设备 API
+  调用可能覆盖内容；结构化信息统一为 JSON，不暴露 Lua table 或 Java 对象。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。

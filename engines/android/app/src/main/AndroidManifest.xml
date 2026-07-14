@@ -3,6 +3,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 设备 API 读取完整已安装应用列表、保持屏幕常亮、振动和读取电话卡信息所需权限。 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <!-- Android 10 及以下访问 /sdcard/xiaoyv/scripts 的传统存储权限。 -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"

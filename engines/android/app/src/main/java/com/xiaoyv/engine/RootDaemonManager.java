@@ -114,7 +114,18 @@ final class RootDaemonManager {
 
     private static Process startDaemonProcess(Context context, String token) throws IOException {
         String classPath = context.getPackageCodePath();
-        String command = "CLASSPATH="
+        String packageName = shellQuote(context.getPackageName());
+
+        /*
+         * 电话状态和短信 API 在 Android 运行时权限模型下不能仅靠 Manifest 生效。Root 模式
+         * 已经由用户主动授权，并且这些能力只在该模式下对脚本开放，因此在启动 RootDaemon
+         * 的同一次初始化中授予一次所需权限。脚本调用路径不会重复执行 pm grant，也没有
+         * 失败后的备用授权路线；某台 ROM 不允许授予时，具体 API 按自身契约返回 nil/失败。
+         */
+        String grantPermissions = "pm grant " + packageName + " android.permission.READ_PHONE_STATE; "
+                + "pm grant " + packageName + " android.permission.CALL_PHONE; "
+                + "pm grant " + packageName + " android.permission.SEND_SMS; ";
+        String command = grantPermissions + "CLASSPATH="
                 + shellQuote(classPath)
                 + " app_process /system/bin com.xiaoyv.engine.RootDaemonMain"
                 + " --port " + RootDaemonProtocol.port(context)

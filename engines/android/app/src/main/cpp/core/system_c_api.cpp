@@ -4,9 +4,11 @@
 #include "system_c_api.h"
 
 #include <string>
+#include <map>
 #include <vector>
 
 #include "api/color_api.h"
+#include "api/device_api.h"
 #include "api/ime_api.h"
 #include "api/input_api.h"
 #include "api/package_api.h"
@@ -17,14 +19,14 @@
 
 namespace {
 
-// 11 移除了未使用的 clearCaptureCache 函数表字段，旧版插件必须按新头文件重编译。
-constexpr int kEngineAbiVersion = 11;
+// 12 新增独立 EngineDeviceApi 函数表，旧版插件必须按新头文件重编译。
+constexpr int kEngineAbiVersion = 12;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.11\","
+        "\"abiVersion\":\"0.12\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -36,6 +38,7 @@ constexpr const char* kCapabilitiesJson =
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
+        "\"deviceApi\":[\"engine_getDeviceApi\",\"engine_appIsFront\",\"engine_exec\",\"engine_getDisplayInfoJson\"],"
         "\"alpkgApi\":[\"engine_readAlpkgFile\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
@@ -47,6 +50,8 @@ thread_local std::string gInputLastError;
 thread_local std::string gImeLastError;
 thread_local std::string gUiLastError;
 thread_local std::string gUiEventResult;
+thread_local std::string gDeviceLastError;
+thread_local std::string gDeviceResult;
 // C ABI 不能把 std::vector 暴露给调用方，因此由当前线程暂存最后一次包资源读取结果。
 // Lua/JS/Go 绑定必须在返回到各自运行时前自行复制需要的内容。
 thread_local std::vector<unsigned char> gAlpkgResourceData;
@@ -67,6 +72,155 @@ bool cInterruptAdapter(void* context) {
             && interrupt->callback != nullptr
             && interrupt->callback(interrupt->userData) != 0;
 }
+
+/** 构造固定设备 API 使用的 JSON 对象参数，避免字符串拼接破坏中文或引号。 */
+JsonValue deviceArguments(std::initializer_list<std::pair<std::string, JsonValue>> values = {}) {
+    std::map<std::string, JsonValue> object;
+    for (const auto& value : values) {
+        object.emplace(value.first, value.second);
+    }
+    return JsonValue::makeObject(std::move(object));
+}
+
+/**
+ * 调用 core/api/device_api，并将设备失败原因写入当前 C ABI 调用线程。
+ */
+bool callDevice(
+        const char* operation,
+        const JsonValue& arguments,
+        JsonValue* value
+) {
+    std::string error;
+    if (!xiaoyv::api::callDeviceApi(operation == nullptr ? "" : operation, arguments, value, &error)) {
+        gDeviceLastError = error.empty() ? "设备 API 调用失败" : error;
+        gDeviceResult.clear();
+        return false;
+    }
+    gDeviceLastError.clear();
+    return true;
+}
+
+/** 读取 Java 平台返回的布尔值。false 既可能是业务结果，也可能由调用者结合 lastError 判断。 */
+int deviceBooleanResult(const char* operation, const JsonValue& arguments) {
+    JsonValue value;
+    if (!callDevice(operation, arguments, &value)) {
+        return 0;
+    }
+    if (!value.isBool()) {
+        gDeviceLastError = "设备 API 返回值不是布尔类型";
+        return 0;
+    }
+    return value.boolValue() ? 1 : 0;
+}
+
+/** 读取 Java 平台返回的整数值。 */
+int deviceIntegerResult(const char* operation, const JsonValue& arguments, int failureValue = -1) {
+    JsonValue value;
+    if (!callDevice(operation, arguments, &value)) {
+        return failureValue;
+    }
+    if (!value.isNumber()) {
+        gDeviceLastError = "设备 API 返回值不是整数类型";
+        return failureValue;
+    }
+    return value.intValue(failureValue);
+}
+
+/**
+ * 读取 Java 平台返回的字符串。null 表示该设备没有公开对应数据，返回 nullptr 而不是伪造值。
+ */
+const char* deviceStringResult(const char* operation, const JsonValue& arguments) {
+    JsonValue value;
+    if (!callDevice(operation, arguments, &value)) {
+        return nullptr;
+    }
+    if (value.isNull()) {
+        gDeviceResult.clear();
+        return nullptr;
+    }
+    if (!value.isString()) {
+        gDeviceLastError = "设备 API 返回值不是字符串类型";
+        gDeviceResult.clear();
+        return nullptr;
+    }
+    gDeviceResult = value.stringValue();
+    return gDeviceResult.c_str();
+}
+
+/** 读取 Java 平台返回的对象或数组，并以 JSON 文本供 C ABI 外部调用方消费。 */
+const char* deviceJsonResult(const char* operation, const JsonValue& arguments) {
+    JsonValue value;
+    if (!callDevice(operation, arguments, &value)) {
+        return nullptr;
+    }
+    gDeviceResult = jsonValueToString(value);
+    return gDeviceResult.c_str();
+}
+
+/** 执行没有 Lua 返回值的设备命令。 */
+int deviceActionResult(const char* operation, const JsonValue& arguments) {
+    JsonValue ignored;
+    return callDevice(operation, arguments, &ignored) ? 1 : 0;
+}
+
+const EngineDeviceApi kEngineDeviceApi = {
+        kEngineAbiVersion,
+        engine_appIsFront,
+        engine_appIsRunning,
+        engine_frontAppName,
+        engine_getCurrentActivity,
+        engine_runApp,
+        engine_stopApp,
+        engine_runIntent,
+        engine_installApk,
+        engine_getInstalledApkJson,
+        engine_getInstalledAppsJson,
+        engine_getInsallAppInfosJson,
+        engine_getApkVerInt,
+        engine_exec,
+        engine_exitScript,
+        engine_getBatteryLevel,
+        engine_getBoard,
+        engine_getBootLoader,
+        engine_getBrand,
+        engine_getCpuAbi,
+        engine_getCpuAbi2,
+        engine_getCpuArch,
+        engine_getDevice,
+        engine_getDeviceId,
+        engine_getDisplayDpi,
+        engine_getDisplayInfoJson,
+        engine_getDisplayRotate,
+        engine_getDisplaySize,
+        engine_getFingerprint,
+        engine_getHardware,
+        engine_getId,
+        engine_getManufacturer,
+        engine_getModel,
+        engine_getNetWorkTime,
+        engine_getOaid,
+        engine_getOsVersionName,
+        engine_getPackageName,
+        engine_getProduct,
+        engine_getRunEnvTypeCode,
+        engine_getSdPath,
+        engine_getSdkVersion,
+        engine_getSensorsInfoJson,
+        engine_getSimSerialNumber,
+        engine_getSubscriberId,
+        engine_getWifiMac,
+        engine_getWorkPath,
+        engine_lockScreen,
+        engine_unLockScreen,
+        engine_setDisplayPowerOff,
+        engine_setAirplaneMode,
+        engine_setBTEnable,
+        engine_setWifiEnable,
+        engine_phoneCall,
+        engine_sendSms,
+        engine_vibrate,
+        engine_deviceLastError
+};
 
 const EngineApi kEngineApi = {
         kEngineAbiVersion,
@@ -107,7 +261,8 @@ const EngineApi kEngineApi = {
         engine_uiWaitEventInterruptible,
         engine_uiCloseAll,
         engine_uiLastError,
-        engine_readAlpkgFile
+        engine_readAlpkgFile,
+        engine_getDeviceApi
 };
 
 } // namespace
@@ -137,6 +292,16 @@ extern "C" const char* engine_getCapabilitiesJson() {
  */
 extern "C" const EngineApi* engine_getApi() {
     return &kEngineApi;
+}
+
+/**
+ * 返回设备能力子函数表。
+ *
+ * 外部插件先调用 engine_getApi()，再通过 getDeviceApi() 取得该表；单独导出此符号是为
+ * 了让只需要设备能力的 JS/Go 绑定无需解析整个顶层函数表。
+ */
+extern "C" const EngineDeviceApi* engine_getDeviceApi() {
+    return &kEngineDeviceApi;
 }
 
 /**
@@ -254,6 +419,387 @@ extern "C" int engine_readAlpkgFile(
     *size = gAlpkgResourceData.size();
     gRuntimeLastError.clear();
     return 1;
+}
+
+/** 判断指定应用是否处于前台。 */
+extern "C" int engine_appIsFront(const char* packageName) {
+    return deviceBooleanResult(
+            "app.isFront",
+            deviceArguments({
+                    {"packageName", JsonValue::makeString(packageName == nullptr ? "" : packageName)}
+            })
+    );
+}
+
+/** 判断指定应用主进程是否正在运行。 */
+extern "C" int engine_appIsRunning(const char* packageName) {
+    return deviceBooleanResult(
+            "app.isRunning",
+            deviceArguments({
+                    {"packageName", JsonValue::makeString(packageName == nullptr ? "" : packageName)}
+            })
+    );
+}
+
+/** 返回当前前台应用包名；当前没有可识别前台组件时返回 nullptr。 */
+extern "C" const char* engine_frontAppName() {
+    return deviceStringResult("app.frontName", deviceArguments());
+}
+
+/** 返回当前前台 Activity 完整类名；读取失败或没有前台组件时返回 nullptr。 */
+extern "C" const char* engine_getCurrentActivity() {
+    return deviceStringResult("app.currentActivity", deviceArguments());
+}
+
+/**
+ * Root 启动应用。
+ *
+ * componentName 为空时自动打开启动入口；isOpenBySuper 为兼容参数，当前 Root 引擎始终
+ * 通过 RootDaemon 启动应用。
+ */
+extern "C" int engine_runApp(
+        const char* packageName,
+        const char* componentName,
+        int isOpenBySuper
+) {
+    return deviceActionResult(
+            "app.run",
+            deviceArguments({
+                    {"packageName", JsonValue::makeString(packageName == nullptr ? "" : packageName)},
+                    {"componentName", componentName == nullptr || componentName[0] == '\0'
+                            ? JsonValue::makeNull()
+                            : JsonValue::makeString(componentName)},
+                    {"isOpenBySuper", JsonValue::makeBool(isOpenBySuper != 0)}
+            })
+    );
+}
+
+/** Root 强制停止指定应用。 */
+extern "C" int engine_stopApp(const char* packageName) {
+    return deviceActionResult(
+            "app.stop",
+            deviceArguments({
+                    {"packageName", JsonValue::makeString(packageName == nullptr ? "" : packageName)}
+            })
+    );
+}
+
+/** 用 JSON 对象描述 Android Intent 并请求打开。 */
+extern "C" int engine_runIntent(const char* intentJson) {
+    JsonValue arguments;
+    std::string parseError;
+    if (intentJson == nullptr
+            || !parseJsonText(intentJson, &arguments, &parseError)
+            || !arguments.isObject()) {
+        gDeviceLastError = "Intent 参数必须是 JSON 对象";
+        return 0;
+    }
+    return deviceBooleanResult("app.runIntent", arguments);
+}
+
+/** 通过 RootDaemon 安装指定绝对路径的 APK。 */
+extern "C" int engine_installApk(const char* apkPath) {
+    return deviceActionResult(
+            "app.install",
+            deviceArguments({
+                    {"apkPath", JsonValue::makeString(apkPath == nullptr ? "" : apkPath)}
+            })
+    );
+}
+
+/** 返回安装 APK 绝对路径数组的 JSON。 */
+extern "C" const char* engine_getInstalledApkJson() {
+    return deviceJsonResult("app.installedApk", deviceArguments());
+}
+
+/** 返回已安装包名数组的 JSON。 */
+extern "C" const char* engine_getInstalledAppsJson() {
+    return deviceJsonResult("app.installedApps", deviceArguments());
+}
+
+/** 返回已安装应用详细信息数组的 JSON。 */
+extern "C" const char* engine_getInsallAppInfosJson() {
+    return deviceJsonResult("app.insallAppInfos", deviceArguments());
+}
+
+/** 返回当前 小鱼精灵 APK 的 versionCode。 */
+extern "C" int engine_getApkVerInt() {
+    return deviceIntegerResult("app.versionCode", deviceArguments(), 0);
+}
+
+/**
+ * 执行 Root shell 命令。
+ *
+ * 该 C ABI 只负责把 RootDaemon 的文本输出交还调用方，不根据退出码改变结果。isRet 为 0
+ * 时仍执行命令，但清空返回文本，保持懒人同名 API 的“无需结果”语义。
+ */
+extern "C" const char* engine_exec(const char* command, int isRet) {
+    JsonValue value;
+    if (!callDevice(
+            "system.exec",
+            deviceArguments({
+                    {"command", JsonValue::makeString(command == nullptr ? "" : command)}
+            }),
+            &value
+    )) {
+        return nullptr;
+    }
+    if (!value.isString()) {
+        gDeviceLastError = "命令执行返回值不是字符串类型";
+        return nullptr;
+    }
+    gDeviceResult = isRet != 0 ? value.stringValue() : "";
+    return gDeviceResult.c_str();
+}
+
+/** 请求停止当前顶层脚本。 */
+extern "C" int engine_exitScript() {
+    if (!xiaoyv::api::runtimeRequestScriptStop()) {
+        gDeviceLastError = "当前没有可停止的脚本";
+        return 0;
+    }
+    gDeviceLastError.clear();
+    return 1;
+}
+
+/** 返回设备电量百分比；无法读取时返回 -1。 */
+extern "C" int engine_getBatteryLevel() {
+    return deviceIntegerResult("device.batteryLevel", deviceArguments());
+}
+
+extern "C" const char* engine_getBoard() {
+    return deviceStringResult("device.board", deviceArguments());
+}
+
+extern "C" const char* engine_getBootLoader() {
+    return deviceStringResult("device.bootLoader", deviceArguments());
+}
+
+extern "C" const char* engine_getBrand() {
+    return deviceStringResult("device.brand", deviceArguments());
+}
+
+extern "C" const char* engine_getCpuAbi() {
+    return deviceStringResult("device.cpuAbi", deviceArguments());
+}
+
+extern "C" const char* engine_getCpuAbi2() {
+    return deviceStringResult("device.cpuAbi2", deviceArguments());
+}
+
+extern "C" int engine_getCpuArch() {
+    return deviceIntegerResult("device.cpuArch", deviceArguments());
+}
+
+extern "C" const char* engine_getDevice() {
+    return deviceStringResult("device.device", deviceArguments());
+}
+
+extern "C" const char* engine_getDeviceId() {
+    return deviceStringResult("device.deviceId", deviceArguments());
+}
+
+extern "C" int engine_getDisplayDpi() {
+    return deviceIntegerResult("device.displayDpi", deviceArguments());
+}
+
+/** 返回屏幕宽高、DPI、密度和旋转方向的 JSON 对象。 */
+extern "C" const char* engine_getDisplayInfoJson() {
+    return deviceJsonResult("device.displayInfo", deviceArguments());
+}
+
+extern "C" int engine_getDisplayRotate() {
+    return deviceIntegerResult("device.displayRotate", deviceArguments());
+}
+
+/** 返回真实显示宽高，失败时两个输出参数都会清零。 */
+extern "C" int engine_getDisplaySize(int* width, int* height) {
+    if (width != nullptr) {
+        *width = 0;
+    }
+    if (height != nullptr) {
+        *height = 0;
+    }
+    if (width == nullptr || height == nullptr) {
+        gDeviceLastError = "屏幕尺寸输出参数不能为空";
+        return 0;
+    }
+
+    JsonValue value;
+    if (!callDevice("device.displaySize", deviceArguments(), &value)) {
+        return 0;
+    }
+    const JsonValue* widthValue = value.get("width");
+    const JsonValue* heightValue = value.get("height");
+    if (!value.isObject()
+            || widthValue == nullptr
+            || heightValue == nullptr
+            || !widthValue->isNumber()
+            || !heightValue->isNumber()) {
+        gDeviceLastError = "屏幕尺寸返回值无效";
+        return 0;
+    }
+
+    *width = widthValue->intValue();
+    *height = heightValue->intValue();
+    if (*width <= 0 || *height <= 0) {
+        *width = 0;
+        *height = 0;
+        gDeviceLastError = "屏幕尺寸无效";
+        return 0;
+    }
+    gDeviceLastError.clear();
+    return 1;
+}
+
+extern "C" const char* engine_getFingerprint() {
+    return deviceStringResult("device.fingerprint", deviceArguments());
+}
+
+extern "C" const char* engine_getHardware() {
+    return deviceStringResult("device.hardware", deviceArguments());
+}
+
+extern "C" const char* engine_getId() {
+    return deviceStringResult("device.id", deviceArguments());
+}
+
+extern "C" const char* engine_getManufacturer() {
+    return deviceStringResult("device.manufacturer", deviceArguments());
+}
+
+extern "C" const char* engine_getModel() {
+    return deviceStringResult("device.model", deviceArguments());
+}
+
+extern "C" const char* engine_getNetWorkTime() {
+    return deviceStringResult("device.networkTime", deviceArguments());
+}
+
+extern "C" const char* engine_getOaid() {
+    return deviceStringResult("device.oaid", deviceArguments());
+}
+
+extern "C" const char* engine_getOsVersionName() {
+    return deviceStringResult("device.osVersionName", deviceArguments());
+}
+
+extern "C" const char* engine_getPackageName() {
+    return deviceStringResult("app.packageName", deviceArguments());
+}
+
+extern "C" const char* engine_getProduct() {
+    return deviceStringResult("device.product", deviceArguments());
+}
+
+/** 返回 0（Root）、1（无障碍）或 -1（当前没有可用运行环境）。 */
+extern "C" int engine_getRunEnvTypeCode() {
+    return deviceIntegerResult("device.runEnvType", deviceArguments());
+}
+
+extern "C" const char* engine_getSdPath() {
+    return deviceStringResult("device.sdPath", deviceArguments());
+}
+
+extern "C" int engine_getSdkVersion() {
+    return deviceIntegerResult("device.sdkVersion", deviceArguments());
+}
+
+extern "C" const char* engine_getSensorsInfoJson() {
+    return deviceJsonResult("device.sensorsInfo", deviceArguments());
+}
+
+extern "C" const char* engine_getSimSerialNumber() {
+    return deviceStringResult("device.simSerialNumber", deviceArguments());
+}
+
+extern "C" const char* engine_getSubscriberId() {
+    return deviceStringResult("device.subscriberId", deviceArguments());
+}
+
+extern "C" const char* engine_getWifiMac() {
+    return deviceStringResult("device.wifiMac", deviceArguments());
+}
+
+/** 返回当前脚本文件或 ALPKG 所在目录。 */
+extern "C" const char* engine_getWorkPath() {
+    gDeviceResult = xiaoyv::api::runtimeScriptWorkPath();
+    gDeviceLastError.clear();
+    return gDeviceResult.empty() ? nullptr : gDeviceResult.c_str();
+}
+
+/** 保持屏幕常亮，不会锁定设备。 */
+extern "C" int engine_lockScreen() {
+    return deviceActionResult("system.keepAwake", deviceArguments());
+}
+
+/** 释放 lockScreen 获取的屏幕常亮锁。 */
+extern "C" int engine_unLockScreen() {
+    return deviceActionResult("system.releaseAwake", deviceArguments());
+}
+
+extern "C" int engine_setDisplayPowerOff(int isPowerOff) {
+    return deviceActionResult(
+            "system.displayPower",
+            deviceArguments({{"powerOff", JsonValue::makeBool(isPowerOff != 0)}})
+    );
+}
+
+extern "C" int engine_setAirplaneMode(int enabled) {
+    return deviceActionResult(
+            "system.airplane",
+            deviceArguments({{"enabled", JsonValue::makeBool(enabled != 0)}})
+    );
+}
+
+extern "C" int engine_setBTEnable(int enabled) {
+    return deviceActionResult(
+            "system.bluetooth",
+            deviceArguments({{"enabled", JsonValue::makeBool(enabled != 0)}})
+    );
+}
+
+extern "C" int engine_setWifiEnable(int enabled) {
+    return deviceActionResult(
+            "system.wifi",
+            deviceArguments({{"enabled", JsonValue::makeBool(enabled != 0)}})
+    );
+}
+
+extern "C" int engine_phoneCall(const char* number, int state) {
+    return deviceActionResult(
+            "system.phoneCall",
+            deviceArguments({
+                    {"number", JsonValue::makeString(number == nullptr ? "" : number)},
+                    {"state", JsonValue::makeNumber(state)}
+            })
+    );
+}
+
+extern "C" int engine_sendSms(const char* number, const char* content) {
+    return deviceActionResult(
+            "system.sendSms",
+            deviceArguments({
+                    {"number", JsonValue::makeString(number == nullptr ? "" : number)},
+                    {"content", JsonValue::makeString(content == nullptr ? "" : content)}
+            })
+    );
+}
+
+extern "C" int engine_vibrate(int durationMs) {
+    if (durationMs < 0) {
+        gDeviceLastError = "震动时间必须大于等于 0 毫秒";
+        return 0;
+    }
+    return deviceActionResult(
+            "system.vibrate",
+            deviceArguments({{"durationMs", JsonValue::makeNumber(durationMs)}})
+    );
+}
+
+/** 返回当前线程最近一次设备 API 失败原因。 */
+extern "C" const char* engine_deviceLastError() {
+    return gDeviceLastError.c_str();
 }
 
 /**

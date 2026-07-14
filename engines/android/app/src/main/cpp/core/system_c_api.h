@@ -27,6 +27,77 @@ typedef struct EnginePoint {
 } EnginePoint;
 
 /**
+ * 设备能力函数表。
+ *
+ * 所有成员都是 libengine.so 的稳定 C ABI。字符串和 JSON 返回指针均由当前调用线程持有，
+ * 调用方只读且不得释放；下一次同类调用可能覆盖该内容。JSON 结果用于 Lua table、JS 对象
+ * 和 Go struct 等跨语言结构化转换，避免把某一语言的容器类型暴露进 ABI。
+ */
+typedef struct EngineDeviceApi {
+    int abiVersion;
+
+    int (*appIsFront)(const char* packageName);
+    int (*appIsRunning)(const char* packageName);
+    const char* (*frontAppName)();
+    const char* (*getCurrentActivity)();
+    int (*runApp)(const char* packageName, const char* componentName, int isOpenBySuper);
+    int (*stopApp)(const char* packageName);
+    int (*runIntent)(const char* intentJson);
+    int (*installApk)(const char* apkPath);
+    const char* (*getInstalledApkJson)();
+    const char* (*getInstalledAppsJson)();
+    const char* (*getInsallAppInfosJson)();
+    int (*getApkVerInt)();
+
+    const char* (*exec)(const char* command, int isRet);
+    int (*exitScript)();
+
+    int (*getBatteryLevel)();
+    const char* (*getBoard)();
+    const char* (*getBootLoader)();
+    const char* (*getBrand)();
+    const char* (*getCpuAbi)();
+    const char* (*getCpuAbi2)();
+    int (*getCpuArch)();
+    const char* (*getDevice)();
+    const char* (*getDeviceId)();
+    int (*getDisplayDpi)();
+    const char* (*getDisplayInfoJson)();
+    int (*getDisplayRotate)();
+    int (*getDisplaySize)(int* width, int* height);
+    const char* (*getFingerprint)();
+    const char* (*getHardware)();
+    const char* (*getId)();
+    const char* (*getManufacturer)();
+    const char* (*getModel)();
+    const char* (*getNetWorkTime)();
+    const char* (*getOaid)();
+    const char* (*getOsVersionName)();
+    const char* (*getPackageName)();
+    const char* (*getProduct)();
+    int (*getRunEnvType)();
+    const char* (*getSdPath)();
+    int (*getSdkVersion)();
+    const char* (*getSensorsInfoJson)();
+    const char* (*getSimSerialNumber)();
+    const char* (*getSubscriberId)();
+    const char* (*getWifiMac)();
+    const char* (*getWorkPath)();
+
+    int (*lockScreen)();
+    int (*unLockScreen)();
+    int (*setDisplayPowerOff)(int isPowerOff);
+    int (*setAirplaneMode)(int enabled);
+    int (*setBTEnable)(int enabled);
+    int (*setWifiEnable)(int enabled);
+    int (*phoneCall)(const char* number, int state);
+    int (*sendSms)(const char* number, const char* content);
+    int (*vibrate)(int durationMs);
+
+    const char* (*lastError)();
+} EngineDeviceApi;
+
+/**
  * 给外部插件 so 使用的函数表。
  *
  * 插件可以通过 engine_getApi() 取得这张表，然后调用同一套引擎能力，不需要
@@ -94,6 +165,7 @@ typedef struct EngineApi {
             const unsigned char** data,
             size_t* size
     );
+    const EngineDeviceApi* (*getDeviceApi)();
 } EngineApi;
 
 /**
@@ -117,6 +189,9 @@ const char* engine_getCapabilitiesJson();
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const EngineApi* engine_getApi();
+
+/** 返回设备能力函数表，供插件、JS 和 Go 取得与 Lua 相同的设备 API。 */
+const EngineDeviceApi* engine_getDeviceApi();
 
 /**
  * 输出普通脚本日志。
@@ -174,6 +249,77 @@ int engine_readAlpkgFile(
         const unsigned char** data,
         size_t* size
 );
+
+/**
+ * Android 设备与应用 API。
+ *
+ * bool 风格接口成功返回 1、失败返回 0；失败原因可通过 engine_deviceLastError() 读取。
+ * Lua 层会按脚本文档把少数“无返回值”命令转换为无返回值，不把 C ABI 的状态码泄露给脚本。
+ */
+int engine_appIsFront(const char* packageName);
+int engine_appIsRunning(const char* packageName);
+const char* engine_frontAppName();
+const char* engine_getCurrentActivity();
+int engine_runApp(const char* packageName, const char* componentName, int isOpenBySuper);
+int engine_stopApp(const char* packageName);
+int engine_runIntent(const char* intentJson);
+int engine_installApk(const char* apkPath);
+const char* engine_getInstalledApkJson();
+const char* engine_getInstalledAppsJson();
+const char* engine_getInsallAppInfosJson();
+int engine_getApkVerInt();
+
+/**
+ * 以当前 RootDaemon 权限执行 shell。isRet 非 0 时返回合并输出，0 时执行但返回空字符串；
+ * 命令退出码不作为成功条件，脚本应按返回文本自行判断。
+ */
+const char* engine_exec(const char* command, int isRet);
+int engine_exitScript();
+
+int engine_getBatteryLevel();
+const char* engine_getBoard();
+const char* engine_getBootLoader();
+const char* engine_getBrand();
+const char* engine_getCpuAbi();
+const char* engine_getCpuAbi2();
+int engine_getCpuArch();
+const char* engine_getDevice();
+const char* engine_getDeviceId();
+int engine_getDisplayDpi();
+const char* engine_getDisplayInfoJson();
+int engine_getDisplayRotate();
+int engine_getDisplaySize(int* width, int* height);
+const char* engine_getFingerprint();
+const char* engine_getHardware();
+const char* engine_getId();
+const char* engine_getManufacturer();
+const char* engine_getModel();
+const char* engine_getNetWorkTime();
+const char* engine_getOaid();
+const char* engine_getOsVersionName();
+const char* engine_getPackageName();
+const char* engine_getProduct();
+int engine_getRunEnvTypeCode();
+const char* engine_getSdPath();
+int engine_getSdkVersion();
+const char* engine_getSensorsInfoJson();
+const char* engine_getSimSerialNumber();
+const char* engine_getSubscriberId();
+const char* engine_getWifiMac();
+const char* engine_getWorkPath();
+
+int engine_lockScreen();
+int engine_unLockScreen();
+int engine_setDisplayPowerOff(int isPowerOff);
+int engine_setAirplaneMode(int enabled);
+int engine_setBTEnable(int enabled);
+int engine_setWifiEnable(int enabled);
+int engine_phoneCall(const char* number, int state);
+int engine_sendSms(const char* number, const char* content);
+int engine_vibrate(int durationMs);
+
+/** 返回当前线程最近一次设备 API 失败原因。 */
+const char* engine_deviceLastError();
 
 /**
  * 返回系统时间戳，单位毫秒。

@@ -166,7 +166,11 @@ std::string runScript(Engine& engine,
     }
 
     std::string code = requireString(params, "code");
-    std::string message = engine.runLuaText((luaRuntimeBootstrap + "\n" + code).c_str());
+    std::string workPath = params.stringOr("workPath");
+    std::string message = engine.runLuaText(
+            (luaRuntimeBootstrap + "\n" + code).c_str(),
+            workPath
+    );
     if (message == "已有脚本正在运行") {
         throw CommandError(-32000, "已有脚本正在运行");
     }
@@ -203,7 +207,11 @@ std::string runPackageScript(
         throw CommandError(-32602, packageError.empty() ? "脚本包打开失败" : packageError);
     }
 
-    std::string message = engine.runLuaPackage(package, luaRuntimeBootstrap.c_str());
+    std::string message = engine.runLuaPackage(
+            package,
+            luaRuntimeBootstrap.c_str(),
+            params.stringOr("workPath")
+    );
     if (message == "已有脚本正在运行") {
         throw CommandError(-32000, "已有脚本正在运行");
     }
