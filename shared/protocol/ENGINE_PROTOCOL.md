@@ -25,7 +25,7 @@ device.setRootModeEnabled
 
 ```json
 {
-  "packagePath": "/storage/emulated/0/AutoLuaEngine/scripts/demo.alpkg"
+  "packagePath": "/storage/emulated/0/xiaoyv/scripts/demo.alpkg"
 }
 ```
 

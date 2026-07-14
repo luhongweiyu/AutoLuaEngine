@@ -8,14 +8,6 @@
         <item name="android:colorAccent">#2563EB</item>
     </style>
 
-    <!-- 脚本原生弹窗由透明 Activity 承载，实际内容由 AlertDialog 绘制。 -->
-    <style name="ScriptDialogTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:colorAccent">#2563EB</item>
-    </style>
-
     <!-- HTML 可按脚本指定像素尺寸显示；透明底层确保小窗口之外仍能看到原界面。 -->
     <style name="ScriptWebTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>

@@ -11,10 +11,10 @@
 
 #include "../../runtime/common/log_buffer.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 namespace {
 
-constexpr const char* kLogTag = "AutoLuaEngine";
+constexpr const char* kLogTag = "小鱼精灵";
 std::atomic_llong gScriptStartMs{0};
 
 long long steadyNowMs() {
@@ -79,4 +79,4 @@ long long runtimeTickCountMs() {
     return steadyNowMs() - startMs;
 }
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

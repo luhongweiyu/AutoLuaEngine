@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace autolua::api {
+namespace xiaoyv::api {
 
 /**
  * 按住一个模拟手指。
@@ -62,4 +62,4 @@ std::string getRunEnvType();
  */
 const std::string& inputLastError();
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

@@ -12,7 +12,7 @@
 /**
  * ALPKG 包读取器。
  *
- * 第一版只接受由 tools/pack/autolua_pack.exe 生成的“存储模式” ZIP 项，因此不需要把
+ * 第一版只接受由 tools/pack/xiaoyv_pack.exe 生成的“存储模式” ZIP 项，因此不需要把
  * ZIP 解压库带进 libengine.so。Lua 文件在读取后验证 XChaCha20-Poly1305 标签并直接
  * 交给 Lua VM；资源文件既可由 App 主进程的 ScriptPackageResources 提供给 WebView，
  * 也可由 core/api 通过稳定 C ABI 返回给 Lua、JS、Go 等语言绑定。

@@ -1,4 +1,4 @@
-# Android Lua Automation Engine
+# 小鱼精灵
 
 本仓库用于实现一个面向自动化脚本开发的运行时与 IDE 工具链。
 

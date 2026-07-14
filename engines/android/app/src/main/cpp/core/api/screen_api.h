@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace autolua::api {
+namespace xiaoyv::api {
 
 /**
  * 屏幕截图结果。
@@ -62,4 +62,4 @@ std::string screenLastError();
  */
 long long screenCaptureFrameId();
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

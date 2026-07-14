@@ -92,7 +92,7 @@ function Get-NodeCenterByResourceId {
     )
 
     $remotePath = "/sdcard/window.xml"
-    $localPath = Join-Path $env:TEMP "autolua-window.xml"
+    $localPath = Join-Path $env:TEMP "xiaoyv-window.xml"
 
     $dumpOutput = $null
     $dumpSucceeded = $false
@@ -191,25 +191,25 @@ try {
     $script:SelectedDeviceSerial = Resolve-AdbDevice
     Invoke-Adb @("logcat", "-c")
     Invoke-Adb @("install", "-r", $apkPath)
-    Invoke-Adb @("shell", "am", "start", "-n", "com.autolua.engine/.MainActivity")
+    Invoke-Adb @("shell", "am", "start", "-n", "com.xiaoyv.engine/.MainActivity")
 
     Start-Sleep -Seconds 2
 
-    Invoke-TapByResourceId "com.autolua.engine:id/button_run_lua"
+    Invoke-TapByResourceId "com.xiaoyv.engine:id/button_run_lua"
     Start-Sleep -Seconds 2
 
-    Invoke-TapByResourceId "com.autolua.engine:id/button_run_error"
+    Invoke-TapByResourceId "com.xiaoyv.engine:id/button_run_error"
     Start-Sleep -Seconds 1
 
-    Invoke-TapByResourceId "com.autolua.engine:id/button_run_loop"
+    Invoke-TapByResourceId "com.xiaoyv.engine:id/button_run_loop"
     Start-Sleep -Milliseconds 300
-    Invoke-TapByResourceId "com.autolua.engine:id/button_stop"
+    Invoke-TapByResourceId "com.xiaoyv.engine:id/button_stop"
     Start-Sleep -Seconds 1
 
-    Invoke-TapByResourceId "com.autolua.engine:id/button_run_touch"
+    Invoke-TapByResourceId "com.xiaoyv.engine:id/button_run_touch"
     Start-Sleep -Seconds 1
 
-    Invoke-TapByResourceId "com.autolua.engine:id/button_run_screen"
+    Invoke-TapByResourceId "com.xiaoyv.engine:id/button_run_screen"
     Start-Sleep -Seconds 1
 
     $deviceInfoResult = Invoke-EngineJsonRpc `
@@ -412,7 +412,7 @@ end
 
     Start-Sleep -Seconds 1
 
-    Invoke-Adb @("logcat", "-d", "-s", "AutoLuaEngine")
+    Invoke-Adb @("logcat", "-d", "-s", "小鱼精灵")
 } finally {
     Pop-Location
 }

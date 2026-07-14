@@ -13,7 +13,7 @@ ide/vscode-extension
 第一版只提供两个命令：
 
 ```text
-AutoLuaEngine: Check Connection
-AutoLuaEngine: Run Current Lua File
-AutoLuaEngine: Drain Logs
+小鱼精灵: Check Connection
+小鱼精灵: Run Current Lua File
+小鱼精灵: Drain Logs
 ```

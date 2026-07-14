@@ -7,17 +7,17 @@ let lastLogId = 0;
 let statusItems = [];
 
 function activate(context) {
-  outputChannel = vscode.window.createOutputChannel('AutoLuaEngine');
+  outputChannel = vscode.window.createOutputChannel('小鱼精灵');
   statusItems = createStatusBarItems();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('autolua.checkConnection', checkConnection),
-    vscode.commands.registerCommand('autolua.runCurrentLua', runCurrentLua),
-    vscode.commands.registerCommand('autolua.pauseScript', pauseScript),
-    vscode.commands.registerCommand('autolua.resumeScript', resumeScript),
-    vscode.commands.registerCommand('autolua.stopScript', stopScript),
-    vscode.commands.registerCommand('autolua.drainLogs', drainLogs),
-    vscode.commands.registerCommand('autolua.packageWorkspace', packageWorkspace),
+    vscode.commands.registerCommand('xiaoyv.checkConnection', checkConnection),
+    vscode.commands.registerCommand('xiaoyv.runCurrentLua', runCurrentLua),
+    vscode.commands.registerCommand('xiaoyv.pauseScript', pauseScript),
+    vscode.commands.registerCommand('xiaoyv.resumeScript', resumeScript),
+    vscode.commands.registerCommand('xiaoyv.stopScript', stopScript),
+    vscode.commands.registerCommand('xiaoyv.drainLogs', drainLogs),
+    vscode.commands.registerCommand('xiaoyv.packageWorkspace', packageWorkspace),
     outputChannel,
     ...statusItems
   );
@@ -34,13 +34,13 @@ function deactivate() {
 }
 
 function createStatusBarItems() {
-  const checkItem = createStatusBarItem('$(plug) AutoLua', 'autolua.checkConnection', 'Check AutoLuaEngine connection', 100);
-  const runItem = createStatusBarItem('$(play) Run Lua', 'autolua.runCurrentLua', 'Send current Lua file to AutoLuaEngine', 99);
-  const pauseItem = createStatusBarItem('$(debug-pause) Pause', 'autolua.pauseScript', 'Request current script pause', 98);
-  const resumeItem = createStatusBarItem('$(debug-continue) Resume', 'autolua.resumeScript', 'Resume paused script', 97);
-  const stopItem = createStatusBarItem('$(debug-stop) Stop', 'autolua.stopScript', 'Request current script stop', 96);
-  const logsItem = createStatusBarItem('$(output) Logs', 'autolua.drainLogs', 'Drain AutoLuaEngine logs', 95);
-  const packageItem = createStatusBarItem('$(package) 打包', 'autolua.packageWorkspace', 'Package current AutoLua project', 94);
+  const checkItem = createStatusBarItem('$(plug) 小鱼精灵', 'xiaoyv.checkConnection', '检查小鱼精灵连接', 100);
+  const runItem = createStatusBarItem('$(play) 运行 Lua', 'xiaoyv.runCurrentLua', '发送当前 Lua 文件到小鱼精灵运行', 99);
+  const pauseItem = createStatusBarItem('$(debug-pause) 暂停', 'xiaoyv.pauseScript', '请求暂停当前脚本', 98);
+  const resumeItem = createStatusBarItem('$(debug-continue) 继续', 'xiaoyv.resumeScript', '继续已暂停的脚本', 97);
+  const stopItem = createStatusBarItem('$(debug-stop) 停止', 'xiaoyv.stopScript', '请求停止当前脚本', 96);
+  const logsItem = createStatusBarItem('$(output) 日志', 'xiaoyv.drainLogs', '读取小鱼精灵日志', 95);
+  const packageItem = createStatusBarItem('$(package) 打包', 'xiaoyv.packageWorkspace', '打包当前小鱼精灵脚本项目', 94);
   return [checkItem, runItem, pauseItem, resumeItem, stopItem, logsItem, packageItem];
 }
 
@@ -63,45 +63,45 @@ function updateStatusBarItems() {
 
   const runItem = statusItems[1];
   if (runItem) {
-    runItem.text = canRun ? '$(play) Run Lua' : '$(circle-slash) Run Lua';
+    runItem.text = canRun ? '$(play) 运行 Lua' : '$(circle-slash) 运行 Lua';
     runItem.tooltip = canRun
-      ? 'Send current Lua file to AutoLuaEngine'
-      : 'Open a Lua script file before running';
+      ? '发送当前 Lua 文件到小鱼精灵运行'
+      : '请先打开一个 Lua 脚本文件';
   }
 }
 
 async function checkConnection() {
   outputChannel.show(true);
-  outputChannel.appendLine('[connection] checking');
+  outputChannel.appendLine('[连接] 正在检查');
 
   try {
     const connection = readConnectionConfig();
-    outputChannel.appendLine(`[connection] ${connection.host}:${connection.port}`);
+    outputChannel.appendLine(`[连接] ${connection.host}:${connection.port}`);
     const result = await callJsonRpc('device.info', {});
-    outputChannel.appendLine(`[connection] ${JSON.stringify(result)}`);
-    vscode.window.showInformationMessage(`AutoLuaEngine connected: ${result.platform}`);
+    outputChannel.appendLine(`[连接] ${JSON.stringify(result)}`);
+    vscode.window.showInformationMessage(`小鱼精灵已连接：${result.platform}`);
   } catch (error) {
-    outputChannel.appendLine(`[error] ${error.message}`);
-    vscode.window.showErrorMessage(`AutoLuaEngine connection failed: ${error.message}`);
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`小鱼精灵连接失败：${error.message}`);
   }
 }
 
 async function runCurrentLua() {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    vscode.window.showWarningMessage('No active Lua file.');
+    vscode.window.showWarningMessage('没有打开的 Lua 文件。');
     return;
   }
 
   const document = editor.document;
   const code = document.getText();
   if (!code.trim()) {
-    vscode.window.showWarningMessage('Current file is empty.');
+    vscode.window.showWarningMessage('当前文件为空。');
     return;
   }
 
   outputChannel.show(true);
-  outputChannel.appendLine(`[run] ${document.fileName}`);
+  outputChannel.appendLine(`[运行] ${document.fileName}`);
 
   try {
     const startLogId = await getLastLogId();
@@ -109,35 +109,35 @@ async function runCurrentLua() {
       language: 'lua',
       code
     });
-    outputChannel.appendLine(`[result] ${JSON.stringify(result)}`);
+    outputChannel.appendLine(`[结果] ${JSON.stringify(result)}`);
 
     await drainLogsAfter(startLogId);
   } catch (error) {
-    outputChannel.appendLine(`[error] ${error.message}`);
-    vscode.window.showErrorMessage(`AutoLuaEngine run failed: ${error.message}`);
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`小鱼精灵运行失败：${error.message}`);
   }
 }
 
 async function stopScript() {
   outputChannel.show(true);
-  outputChannel.appendLine('[stop] requesting script stop');
+  outputChannel.appendLine('[停止] 正在请求停止脚本');
 
   try {
     const result = await callJsonRpc('script.stop', {});
-    outputChannel.appendLine(`[stop] ${JSON.stringify(result)}`);
-    vscode.window.showInformationMessage('AutoLuaEngine stop requested.');
+    outputChannel.appendLine(`[停止] ${JSON.stringify(result)}`);
+    vscode.window.showInformationMessage('已请求停止小鱼精灵脚本。');
   } catch (error) {
-    outputChannel.appendLine(`[error] ${error.message}`);
-    vscode.window.showErrorMessage(`AutoLuaEngine stop failed: ${error.message}`);
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`小鱼精灵停止失败：${error.message}`);
   }
 }
 
 async function pauseScript() {
-  await sendControlCommand('script.pause', '[pause] requesting script pause', 'AutoLuaEngine pause requested.', 'pause');
+  await sendControlCommand('script.pause', '[暂停] 正在请求暂停脚本', '已请求暂停小鱼精灵脚本。', '暂停');
 }
 
 async function resumeScript() {
-  await sendControlCommand('script.resume', '[resume] requesting script resume', 'AutoLuaEngine resume requested.', 'resume');
+  await sendControlCommand('script.resume', '[继续] 正在请求继续脚本', '已请求继续小鱼精灵脚本。', '继续');
 }
 
 async function sendControlCommand(method, logLine, okMessage, logPrefix) {
@@ -149,8 +149,8 @@ async function sendControlCommand(method, logLine, okMessage, logPrefix) {
     outputChannel.appendLine(`[${logPrefix}] ${JSON.stringify(result)}`);
     vscode.window.showInformationMessage(okMessage);
   } catch (error) {
-    outputChannel.appendLine(`[error] ${error.message}`);
-    vscode.window.showErrorMessage(`AutoLuaEngine ${logPrefix} failed: ${error.message}`);
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`小鱼精灵${logPrefix}失败：${error.message}`);
   }
 }
 
@@ -160,8 +160,8 @@ async function drainLogs() {
   try {
     await drainLogsAfter(lastLogId);
   } catch (error) {
-    outputChannel.appendLine(`[error] ${error.message}`);
-    vscode.window.showErrorMessage(`AutoLuaEngine log drain failed: ${error.message}`);
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`小鱼精灵读取日志失败：${error.message}`);
   }
 }
 
@@ -175,8 +175,8 @@ async function packageWorkspace() {
   const projectDirectory = workspaceFolder.uri.fsPath;
   const toolPath = resolvePackToolPath();
   outputChannel.show(true);
-  outputChannel.appendLine(`[package] ${projectDirectory}`);
-  outputChannel.appendLine(`[package] tool: ${toolPath}`);
+  outputChannel.appendLine(`[打包] ${projectDirectory}`);
+  outputChannel.appendLine(`[打包] 工具：${toolPath}`);
 
   try {
     await ensurePackTool(toolPath);
@@ -187,21 +187,21 @@ async function packageWorkspace() {
     if (result.stderr) {
       outputChannel.appendLine(result.stderr.trim());
     }
-    vscode.window.showInformationMessage('AutoLuaEngine 脚本包已生成到项目 dist 文件夹。');
+    vscode.window.showInformationMessage('小鱼精灵 脚本包已生成到项目 dist 文件夹。');
   } catch (error) {
-    outputChannel.appendLine(`[error] ${error.message}`);
-    vscode.window.showErrorMessage(`AutoLuaEngine 打包失败: ${error.message}`);
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`小鱼精灵 打包失败: ${error.message}`);
   }
 }
 
 function resolvePackToolPath() {
-  const configPath = vscode.workspace.getConfiguration('autolua').get('packToolPath');
+  const configPath = vscode.workspace.getConfiguration('xiaoyv').get('packToolPath');
   if (configPath && String(configPath).trim()) {
     return String(configPath).trim();
   }
 
   const path = require('path');
-  return path.resolve(__dirname, '..', '..', '..', 'tools', 'pack', 'build', 'autolua_pack.exe');
+  return path.resolve(__dirname, '..', '..', '..', 'tools', 'pack', 'build', 'xiaoyv_pack.exe');
 }
 
 function ensurePackTool(toolPath) {
@@ -242,7 +242,7 @@ async function drainLogsAfter(afterId) {
   }
 
   if (!result.entries || result.entries.length === 0) {
-    outputChannel.appendLine('[log] no new entries');
+    outputChannel.appendLine('[日志] 没有新内容');
   }
 }
 
@@ -266,14 +266,14 @@ async function callJsonRpc(method, params) {
   });
 
   if (response.error) {
-    throw new Error(response.error.message || 'JSON-RPC error');
+    throw new Error(response.error.message || 'JSON-RPC 响应错误');
   }
 
   return response.result;
 }
 
 function readConnectionConfig() {
-  const config = vscode.workspace.getConfiguration('autolua');
+  const config = vscode.workspace.getConfiguration('xiaoyv');
   return {
     adbPath: config.get('adbPath'),
     host: config.get('host') || '127.0.0.1',
@@ -322,7 +322,7 @@ function postJson(host, port, body) {
         try {
           resolve(JSON.parse(responseText));
         } catch (error) {
-          reject(new Error(`Invalid JSON response: ${responseText}`));
+          reject(new Error(`无效的 JSON 响应：${responseText}`));
         }
       });
     });

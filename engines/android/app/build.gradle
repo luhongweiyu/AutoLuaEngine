@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace "com.autolua.engine"
+    namespace "com.xiaoyv.engine"
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.autolua.engine"
+        applicationId "com.xiaoyv.engine"
         minSdk 23
         targetSdk 34
         versionCode 1
@@ -30,6 +30,6 @@ android {
 
 dependencies {
     implementation "androidx.core:core:1.13.1"
-    // 让 WebView 在 HTML 的首段脚本执行前注入 AutoLua，页面可直接在初始化阶段调用 UI 桥。
+    // 让 WebView 在 HTML 的首段脚本执行前注入 xiaoyv，页面可直接在初始化阶段调用 UI 桥。
     implementation "androidx.webkit:webkit:1.11.0"
 }

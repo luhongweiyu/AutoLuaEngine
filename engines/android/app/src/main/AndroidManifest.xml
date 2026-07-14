@@ -3,7 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- Android 10 及以下访问 /sdcard/AutoLuaEngine/scripts 的传统存储权限。 -->
+    <!-- Android 10 及以下访问 /sdcard/xiaoyv/scripts 的传统存储权限。 -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
@@ -31,12 +31,6 @@
         </activity>
 
         <activity
-            android:name=".ScriptDialogActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize"
-            android:exported="false"
-            android:theme="@style/ScriptDialogTheme" />
-
-        <activity
             android:name=".ScriptWebActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:exported="false"
@@ -57,6 +51,10 @@
 
         <service
             android:name=".FloatingControlService"
+            android:exported="false" />
+
+        <service
+            android:name=".ScriptDialogOverlayService"
             android:exported="false" />
 
         <service
@@ -100,7 +98,7 @@
         <!-- 包内 HTML、JS、CSS、图片由 WebView 通过 content URI 读取，不在磁盘解压。 -->
         <provider
             android:name=".ScriptPackageResources"
-            android:authorities="com.autolua.engine.package"
+            android:authorities="com.xiaoyv.engine.package"
             android:exported="false"
             android:grantUriPermissions="false" />
     </application>

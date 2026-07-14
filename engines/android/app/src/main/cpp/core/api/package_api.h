@@ -9,7 +9,7 @@
 
 class AlpkgPackage;
 
-namespace autolua::api {
+namespace xiaoyv::api {
 
 /**
  * 在当前脚本 native 工作线程绑定一个 ALPKG 包。
@@ -43,4 +43,4 @@ bool readActiveAlpkgResource(
         std::string* error
 );
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AutoLuaEngine UI 示例</title>
+  <title>小鱼精灵 UI 示例</title>
   <style>
     :root { color-scheme: light; }
     body { margin: 0; padding: 24px; color: #1f2937; background: #f5f7fa; font: 16px sans-serif; }
@@ -35,11 +35,11 @@
     const status = document.getElementById('status');
 
     document.getElementById('submit').addEventListener('click', () => {
-      AutoLua.emit('submit', { name: nameInput.value });
+      xiaoyv.emit('submit', { name: nameInput.value });
     });
-    document.getElementById('close').addEventListener('click', () => AutoLua.close());
+    document.getElementById('close').addEventListener('click', () => xiaoyv.close());
 
-    AutoLua.onMessage = (data) => {
+    xiaoyv.onMessage = (data) => {
       status.textContent = data && data.message ? data.message : JSON.stringify(data);
     };
   </script>

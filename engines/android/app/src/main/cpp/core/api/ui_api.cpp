@@ -16,7 +16,7 @@
 #include "../../engine/json_value.h"
 #include "../../platform/android_bridge.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 namespace {
 
 /**
@@ -306,4 +306,4 @@ std::string uiLastError() {
     return gUiLastError;
 }
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

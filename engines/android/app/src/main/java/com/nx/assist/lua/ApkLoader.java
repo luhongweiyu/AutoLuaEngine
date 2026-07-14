@@ -5,7 +5,7 @@ package com.nx.assist.lua;
 
 import android.content.Context;
 
-import com.autolua.engine.AndroidHostBridge;
+import com.xiaoyv.engine.AndroidHostBridge;
 
 import java.io.File;
 

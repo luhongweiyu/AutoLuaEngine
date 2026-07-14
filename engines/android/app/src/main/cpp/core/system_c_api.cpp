@@ -146,7 +146,7 @@ extern "C" const EngineApi* engine_getApi() {
  * 写入 Android logcat 和 native 日志缓冲。
  */
 extern "C" int engine_print(const char* text) {
-    autolua::api::runtimePrint(text == nullptr ? "" : text);
+    xiaoyv::api::runtimePrint(text == nullptr ? "" : text);
     gRuntimeLastError.clear();
     return 1;
 }
@@ -157,7 +157,7 @@ extern "C" int engine_print(const char* text) {
  * 当前和 engine_print 同级别输出，保留独立入口方便后续区分 print 与 log。
  */
 extern "C" int engine_logPrint(const char* text) {
-    autolua::api::runtimeLogPrint(text == nullptr ? "" : text);
+    xiaoyv::api::runtimeLogPrint(text == nullptr ? "" : text);
     gRuntimeLastError.clear();
     return 1;
 }
@@ -189,7 +189,7 @@ extern "C" int engine_sleepInterruptible(
     }
 
     CInterruptContext interrupt{shouldInterrupt, userData};
-    bool ok = autolua::api::runtimeSleep(
+    bool ok = xiaoyv::api::runtimeSleep(
             durationMs,
             shouldInterrupt == nullptr ? nullptr : cInterruptAdapter,
             shouldInterrupt == nullptr ? nullptr : &interrupt
@@ -243,7 +243,7 @@ extern "C" int engine_readAlpkgFile(
     }
 
     std::string error;
-    if (!autolua::api::readActiveAlpkgResource(relativePath, &gAlpkgResourceData, &error)) {
+    if (!xiaoyv::api::readActiveAlpkgResource(relativePath, &gAlpkgResourceData, &error)) {
         setRuntimeError(error.empty() ? "读取 ALPKG 资源失败" : error);
         return 0;
     }
@@ -261,7 +261,7 @@ extern "C" int engine_readAlpkgFile(
  * 这里直接转发到 runtime_api，保持 Lua/JS/Go/插件看到同一套时间语义。
  */
 extern "C" long long engine_systemTime() {
-    return autolua::api::runtimeSystemTimeMs();
+    return xiaoyv::api::runtimeSystemTimeMs();
 }
 
 /**
@@ -270,7 +270,7 @@ extern "C" long long engine_systemTime() {
  * 起点由对应脚本运行时在顶层任务开始前记录，当前 Lua 主任务和全部子线程共享。
  */
 extern "C" long long engine_tickCount() {
-    return autolua::api::runtimeTickCountMs();
+    return xiaoyv::api::runtimeTickCountMs();
 }
 
 /**
@@ -285,12 +285,12 @@ extern "C" int engine_capture(int* width, int* height, unsigned char** pixels) {
         return 0;
     }
 
-    autolua::api::ScreenFrame frame;
-    if (!autolua::api::captureScreen(&frame)) {
+    xiaoyv::api::ScreenFrame frame;
+    if (!xiaoyv::api::captureScreen(&frame)) {
         *width = 0;
         *height = 0;
         *pixels = nullptr;
-        gScreenLastError = autolua::api::screenLastError();
+        gScreenLastError = xiaoyv::api::screenLastError();
         return 0;
     }
 
@@ -305,22 +305,22 @@ extern "C" int engine_capture(int* width, int* height, unsigned char** pixels) {
  * 开启锁帧。
  */
 extern "C" void engine_keepCapture() {
-    autolua::api::keepScreenCapture();
+    xiaoyv::api::keepScreenCapture();
 }
 
 /**
  * 取消锁帧。
  */
 extern "C" void engine_releaseCapture() {
-    autolua::api::releaseScreenCapture();
+    xiaoyv::api::releaseScreenCapture();
 }
 
 /**
  * 设置截图缓存时间，单位毫秒。
  */
 extern "C" int engine_setCaptureCacheMs(int durationMs) {
-    if (!autolua::api::setScreenCaptureCacheMs(durationMs)) {
-        gScreenLastError = autolua::api::screenLastError();
+    if (!xiaoyv::api::setScreenCaptureCacheMs(durationMs)) {
+        gScreenLastError = xiaoyv::api::screenLastError();
         return 0;
     }
 
@@ -356,8 +356,8 @@ extern "C" int engine_findColors(
         return 0;
     }
 
-    autolua::api::找色坐标 colorPoint;
-    bool found = autolua::api::在屏幕中多点找色(
+    xiaoyv::api::找色坐标 colorPoint;
+    bool found = xiaoyv::api::在屏幕中多点找色(
             x1,
             y1,
             x2,
@@ -371,7 +371,7 @@ extern "C" int engine_findColors(
     point->x = colorPoint.x;
     point->y = colorPoint.y;
     if (!found) {
-        gColorLastError = autolua::api::取找色错误();
+        gColorLastError = xiaoyv::api::取找色错误();
         return 0;
     }
 
@@ -392,8 +392,8 @@ extern "C" const char* engine_findColorsLastError() {
  * Lua 的 touchDown 和后续 JS/Go 的同类调用都走这里，再进入 input_api。
  */
 extern "C" int engine_touchDown(int id, int x, int y) {
-    if (!autolua::api::inputTouchDown(id, x, y)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputTouchDown(id, x, y)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -404,8 +404,8 @@ extern "C" int engine_touchDown(int id, int x, int y) {
  * 移动已按下的模拟手指。
  */
 extern "C" int engine_touchMove(int id, int x, int y) {
-    if (!autolua::api::inputTouchMove(id, x, y)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputTouchMove(id, x, y)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -416,8 +416,8 @@ extern "C" int engine_touchMove(int id, int x, int y) {
  * 弹起模拟手指。
  */
 extern "C" int engine_touchUp(int id) {
-    if (!autolua::api::inputTouchUp(id)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputTouchUp(id)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -428,8 +428,8 @@ extern "C" int engine_touchUp(int id) {
  * 按下一个按键不弹起。
  */
 extern "C" int engine_keyDown(const char* keyCode) {
-    if (!autolua::api::inputKeyDown(keyCode)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputKeyDown(keyCode)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -440,8 +440,8 @@ extern "C" int engine_keyDown(const char* keyCode) {
  * 弹起一个按键。
  */
 extern "C" int engine_keyUp(const char* keyCode) {
-    if (!autolua::api::inputKeyUp(keyCode)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputKeyUp(keyCode)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -452,8 +452,8 @@ extern "C" int engine_keyUp(const char* keyCode) {
  * 按一下按键并弹起。
  */
 extern "C" int engine_keyPress(const char* keyCode) {
-    if (!autolua::api::inputKeyPress(keyCode)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputKeyPress(keyCode)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -464,8 +464,8 @@ extern "C" int engine_keyPress(const char* keyCode) {
  * 模拟输入文字。
  */
 extern "C" int engine_inputText(const char* text) {
-    if (!autolua::api::inputText(text)) {
-        gInputLastError = autolua::api::inputLastError();
+    if (!xiaoyv::api::inputText(text)) {
+        gInputLastError = xiaoyv::api::inputLastError();
         return 0;
     }
     gInputLastError.clear();
@@ -473,11 +473,11 @@ extern "C" int engine_inputText(const char* text) {
 }
 
 /**
- * 锁定 AutoLuaEngine 输入法。
+ * 锁定 小鱼精灵 输入法。
  */
 extern "C" int engine_imeLock() {
-    if (!autolua::api::imeLock()) {
-        gImeLastError = autolua::api::imeLastError();
+    if (!xiaoyv::api::imeLock()) {
+        gImeLastError = xiaoyv::api::imeLastError();
         return 0;
     }
     gImeLastError.clear();
@@ -485,11 +485,11 @@ extern "C" int engine_imeLock() {
 }
 
 /**
- * 通过已锁定的 AutoLuaEngine 输入法提交完整 Unicode 文本。
+ * 通过已锁定的 小鱼精灵 输入法提交完整 Unicode 文本。
  */
 extern "C" int engine_imeSetText(const char* text) {
-    if (!autolua::api::imeSetText(text)) {
-        gImeLastError = autolua::api::imeLastError();
+    if (!xiaoyv::api::imeSetText(text)) {
+        gImeLastError = xiaoyv::api::imeLastError();
         return 0;
     }
     gImeLastError.clear();
@@ -500,8 +500,8 @@ extern "C" int engine_imeSetText(const char* text) {
  * 恢复 imeLock 前保存的系统默认输入法。
  */
 extern "C" int engine_imeUnlock() {
-    if (!autolua::api::imeUnlock()) {
-        gImeLastError = autolua::api::imeLastError();
+    if (!xiaoyv::api::imeUnlock()) {
+        gImeLastError = xiaoyv::api::imeLastError();
         return 0;
     }
     gImeLastError.clear();
@@ -520,7 +520,7 @@ extern "C" const char* engine_imeLastError() {
  */
 extern "C" const char* engine_getRunEnvType() {
     static thread_local std::string envType;
-    envType = autolua::api::getRunEnvType();
+    envType = xiaoyv::api::getRunEnvType();
     return envType.c_str();
 }
 
@@ -539,12 +539,12 @@ extern "C" const char* engine_inputLastError() {
  */
 extern "C" long long engine_uiOpen(const char* surface, const char* specJson) {
     long long sessionId = 0;
-    if (!autolua::api::openUiSurface(
+    if (!xiaoyv::api::openUiSurface(
             surface == nullptr ? "" : surface,
             specJson == nullptr ? "{}" : specJson,
             &sessionId
     )) {
-        gUiLastError = autolua::api::uiLastError();
+        gUiLastError = xiaoyv::api::uiLastError();
         return 0;
     }
 
@@ -556,8 +556,8 @@ extern "C" long long engine_uiOpen(const char* surface, const char* specJson) {
  * 更新脚本 UI 会话。
  */
 extern "C" int engine_uiUpdate(long long sessionId, const char* specJson) {
-    if (!autolua::api::updateUiSurface(sessionId, specJson == nullptr ? "{}" : specJson)) {
-        gUiLastError = autolua::api::uiLastError();
+    if (!xiaoyv::api::updateUiSurface(sessionId, specJson == nullptr ? "{}" : specJson)) {
+        gUiLastError = xiaoyv::api::uiLastError();
         return 0;
     }
 
@@ -569,8 +569,8 @@ extern "C" int engine_uiUpdate(long long sessionId, const char* specJson) {
  * 向 HTML 页面发送 JSON 消息。
  */
 extern "C" int engine_uiPostMessage(long long sessionId, const char* messageJson) {
-    if (!autolua::api::postUiMessage(sessionId, messageJson == nullptr ? "null" : messageJson)) {
-        gUiLastError = autolua::api::uiLastError();
+    if (!xiaoyv::api::postUiMessage(sessionId, messageJson == nullptr ? "null" : messageJson)) {
+        gUiLastError = xiaoyv::api::uiLastError();
         return 0;
     }
 
@@ -582,8 +582,8 @@ extern "C" int engine_uiPostMessage(long long sessionId, const char* messageJson
  * 关闭一个脚本 UI 会话。
  */
 extern "C" int engine_uiClose(long long sessionId) {
-    if (!autolua::api::closeUiSurface(sessionId)) {
-        gUiLastError = autolua::api::uiLastError();
+    if (!xiaoyv::api::closeUiSurface(sessionId)) {
+        gUiLastError = xiaoyv::api::uiLastError();
         return 0;
     }
 
@@ -608,14 +608,14 @@ extern "C" const char* engine_uiWaitEventInterruptible(
         void* userData
 ) {
     CInterruptContext interrupt{shouldInterrupt, userData};
-    if (!autolua::api::waitUiEvent(
+    if (!xiaoyv::api::waitUiEvent(
             sessionId,
             timeoutMs,
             shouldInterrupt == nullptr ? nullptr : cInterruptAdapter,
             shouldInterrupt == nullptr ? nullptr : &interrupt,
             &gUiEventResult
     )) {
-        gUiLastError = autolua::api::uiLastError();
+        gUiLastError = xiaoyv::api::uiLastError();
         gUiEventResult.clear();
         return gUiEventResult.c_str();
     }
@@ -628,7 +628,7 @@ extern "C" const char* engine_uiWaitEventInterruptible(
  * 关闭所有脚本 UI 会话。
  */
 extern "C" void engine_uiCloseAll() {
-    autolua::api::closeAllUiSurfaces();
+    xiaoyv::api::closeAllUiSurfaces();
     gUiLastError.clear();
 }
 

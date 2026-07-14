@@ -97,7 +97,7 @@ typedef struct EngineApi {
 } EngineApi;
 
 /**
- * AutoLuaEngine native 稳定 C ABI。
+ * 小鱼精灵 native 稳定 C ABI。
  *
  * 真实逻辑在 core/api；本文件只暴露跨语言稳定入口。语言绑定层只负责参数转换
  * 和返回值封装，不在 Lua/JS/Go 各自重复实现命令逻辑。
@@ -310,14 +310,14 @@ int engine_keyPress(const char* keyCode);
 int engine_inputText(const char* text);
 
 /**
- * 锁定 AutoLuaEngine 输入法。
+ * 锁定 小鱼精灵 输入法。
  *
  * 成功时保存原默认输入法并切换到本应用输入法。该操作只走 Root helper，不走其他路线。
  */
 int engine_imeLock();
 
 /**
- * 通过已锁定的 AutoLuaEngine 输入法提交完整 Unicode 文本。
+ * 通过已锁定的 小鱼精灵 输入法提交完整 Unicode 文本。
  */
 int engine_imeSetText(const char* text);
 

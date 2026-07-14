@@ -693,7 +693,7 @@ void packProject(
 }
 
 void printUsage() {
-    std::cout << "用法：autolua_pack.exe <项目文件夹> [输出文件]\n";
+    std::cout << "用法：xiaoyv_pack.exe <项目文件夹> [输出文件]\n";
     std::cout << "项目根目录使用 alpkg.json；缺失时自动创建默认配置，入口为 main.lua。\n";
 }
 

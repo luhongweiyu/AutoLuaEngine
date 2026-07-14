@@ -17,7 +17,7 @@ extern "C" {
 
 namespace {
 
-constexpr const char* kLogTag = "AutoLuaEngine";
+constexpr const char* kLogTag = "小鱼精灵";
 
 // 当前执行位置只属于 native 工作线程。阻塞期间保留 currentTask，停止回调仍能判断
 // 应该终止哪个子任务；vmOwned 则明确区分当前是否可以访问 Lua VM。
@@ -338,7 +338,7 @@ std::shared_ptr<LuaTaskScheduler::LuaTask> LuaTaskScheduler::createTask(
 }
 
 std::string LuaTaskScheduler::executeTask(const std::shared_ptr<LuaTask>& task) {
-    autolua::api::ScopedAlpkgPackageContext packageContext(runtime_->package());
+    xiaoyv::api::ScopedAlpkgPackageContext packageContext(runtime_->package());
     enterVm(task.get());
     task->status.store(TaskState::Running);
 

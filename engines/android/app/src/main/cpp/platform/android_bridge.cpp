@@ -559,7 +559,7 @@ void AndroidBridge::init(JavaVM* javaVm) {
         gBridgeClass = nullptr;
     }
 
-    jclass localClass = env->FindClass("com/autolua/engine/AndroidHostBridge");
+    jclass localClass = env->FindClass("com/xiaoyv/engine/AndroidHostBridge");
     if (localClass == nullptr) {
         clearExceptionIfNeeded(env);
         return;
@@ -611,7 +611,7 @@ bool AndroidBridge::prepareRootHelper() {
 
 RootStatusResult AndroidBridge::rootStatus() {
     JNIEnv* env = getEnv();
-    jmethodID methodId = staticMethod(env, "rootStatus", "()Lcom/autolua/engine/RootStatus;");
+    jmethodID methodId = staticMethod(env, "rootStatus", "()Lcom/xiaoyv/engine/RootStatus;");
     if (env == nullptr || methodId == nullptr) {
         return rootStatusFailure("root status method is not available");
     }
@@ -684,7 +684,7 @@ ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, siz
     jmethodID methodId = staticMethod(
             env,
             "captureRootScreen",
-            "(Ljava/nio/ByteBuffer;I)Lcom/autolua/engine/ScreenCaptureResult;"
+            "(Ljava/nio/ByteBuffer;I)Lcom/xiaoyv/engine/ScreenCaptureResult;"
     );
     if (env == nullptr || methodId == nullptr) {
         return captureFailure("root capture method is not available");

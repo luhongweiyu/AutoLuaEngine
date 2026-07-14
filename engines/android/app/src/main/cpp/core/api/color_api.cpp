@@ -10,7 +10,7 @@
 
 #include "screen_api.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 namespace {
 
 // 保持旧项目限制：单次多点找色最多解析 500 个颜色点，避免热路径动态分配。
@@ -604,4 +604,4 @@ std::string 取找色错误() {
     return g最近错误;
 }
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

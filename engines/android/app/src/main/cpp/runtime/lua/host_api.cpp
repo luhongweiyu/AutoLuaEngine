@@ -310,7 +310,7 @@ int luaSleep(lua_State* state) {
         return luaL_error(state, "sleep duration is too large");
     }
 
-    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 
@@ -608,7 +608,7 @@ int luaUiOpen(lua_State* state) {
     // 包内 HTML/图片资源不能通过普通 file:// 路径读取。运行时把当前包路径注入 web
     // 配置，Android 主进程据此从 ZIP 读取资源；普通 .lua 脚本不增加任何字段。
     if (surface != nullptr && std::string(surface) == "web") {
-        lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+        lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
         LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
         lua_pop(state, 1);
         std::string packagePath = runtime == nullptr ? "" : runtime->packagePath();
@@ -704,7 +704,7 @@ int luaUiWaitEvent(lua_State* state) {
         return luaL_error(state, "UI 等待时间必须在 -1 到 int 最大值之间");
     }
 
-    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 

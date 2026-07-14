@@ -11,7 +11,7 @@
 
 #include "../../platform/android_bridge.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 namespace {
 
 thread_local std::string gInputLastError;
@@ -144,4 +144,4 @@ const std::string& inputLastError() {
     return gInputLastError;
 }
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

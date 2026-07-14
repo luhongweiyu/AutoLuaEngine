@@ -7,7 +7,7 @@
 
 #include "runtime_api.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 
 /**
  * 创建一个脚本 UI 会话。
@@ -73,4 +73,4 @@ bool deliverUiEvent(
  */
 std::string uiLastError();
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

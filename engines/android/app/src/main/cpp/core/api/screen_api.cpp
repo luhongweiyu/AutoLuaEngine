@@ -11,7 +11,7 @@
 
 #include "../../platform/android_bridge.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 namespace {
 
 // 当前截图点阵固定按 RGBA8888 保存，因此每个像素占 4 字节。
@@ -212,4 +212,4 @@ long long screenCaptureFrameId() {
     return gCaptureFrameId;
 }
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

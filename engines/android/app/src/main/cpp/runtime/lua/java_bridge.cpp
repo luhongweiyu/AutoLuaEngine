@@ -26,8 +26,8 @@ extern "C" {
 
 namespace {
 
-constexpr const char* kJavaObjectMetatable = "AutoLuaEngine.JavaObject";
-constexpr const char* kJavaContextTokenKey = "AutoLuaEngine.JavaContextToken";
+constexpr const char* kJavaObjectMetatable = "xiaoyv.JavaObject";
+constexpr const char* kJavaContextTokenKey = "xiaoyv.JavaContextToken";
 
 /**
  * Java 对象在 Lua userdata 中保存的最小信息。
@@ -327,11 +327,11 @@ void initializeJavaCache(JNIEnv* env) {
     }
 
     bool classesReady =
-            cacheClass(env, "com/autolua/engine/interop/JavaInteropBridge", &gJavaCache.bridgeClass)
-            && cacheClass(env, "com/autolua/engine/interop/JavaMemberResult", &gJavaCache.memberResultClass)
-            && cacheClass(env, "com/autolua/engine/interop/JavaInvocationResult", &gJavaCache.invocationResultClass)
-            && cacheClass(env, "com/autolua/engine/interop/LuaTableValue", &gJavaCache.luaTableClass)
-            && cacheClass(env, "com/autolua/engine/interop/LuaCallback", &gJavaCache.luaCallbackClass)
+            cacheClass(env, "com/xiaoyv/engine/interop/JavaInteropBridge", &gJavaCache.bridgeClass)
+            && cacheClass(env, "com/xiaoyv/engine/interop/JavaMemberResult", &gJavaCache.memberResultClass)
+            && cacheClass(env, "com/xiaoyv/engine/interop/JavaInvocationResult", &gJavaCache.invocationResultClass)
+            && cacheClass(env, "com/xiaoyv/engine/interop/LuaTableValue", &gJavaCache.luaTableClass)
+            && cacheClass(env, "com/xiaoyv/engine/interop/LuaCallback", &gJavaCache.luaCallbackClass)
             && cacheClass(env, "java/lang/Object", &gJavaCache.objectClass)
             && cacheClass(env, "java/lang/Class", &gJavaCache.classClass)
             && cacheClass(env, "java/lang/String", &gJavaCache.stringClass)
@@ -361,17 +361,17 @@ void initializeJavaCache(JNIEnv* env) {
     gJavaCache.getMemberMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
             "getMember",
-            "(Ljava/lang/Object;Ljava/lang/String;)Lcom/autolua/engine/interop/JavaMemberResult;"
+            "(Ljava/lang/Object;Ljava/lang/String;)Lcom/xiaoyv/engine/interop/JavaMemberResult;"
     );
     gJavaCache.invokeMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
             "invoke",
-            "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Lcom/autolua/engine/interop/JavaInvocationResult;"
+            "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Lcom/xiaoyv/engine/interop/JavaInvocationResult;"
     );
     gJavaCache.constructMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
             "construct",
-            "(Ljava/lang/Class;[Ljava/lang/Object;)Lcom/autolua/engine/interop/JavaInvocationResult;"
+            "(Ljava/lang/Class;[Ljava/lang/Object;)Lcom/xiaoyv/engine/interop/JavaInvocationResult;"
     );
     gJavaCache.setMemberMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
@@ -381,7 +381,7 @@ void initializeJavaCache(JNIEnv* env) {
     gJavaCache.getIndexMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
             "getIndex",
-            "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/autolua/engine/interop/JavaInvocationResult;"
+            "(Ljava/lang/Object;Ljava/lang/Object;)Lcom/xiaoyv/engine/interop/JavaInvocationResult;"
     );
     gJavaCache.setIndexMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
@@ -1857,7 +1857,7 @@ void processLuaJavaCallbacks(lua_State* state) {
  * 队列。所有路线最终都通过同一个 Gate，避免多个线程同时访问 lua_State。
  */
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_autolua_engine_interop_LuaCallback_nativeInvoke(
+Java_com_xiaoyv_engine_interop_LuaCallback_nativeInvoke(
         JNIEnv* env,
         jclass clazz,
         jlong runtimeToken,
@@ -1904,7 +1904,7 @@ Java_com_autolua_engine_interop_LuaCallback_nativeInvoke(
                 : context->runtime->enterVmFromCallback();
         {
             std::lock_guard<std::recursive_mutex> callbackLock(context->luaCallbackMutex);
-            autolua::api::ScopedAlpkgPackageContext packageContext(
+            xiaoyv::api::ScopedAlpkgPackageContext packageContext(
                     context->runtime == nullptr ? nullptr : context->runtime->package()
             );
             result = invokeLuaCallback(

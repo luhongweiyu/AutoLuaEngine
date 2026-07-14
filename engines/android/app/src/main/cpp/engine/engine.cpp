@@ -91,7 +91,7 @@ std::string Engine::runLuaInternal(
     stopRequested_.store(false);
     pauseRequested_.store(false);
     controlCondition_.notify_all();
-    autolua::api::清空找色缓存();
+    xiaoyv::api::清空找色缓存();
 
     int taskId;
     {
@@ -108,7 +108,7 @@ std::string Engine::runLuaInternal(
 
     // 将当前包绑定到脚本线程。Lua 绑定、未来 JS/Go 绑定和插件 C ABI 都只能读取
     // 当前任务的 resource 条目；普通脚本传入空包会主动清空上一个任务的上下文。
-    autolua::api::ScopedAlpkgPackageContext packageContext(package);
+    xiaoyv::api::ScopedAlpkgPackageContext packageContext(package);
     LuaRuntime runtime;
     {
         std::lock_guard<std::mutex> lock(runtimeMutex_);
@@ -132,11 +132,11 @@ std::string Engine::runLuaInternal(
     }
     // 脚本结束后必须回收该任务打开的弹窗、HUD 和 HTML 页面。UI 宿主在 App 主进程，
     // 因此不能依赖 LuaRuntime 析构时的本地对象自动回收。
-    autolua::api::closeAllUiSurfaces();
+    xiaoyv::api::closeAllUiSurfaces();
     // 截图点阵只在本次脚本任务中保留。运行期间不主动清理，任务结束后统一释放，
     // 避免缓存跨脚本保留无意义内存，也确保 keepCapture 状态不会泄漏到下一次运行。
-    autolua::api::clearScreenCaptureCache();
-    autolua::api::清空找色缓存();
+    xiaoyv::api::clearScreenCaptureCache();
+    xiaoyv::api::清空找色缓存();
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 

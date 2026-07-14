@@ -262,10 +262,10 @@ const char* engine_imeLastError();
 
 规则：
 
-- `engine_imeLock` 保存当前默认输入法后，启用并切换到 AutoLuaEngine 输入法。
-- `engine_imeSetText` 只通过已经活动的 AutoLuaEngine 输入法提交 Unicode 文本；不会重复
+- `engine_imeLock` 保存当前默认输入法后，启用并切换到 小鱼精灵 输入法。
+- `engine_imeSetText` 只通过已经活动的 小鱼精灵 输入法提交 Unicode 文本；不会重复
   执行 Root 命令，也不回退到按键注入或无障碍。
-- `engine_imeUnlock` 恢复 lock 前保存的原默认输入法，并禁用 AutoLuaEngine 输入法。
+- `engine_imeUnlock` 恢复 lock 前保存的原默认输入法，并禁用 小鱼精灵 输入法。
 - `engine_imeLock` / `engine_imeUnlock` 只走 RootDaemon；调用失败通过
   `engine_imeLastError` 获取原因。
 

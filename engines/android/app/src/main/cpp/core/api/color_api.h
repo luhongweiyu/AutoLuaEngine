@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace autolua::api {
+namespace xiaoyv::api {
 
 /**
  * 找色返回坐标。
@@ -67,4 +67,4 @@ void 清空找色缓存();
  */
 std::string 取找色错误();
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

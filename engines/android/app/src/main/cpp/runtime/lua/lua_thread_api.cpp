@@ -14,7 +14,7 @@ extern "C" {
 
 namespace {
 
-constexpr const char* kThreadMetatable = "AutoLuaEngine.Thread";
+constexpr const char* kThreadMetatable = "小鱼精灵.Thread";
 
 /**
  * Lua 线程对象只保存运行时地址和任务 ID，不持有 native thread 所有权。

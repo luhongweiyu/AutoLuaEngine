@@ -77,7 +77,7 @@ typedef struct EngineApi {
 - `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前顶层脚本运行耗时，Lua 主任务和子线程共享起点。
 - `touch/key/inputText` 只走 Root helper 常驻进程，不走无障碍。
 - `imeLock/imeUnlock` 通过 Root helper 保存、切换和恢复系统输入法；`imeSetText` 通过
-  已锁定的 AutoLuaEngine 输入法提交 Unicode 文本，不执行额外 Root 命令。
+  已锁定的 小鱼精灵 输入法提交 Unicode 文本，不执行额外 Root 命令。
 - `uiOpen` 的 `surface` 当前为 `dialog`、`hud`、`web`；配置和消息参数均为 JSON 文本。
 - `uiWaitEvent` 返回 `{"type":...,"data":...}` JSON，`uiWaitEventInterruptible` 适用于
   需要响应脚本停止请求的语言运行时。

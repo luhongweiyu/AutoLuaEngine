@@ -12,7 +12,7 @@
 
 namespace {
 
-constexpr const char* kLogTag = "AutoLuaEngine";
+constexpr const char* kLogTag = "小鱼精灵";
 Engine gEngine;
 
 void logInfo(const char* message) {
@@ -38,7 +38,7 @@ std::string jStringToString(JNIEnv* env, jstring value) {
 } // namespace
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_autolua_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
+Java_com_xiaoyv_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
     (void) clazz;
 
     // 第一阶段只验证 native 库已经被正确加载。
@@ -53,7 +53,7 @@ Java_com_autolua_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_autolua_engine_NativeEngine_nativeCallJson(JNIEnv* env,
+Java_com_xiaoyv_engine_NativeEngine_nativeCallJson(JNIEnv* env,
                                                     jclass clazz,
                                                     jstring method,
                                                     jstring paramsJson,

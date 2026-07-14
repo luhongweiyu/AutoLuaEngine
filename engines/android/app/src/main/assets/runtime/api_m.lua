@@ -1,4 +1,4 @@
--- 文件用途：定义 AutoLuaEngine 自己的最小 m 命名空间脚本 API。
+-- 文件用途：定义 小鱼精灵 自己的最小 m 命名空间脚本 API。
 local host = assert(_G._host, "native host api is not registered")
 
 -- 当前只暴露已经整理过的最小脚本 API。
@@ -38,8 +38,8 @@ end
 
 local function waitDialog(handle)
     local event, errorMessage = host.ui.waitEvent(handle)
-    -- 无论用户确认、取消还是页面主动关闭，都释放 native 会话；Activity 已经结束时，
-    -- close 只会清理 native 侧记录，不会重新拉起界面。
+    -- 无论用户确认、取消还是窗口主动关闭，都释放 native 会话；对话框悬浮层已经结束时，
+    -- close 只会清理 native 侧记录，不会重新创建窗口。
     host.ui.close(handle)
     if not event then
         return nil, errorMessage
@@ -201,7 +201,7 @@ function m.hud.waitEvent(id, timeoutMs)
     return host.ui.waitEvent(handle, timeoutMs)
 end
 
--- HTML 页面支持本地文件、任意 URL 和 HTML 字符串。页面可调用 AutoLua.emit(type, data)
+-- HTML 页面支持本地文件、任意 URL 和 HTML 字符串。页面可调用 xiaoyv.emit(type, data)
 -- 向脚本发送事件；脚本用 postMessage 向页面推送数据。
 m.web = {}
 

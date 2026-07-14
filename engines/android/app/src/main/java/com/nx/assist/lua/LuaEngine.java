@@ -6,7 +6,7 @@ package com.nx.assist.lua;
 import android.content.Context;
 import android.util.Log;
 
-import com.autolua.engine.AndroidHostBridge;
+import com.xiaoyv.engine.AndroidHostBridge;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;

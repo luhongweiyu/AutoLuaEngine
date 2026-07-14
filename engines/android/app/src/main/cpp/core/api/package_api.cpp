@@ -7,7 +7,7 @@
 
 #include "../../runtime/lua/alpkg_package.h"
 
-namespace autolua::api {
+namespace xiaoyv::api {
 namespace {
 
 // 每个脚本运行时在线程内独立保存自己的包身份，禁止跨任务或包外脚本借用资源。
@@ -47,4 +47,4 @@ bool readActiveAlpkgResource(
     return gActivePackage->readResourceFile(relativePath, data, error);
 }
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

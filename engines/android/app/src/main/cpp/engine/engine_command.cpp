@@ -249,7 +249,7 @@ std::string drainLogs(const JsonValue& params) {
 /**
  * 接收 App 主进程的脚本 UI 事件。
  *
- * Dialog Activity、HUD Service 和 WebView Activity 都通过本机 EngineHttpServer 调用
+ * Dialog Overlay Service、HUD Service 和 WebView Activity 都通过本机 EngineHttpServer 调用
  * ui.event。事件只写入 native UI 会话队列，绝不在 Android 主线程直接进入 Lua VM。
  */
 std::string deliverUiEventCommand(const JsonValue& params) {
@@ -269,7 +269,7 @@ std::string deliverUiEventCommand(const JsonValue& params) {
     }
 
     const JsonValue* data = params.get("data");
-    bool accepted = autolua::api::deliverUiEvent(
+    bool accepted = xiaoyv::api::deliverUiEvent(
             sessionId,
             eventType,
             data == nullptr ? "null" : jsonValueToString(*data)
@@ -351,7 +351,7 @@ std::string commandResult(Engine& engine,
     }
 
     if (method == "ui.closeAll") {
-        autolua::api::closeAllUiSurfaces();
+        xiaoyv::api::closeAllUiSurfaces();
         return "{\"closed\":true}";
     }
 

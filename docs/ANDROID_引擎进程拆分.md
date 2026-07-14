@@ -12,7 +12,7 @@
 插件进程 :ps PluginService / 扩展能力
 ```
 
-AutoLuaEngine 后续目标：
+小鱼精灵 后续目标：
 
 ```text
 主进程
@@ -64,7 +64,7 @@ App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访
 2026-06-25 已按旧项目方向完成第一版独立进程拆分：
 
 ```text
-主进程 com.autolua.engine
+主进程 com.xiaoyv.engine
 ├─ MainActivity
 ├─ FloatingControlService
 ├─ RootDaemonService / RootDaemonManager
@@ -73,7 +73,7 @@ App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访
 RootDaemon（uid=0）
 └─ RootDaemonMain：受认证的本机 Root 命令服务
 
-引擎进程 com.autolua.engine:engine
+引擎进程 com.xiaoyv.engine:engine
 ├─ EngineService
 ├─ EngineHttpServer
 ├─ NativeEngine
@@ -175,7 +175,7 @@ Manifest：
 验收：
 
 ```text
-adb shell ps -A | findstr autolua
+adb shell ps -A | findstr xiaoyv
 ```
 
 应能看到主进程和 `:engine` 进程。
@@ -183,8 +183,8 @@ adb shell ps -A | findstr autolua
 当前验证：
 
 ```text
-u0_a51 ... com.autolua.engine
-u0_a51 ... com.autolua.engine:engine
+u0_a51 ... com.xiaoyv.engine
+u0_a51 ... com.xiaoyv.engine:engine
 ```
 
 ### 4.4 脚本结束后的进程回收

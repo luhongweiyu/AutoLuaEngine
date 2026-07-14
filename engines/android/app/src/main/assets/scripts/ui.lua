@@ -31,7 +31,7 @@ end
 
 local page, pageError = m.web.open({
     file = "ui_demo.html",
-    title = "AutoLuaEngine UI 示例",
+    title = "小鱼精灵 UI 示例",
 })
 if not page then
     m.hud.hide("ui_status")

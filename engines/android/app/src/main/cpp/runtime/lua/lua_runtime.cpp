@@ -109,7 +109,7 @@ std::string LuaRuntime::runPackage(
             state_,
             bootstrap,
             std::strlen(bootstrap),
-            "@autolua-runtime",
+            "@xiaoyv-runtime",
             "t"
     );
     if (bootstrapStatus != LUA_OK) {
@@ -154,10 +154,10 @@ std::string LuaRuntime::prepareRun(bool (*shouldInterrupt)(void*), void* control
     shouldInterrupt_ = shouldInterrupt;
     controlContext_ = controlContext;
     lua_pushlightuserdata(state_, this);
-    lua_setfield(state_, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    lua_setfield(state_, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
 
     // tickCount 表示整个脚本任务的运行时间，所有 native 子线程共享同一个起点。
-    autolua::api::runtimeMarkScriptStart();
+    xiaoyv::api::runtimeMarkScriptStart();
     configureTaskState(state_);
     return "";
 }
@@ -212,7 +212,7 @@ int LuaRuntime::loadPackageChunk(
         const char* chunkName,
         std::string* error) {
     LuaRuntime* runtime = nullptr;
-    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
     runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
     if (runtime == nullptr || runtime->package_ == nullptr) {
@@ -331,7 +331,7 @@ LuaRuntime* LuaRuntime::fromState(lua_State* state) {
     if (state == nullptr) {
         return nullptr;
     }
-    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
     return runtime;
@@ -417,7 +417,7 @@ void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
     // Lua 任务处理，不再依赖创建 LuaRuntime 的固定 OS 线程。
     processLuaJavaCallbacks(state);
 
-    lua_getfield(state, LUA_REGISTRYINDEX, "AutoLuaEngineRuntime");
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
     LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
     lua_pop(state, 1);
 

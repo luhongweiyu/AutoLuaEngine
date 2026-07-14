@@ -5,7 +5,7 @@
 
 #include <string>
 
-namespace autolua::api {
+namespace xiaoyv::api {
 
 /**
  * 脚本停止状态查询函数。
@@ -60,4 +60,4 @@ long long runtimeSystemTimeMs();
  */
 long long runtimeTickCountMs();
 
-} // namespace autolua::api
+} // namespace xiaoyv::api

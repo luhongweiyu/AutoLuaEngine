@@ -540,7 +540,7 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         if (lislalpha(ls->current) || ls->current >= 0xc0) {  /* identifier or reserved word? */
           TString *ts;
           do {
-            /* AutoLuaEngine: UTF-8 中文标识符支持。
+            /* 小鱼精灵: UTF-8 中文标识符支持。
             ** Lua 官方只识别 ASCII 标识符；这里按 UTF-8 首字节长度保存
             ** 非 ASCII 字节序列，让 `_G.中文` 和 `_G["中".."文"]`
             ** 使用同一个原始 UTF-8 字符串键。
