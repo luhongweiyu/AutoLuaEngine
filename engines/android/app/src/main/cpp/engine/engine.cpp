@@ -15,6 +15,11 @@
 
 namespace {
 
+// 这些文本会作为脚本运行结果返回给 App、IDE 和其他宿主；状态码仍由 statusJson 保持英文协议值。
+constexpr const char* kAlreadyRunningMessage = "已有脚本正在运行";
+constexpr const char* kLuaRunFailurePrefix = "Lua 执行失败：";
+constexpr const char* kLuaLoadFailurePrefix = "Lua 加载失败：";
+
 std::string escapeJsonString(const std::string& text) {
     std::ostringstream output;
 
@@ -81,7 +86,7 @@ std::string Engine::runLuaInternal(
     // Lua VM 任务状态和停止/暂停控制位。
     std::unique_lock<std::mutex> runLock(runMutex_, std::try_to_lock);
     if (!runLock.owns_lock()) {
-        return "Engine is already running";
+        return kAlreadyRunningMessage;
     }
 
     if (!initialized_) {
@@ -140,7 +145,8 @@ std::string Engine::runLuaInternal(
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 
-    if (result.rfind("Lua run failed:", 0) == 0 || result.rfind("Lua load failed:", 0) == 0) {
+    if (result.rfind(kLuaRunFailurePrefix, 0) == 0
+            || result.rfind(kLuaLoadFailurePrefix, 0) == 0) {
         task.markFailed(result);
     } else {
         task.markFinished(result);
@@ -164,7 +170,7 @@ std::string Engine::statusJson(int taskId) const {
     bool found = resolvedTaskId != 0 && resolvedTaskId == lastTaskId_;
     std::string status = found ? lastStatus_ : "unknown";
     std::string result = found ? lastResult_ : "";
-    std::string error = found ? lastError_ : "task is not found";
+    std::string error = found ? lastError_ : "未找到脚本任务";
 
     std::ostringstream output;
     output << "{";

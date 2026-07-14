@@ -28,7 +28,7 @@ public:
 
         skipWhitespace();
         if (offset_ != text_.size()) {
-            setError(error, "json has trailing characters");
+            setError(error, "JSON 后存在多余字符");
             return false;
         }
         return true;
@@ -51,7 +51,7 @@ private:
 
     bool parseValue(JsonValue* value, std::string* error) {
         if (offset_ >= text_.size()) {
-            setError(error, "json value is empty");
+            setError(error, "JSON 值为空");
             return false;
         }
 
@@ -83,13 +83,13 @@ private:
             return parseNumber(value, error);
         }
 
-        setError(error, "json value type is invalid");
+        setError(error, "JSON 值类型无效");
         return false;
     }
 
     bool parseObject(JsonValue* value, std::string* error) {
         if (!consume('{')) {
-            setError(error, "json object must start with {");
+            setError(error, "JSON 对象必须以 { 开始");
             return false;
         }
 
@@ -109,7 +109,7 @@ private:
 
             skipWhitespace();
             if (!consume(':')) {
-                setError(error, "json object key must be followed by :");
+                setError(error, "JSON 对象键后必须跟随 :");
                 return false;
             }
 
@@ -126,18 +126,18 @@ private:
                 return true;
             }
             if (!consume(',')) {
-                setError(error, "json object item must be followed by , or }");
+                setError(error, "JSON 对象项后必须跟随 , 或 }");
                 return false;
             }
         }
 
-        setError(error, "json object is incomplete");
+        setError(error, "JSON 对象不完整");
         return false;
     }
 
     bool parseArray(JsonValue* value, std::string* error) {
         if (!consume('[')) {
-            setError(error, "json array must start with [");
+            setError(error, "JSON 数组必须以 [ 开始");
             return false;
         }
 
@@ -162,18 +162,18 @@ private:
                 return true;
             }
             if (!consume(',')) {
-                setError(error, "json array item must be followed by , or ]");
+                setError(error, "JSON 数组项后必须跟随 , 或 ]");
                 return false;
             }
         }
 
-        setError(error, "json array is incomplete");
+        setError(error, "JSON 数组不完整");
         return false;
     }
 
     bool parseString(std::string* value, std::string* error) {
         if (!consume('"')) {
-            setError(error, "json string must start with quote");
+            setError(error, "JSON 字符串必须以引号开始");
             return false;
         }
 
@@ -190,7 +190,7 @@ private:
             }
 
             if (offset_ >= text_.size()) {
-                setError(error, "json string escape is incomplete");
+                setError(error, "JSON 字符串转义不完整");
                 return false;
             }
             char escape = text_[offset_++];
@@ -221,32 +221,32 @@ private:
                     }
                     break;
                 default:
-                    setError(error, "json string escape is invalid");
+                    setError(error, "JSON 字符串转义无效");
                     return false;
             }
         }
 
-        setError(error, "json string is incomplete");
+        setError(error, "JSON 字符串不完整");
         return false;
     }
 
     bool appendUnicodeEscape(std::string* output, std::string* error) {
         int codePoint = 0;
         if (!readHexCodeUnit(&codePoint)) {
-            setError(error, "json unicode escape is invalid");
+            setError(error, "JSON Unicode 转义无效");
             return false;
         }
 
         // 支持代理对，保证 IDE 传入的 emoji 或扩展字符不会被拆坏。
         if (codePoint >= 0xD800 && codePoint <= 0xDBFF) {
             if (offset_ + 2 > text_.size() || text_[offset_] != '\\' || text_[offset_ + 1] != 'u') {
-                setError(error, "json unicode surrogate pair is incomplete");
+                setError(error, "JSON Unicode 代理对不完整");
                 return false;
             }
             offset_ += 2;
             int low = 0;
             if (!readHexCodeUnit(&low) || low < 0xDC00 || low > 0xDFFF) {
-                setError(error, "json unicode surrogate pair is invalid");
+                setError(error, "JSON Unicode 代理对无效");
                 return false;
             }
             codePoint = 0x10000 + ((codePoint - 0xD800) << 10) + (low - 0xDC00);
@@ -311,14 +311,14 @@ private:
                 ++offset_;
             }
         } else {
-            setError(error, "json number integer part is invalid");
+            setError(error, "JSON 数字整数部分无效");
             return false;
         }
 
         if (peek() == '.') {
             ++offset_;
             if (!(peek() >= '0' && peek() <= '9')) {
-                setError(error, "json number decimal part is invalid");
+                setError(error, "JSON 数字小数部分无效");
                 return false;
             }
             while (peek() >= '0' && peek() <= '9') {
@@ -332,7 +332,7 @@ private:
                 ++offset_;
             }
             if (!(peek() >= '0' && peek() <= '9')) {
-                setError(error, "json number exponent is invalid");
+                setError(error, "JSON 数字指数部分无效");
                 return false;
             }
             while (peek() >= '0' && peek() <= '9') {
@@ -344,7 +344,7 @@ private:
         char* end = nullptr;
         double number = std::strtod(numberText.c_str(), &end);
         if (end == numberText.c_str() || *end != '\0') {
-            setError(error, "json number parse failed");
+            setError(error, "JSON 数字解析失败");
             return false;
         }
         *value = JsonValue::makeNumber(number);
@@ -357,7 +357,7 @@ private:
                       std::string* error) {
         std::string expected(literal);
         if (text_.compare(offset_, expected.size(), expected) != 0) {
-            setError(error, "json literal is invalid");
+            setError(error, "JSON 字面量无效");
             return false;
         }
         offset_ += expected.size();

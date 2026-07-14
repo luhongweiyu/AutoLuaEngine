@@ -59,22 +59,22 @@ public final class ScreenCaptureResult {
             long captureDurationMs
     ) {
         if (pixels == null || pixels.length == 0) {
-            return failure("screen capture pixel buffer is empty");
+            return failure("截图点阵缓冲为空");
         }
 
         if (width <= 0 || height <= 0) {
-            return failure("screen capture size is invalid");
+            return failure("截图尺寸无效");
         }
 
         long expectedLengthLong = (long) width * (long) height * 4L;
         if (expectedLengthLong > Integer.MAX_VALUE) {
-            return failure("screen capture pixel buffer is too large");
+            return failure("截图点阵缓冲过大");
         }
 
         int rowStride = width * 4;
         int expectedLength = (int) expectedLengthLong;
         if (pixels.length < expectedLength) {
-            return failure("screen capture pixel buffer is incomplete");
+            return failure("截图点阵缓冲不完整");
         }
 
         return new ScreenCaptureResult(
@@ -101,21 +101,21 @@ public final class ScreenCaptureResult {
             long captureDurationMs
     ) {
         if (targetBuffer == null || !targetBuffer.isDirect()) {
-            return failure("screen capture native buffer is not direct");
+            return failure("截图原生缓冲不是直接缓冲区");
         }
 
         if (width <= 0 || height <= 0) {
-            return failure("screen capture size is invalid");
+            return failure("截图尺寸无效");
         }
 
         long expectedLengthLong = (long) width * (long) height * 4L;
         if (expectedLengthLong > Integer.MAX_VALUE) {
-            return failure("screen capture pixel buffer is too large");
+            return failure("截图点阵缓冲过大");
         }
 
         int expectedLength = (int) expectedLengthLong;
         if (pixelBytes < expectedLength || targetBuffer.capacity() < expectedLength) {
-            return failure("screen capture native buffer is incomplete");
+            return failure("截图原生缓冲不完整");
         }
 
         targetBuffer.position(0);
@@ -142,21 +142,21 @@ public final class ScreenCaptureResult {
             long captureDurationMs
     ) {
         if (buffer == null || !buffer.isDirect()) {
-            return failure("screen capture pixel buffer is not direct");
+            return failure("截图点阵缓冲不是直接缓冲区");
         }
 
         if (width <= 0 || height <= 0) {
-            return failure("screen capture size is invalid");
+            return failure("截图尺寸无效");
         }
 
         long expectedLengthLong = (long) width * (long) height * 4L;
         if (expectedLengthLong > Integer.MAX_VALUE) {
-            return failure("screen capture pixel buffer is too large");
+            return failure("截图点阵缓冲过大");
         }
 
         int expectedLength = (int) expectedLengthLong;
         if (buffer.capacity() < expectedLength) {
-            return failure("screen capture pixel buffer is incomplete");
+            return failure("截图点阵缓冲不完整");
         }
 
         buffer.position(0);

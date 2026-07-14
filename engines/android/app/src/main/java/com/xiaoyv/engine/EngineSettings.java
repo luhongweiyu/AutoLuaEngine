@@ -39,7 +39,7 @@ public final class EngineSettings {
 
     public static void setHttpPort(Context context, int port) {
         if (!isValidPort(port)) {
-            throw new IllegalArgumentException("http port must be between 1024 and 65535");
+            throw new IllegalArgumentException("HTTP 端口必须在 1024 到 65535 之间");
         }
 
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

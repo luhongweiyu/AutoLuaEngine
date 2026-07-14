@@ -29,16 +29,24 @@ final class RootDaemonClient {
         if (token == null) {
             throw new IOException("RootDaemon 认证令牌不存在");
         }
-        return openAuthenticatedSocket(token, timeoutMs);
+        return openAuthenticatedSocket(token, RootDaemonProtocol.port(context), timeoutMs);
     }
 
     static boolean isReady(Context context) {
         String token = readToken(context);
-        return token != null && isReady(token, RootDaemonProtocol.CONNECT_TIMEOUT_MS);
+        return token != null && isReady(
+                context,
+                token,
+                RootDaemonProtocol.CONNECT_TIMEOUT_MS
+        );
     }
 
-    static boolean isReady(String token, int timeoutMs) {
-        try (Socket socket = openAuthenticatedSocket(token, timeoutMs)) {
+    static boolean isReady(Context context, String token, int timeoutMs) {
+        try (Socket socket = openAuthenticatedSocket(
+                token,
+                RootDaemonProtocol.port(context),
+                timeoutMs
+        )) {
             RootDaemonProtocol.writeLine(socket.getOutputStream(), "ping");
             return RootDaemonProtocol.isOk(
                     RootDaemonProtocol.readLine(socket.getInputStream()),
@@ -55,11 +63,20 @@ final class RootDaemonClient {
      * APK 覆盖安装或主进程重启时，旧 daemon 可能在 owner watchdog 检查前短暂响应 ping；
      * 只有 owner PID 一致才能复用，避免刚建立音量键订阅后旧 daemon 随即退出。
      */
-    static boolean isOwnedBy(String token, int expectedOwnerPid, int timeoutMs) {
+    static boolean isOwnedBy(
+            Context context,
+            String token,
+            int expectedOwnerPid,
+            int timeoutMs
+    ) {
         if (expectedOwnerPid <= 0) {
             return false;
         }
-        try (Socket socket = openAuthenticatedSocket(token, timeoutMs)) {
+        try (Socket socket = openAuthenticatedSocket(
+                token,
+                RootDaemonProtocol.port(context),
+                timeoutMs
+        )) {
             RootDaemonProtocol.writeLine(
                     socket.getOutputStream(),
                     RootDaemonProtocol.OWNER_PID_COMMAND
@@ -71,12 +88,16 @@ final class RootDaemonClient {
         }
     }
 
-    static boolean requestShutdown(String token) {
+    static boolean requestShutdown(Context context, String token) {
         if (token == null || token.isEmpty()) {
             return false;
         }
 
-        try (Socket socket = openAuthenticatedSocket(token, RootDaemonProtocol.CONNECT_TIMEOUT_MS)) {
+        try (Socket socket = openAuthenticatedSocket(
+                token,
+                RootDaemonProtocol.port(context),
+                RootDaemonProtocol.CONNECT_TIMEOUT_MS
+        )) {
             RootDaemonProtocol.writeLine(
                     socket.getOutputStream(),
                     RootDaemonProtocol.SHUTDOWN_COMMAND
@@ -154,15 +175,15 @@ final class RootDaemonClient {
         return true;
     }
 
-    private static Socket openAuthenticatedSocket(String token, int timeoutMs) throws IOException {
-        if (!isValidToken(token)) {
+    private static Socket openAuthenticatedSocket(String token, int port, int timeoutMs) throws IOException {
+        if (!isValidToken(token) || !RootDaemonProtocol.isDaemonPort(port)) {
             throw new IOException("RootDaemon 认证令牌无效");
         }
 
         Socket socket = new Socket();
         try {
             socket.connect(
-                    new InetSocketAddress(InetAddress.getByName("127.0.0.1"), RootDaemonProtocol.PORT),
+                    new InetSocketAddress(InetAddress.getByName("127.0.0.1"), port),
                     timeoutMs
             );
             socket.setSoTimeout(Math.max(timeoutMs, RootDaemonProtocol.AUTH_TIMEOUT_MS));

@@ -52,7 +52,7 @@ void setFunctionField(lua_State* state, int tableIndex, const char* name, lua_CF
 int luaCheckInt(lua_State* state, int index, const char* name) {
     lua_Integer value = luaL_checkinteger(state, index);
     if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
-        luaL_error(state, "%s is out of int range", name);
+        luaL_error(state, "%s 超出整数范围", name);
         return 0;
     }
     return static_cast<int>(value);
@@ -112,14 +112,14 @@ bool luaTableToJson(
         std::unordered_set<const void*>* visitingTables
 ) {
     if (depth > 32) {
-        *error = "UI 配置 table 嵌套层级过深";
+        *error = "UI 配置表嵌套层级过深";
         return false;
     }
 
     int absoluteIndex = lua_absindex(state, index);
     const void* tablePointer = lua_topointer(state, absoluteIndex);
     if (tablePointer != nullptr && !visitingTables->insert(tablePointer).second) {
-        *error = "UI 配置 table 不能循环引用";
+        *error = "UI 配置表不能循环引用";
         return false;
     }
 
@@ -160,7 +160,7 @@ bool luaTableToJson(
                 if (tablePointer != nullptr) {
                     visitingTables->erase(tablePointer);
                 }
-                *error = "UI 配置 table 的键只能是字符串或整数";
+                *error = "UI 配置表的键只能是字符串或整数";
                 return false;
             }
 
@@ -233,7 +233,7 @@ bool luaValueToJson(
         case LUA_TTABLE:
             return luaTableToJson(state, index, output, error, depth, visitingTables);
         default:
-            *error = "UI 配置只支持 nil、boolean、number、string 和 table";
+            *error = "UI 配置只支持空值、布尔值、数字、字符串和表";
             return false;
     }
 }
@@ -304,10 +304,10 @@ int luaPrint(lua_State* state) {
 int luaSleep(lua_State* state) {
     lua_Integer duration = luaL_checkinteger(state, 1);
     if (duration < 0) {
-        return luaL_error(state, "sleep duration must be greater than or equal to 0");
+        return luaL_error(state, "休眠时间必须大于等于 0 毫秒");
     }
     if (duration > std::numeric_limits<int>::max()) {
-        return luaL_error(state, "sleep duration is too large");
+        return luaL_error(state, "休眠时间过大");
     }
 
     lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
@@ -339,7 +339,7 @@ int luaSleep(lua_State* state) {
             const char* error = engine_runtimeLastError();
             return luaL_error(
                     state,
-                    error == nullptr || error[0] == '\0' ? "script stopped" : error
+                    error == nullptr || error[0] == '\0' ? "脚本已停止" : error
             );
         }
     } while (true);
@@ -348,7 +348,7 @@ int luaSleep(lua_State* state) {
         const char* error = engine_runtimeLastError();
         return luaL_error(
                 state,
-                error == nullptr || error[0] == '\0' ? "script stopped" : error
+                error == nullptr || error[0] == '\0' ? "脚本已停止" : error
         );
     }
 

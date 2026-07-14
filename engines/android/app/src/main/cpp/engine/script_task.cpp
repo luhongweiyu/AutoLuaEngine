@@ -63,18 +63,24 @@ std::string ScriptTask::statusName() const {
 }
 
 std::string ScriptTask::summary() const {
-    std::string text = "task#";
-    text += std::to_string(taskId_);
-    text += " ";
-    text += statusName();
-
+    // taskId 和机器状态已经通过 JSON 字段独立返回；这里仅提供可直接展示给用户的中文结果。
     if (status_ == ScriptTaskStatus::Finished) {
-        text += ": ";
-        text += result_;
-    } else if (status_ == ScriptTaskStatus::Failed) {
-        text += ": ";
-        text += error_;
+        return result_.empty() ? "脚本执行完成" : result_;
     }
-
-    return text;
+    if (status_ == ScriptTaskStatus::Failed) {
+        return error_.empty() ? "脚本运行失败" : error_;
+    }
+    if (status_ == ScriptTaskStatus::Running) {
+        return "脚本运行中";
+    }
+    if (status_ == ScriptTaskStatus::Pausing) {
+        return "脚本暂停中";
+    }
+    if (status_ == ScriptTaskStatus::Paused) {
+        return "脚本已暂停";
+    }
+    if (status_ == ScriptTaskStatus::Stopping) {
+        return "脚本停止中";
+    }
+    return "脚本未启动";
 }

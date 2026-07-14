@@ -37,6 +37,7 @@ final class RootDaemonManager {
         synchronized (LOCK) {
             String previousToken = RootDaemonClient.readToken(appContext);
             if (previousToken != null && RootDaemonClient.isOwnedBy(
+                    appContext,
                     previousToken,
                     android.os.Process.myPid(),
                     RootDaemonProtocol.CONNECT_TIMEOUT_MS
@@ -46,7 +47,7 @@ final class RootDaemonManager {
             }
 
             // 使用旧令牌尽力关闭同一 App 遗留的 daemon，再生成新令牌启动新的特权进程。
-            RootDaemonClient.requestShutdown(previousToken);
+            RootDaemonClient.requestShutdown(appContext, previousToken);
             closeProcessLocked();
 
             String token = createToken();
@@ -67,7 +68,11 @@ final class RootDaemonManager {
 
             long deadline = System.currentTimeMillis() + START_TIMEOUT_MS;
             while (System.currentTimeMillis() < deadline) {
-                if (RootDaemonClient.isReady(token, RootDaemonProtocol.CONNECT_TIMEOUT_MS)) {
+                if (RootDaemonClient.isReady(
+                        appContext,
+                        token,
+                        RootDaemonProtocol.CONNECT_TIMEOUT_MS
+                )) {
                     lastError = "";
                     return true;
                 }
@@ -91,7 +96,10 @@ final class RootDaemonManager {
     static void shutdown(Context context) {
         Context appContext = context == null ? null : context.getApplicationContext();
         synchronized (LOCK) {
-            RootDaemonClient.requestShutdown(RootDaemonClient.readToken(appContext));
+            RootDaemonClient.requestShutdown(
+                    appContext,
+                    RootDaemonClient.readToken(appContext)
+            );
             closeProcessLocked();
             deleteToken(appContext);
             lastError = "RootDaemon 已关闭";
@@ -109,7 +117,7 @@ final class RootDaemonManager {
         String command = "CLASSPATH="
                 + shellQuote(classPath)
                 + " app_process /system/bin com.xiaoyv.engine.RootDaemonMain"
-                + " --port " + RootDaemonProtocol.PORT
+                + " --port " + RootDaemonProtocol.port(context)
                 + " --token " + token
                 + " --owner-pid " + android.os.Process.myPid();
         Process process = new ProcessBuilder("su", "-c", command).start();

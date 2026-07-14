@@ -508,7 +508,6 @@ public final class MainActivity extends Activity {
     private void handleRootModeChanged(CompoundButton button, boolean enabled) {
         EngineSettings.setRootModeEnabled(this, enabled);
         RootDaemonService.setRootModeEnabled(this, enabled);
-        EngineService.setRootModeEnabled(this, enabled);
         setMessage(enabled ? "运行模式已切换为 Root 模式" : "运行模式已切换为无障碍优先");
         updateSettingsPermissionView();
     }

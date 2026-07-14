@@ -26,18 +26,18 @@ bool 执行输入法命令(bool succeeded, const char* error) {
 } // namespace
 
 bool imeLock() {
-    return 执行输入法命令(AndroidBridge::imeLock(), "ime lock failed");
+    return 执行输入法命令(AndroidBridge::imeLock(), "锁定小鱼精灵输入法失败");
 }
 
 bool imeSetText(const char* text) {
     return 执行输入法命令(
             AndroidBridge::imeSetText(text == nullptr ? "" : text),
-            "ime setText failed"
+            "通过小鱼精灵输入法设置文字失败"
     );
 }
 
 bool imeUnlock() {
-    return 执行输入法命令(AndroidBridge::imeUnlock(), "ime unlock failed");
+    return 执行输入法命令(AndroidBridge::imeUnlock(), "恢复系统输入法失败");
 }
 
 const std::string& imeLastError() {

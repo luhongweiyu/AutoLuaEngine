@@ -1,3 +1,3 @@
 -- 文件用途：内置示例脚本，用于验证脚本错误能正确返回到 App 和 IDE。
-print("about to trigger an expected error")
-error("expected lua runtime error")
+print("即将触发预期的脚本错误")
+error("预期的 Lua 运行时错误")

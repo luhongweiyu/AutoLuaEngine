@@ -70,7 +70,7 @@ public final class RootHelperBridge {
 
                 String[] fields = response.message.split("\t", 3);
                 if (fields.length != 3) {
-                    return ScreenCaptureResult.failure("root helper capture response is invalid");
+                    return ScreenCaptureResult.failure("Root 截图服务响应无效");
                 }
 
                 int frameWidth = parseInt(fields[0], 0);
@@ -95,7 +95,7 @@ public final class RootHelperBridge {
                 );
             } catch (IOException | RuntimeException exception) {
                 closeSessionLocked();
-                return ScreenCaptureResult.failure("root helper 截图失败：" + exception.getMessage());
+                return ScreenCaptureResult.failure("Root 截图服务执行失败：" + exception.getMessage());
             }
         }
     }
@@ -363,7 +363,7 @@ public final class RootHelperBridge {
                 while (targetBuffer.hasRemaining()) {
                     int readCount = rawChannel.read(targetBuffer);
                     if (readCount < 0) {
-                        throw new IOException("root helper pixel stream ended");
+                        throw new IOException("Root 截图服务点阵流提前结束");
                     }
                 }
                 targetBuffer.position(0);
@@ -376,7 +376,7 @@ public final class RootHelperBridge {
             while (offset < byteLength) {
                 int readCount = rawReader.read(bytes, offset, byteLength - offset);
                 if (readCount < 0) {
-                    throw new IOException("root helper pixel stream ended");
+                    throw new IOException("Root 截图服务点阵流提前结束");
                 }
                 offset += readCount;
             }

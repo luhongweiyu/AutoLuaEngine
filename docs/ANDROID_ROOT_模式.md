@@ -4,8 +4,11 @@
 
 ## 当前行为
 
-- App 主进程在启动或切换到 Root 模式时，通过 `RootDaemonService` 启动一次 RootDaemon。
+- App 主进程在启动或切换到 Root 模式时，通过 `RootDaemonService` 启动一次 RootDaemon；启动前
+  会先用已有令牌确认当前主进程持有的 daemon，已存在时不会再次执行 `su`。
 - RootDaemon 由 `su -c app_process` 创建，监听仅限本机的认证 socket；`:engine` 只连接它，绝不执行 `su`。
+- RootDaemon 端口由当前 Android 应用 UID 映射生成，不同安装包使用不同回环端口。保留旧版
+  `com.autolua.engine` 或其他测试包时，不会抢占 小鱼精灵 的 RootDaemon 端口。
 - `engine_capture` 缓存未命中时，通过当前 Android root 截图路线获取 RGBA 点阵。
 - `touchDown`、`touchMove`、`touchUp`、`keyDown`、`keyUp`、`keyPress`、`inputText`
   通过 RootDaemon 注入，不为每条命令拉起 `input` 外部进程。
@@ -16,6 +19,10 @@
 - 切换“音量键控制”只启停现有监听连接，绝不检查 Root、创建 RootDaemon 或执行 `su`。若
   当前 RootDaemon 已不存在，监听连接直接结束；重新打开 App 或重新切换 Root 模式才会按该
   模式重新准备 RootDaemon。
+- RootDaemonService 被系统按 `START_STICKY` 重建时同样只恢复已有音量键监听，不会执行
+  `su`。未知 Service Action 也不会进入 Root 初始化路径。
+- RootDaemon 正常初始化完成时不弹出“已就绪”提示，也不发送脚本状态广播；状态页通过
+  `device.info.rootRuntimeReady` 展示实时状态。初始化失败才会主动提示错误。
 - 失败时直接返回错误，不做路线兜底。
 
 强制停止 `:engine` 时，只会关闭引擎与 RootDaemon 的 socket。RootDaemon 仍由 App 主进程

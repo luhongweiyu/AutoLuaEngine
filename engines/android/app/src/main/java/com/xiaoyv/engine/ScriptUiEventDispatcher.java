@@ -46,7 +46,7 @@ public final class ScriptUiEventDispatcher {
             } catch (Exception exception) {
                 // UI 可能在脚本已停止后才收到最后一个生命周期回调，此时事件被 native
                 // 丢弃即可，不需要重新拉起引擎或重新打开页面。
-                Log.i(TAG, "script ui event ignored: " + exception.getMessage());
+                Log.i(TAG, "已忽略脚本 UI 事件：" + exception.getMessage());
             }
         });
     }

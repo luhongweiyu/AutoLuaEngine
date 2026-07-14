@@ -91,7 +91,7 @@ public final class EngineHttpServer {
         try {
             InetAddress loopback = InetAddress.getByName("127.0.0.1");
             serverSocket = new ServerSocket(port, 50, loopback);
-            Log.i(TAG, "engine http server started on 127.0.0.1:" + port);
+            Log.i(TAG, "引擎 HTTP 服务已启动：127.0.0.1:" + port);
 
             while (running) {
                 Socket socket = serverSocket.accept();
@@ -99,7 +99,7 @@ public final class EngineHttpServer {
             }
         } catch (IOException exception) {
             if (running) {
-                Log.e(TAG, "engine http server failed: " + exception.getMessage());
+                Log.e(TAG, "引擎 HTTP 服务异常：" + exception.getMessage());
             }
         } finally {
             running = false;
@@ -114,7 +114,7 @@ public final class EngineHttpServer {
             HttpResponse response = handleRequest(request);
             writeResponse(client.getOutputStream(), response);
         } catch (Exception exception) {
-            Log.e(TAG, "handle http request failed: " + exception.getMessage());
+            Log.e(TAG, "处理 HTTP 请求失败：" + exception.getMessage());
         }
     }
 
@@ -127,7 +127,7 @@ public final class EngineHttpServer {
         }
 
         if (!"POST".equals(request.method) || !"/jsonrpc".equals(request.path)) {
-            return HttpResponse.json(404, makePlainError("not found"));
+            return HttpResponse.json(404, makePlainError("未找到请求地址"));
         }
 
         Object id = JSONObject.NULL;
@@ -143,14 +143,14 @@ public final class EngineHttpServer {
             if (!nativeEnvelope.optBoolean("ok", false)) {
                 broadcastNativeCommandError(
                         method,
-                        nativeEnvelope.optString("error", "native command failed")
+                        nativeEnvelope.optString("error", "原生命令执行失败")
                 );
                 return HttpResponse.json(
                         200,
                         makeJsonRpcError(
                                 id,
                                 nativeEnvelope.optInt("code", -32000),
-                                nativeEnvelope.optString("error", "native command failed")
+                                nativeEnvelope.optString("error", "原生命令执行失败")
                         )
                 );
             }
@@ -178,7 +178,7 @@ public final class EngineHttpServer {
             return "{}";
         }
         if (!(params instanceof JSONObject)) {
-            throw new IllegalArgumentException("params must be an object");
+            throw new IllegalArgumentException("参数必须是对象");
         }
         return params.toString();
     }
@@ -252,12 +252,12 @@ public final class EngineHttpServer {
         String headerText = new String(headerBytes, StandardCharsets.ISO_8859_1);
         String[] lines = headerText.split("\\r?\\n");
         if (lines.length == 0) {
-            throw new IOException("empty http request");
+            throw new IOException("HTTP 请求为空");
         }
 
         String[] requestParts = lines[0].split(" ");
         if (requestParts.length < 2) {
-            throw new IOException("invalid http request line");
+            throw new IOException("HTTP 请求行无效");
         }
 
         Map<String, String> headers = new HashMap<>();
@@ -274,7 +274,7 @@ public final class EngineHttpServer {
 
         int contentLength = parseContentLength(headers);
         if (contentLength > MAX_BODY_BYTES) {
-            throw new IOException("request body is too large");
+            throw new IOException("HTTP 请求体过大");
         }
 
         byte[] bodyBytes = readExactBytes(inputStream, contentLength);
@@ -306,11 +306,11 @@ public final class EngineHttpServer {
             }
 
             if (outputStream.size() > 16 * 1024) {
-                throw new IOException("http headers are too large");
+                throw new IOException("HTTP 请求头过大");
             }
         }
 
-        throw new IOException("http header is incomplete");
+        throw new IOException("HTTP 请求头不完整");
     }
 
     private static int parseContentLength(Map<String, String> headers) throws IOException {
@@ -322,7 +322,7 @@ public final class EngineHttpServer {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException exception) {
-            throw new IOException("invalid content-length");
+            throw new IOException("Content-Length 无效");
         }
     }
 
@@ -333,7 +333,7 @@ public final class EngineHttpServer {
         while (offset < length) {
             int readCount = inputStream.read(buffer, offset, length - offset);
             if (readCount == -1) {
-                throw new IOException("http body is incomplete");
+                throw new IOException("HTTP 请求体不完整");
             }
             offset += readCount;
         }
@@ -373,7 +373,7 @@ public final class EngineHttpServer {
             throws JSONException {
         JSONObject error = new JSONObject();
         error.put("code", code);
-        error.put("message", message == null ? "unknown error" : message);
+        error.put("message", message == null ? "未知错误" : message);
 
         JSONObject response = new JSONObject();
         response.put("jsonrpc", "2.0");

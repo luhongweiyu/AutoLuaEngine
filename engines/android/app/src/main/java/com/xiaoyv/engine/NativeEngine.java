@@ -84,7 +84,7 @@ public final class NativeEngine {
             }
             return outputStream.toString(StandardCharsets.UTF_8.name());
         } catch (IOException exception) {
-            throw new IllegalStateException("read lua runtime asset failed: " + assetPath, exception);
+            throw new IllegalStateException("读取 Lua 运行时资源失败：" + assetPath, exception);
         }
     }
 

@@ -21,7 +21,7 @@ public final class RootScreenCaptureBridge {
 
     public static ScreenCaptureResult captureFrame(ByteBuffer targetBuffer, int targetCapacity) {
         if (!RootDaemonClient.isReady(AndroidHostBridge.appContext())) {
-            return ScreenCaptureResult.failure("RootDaemon 未就绪");
+            return ScreenCaptureResult.failure("Root 运行层未就绪");
         }
 
         return RootHelperBridge.captureFrame(0, 0, targetBuffer, targetCapacity);

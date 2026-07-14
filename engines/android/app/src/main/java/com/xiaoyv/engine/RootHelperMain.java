@@ -123,14 +123,14 @@ public final class RootHelperMain {
 
         Bitmap bitmap = SurfaceScreenCaptureBridge.captureBitmapForRootHelper(width, height);
         if (bitmap == null) {
-            writeLine(outputStream, "ERR\troot helper capture returned empty bitmap");
+            writeLine(outputStream, "ERR\tRoot 截图服务返回了空位图");
             return;
         }
         if (!Bitmap.Config.ARGB_8888.equals(bitmap.getConfig())) {
             Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
             bitmap.recycle();
             if (copy == null) {
-                writeLine(outputStream, "ERR\troot helper failed to copy hardware bitmap");
+                writeLine(outputStream, "ERR\tRoot 截图服务复制硬件位图失败");
                 return;
             }
             bitmap = copy;

@@ -208,19 +208,21 @@ u0_a51 ... com.xiaoyv.engine:engine
 Root 特权边界已从引擎进程移到 App 主进程：
 
 ```text
-MainActivity / FloatingControlService / Root 模式切换
+MainActivity 打开 / Root 模式切换 / device.setRootModeEnabled
     -> RootDaemonService（主进程）
     -> RootDaemonManager
     -> su -c app_process ... RootDaemonMain（uid=0）
 
 :engine 的 RootHelperBridge
-    -> 127.0.0.1:18381 认证 socket
+    -> 127.0.0.1:应用 UID 派生端口的认证 socket
     -> RootDaemonMain
     -> RootHelperMain 命令分发器
 ```
 
 RootDaemon 只监听回环地址，客户端必须先提交随机令牌。令牌保存在 App 私有目录，RootDaemon
 会监视主进程 PID；主进程消失时主动退出，避免遗留特权服务。
+悬浮窗重建、音量键开关和 RootDaemonService 的系统重建只会重连已有 socket，不会创建
+daemon 或执行 `su`。
 
 截图仍使用“文本头 + 原始 RGBA 帧”协议；触摸、按键和输入法切换使用短文本命令。RootDaemon
 由截图和 Root 输入注入共同复用，`imeLib.lock()` / `imeLib.unlock()` 才按系统要求执行输入法

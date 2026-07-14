@@ -65,7 +65,7 @@ public final class JavaInteropBridge {
      */
     public static JavaMemberResult getMember(Object target, String memberName) throws Exception {
         if (target == null) {
-            throw new NullPointerException("不能读取 null Java 对象的成员");
+            throw new NullPointerException("不能读取空 Java 对象的成员");
         }
         if (memberName == null || memberName.isEmpty()) {
             return JavaMemberResult.notFound();
@@ -115,7 +115,7 @@ public final class JavaInteropBridge {
             Object[] arguments
     ) throws Exception {
         if (target == null) {
-            throw new NullPointerException("不能调用 null Java 对象的方法");
+            throw new NullPointerException("不能调用空 Java 对象的方法");
         }
 
         boolean staticTarget = target instanceof Class<?>;
@@ -156,7 +156,7 @@ public final class JavaInteropBridge {
         Object[] safeArguments = arguments == null ? new Object[0] : arguments;
         if (targetType.isPrimitive()) {
             if (safeArguments.length != 1) {
-                throw new IllegalArgumentException("primitive 类型构造只接受一个参数");
+                throw new IllegalArgumentException("基础类型构造只接受一个参数");
             }
             Conversion conversion = convertValue(safeArguments[0], targetType);
             if (!conversion.valid) {
@@ -167,14 +167,14 @@ public final class JavaInteropBridge {
 
         if (targetType.isInterface()) {
             if (safeArguments.length != 1 || !isLuaCallbackSource(safeArguments[0])) {
-                throw new IllegalArgumentException("Java 接口需要一个 Lua function 或 table 参数");
+                throw new IllegalArgumentException("Java 接口需要一个 Lua 函数或表参数");
             }
             return JavaInvocationResult.value(createInterfaceProxy(targetType, safeArguments[0]));
         }
 
         if (targetType.isArray()) {
             if (safeArguments.length != 1) {
-                throw new IllegalArgumentException("Java 数组构造只接受长度或 Lua table");
+                throw new IllegalArgumentException("Java 数组构造只接受长度或 Lua 表");
             }
             if (safeArguments[0] instanceof Number) {
                 int length = checkedArrayLength((Number) safeArguments[0]);
@@ -182,7 +182,7 @@ public final class JavaInteropBridge {
             }
             Conversion conversion = convertValue(safeArguments[0], targetType);
             if (!conversion.valid) {
-                throw new IllegalArgumentException("Lua table 不能转换为 " + targetType.getName());
+                throw new IllegalArgumentException("Lua 表不能转换为 " + targetType.getName());
             }
             return JavaInvocationResult.value(conversion.value);
         }
@@ -205,7 +205,7 @@ public final class JavaInteropBridge {
      */
     public static void setMember(Object target, String memberName, Object value) throws Exception {
         if (target == null) {
-            throw new NullPointerException("不能写入 null Java 对象的成员");
+            throw new NullPointerException("不能写入空 Java 对象的成员");
         }
 
         boolean staticTarget = target instanceof Class<?>;
@@ -235,7 +235,7 @@ public final class JavaInteropBridge {
      */
     public static JavaInvocationResult getIndex(Object target, Object key) {
         if (target == null) {
-            throw new NullPointerException("不能读取 null Java 对象的下标");
+            throw new NullPointerException("不能读取空 Java 对象的下标");
         }
         if (target.getClass().isArray()) {
             return JavaInvocationResult.value(Array.get(target, checkedIndex(key)));
@@ -254,7 +254,7 @@ public final class JavaInteropBridge {
      */
     public static void setIndex(Object target, Object key, Object value) throws Exception {
         if (target == null) {
-            throw new NullPointerException("不能写入 null Java 对象的下标");
+            throw new NullPointerException("不能写入空 Java 对象的下标");
         }
         if (target.getClass().isArray()) {
             Class<?> componentType = target.getClass().getComponentType();
@@ -997,7 +997,7 @@ public final class JavaInteropBridge {
         }
         long index = ((Number) value).longValue();
         if (index < Integer.MIN_VALUE || index > Integer.MAX_VALUE) {
-            throw new IndexOutOfBoundsException("Java 下标超出 int 范围：" + index);
+            throw new IndexOutOfBoundsException("Java 下标超出整数范围：" + index);
         }
         return (int) index;
     }

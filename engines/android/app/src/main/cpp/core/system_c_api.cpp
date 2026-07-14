@@ -184,7 +184,8 @@ extern "C" int engine_sleepInterruptible(
         void* userData
 ) {
     if (durationMs < 0) {
-        setRuntimeError("sleep duration must be greater than or equal to 0");
+        // lastError 会直接返回给 Lua、JS、Go 和插件调用方，统一使用中文说明参数错误。
+        setRuntimeError("休眠时间必须大于等于 0 毫秒");
         return 0;
     }
 
@@ -196,7 +197,7 @@ extern "C" int engine_sleepInterruptible(
     );
 
     if (!ok) {
-        setRuntimeError("script stopped");
+        setRuntimeError("脚本已停止");
         return 0;
     }
 
@@ -281,7 +282,7 @@ extern "C" long long engine_tickCount() {
  */
 extern "C" int engine_capture(int* width, int* height, unsigned char** pixels) {
     if (width == nullptr || height == nullptr || pixels == nullptr) {
-        gScreenLastError = "screen capture output pointer is null";
+        gScreenLastError = "截图输出指针不能为空";
         return 0;
     }
 
@@ -352,7 +353,7 @@ extern "C" int engine_findColors(
         EnginePoint* point
 ) {
     if (point == nullptr) {
-        gColorLastError = "color find output point is null";
+        gColorLastError = "多点找色输出坐标不能为空";
         return 0;
     }
 

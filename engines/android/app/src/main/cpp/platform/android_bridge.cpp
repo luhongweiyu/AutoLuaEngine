@@ -263,14 +263,14 @@ RootStatusResult rootStatusFailure(const std::string& error) {
 RootProbeAttempt readProbeAttempt(JNIEnv* env, jobject attemptObject) {
     RootProbeAttempt attempt;
     if (env == nullptr || attemptObject == nullptr) {
-        attempt.error = "root probe attempt is empty";
+        attempt.error = "Root 探测记录为空";
         return attempt;
     }
 
     jclass attemptClass = env->GetObjectClass(attemptObject);
     if (attemptClass == nullptr) {
         clearExceptionIfNeeded(env);
-        attempt.error = "root probe attempt class is not available";
+        attempt.error = "Root 探测记录类不可用";
         return attempt;
     }
 
@@ -290,7 +290,7 @@ RootProbeAttempt readProbeAttempt(JNIEnv* env, jobject attemptObject) {
             || errorField == nullptr) {
         clearExceptionIfNeeded(env);
         env->DeleteLocalRef(attemptClass);
-        attempt.error = "root probe attempt fields are not available";
+        attempt.error = "Root 探测记录字段不可用";
         return attempt;
     }
 
@@ -373,13 +373,13 @@ ScreenCaptureResult readScreenCaptureResult(
         size_t* targetCapacity
 ) {
     if (env == nullptr || resultObject == nullptr) {
-        return captureFailure("root capture returned empty result");
+        return captureFailure("Root 截图返回结果为空");
     }
 
     jclass resultClass = env->GetObjectClass(resultObject);
     if (resultClass == nullptr) {
         clearExceptionIfNeeded(env);
-        return captureFailure("root capture result class is not available");
+        return captureFailure("Root 截图结果类不可用");
     }
 
     jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
@@ -406,7 +406,7 @@ ScreenCaptureResult readScreenCaptureResult(
             || closeMethod == nullptr) {
         clearExceptionIfNeeded(env);
         env->DeleteLocalRef(resultClass);
-        return captureFailure("root capture result fields are not available");
+        return captureFailure("Root 截图结果字段不可用");
     }
 
     ScreenCaptureResult result;
@@ -427,13 +427,13 @@ ScreenCaptureResult readScreenCaptureResult(
     if (result.success) {
         if (result.width <= 0 || result.height <= 0) {
             result.success = false;
-            result.error = "root capture size is invalid";
+            result.error = "Root 截图尺寸无效";
         } else if (result.pixelStride < 4) {
             result.success = false;
-            result.error = "root capture pixel stride is unsupported";
+            result.error = "Root 截图点阵步长不受支持";
         } else if (targetPixels == nullptr || targetCapacity == nullptr) {
             result.success = false;
-            result.error = "root capture target buffer is null";
+            result.error = "Root 截图目标缓冲不能为空";
         } else {
             int compactRowStride = result.width * 4;
             size_t targetSize = static_cast<size_t>(compactRowStride)
@@ -446,10 +446,10 @@ ScreenCaptureResult readScreenCaptureResult(
             if (pixelsArray == nullptr) {
                 if (*targetPixels == nullptr || *targetCapacity < targetSize) {
                     result.success = false;
-                    result.error = "root capture native cache is smaller than returned frame";
+                    result.error = "Root 截图原生缓冲小于返回帧";
                 } else if (result.pixelBytes < targetSize) {
                     result.success = false;
-                    result.error = "root capture native buffer is incomplete";
+                    result.error = "Root 截图原生缓冲不完整";
                 } else {
                     result.pixelBytes = targetSize;
                     result.rowStride = compactRowStride;
@@ -457,19 +457,19 @@ ScreenCaptureResult readScreenCaptureResult(
                 }
             } else if (sourceLength <= 0) {
                 result.success = false;
-                result.error = "root capture pixel array is empty";
+                result.error = "Root 截图点阵数组为空";
             } else if (static_cast<size_t>(sourceLength) < requiredSourceSize) {
                 result.success = false;
-                result.error = "root capture pixel buffer is incomplete";
+                result.error = "Root 截图点阵缓冲不完整";
             } else if (targetSize > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
                 result.success = false;
-                result.error = "root capture pixel buffer is too large for JNI copy";
+                result.error = "Root 截图点阵缓冲过大，无法通过 JNI 复制";
             } else {
                 if (*targetPixels == nullptr || *targetCapacity < targetSize) {
                     void* newBuffer = std::realloc(*targetPixels, targetSize);
                     if (newBuffer == nullptr) {
                         result.success = false;
-                        result.error = "root capture native cache memory is not enough";
+                        result.error = "Root 截图原生缓冲内存不足";
                     } else {
                         *targetPixels = static_cast<unsigned char*>(newBuffer);
                         *targetCapacity = targetSize;
@@ -490,7 +490,7 @@ ScreenCaptureResult readScreenCaptureResult(
                     jbyte* sourceBytes = env->GetByteArrayElements(pixelsArray, nullptr);
                     if (sourceBytes == nullptr) {
                         result.success = false;
-                        result.error = "root capture pixel array is not available";
+                        result.error = "Root 截图点阵数组不可用";
                     } else {
                         const auto* source = reinterpret_cast<const unsigned char*>(sourceBytes);
                         for (int y = 0; y < result.height; ++y) {
@@ -524,7 +524,7 @@ ScreenCaptureResult readScreenCaptureResult(
             }
         }
     } else if (result.error.empty()) {
-        result.error = "root capture failed";
+        result.error = "Root 截图失败";
     }
 
     env->CallVoidMethod(resultObject, closeMethod);
@@ -613,19 +613,19 @@ RootStatusResult AndroidBridge::rootStatus() {
     JNIEnv* env = getEnv();
     jmethodID methodId = staticMethod(env, "rootStatus", "()Lcom/xiaoyv/engine/RootStatus;");
     if (env == nullptr || methodId == nullptr) {
-        return rootStatusFailure("root status method is not available");
+        return rootStatusFailure("Root 状态方法不可用");
     }
 
     jobject statusObject = env->CallStaticObjectMethod(gBridgeClass, methodId);
     if (clearExceptionIfNeeded(env) || statusObject == nullptr) {
-        return rootStatusFailure("root status java call failed");
+        return rootStatusFailure("调用 Java Root 状态方法失败");
     }
 
     jclass statusClass = env->GetObjectClass(statusObject);
     if (statusClass == nullptr) {
         clearExceptionIfNeeded(env);
         env->DeleteLocalRef(statusObject);
-        return rootStatusFailure("root status class is not available");
+        return rootStatusFailure("Root 状态类不可用");
     }
 
     jfieldID availableField = env->GetFieldID(statusClass, "available", "Z");
@@ -645,7 +645,7 @@ RootStatusResult AndroidBridge::rootStatus() {
         clearExceptionIfNeeded(env);
         env->DeleteLocalRef(statusClass);
         env->DeleteLocalRef(statusObject);
-        return rootStatusFailure("root status fields are not available");
+        return rootStatusFailure("Root 状态字段不可用");
     }
 
     RootStatusResult status;
@@ -687,7 +687,7 @@ ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, siz
             "(Ljava/nio/ByteBuffer;I)Lcom/xiaoyv/engine/ScreenCaptureResult;"
     );
     if (env == nullptr || methodId == nullptr) {
-        return captureFailure("root capture method is not available");
+        return captureFailure("Root 截图方法不可用");
     }
 
     jobject targetBuffer = nullptr;
@@ -716,7 +716,7 @@ ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, siz
         env->DeleteLocalRef(targetBuffer);
     }
     if (clearExceptionIfNeeded(env)) {
-        return captureFailure("root capture java call failed");
+        return captureFailure("调用 Java Root 截图方法失败");
     }
 
     ScreenCaptureResult result = readScreenCaptureResult(env, resultObject, pixels, capacity);

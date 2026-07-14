@@ -99,7 +99,7 @@ long long LuaTaskScheduler::startChild(
     }
     if (!lua_isfunction(caller, callbackIndex)) {
         if (error != nullptr) {
-            *error = "线程回调参数必须是 function";
+            *error = "线程回调参数必须是函数";
         }
         return 0;
     }
@@ -158,7 +158,7 @@ long long LuaTaskScheduler::startChild(
             tasks_.erase(task->id);
         }
         if (error != nullptr) {
-            *error = "创建 native 子线程失败";
+            *error = "创建原生子线程失败";
         }
         return 0;
     }
@@ -347,7 +347,7 @@ std::string LuaTaskScheduler::executeTask(const std::shared_ptr<LuaTask>& task) 
     TaskState finalState = TaskState::Finished;
     if (callStatus != LUA_OK) {
         const char* luaError = lua_tostring(task->state, -1);
-        error = luaError == nullptr ? "Lua runtime error" : luaError;
+        error = luaError == nullptr ? "Lua 运行时错误" : luaError;
         lua_pop(task->state, 1);
         finalState = task->stopRequested.load() || runtime_->shouldInterruptNow(task->state)
                 ? TaskState::Stopped
@@ -365,12 +365,12 @@ std::string LuaTaskScheduler::executeTask(const std::shared_ptr<LuaTask>& task) 
     leaveVm();
 
     if (finalState == TaskState::Failed) {
-        return "Lua run failed: " + error;
+        return "Lua 执行失败：" + error;
     }
     if (finalState == TaskState::Stopped) {
-        return "Lua run failed: script stopped";
+        return "Lua 执行失败：脚本已停止";
     }
-    return "Lua script OK";
+    return "脚本执行完成";
 }
 
 void LuaTaskScheduler::runChildWorker(const std::shared_ptr<LuaTask>& task) {

@@ -55,7 +55,7 @@ final class RootVolumeKeyEventSource {
             if (!ensureStarted()) {
                 RootDaemonProtocol.writeLine(
                         outputStream,
-                        "ERR\tvolume input device unavailable"
+                        "ERR\t音量键输入设备不可用"
                 );
                 return;
             }

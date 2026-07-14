@@ -78,7 +78,7 @@ public final class RootDaemonMain {
             OutputStream outputStream = socket.getOutputStream();
             String authLine = RootDaemonProtocol.readLine(inputStream);
             if (!isAuthenticationLineValid(authLine)) {
-                RootDaemonProtocol.writeLine(outputStream, "ERR\tauth failed");
+                RootDaemonProtocol.writeLine(outputStream, "ERR\t认证失败");
                 return;
             }
 
@@ -204,7 +204,7 @@ public final class RootDaemonMain {
                 }
             }
 
-            if (port != RootDaemonProtocol.PORT || !RootDaemonClient.isValidToken(token)) {
+            if (!RootDaemonProtocol.isDaemonPort(port) || !RootDaemonClient.isValidToken(token)) {
                 return null;
             }
             return new DaemonArguments(port, token, ownerProcessId);

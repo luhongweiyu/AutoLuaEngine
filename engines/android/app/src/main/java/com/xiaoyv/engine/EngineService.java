@@ -32,15 +32,12 @@ public final class EngineService extends Service {
             "com.xiaoyv.engine.action.PAUSE_SCRIPT";
     public static final String ACTION_RESUME_SCRIPT =
             "com.xiaoyv.engine.action.RESUME_SCRIPT";
-    public static final String ACTION_SET_ROOT_MODE =
-            "com.xiaoyv.engine.action.SET_ROOT_MODE";
     public static final String ACTION_FORCE_STOP_ENGINE_PROCESS =
             "com.xiaoyv.engine.action.FORCE_STOP_ENGINE_PROCESS";
     public static final String ACTION_STATUS =
             "com.xiaoyv.engine.action.STATUS";
 
     public static final String EXTRA_SCRIPT_PATH = "scriptPath";
-    public static final String EXTRA_ENABLED = "enabled";
     public static final String EXTRA_STATE = "state";
     public static final String EXTRA_MESSAGE = "message";
 
@@ -94,13 +91,6 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
-    public static void setRootModeEnabled(Context context, boolean enabled) {
-        Intent intent = new Intent(context, EngineService.class);
-        intent.setAction(ACTION_SET_ROOT_MODE);
-        intent.putExtra(EXTRA_ENABLED, enabled);
-        context.startService(intent);
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
@@ -140,11 +130,6 @@ public final class EngineService extends Service {
 
         if (ACTION_RESUME_SCRIPT.equals(intent.getAction())) {
             requestScriptResume();
-            return START_STICKY;
-        }
-
-        if (ACTION_SET_ROOT_MODE.equals(intent.getAction())) {
-            setRootModeFromNative(intent.getBooleanExtra(EXTRA_ENABLED, true));
             return START_STICKY;
         }
 
@@ -280,31 +265,6 @@ public final class EngineService extends Service {
         }
     }
 
-    private void setRootModeFromNative(boolean enabled) {
-        try {
-            JSONObject result = callNativeCommand(
-                    "device.setRootModeEnabled",
-                    new JSONObject().put("enabled", enabled)
-            );
-            if (!enabled) {
-                broadcastStatus(STATE_FINISHED, "运行模式已切换为无障碍优先");
-                return;
-            }
-
-            String message = result.optBoolean("rootAvailable", false)
-                    ? "运行模式已切换为 Root 优先，Root 运行层已就绪"
-                    : "运行模式已切换为 Root 优先，但 Root 权限不可用";
-            broadcastStatus(
-                    result.optBoolean("rootAvailable", false) ? STATE_FINISHED : STATE_FAILED,
-                    message
-            );
-        } catch (JSONException exception) {
-            broadcastStatus(STATE_FAILED, "Root 模式参数错误：" + exception.getMessage());
-        } catch (RuntimeException exception) {
-            broadcastStatus(STATE_FAILED, "Root 模式切换失败：" + exception.getMessage());
-        }
-    }
-
     private static JSONObject callNativeCommand(String method, JSONObject params) {
         try {
             JSONObject envelope = new JSONObject(NativeEngine.callJson(
@@ -312,13 +272,13 @@ public final class EngineService extends Service {
                     params == null ? "{}" : params.toString()
             ));
             if (!envelope.optBoolean("ok", false)) {
-                throw new IllegalStateException(envelope.optString("error", "native command failed"));
+                throw new IllegalStateException(envelope.optString("error", "原生命令执行失败"));
             }
 
             JSONObject result = envelope.optJSONObject("result");
             return result == null ? new JSONObject() : result;
         } catch (JSONException exception) {
-            throw new IllegalStateException("native command json parse failed: " + method, exception);
+            throw new IllegalStateException("原生命令 JSON 解析失败：" + method, exception);
         }
     }
 

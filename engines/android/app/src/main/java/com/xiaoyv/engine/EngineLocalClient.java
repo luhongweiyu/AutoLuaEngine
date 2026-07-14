@@ -76,7 +76,7 @@ public final class EngineLocalClient {
         connection.disconnect();
 
         if (statusCode < 200 || statusCode >= 300) {
-            throw new IOException("HTTP " + statusCode + ": " + responseText);
+            throw new IOException("HTTP 请求失败（状态码 " + statusCode + "）：" + responseText);
         }
         return responseText;
     }

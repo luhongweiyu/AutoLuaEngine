@@ -54,7 +54,7 @@ std::string LuaRuntime::runText(
         bool (*shouldInterrupt)(void*),
         void* controlContext) {
     if (state_ == nullptr) {
-        return "LuaRuntime init failed";
+        return "Lua 执行失败：Lua 运行时初始化失败";
     }
 
     package_.reset();
@@ -66,17 +66,17 @@ std::string LuaRuntime::runText(
     int registryReference = LUA_NOREF;
     lua_State* executionState = createExecutionState(&registryReference);
     if (executionState == nullptr) {
-        return "LuaRuntime main thread init failed";
+        return "Lua 执行失败：Lua 主脚本线程初始化失败";
     }
 
     // 主脚本不在根状态运行，保证 Java 异步回调始终可以使用空闲根状态。
     int loadStatus = luaL_loadstring(executionState, code == nullptr ? "" : code);
     if (loadStatus != LUA_OK) {
         const char* error = lua_tostring(executionState, -1);
-        std::string message = error == nullptr ? "Lua load error" : error;
+        std::string message = error == nullptr ? "Lua 代码加载失败" : error;
         lua_pop(executionState, 1);
         luaL_unref(state_, LUA_REGISTRYINDEX, registryReference);
-        return "Lua load failed: " + message;
+        return "Lua 加载失败：" + message;
     }
 
     return executeLoadedChunk(executionState, registryReference);
@@ -88,10 +88,10 @@ std::string LuaRuntime::runPackage(
         bool (*shouldInterrupt)(void*),
         void* controlContext) {
     if (state_ == nullptr) {
-        return "LuaRuntime init failed";
+        return "Lua 执行失败：Lua 运行时初始化失败";
     }
     if (package == nullptr) {
-        return "Lua package is empty";
+        return "Lua 执行失败：脚本包为空";
     }
 
     package_ = package;
@@ -117,19 +117,19 @@ std::string LuaRuntime::runPackage(
         std::string message = error == nullptr ? "Lua 运行时引导加载失败" : error;
         lua_pop(state_, 1);
         package_.reset();
-        return "Lua load failed: " + message;
+        return "Lua 加载失败：" + message;
     }
     std::string bootstrapError = scheduler_->runBootstrap();
     if (!bootstrapError.empty()) {
         package_.reset();
-        return "Lua run failed: " + bootstrapError;
+        return "Lua 执行失败：" + bootstrapError;
     }
 
     int registryReference = LUA_NOREF;
     lua_State* executionState = createExecutionState(&registryReference);
     if (executionState == nullptr) {
         package_.reset();
-        return "LuaRuntime main thread init failed";
+        return "Lua 执行失败：Lua 主脚本线程初始化失败";
     }
 
     std::string loadError;
@@ -142,7 +142,7 @@ std::string LuaRuntime::runPackage(
     ) != LUA_OK) {
         luaL_unref(state_, LUA_REGISTRYINDEX, registryReference);
         package_.reset();
-        return "Lua load failed: " + loadError;
+        return "Lua 加载失败：" + loadError;
     }
 
     std::string result = executeLoadedChunk(executionState, registryReference);
@@ -426,7 +426,7 @@ void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {
     }
 
     if (runtime->shouldInterruptNow(state)) {
-        luaL_error(state, "script stopped");
+        luaL_error(state, "脚本已停止");
         return;
     }
 

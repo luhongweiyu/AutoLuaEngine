@@ -103,22 +103,22 @@ bool setErrorLocked(const std::string& error) {
  */
 bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
     if (!result.success) {
-        return setErrorLocked(result.error.empty() ? "root capture failed" : result.error);
+        return setErrorLocked(result.error.empty() ? "Root 截图失败" : result.error);
     }
 
     if (result.width <= 0 || result.height <= 0) {
-        return setErrorLocked("root capture size is invalid");
+        return setErrorLocked("Root 截图尺寸无效");
     }
 
     long long expectedLength = static_cast<long long>(result.width)
             * static_cast<long long>(result.height)
             * static_cast<long long>(kPixelBytes);
     if (expectedLength <= 0 || expectedLength > std::numeric_limits<int>::max()) {
-        return setErrorLocked("root capture pixel buffer is too large");
+        return setErrorLocked("Root 截图点阵缓冲过大");
     }
 
     if (result.pixelBytes < static_cast<size_t>(expectedLength)) {
-        return setErrorLocked("root capture pixel buffer is incomplete");
+        return setErrorLocked("Root 截图点阵缓冲不完整");
     }
 
     return true;
@@ -130,7 +130,7 @@ bool captureScreen(ScreenFrame* frame) {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
     if (frame == nullptr) {
-        setErrorLocked("screen capture output frame is null");
+        setErrorLocked("截图输出帧不能为空");
         return false;
     }
 
@@ -177,7 +177,7 @@ bool setScreenCaptureCacheMs(int durationMs) {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
     if (durationMs < 0) {
-        setErrorLocked("capture cache ms must be greater than or equal to 0");
+        setErrorLocked("截图缓存时间必须大于等于 0 毫秒");
         return false;
     }
 

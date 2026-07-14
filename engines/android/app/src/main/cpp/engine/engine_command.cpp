@@ -66,7 +66,7 @@ std::string boolText(bool value) {
 const JsonValue* requireField(const JsonValue& params, const std::string& name) {
     const JsonValue* value = params.get(name);
     if (value == nullptr) {
-        throw CommandError(-32602, name + " is required");
+        throw CommandError(-32602, name + " 参数不能为空");
     }
     return value;
 }
@@ -74,12 +74,12 @@ const JsonValue* requireField(const JsonValue& params, const std::string& name) 
 std::string requireString(const JsonValue& params, const std::string& name) {
     const JsonValue* value = requireField(params, name);
     if (!value->isString()) {
-        throw CommandError(-32602, name + " must be a string");
+        throw CommandError(-32602, name + " 参数必须是字符串");
     }
 
     std::string text = value->stringValue();
     if (trim(text).empty()) {
-        throw CommandError(-32602, name + " is required");
+        throw CommandError(-32602, name + " 参数不能为空");
     }
     return text;
 }
@@ -87,7 +87,7 @@ std::string requireString(const JsonValue& params, const std::string& name) {
 bool requireBool(const JsonValue& params, const std::string& name) {
     const JsonValue* value = requireField(params, name);
     if (!value->isBool()) {
-        throw CommandError(-32602, name + " must be a boolean");
+        throw CommandError(-32602, name + " 参数必须是布尔值");
     }
     return value->boolValue();
 }
@@ -167,7 +167,7 @@ std::string runScript(Engine& engine,
 
     std::string code = requireString(params, "code");
     std::string message = engine.runLuaText((luaRuntimeBootstrap + "\n" + code).c_str());
-    if (message == "Engine is already running") {
+    if (message == "已有脚本正在运行") {
         throw CommandError(-32000, "已有脚本正在运行");
     }
 
@@ -204,7 +204,7 @@ std::string runPackageScript(
     }
 
     std::string message = engine.runLuaPackage(package, luaRuntimeBootstrap.c_str());
-    if (message == "Engine is already running") {
+    if (message == "已有脚本正在运行") {
         throw CommandError(-32000, "已有脚本正在运行");
     }
 
@@ -255,17 +255,17 @@ std::string drainLogs(const JsonValue& params) {
 std::string deliverUiEventCommand(const JsonValue& params) {
     const JsonValue* sessionIdValue = requireField(params, "sessionId");
     if (!sessionIdValue->isNumber()) {
-        throw CommandError(-32602, "sessionId must be a number");
+        throw CommandError(-32602, "sessionId 参数必须是数字");
     }
 
     long long sessionId = sessionIdValue->longValue();
     if (sessionId <= 0) {
-        throw CommandError(-32602, "sessionId must be greater than 0");
+        throw CommandError(-32602, "sessionId 参数必须大于 0");
     }
 
     std::string eventType = params.stringOr("event", "event");
     if (eventType.empty()) {
-        throw CommandError(-32602, "event is required");
+        throw CommandError(-32602, "event 参数不能为空");
     }
 
     const JsonValue* data = params.get("data");
@@ -355,7 +355,7 @@ std::string commandResult(Engine& engine,
         return "{\"closed\":true}";
     }
 
-    throw CommandError(-32601, "method is not found: " + method);
+    throw CommandError(-32601, "未找到命令：" + method);
 }
 
 } // namespace
@@ -366,17 +366,17 @@ std::string handleEngineCommand(Engine& engine,
                                 const std::string& luaRuntimeBootstrap) {
     try {
         if (trim(method).empty()) {
-            throw CommandError(-32600, "method is required");
+            throw CommandError(-32600, "命令名称不能为空");
         }
 
         JsonValue params;
         std::string parseError;
         std::string paramsText = trim(paramsJson).empty() ? "{}" : paramsJson;
         if (!parseJsonText(paramsText, &params, &parseError)) {
-            throw CommandError(-32602, parseError.empty() ? "params json is invalid" : parseError);
+            throw CommandError(-32602, parseError.empty() ? "参数 JSON 无效" : parseError);
         }
         if (!params.isObject()) {
-            throw CommandError(-32602, "params must be an object");
+            throw CommandError(-32602, "参数必须是对象");
         }
 
         return okRaw(commandResult(engine, method, params, luaRuntimeBootstrap));
@@ -385,6 +385,6 @@ std::string handleEngineCommand(Engine& engine,
     } catch (const std::exception& error) {
         return errorJson(-32000, error.what());
     } catch (...) {
-        return errorJson(-32000, "native command failed");
+        return errorJson(-32000, "原生命令执行失败");
     }
 }

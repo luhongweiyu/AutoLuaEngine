@@ -31,10 +31,10 @@ std::string 小写文本(const char* text) {
 
 bool 校验手指参数(int id, int x, int y) {
     if (id < 0 || id > 4) {
-        return 设置输入错误("touch id must be between 0 and 4");
+        return 设置输入错误("手指编号必须在 0 到 4 之间");
     }
     if (x < 0 || y < 0) {
-        return 设置输入错误("touch x/y must be greater than or equal to 0");
+        return 设置输入错误("触摸坐标必须大于等于 0");
     }
     return true;
 }
@@ -58,7 +58,7 @@ int 解析按键码(const char* keyCodeText) {
 
     std::string value = 小写文本(keyCodeText);
     if (value.empty()) {
-        设置输入错误("keycode is empty");
+        设置输入错误("按键码不能为空");
         return 0;
     }
 
@@ -73,7 +73,7 @@ int 解析按键码(const char* keyCodeText) {
         return iterator->second;
     }
 
-    设置输入错误("unknown keycode: " + value);
+    设置输入错误("未知按键码：" + value);
     return 0;
 }
 
@@ -91,21 +91,21 @@ bool inputTouchDown(int id, int x, int y) {
     if (!校验手指参数(id, x, y)) {
         return false;
     }
-    return 执行输入命令(AndroidBridge::touchDown(id, x, y), "root touchDown failed");
+    return 执行输入命令(AndroidBridge::touchDown(id, x, y), "Root 按下手指失败");
 }
 
 bool inputTouchMove(int id, int x, int y) {
     if (!校验手指参数(id, x, y)) {
         return false;
     }
-    return 执行输入命令(AndroidBridge::touchMove(id, x, y), "root touchMove failed");
+    return 执行输入命令(AndroidBridge::touchMove(id, x, y), "Root 移动手指失败");
 }
 
 bool inputTouchUp(int id) {
     if (id < 0 || id > 4) {
-        return 设置输入错误("touch id must be between 0 and 4");
+        return 设置输入错误("手指编号必须在 0 到 4 之间");
     }
-    return 执行输入命令(AndroidBridge::touchUp(id), "root touchUp failed");
+    return 执行输入命令(AndroidBridge::touchUp(id), "Root 弹起手指失败");
 }
 
 bool inputKeyDown(const char* keyCodeText) {
@@ -113,7 +113,7 @@ bool inputKeyDown(const char* keyCodeText) {
     if (keyCode <= 0) {
         return false;
     }
-    return 执行输入命令(AndroidBridge::keyDown(keyCode), "root keyDown failed");
+    return 执行输入命令(AndroidBridge::keyDown(keyCode), "Root 按下按键失败");
 }
 
 bool inputKeyUp(const char* keyCodeText) {
@@ -121,7 +121,7 @@ bool inputKeyUp(const char* keyCodeText) {
     if (keyCode <= 0) {
         return false;
     }
-    return 执行输入命令(AndroidBridge::keyUp(keyCode), "root keyUp failed");
+    return 执行输入命令(AndroidBridge::keyUp(keyCode), "Root 弹起按键失败");
 }
 
 bool inputKeyPress(const char* keyCodeText) {
@@ -129,11 +129,11 @@ bool inputKeyPress(const char* keyCodeText) {
     if (keyCode <= 0) {
         return false;
     }
-    return 执行输入命令(AndroidBridge::keyPress(keyCode), "root keyPress failed");
+    return 执行输入命令(AndroidBridge::keyPress(keyCode), "Root 按键失败");
 }
 
 bool inputText(const char* text) {
-    return 执行输入命令(AndroidBridge::inputText(text == nullptr ? "" : text), "root inputText failed");
+    return 执行输入命令(AndroidBridge::inputText(text == nullptr ? "" : text), "Root 输入文字失败");
 }
 
 std::string getRunEnvType() {

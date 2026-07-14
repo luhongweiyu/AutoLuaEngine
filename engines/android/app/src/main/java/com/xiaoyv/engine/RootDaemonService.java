@@ -62,7 +62,17 @@ public final class RootDaemonService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent == null ? ACTION_PREPARE : intent.getAction();
+        String action = intent == null ? null : intent.getAction();
+
+        /*
+         * START_STICKY 服务被系统重建时会收到 null Intent。它只应该重新挂接已有 RootDaemon
+         * 的音量键监听，绝不能把“系统重建”误判为“用户要求启动 Root 模式”并执行 su。
+         */
+        if (action == null) {
+            syncExistingVolumeKeyMonitor();
+            return START_STICKY;
+        }
+
         if (ACTION_SHUTDOWN.equals(action)) {
             volumeKeyMonitor.stop();
             new Thread(() -> {
@@ -74,15 +84,12 @@ public final class RootDaemonService extends Service {
         }
 
         if (ACTION_SYNC_VOLUME_KEYS.equals(action)) {
-            if (!EngineSettings.isRootModeEnabled(this)
-                    || !EngineSettings.isVolumeKeyControlEnabled(this)) {
-                volumeKeyMonitor.stop();
-                return START_STICKY;
-            }
+            syncExistingVolumeKeyMonitor();
+            return START_STICKY;
+        }
 
-            // 直接按当前设置启动监听。RootDaemon 已就绪时会立即连上；未就绪时连接线程自然
-            // 结束，不检查 Root、不创建 daemon、更不会申请超级用户权限。
-            volumeKeyMonitor.start();
+        // 未知 Action 不具备 Root 初始化语义，直接忽略，避免任何意外入口触发 su。
+        if (!ACTION_PREPARE.equals(action)) {
             return START_STICKY;
         }
 
@@ -95,14 +102,32 @@ public final class RootDaemonService extends Service {
             } else {
                 volumeKeyMonitor.stop();
             }
-            broadcastState(
-                    ready ? EngineService.STATE_FINISHED : EngineService.STATE_FAILED,
-                    ready
-                            ? "Root 运行层已就绪"
-                            : "Root 初始化失败：" + RootDaemonManager.lastError()
-            );
+
+            // Root 正常就绪是 App 启动或模式切换后的预期状态，不占用脚本状态提示。
+            // 状态页会通过 device.info 实时展示 Root 是否可用；只有初始化失败才需要主动通知。
+            if (!ready) {
+                broadcastState(
+                        EngineService.STATE_FAILED,
+                        "Root 初始化失败：" + RootDaemonManager.lastError()
+                );
+            }
         }, "RootDaemonPrepare").start();
         return START_STICKY;
+    }
+
+    /**
+     * 按当前开关状态接入或关闭音量键监听。
+     *
+     * 此方法没有 Root 探测和 daemon 启动逻辑。已存在的 RootDaemon 会立即接受订阅；不存在时
+     * 监听线程自行结束，用户下次显式打开 App 或切换 Root 模式才会进入授权流程。
+     */
+    private void syncExistingVolumeKeyMonitor() {
+        if (EngineSettings.isRootModeEnabled(this)
+                && EngineSettings.isVolumeKeyControlEnabled(this)) {
+            volumeKeyMonitor.start();
+        } else {
+            volumeKeyMonitor.stop();
+        }
     }
 
     @Override
