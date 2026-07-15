@@ -2,6 +2,23 @@
 params: "path: string"
 returns: "string | nil, string?"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 读包内资源。
+
+**语法：** `read_alpkg_file(path)`
+
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `path` | `string` | 是 | 资源相对路径或文件路径。 |
+
+| 返回值 | 说明 |
+|---|---|
+| `string | nil, string?` | 具体字段、特殊值和失败情况见下方详细说明。 |
+
+**详细说明：**
 
 ```lua
 local css, errorMessage = m.read_alpkg_file("ui/style.css")

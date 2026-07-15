@@ -2,6 +2,30 @@
 params: "ms: integer"
 returns: "integer | nil, string?"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 设置截图缓存时间。
+
+**语法：** `setCaptureCacheMs(ms)`
+
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `ms` | `integer` | 是 | 时长，单位为毫秒。 |
+
+| 返回值 | 说明 |
+|---|---|
+| `integer | nil, string?` | 具体字段、特殊值和失败情况见下方详细说明。 |
+
+**使用示例：**
+
+```lua
+local result = setCaptureCacheMs(0)
+print(result)
+```
+
+**详细说明：**
 
 - `m.keepCapture()` 无参数，返回 `true:boolean`。
 - `m.releaseCapture()` 无参数，返回 `true:boolean`。

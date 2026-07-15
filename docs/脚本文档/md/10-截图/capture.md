@@ -2,6 +2,19 @@
 params: "无"
 returns: "integer, integer, integer 或 nil, string"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 获取当前屏幕截图点阵。
+
+**语法：** `capture()`
+
+**参数说明：** 无。
+
+| 返回值 | 说明 |
+|---|---|
+| `integer, integer, integer 或 nil, string` | 成功时依次返回宽度、高度和点阵地址；失败时返回 nil、错误信息。 |
+
+**详细说明：**
 
 ```lua
 local w, h, pixels = m.capture()

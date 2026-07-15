@@ -2,6 +2,23 @@
 params: "keycode: string | integer"
 returns: "boolean"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 抬起按键。
+
+**语法：** `keyUp(keycode)`
+
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `keycode` | `string | integer` | 是 | 按键标识符或 Android 数字按键码。 |
+
+| 返回值 | 说明 |
+|---|---|
+| `boolean` | 返回 true 或 false；各状态的具体含义见下方详细说明。 |
+
+**详细说明：**
 
 弹起按键，仅 Root 模式。
 

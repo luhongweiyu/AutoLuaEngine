@@ -1,8 +1,9 @@
--- 文件用途：定义 小鱼精灵 自己的最小 m 命名空间脚本 API。
+-- 文件用途：定义小鱼精灵自己的 m 命名空间脚本 API。
 local host = assert(_G._host, "native host api is not registered")
 
--- 当前只暴露已经整理过的最小脚本 API。
 -- 固定设备能力通过 C ABI 进入 core/api；Lua 多线程直接进入 libengine.so/runtime/lua。
+-- bootstrap.lua 会把 m 的一级成员统一导出为默认全局 API；本文件不能再自行写入
+-- _G，否则切换 m/lr/cd API 时会出现两套不一致的全局函数来源。
 local m = {
     print = host.print,
     sleep = host.sleep,
@@ -75,6 +76,9 @@ local m = {
     screen = host.screen,
     color = host.color,
     ime = host.ime,
+    -- imeLib 是历史脚本使用的全局名称。它同样挂在 m 下，让默认导出和兼容 API
+    -- 都由同一套切换逻辑管理。
+    imeLib = host.ime,
     thread = host.thread,
     ui = host.ui,
 }
@@ -294,17 +298,5 @@ function m.toast(text, durationMs)
     })
 end
 
-_G.print = host.print
-_G.sleep = host.sleep
-_G.systemTime = host.systemTime
-_G.tickCount = host.tickCount
-_G.touchDown = host.touchDown
-_G.touchMove = host.touchMove
-_G.touchUp = host.touchUp
-_G.keyDown = host.keyDown
-_G.keyUp = host.keyUp
-_G.keyPress = host.keyPress
-_G.inputText = host.inputText
-_G.getRunEnvType = host.getRunEnvType
-_G.imeLib = host.ime
+-- 仅注册命名空间本身。具体函数全局导出由 bootstrap.lua 统一完成。
 _G.m = m

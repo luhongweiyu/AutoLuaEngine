@@ -2,6 +2,29 @@
 params: "x1..y2: integer, dir: integer, sim: integer, colors: string"
 returns: "integer, integer 或 nil, string"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 在当前截图缓存中执行多点找色。
+
+**语法：** `findColors(x1, y1, x2, y2, dir, sim, colors)`
+
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `x1` | `integer` | 是 | 具体取值和组合规则见下方详细说明。 |
+| `y1` | `integer` | 是 | 具体取值和组合规则见下方详细说明。 |
+| `x2` | `integer` | 是 | 具体取值和组合规则见下方详细说明。 |
+| `y2` | `integer` | 是 | 具体取值和组合规则见下方详细说明。 |
+| `dir` | `integer` | 是 | 具体取值和组合规则见下方详细说明。 |
+| `sim` | `integer` | 是 | 具体取值和组合规则见下方详细说明。 |
+| `colors` | `string` | 是 | 具体取值和组合规则见下方详细说明。 |
+
+| 返回值 | 说明 |
+|---|---|
+| `integer, integer 或 nil, string` | 找到时返回坐标 x、y；未找到或失败时返回 nil、错误信息。 |
+
+**详细说明：**
 
 ```lua
 local x, y = m.findColors(0, 0, 1079, 1919, 2, 0x101010, "0|0|FFFFFF,10|5|FF0000-101010")

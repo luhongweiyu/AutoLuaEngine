@@ -241,6 +241,7 @@
       border: 1px solid var(--border);
       border-radius: 8px;
     }
+    #meta[hidden] { display: none; }
     #meta div { font-size: 13px; }
     #meta b {
       color: var(--meta-key);
@@ -253,6 +254,14 @@
       color: var(--meta-val);
       font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
       font-size: 13px;
+    }
+    #meta .meta-method span {
+      color: var(--text-strong);
+      font-family: inherit;
+    }
+    #meta .meta-return span {
+      color: var(--text);
+      font-family: inherit;
     }
     #titleWrap {
       display: flex;
@@ -563,6 +572,15 @@
       return "";
     }
 
+    /**
+     * 左侧目录只隐藏默认 m API 的前缀。完整 cmd 继续用于深链、搜索和右侧标题，
+     * 因此 m.dialog.alert 显示为 dialog.alert，而 lr.*、cd.* 仍保持原样。
+     */
+    function displayCommand(cmd) {
+      const text = String(cmd || "");
+      return text.startsWith("m.") ? text.slice(2) : text;
+    }
+
     function findNodeByHash(nodes, hash) {
       if (!hash) return null;
       const h = decodeURIComponent(hash.replace(/^#/, "")).trim();
@@ -735,6 +753,70 @@
       return { params, returns, body };
     }
 
+    /**
+     * 函数页使用紧凑字段写法保存方法名称、语法和参数说明。交互式文档把这些字段
+     * 提取到顶部信息框，正文从参数表、返回值表和详细说明开始，避免同一信息出现两次。
+     */
+    function isSimpleReturnType(value) {
+      const type = String(value || "").replace(/`/g, "").trim();
+      return type === "无" || (!/[，,|、]/.test(type) && !type.includes("或"));
+    }
+
+    function extractFunctionSummary(body, fallbackParams) {
+      const summary = { methodName: "", syntax: "", params: "", returnValue: "" };
+      const keptLines = [];
+      const lines = String(body || "").replace(/\r\n/g, "\n").split("\n");
+
+      for (const line of lines) {
+        if (line.includes("<!-- 标准化脚本文档")) continue;
+
+        let match = line.match(/^\s*\*\*方法名称：\*\*\s*(.*)$/);
+        if (match) {
+          // 方法名称在信息框中作为字段值展示，不保留正文句末的标点。
+          summary.methodName = match[1].trim().replace(/[。！？]$/, "");
+          continue;
+        }
+
+        match = line.match(/^\s*\*\*语法：\*\*\s*(.*)$/);
+        if (match) {
+          summary.syntax = match[1].trim();
+          continue;
+        }
+
+        match = line.match(/^\s*\*\*参数说明：\*\*\s*(.*)$/);
+        if (match) {
+          summary.params = match[1].trim();
+          continue;
+        }
+
+        keptLines.push(line);
+      }
+
+      const hasFunctionFields = Boolean(summary.methodName || summary.syntax || summary.params);
+      if (hasFunctionFields && !summary.params) summary.params = fallbackParams || "无";
+
+      // 只有一个明确返回值时，顶部信息框足以完整说明。多返回值、成功/失败分支
+      // 继续保留正文表格，避免把复杂约定压成一行难以阅读的文本。
+      for (let index = 0; index + 2 < keptLines.length; index++) {
+        if (keptLines[index].trim() !== "| 返回值 | 说明 |") continue;
+        if (!/^\s*\|?\s*:?-+:?\s*\|\s*:?-+:?\s*\|?\s*$/.test(keptLines[index + 1])) continue;
+
+        const cells = splitMarkdownTableRow(keptLines[index + 2]);
+        if (cells.length < 2 || !isSimpleReturnType(cells[0])) break;
+
+        summary.returnValue = cells[0] + (cells[1] ? "，" + cells[1] : "");
+        keptLines.splice(index, 3);
+        break;
+      }
+
+      return { summary, body: keptLines.join("\n") };
+    }
+
+    function renderMetaRow(label, value, className) {
+      const rowClass = className ? ` class="${className}"` : "";
+      return `<div${rowClass}><b>${escapeHtml(label)}</b><span>${inlineMd(value || "无")}</span></div>`;
+    }
+
     function matchesQuery(node, q) {
       if (!q) return true;
       const name = (node.name || "").toLowerCase();
@@ -751,6 +833,7 @@
         wrap.className = "node";
         const row = document.createElement("div");
         row.className = "row";
+        row.dataset.command = node.cmd || "";
         row.style.paddingLeft = (12 + depth * 14) + "px";
         const hasKids = Array.isArray(node.items) && node.items.length > 0;
         const twisty = document.createElement("span");
@@ -761,7 +844,7 @@
         if (node.cmd) {
           const cmdEl = document.createElement("span");
           cmdEl.className = "label-cmd";
-          cmdEl.textContent = node.cmd;
+          cmdEl.textContent = displayCommand(node.cmd);
           row.appendChild(cmdEl);
         }
         const label = document.createElement("span");
@@ -841,12 +924,20 @@
         if (!res.ok) throw new Error("HTTP " + res.status);
         const text = await res.text();
         const parsed = parseFrontMatter(text);
-        metaEl.hidden = false;
-        // 顶部只保留参数/返回；文件路径放到右下角
-        metaEl.innerHTML =
-          `<div><b>参数</b><span>${escapeHtml(parsed.params || "（无）")}</span></div>` +
-          `<div><b>返回</b><span>${escapeHtml(parsed.returns || "（无）")}</span></div>`;
-        bodyEl.innerHTML = renderMarkdown(parsed.body);
+        const extracted = extractFunctionSummary(parsed.body, parsed.params);
+        const summary = extracted.summary;
+        if (summary.methodName || summary.syntax || summary.params || summary.returnValue) {
+          metaEl.hidden = false;
+          metaEl.innerHTML =
+            renderMetaRow("方法名称", summary.methodName || node.name || "无", "meta-method") +
+            renderMetaRow("语法", summary.syntax || "无") +
+            renderMetaRow("参数说明", summary.params || parsed.params || "无") +
+            (summary.returnValue ? renderMetaRow("返回值", summary.returnValue, "meta-return") : "");
+        } else {
+          metaEl.hidden = true;
+          metaEl.innerHTML = "";
+        }
+        bodyEl.innerHTML = renderMarkdown(extracted.body);
         if (filePathEl) {
           filePathEl.hidden = false;
           filePathEl.textContent = node.md;
@@ -900,9 +991,8 @@
         rowEl = null;
         for (const r of rows) {
           const nameEl = r.querySelector(".label-name");
-          const cmdEl = r.querySelector(".label-cmd");
           const name = nameEl ? nameEl.textContent : "";
-          const cmd = cmdEl ? cmdEl.textContent : "";
+          const cmd = r.dataset.command || "";
           if ((node.cmd && cmd === node.cmd) || (!node.cmd && name === node.name)) {
             wrap = r.parentElement;
             rowEl = r;

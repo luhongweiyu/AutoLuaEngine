@@ -2,6 +2,19 @@
 params: "无"
 returns: "userdata"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 应用 Context。
+
+**语法：** `LuaEngine.getContext()`
+
+**参数说明：** 无。
+
+| 返回值 | 说明 |
+|---|---|
+| `userdata` | 具体字段、特殊值和失败情况见下方详细说明。 |
+
+**详细说明：**
 
 返回 Android Application Context。
 

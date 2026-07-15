@@ -2,6 +2,23 @@
 params: "spec: table"
 returns: "table? 或 nil, string"
 ---
+<!-- 标准化脚本文档：保留并扩展原有正文，不删除既有说明。 -->
+
+**方法名称：** 多字段表单。
+
+**语法：** `ui.form(spec)`
+
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `spec` | `table` | 是 | 具体取值和组合规则见下方详细说明。 |
+
+| 返回值 | 说明 |
+|---|---|
+| `table? 或 nil, string` | 具体字段、特殊值和失败情况见下方详细说明。 |
+
+**详细说明：**
 
 ```lua
 local values, errorMessage = m.ui.form({
