@@ -166,6 +166,70 @@ typedef struct EngineApi {
             size_t* size
     );
     const EngineDeviceApi* (*getDeviceApi)();
+    int (*saveCapture)(const char* path);
+    int (*findPic)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* picName,
+            const char* deltaColor,
+            int dir,
+            double sim,
+            EnginePoint* point
+    );
+    void (*clearImageCache)(const char* picName);
+    const char* (*imageLastError)();
+    int (*ocrLoadModel)(
+            const char* name,
+            const char* detPath,
+            const char* recPath,
+            const char* clsPath,
+            const char* keysPath,
+            int threads
+    );
+    int (*ocrReleaseModel)(const char* name);
+    int (*ocrIsModelLoaded)(const char* name);
+    const char* (*ocrRead)(const char* name, const char* imagePath, const char* optionsJson);
+    const char* (*ocrFindText)(
+            const char* name,
+            const char* imagePath,
+            const char* text,
+            const char* optionsJson
+    );
+    const char* (*ocrLastError)();
+    int (*fontSetDict)(int index, const char* dictionary);
+    int (*fontAddDict)(int index, const char* dictionary);
+    int (*fontUseDict)(int index);
+    const char* (*fontGetPixel)(int x1, int y1, int x2, int y2, const char* color);
+    const char* (*fontOcr)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* color,
+            double sim
+    );
+    int (*fontFindStr)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* text,
+            const char* color,
+            double sim,
+            EnginePoint* point
+    );
+    const char* (*fontFindStrEx)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* text,
+            const char* color,
+            double sim
+    );
+    const char* (*fontLastError)();
 } EngineApi;
 
 /**
@@ -412,6 +476,127 @@ int engine_findColors(
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
 const char* engine_findColorsLastError();
+
+/**
+ * 保存当前截图缓存为图片文件。
+ *
+ * 成功返回 1；失败返回 0，原因通过 engine_imageLastError() 获取。普通截图缓存不会因为
+ * 此接口以外的调用产生 PNG/JPEG 编码或磁盘 IO。
+ */
+int engine_saveCapture(const char* path);
+
+/**
+ * 在当前截图缓存中查找模板图片。
+ *
+ * picName 支持当前脚本目录下相对路径、绝对路径和当前 ALPKG 包资源。deltaColor 例如
+ * "101010"，sim 取值为 0 到 1 之间。找到时返回 1 并写入 point；未找到或失败返回 0，
+ * point 写入 -1/-1。失败原因通过 engine_imageLastError() 获取。
+ */
+int engine_findPic(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* picName,
+        const char* deltaColor,
+        int dir,
+        double sim,
+        EnginePoint* point
+);
+
+/** 清理全部模板缓存，picName 非空时只清理对应图片缓存。 */
+void engine_clearImageCache(const char* picName);
+
+/** 返回最近一次找图或截图保存 C ABI 失败原因。 */
+const char* engine_imageLastError();
+
+/**
+ * 加载 RapidOCR PP-OCR ONNX 模型。
+ *
+ * detPath、recPath、keysPath 必填，clsPath 可为空。相同 name 且同配置重复调用会直接复用；
+ * 不同配置必须先 release，避免脚本运行中无提示替换模型。
+ */
+int engine_ocrLoadModel(
+        const char* name,
+        const char* detPath,
+        const char* recPath,
+        const char* clsPath,
+        const char* keysPath,
+        int threads
+);
+
+/** 释放指定 OCR 模型名称的引用。 */
+int engine_ocrReleaseModel(const char* name);
+
+/** 查询指定 OCR 模型名称是否已加载。 */
+int engine_ocrIsModelLoaded(const char* name);
+
+/**
+ * 识别普通图片文件。
+ *
+ * 返回由 libengine.so 当前线程持有的 JSON：{"items":[{"text", "x", "y", "w", "h", "score"}]}。
+ * 失败返回 nullptr，原因通过 engine_ocrLastError() 获取。
+ */
+const char* engine_ocrRead(const char* name, const char* imagePath, const char* optionsJson);
+
+/** 在图片 OCR 结果中查找文字，返回 found/x/y/w/h/text/score JSON。 */
+const char* engine_ocrFindText(
+        const char* name,
+        const char* imagePath,
+        const char* text,
+        const char* optionsJson
+);
+
+/** 返回最近一次 RapidOCR C ABI 失败原因。 */
+const char* engine_ocrLastError();
+
+/** 替换指定索引的自定义点阵字库。 */
+int engine_fontSetDict(int index, const char* dictionary);
+
+/** 向指定索引的自定义点阵字库追加字形。 */
+int engine_fontAddDict(int index, const char* dictionary);
+
+/** 为当前线程选择要使用的自定义点阵字库。 */
+int engine_fontUseDict(int index);
+
+/** 从当前截图生成 "宽$高$十六进制点阵" 字形描述。 */
+const char* engine_fontGetPixel(int x1, int y1, int x2, int y2, const char* color);
+
+/** 在当前截图区域内按当前字库识字，返回 text/items JSON。 */
+const char* engine_fontOcr(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* color,
+        double sim
+);
+
+/** 在当前截图区域内查找文字。 */
+int engine_fontFindStr(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim,
+        EnginePoint* point
+);
+
+/** 在当前截图区域内查找全部文字命中，返回坐标数组 JSON。 */
+const char* engine_fontFindStrEx(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim
+);
+
+/** 返回最近一次自定义字库 C ABI 失败原因。 */
+const char* engine_fontLastError();
 
 /**
  * 按住不放。

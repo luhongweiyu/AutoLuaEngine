@@ -9,8 +9,11 @@
 
 #include "api/color_api.h"
 #include "api/device_api.h"
+#include "api/font_api.h"
+#include "api/image_api.h"
 #include "api/ime_api.h"
 #include "api/input_api.h"
+#include "api/ocr_api.h"
 #include "api/package_api.h"
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
@@ -19,14 +22,14 @@
 
 namespace {
 
-// 12 在顶层表尾部新增独立 EngineDeviceApi；旧插件继续使用既有前缀字段时保持兼容。
-constexpr int kEngineAbiVersion = 12;
+// 13 在顶层表尾部追加找图、RapidOCR 与自定义字库 API；旧插件继续使用既有前缀字段时保持兼容。
+constexpr int kEngineAbiVersion = 13;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.12\","
+        "\"abiVersion\":\"0.13\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -35,6 +38,9 @@ constexpr const char* kCapabilitiesJson =
         "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
         "\"screenCapture\":[\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
+        "\"imageApi\":[\"engine_saveCapture\",\"engine_findPic\"],"
+        "\"ocrApi\":[\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
+        "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontOcr\",\"engine_fontFindStr\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
@@ -46,8 +52,14 @@ constexpr const char* kCapabilitiesJson =
 thread_local std::string gRuntimeLastError;
 thread_local std::string gScreenLastError;
 thread_local std::string gColorLastError;
+thread_local std::string gImageLastError;
 thread_local std::string gInputLastError;
 thread_local std::string gImeLastError;
+thread_local std::string gOcrLastError;
+thread_local std::string gOcrResult;
+thread_local std::string gFontLastError;
+thread_local std::string gFontResult;
+thread_local std::string gFontPixel;
 thread_local std::string gUiLastError;
 thread_local std::string gUiEventResult;
 thread_local std::string gDeviceLastError;
@@ -262,7 +274,25 @@ const EngineApi kEngineApi = {
         engine_uiCloseAll,
         engine_uiLastError,
         engine_readAlpkgFile,
-        engine_getDeviceApi
+        engine_getDeviceApi,
+        engine_saveCapture,
+        engine_findPic,
+        engine_clearImageCache,
+        engine_imageLastError,
+        engine_ocrLoadModel,
+        engine_ocrReleaseModel,
+        engine_ocrIsModelLoaded,
+        engine_ocrRead,
+        engine_ocrFindText,
+        engine_ocrLastError,
+        engine_fontSetDict,
+        engine_fontAddDict,
+        engine_fontUseDict,
+        engine_fontGetPixel,
+        engine_fontOcr,
+        engine_fontFindStr,
+        engine_fontFindStrEx,
+        engine_fontLastError
 };
 
 } // namespace
@@ -931,6 +961,265 @@ extern "C" int engine_findColors(
  */
 extern "C" const char* engine_findColorsLastError() {
     return gColorLastError.c_str();
+}
+
+/**
+ * 显式保存当前截图缓存。
+ *
+ * screen_api 保持内存 RGBA 缓存；图片编码和文件写入只在这个 C ABI 被调用时发生。
+ */
+extern "C" int engine_saveCapture(const char* path) {
+    if (!xiaoyv::api::保存当前截图(path)) {
+        gImageLastError = xiaoyv::api::取图片错误();
+        return 0;
+    }
+    gImageLastError.clear();
+    return 1;
+}
+
+/** 在当前截图缓存上查找一张模板图片。 */
+extern "C" int engine_findPic(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* picName,
+        const char* deltaColor,
+        int dir,
+        double sim,
+        EnginePoint* point
+) {
+    if (point == nullptr) {
+        gImageLastError = "找图输出坐标不能为空";
+        return 0;
+    }
+    xiaoyv::api::找图坐标 result;
+    bool found = xiaoyv::api::在屏幕中找图(
+            x1,
+            y1,
+            x2,
+            y2,
+            picName,
+            deltaColor,
+            dir,
+            sim,
+            &result
+    );
+    point->x = result.x;
+    point->y = result.y;
+    if (!found) {
+        gImageLastError = xiaoyv::api::取图片错误();
+        return 0;
+    }
+    gImageLastError.clear();
+    return 1;
+}
+
+/** 清理缓存模板，供脚本替换图片文件后立即重新加载。 */
+extern "C" void engine_clearImageCache(const char* picName) {
+    xiaoyv::api::清理图片缓存(picName);
+    gImageLastError.clear();
+}
+
+/** 返回最近一次图片 API 的失败原因。 */
+extern "C" const char* engine_imageLastError() {
+    return gImageLastError.c_str();
+}
+
+/** 加载或复用一组 RapidOCR ONNX 模型。 */
+extern "C" int engine_ocrLoadModel(
+        const char* name,
+        const char* detPath,
+        const char* recPath,
+        const char* clsPath,
+        const char* keysPath,
+        int threads
+) {
+    if (!xiaoyv::api::加载OCR模型(name, detPath, recPath, clsPath, keysPath, threads)) {
+        gOcrLastError = xiaoyv::api::取OCR错误();
+        return 0;
+    }
+    gOcrLastError.clear();
+    return 1;
+}
+
+/** 释放指定 OCR 模型名称的引用。 */
+extern "C" int engine_ocrReleaseModel(const char* name) {
+    bool released = false;
+    if (!xiaoyv::api::释放OCR模型(name, &released)) {
+        gOcrLastError = xiaoyv::api::取OCR错误();
+        return 0;
+    }
+    gOcrLastError.clear();
+    return released ? 1 : 0;
+}
+
+/** 查询指定 OCR 模型名称是否已加载。 */
+extern "C" int engine_ocrIsModelLoaded(const char* name) {
+    bool loaded = false;
+    if (!xiaoyv::api::OCR模型已加载(name, &loaded)) {
+        gOcrLastError = xiaoyv::api::取OCR错误();
+        return 0;
+    }
+    gOcrLastError.clear();
+    return loaded ? 1 : 0;
+}
+
+/** 识别一张普通图片文件，并返回线程持有的 JSON 结果。 */
+extern "C" const char* engine_ocrRead(
+        const char* name,
+        const char* imagePath,
+        const char* optionsJson
+) {
+    gOcrResult.clear();
+    if (!xiaoyv::api::识别图片文字(name, imagePath, optionsJson, &gOcrResult)) {
+        gOcrLastError = xiaoyv::api::取OCR错误();
+        gOcrResult.clear();
+        return nullptr;
+    }
+    gOcrLastError.clear();
+    return gOcrResult.c_str();
+}
+
+/** 在图片 OCR 结果内查找指定文字，并返回线程持有的 JSON 结果。 */
+extern "C" const char* engine_ocrFindText(
+        const char* name,
+        const char* imagePath,
+        const char* text,
+        const char* optionsJson
+) {
+    gOcrResult.clear();
+    if (!xiaoyv::api::在图片中找文字(name, imagePath, text, optionsJson, &gOcrResult)) {
+        gOcrLastError = xiaoyv::api::取OCR错误();
+        gOcrResult.clear();
+        return nullptr;
+    }
+    gOcrLastError.clear();
+    return gOcrResult.c_str();
+}
+
+/** 返回最近一次 RapidOCR API 失败原因。 */
+extern "C" const char* engine_ocrLastError() {
+    return gOcrLastError.c_str();
+}
+
+/** 替换指定自定义点阵字库。 */
+extern "C" int engine_fontSetDict(int index, const char* dictionary) {
+    if (!xiaoyv::api::设置字库(index, dictionary)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        return 0;
+    }
+    gFontLastError.clear();
+    return 1;
+}
+
+/** 向指定自定义点阵字库追加字形。 */
+extern "C" int engine_fontAddDict(int index, const char* dictionary) {
+    if (!xiaoyv::api::追加字库(index, dictionary)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        return 0;
+    }
+    gFontLastError.clear();
+    return 1;
+}
+
+/** 选择当前线程使用的自定义点阵字库。 */
+extern "C" int engine_fontUseDict(int index) {
+    if (!xiaoyv::api::使用字库(index)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        return 0;
+    }
+    gFontLastError.clear();
+    return 1;
+}
+
+/** 从当前截图生成一个可写入字库的新格式字形点阵。 */
+extern "C" const char* engine_fontGetPixel(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* color
+) {
+    gFontPixel.clear();
+    if (!xiaoyv::api::获取字形点阵(x1, y1, x2, y2, color, &gFontPixel)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        gFontPixel.clear();
+        return nullptr;
+    }
+    gFontLastError.clear();
+    return gFontPixel.c_str();
+}
+
+/** 在当前截图区域内按当前自定义字库识字。 */
+extern "C" const char* engine_fontOcr(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* color,
+        double sim
+) {
+    gFontResult.clear();
+    if (!xiaoyv::api::点阵识字(x1, y1, x2, y2, color, sim, &gFontResult)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        gFontResult.clear();
+        return nullptr;
+    }
+    gFontLastError.clear();
+    return gFontResult.c_str();
+}
+
+/** 在当前截图区域内查找第一个自定义字库文字命中。 */
+extern "C" int engine_fontFindStr(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim,
+        EnginePoint* point
+) {
+    if (point == nullptr) {
+        gFontLastError = "找字输出坐标不能为空";
+        return 0;
+    }
+    xiaoyv::api::字库坐标 result;
+    bool found = xiaoyv::api::点阵找字(x1, y1, x2, y2, text, color, sim, &result);
+    point->x = result.x;
+    point->y = result.y;
+    if (!found) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        return 0;
+    }
+    gFontLastError.clear();
+    return 1;
+}
+
+/** 在当前截图区域内返回全部自定义字库文字命中。 */
+extern "C" const char* engine_fontFindStrEx(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim
+) {
+    gFontResult.clear();
+    if (!xiaoyv::api::点阵找字全部(x1, y1, x2, y2, text, color, sim, &gFontResult)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        gFontResult.clear();
+        return nullptr;
+    }
+    gFontLastError.clear();
+    return gFontResult.c_str();
+}
+
+/** 返回最近一次自定义字库 API 失败原因。 */
+extern "C" const char* engine_fontLastError() {
+    return gFontLastError.c_str();
 }
 
 /**

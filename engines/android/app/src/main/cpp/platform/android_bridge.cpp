@@ -307,6 +307,241 @@ AndroidDeviceCallResult callDeviceJson(
     return result;
 }
 
+/**
+ * 从 Java ImageDecodeResult 复制出 native 可长期使用的 RGBA 点阵。
+ *
+ * Java Bitmap 已在返回前释放，不能把 byte[] 或 Bitmap 的地址直接暴露给后续模板匹配。
+ */
+AndroidImageDecodeResult readImageDecodeResult(JNIEnv* env, jobject resultObject) {
+    AndroidImageDecodeResult result;
+    if (env == nullptr || resultObject == nullptr) {
+        result.error = "Android 图片解码未返回结果";
+        return result;
+    }
+
+    jclass resultClass = env->GetObjectClass(resultObject);
+    if (resultClass == nullptr) {
+        clearExceptionIfNeeded(env);
+        result.error = "Android 图片解码结果类不可用";
+        return result;
+    }
+
+    jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
+    jfieldID widthField = env->GetFieldID(resultClass, "width", "I");
+    jfieldID heightField = env->GetFieldID(resultClass, "height", "I");
+    jfieldID rgbaField = env->GetFieldID(resultClass, "rgba", "[B");
+    jfieldID stampField = env->GetFieldID(resultClass, "sourceStamp", "J");
+    jfieldID errorField = env->GetFieldID(resultClass, "error", "Ljava/lang/String;");
+    if (successField == nullptr
+            || widthField == nullptr
+            || heightField == nullptr
+            || rgbaField == nullptr
+            || stampField == nullptr
+            || errorField == nullptr) {
+        clearExceptionIfNeeded(env);
+        env->DeleteLocalRef(resultClass);
+        result.error = "Android 图片解码结果字段不可用";
+        return result;
+    }
+
+    result.success = env->GetBooleanField(resultObject, successField) == JNI_TRUE;
+    result.width = static_cast<int>(env->GetIntField(resultObject, widthField));
+    result.height = static_cast<int>(env->GetIntField(resultObject, heightField));
+    result.sourceStamp = static_cast<long long>(env->GetLongField(resultObject, stampField));
+    jstring errorText = static_cast<jstring>(env->GetObjectField(resultObject, errorField));
+    result.error = jStringToString(env, errorText);
+    if (errorText != nullptr) {
+        env->DeleteLocalRef(errorText);
+    }
+
+    if (!result.success) {
+        if (result.error.empty()) {
+            result.error = "Android 图片解码失败";
+        }
+        env->DeleteLocalRef(resultClass);
+        return result;
+    }
+
+    long long expectedSize = static_cast<long long>(result.width)
+            * static_cast<long long>(result.height) * 4LL;
+    if (result.width <= 0
+            || result.height <= 0
+            || expectedSize <= 0
+            || expectedSize > static_cast<long long>(std::numeric_limits<jsize>::max())) {
+        result.success = false;
+        result.error = "图片尺寸或点阵长度无效";
+        env->DeleteLocalRef(resultClass);
+        return result;
+    }
+
+    jbyteArray rgba = static_cast<jbyteArray>(env->GetObjectField(resultObject, rgbaField));
+    if (rgba == nullptr || env->GetArrayLength(rgba) != static_cast<jsize>(expectedSize)) {
+        clearExceptionIfNeeded(env);
+        result.success = false;
+        result.error = "图片 RGBA 点阵长度无效";
+        if (rgba != nullptr) {
+            env->DeleteLocalRef(rgba);
+        }
+        env->DeleteLocalRef(resultClass);
+        return result;
+    }
+
+    result.pixels.resize(static_cast<size_t>(expectedSize));
+    env->GetByteArrayRegion(
+            rgba,
+            0,
+            static_cast<jsize>(expectedSize),
+            reinterpret_cast<jbyte*>(result.pixels.data())
+    );
+    if (clearExceptionIfNeeded(env)) {
+        result.success = false;
+        result.pixels.clear();
+        result.error = "复制图片 RGBA 点阵失败";
+    }
+    env->DeleteLocalRef(rgba);
+    env->DeleteLocalRef(resultClass);
+    return result;
+}
+
+/** 调用 Java 图片文件解码入口。 */
+AndroidImageDecodeResult callDecodeImageFile(const std::string& path) {
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "decodeImageFile",
+            "(Ljava/lang/String;)Lcom/xiaoyv/engine/ImageDecodeResult;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        AndroidImageDecodeResult result;
+        result.error = "Android 图片文件解码方法不可用";
+        return result;
+    }
+
+    jstring pathText = env->NewStringUTF(path.c_str());
+    if (clearExceptionIfNeeded(env) || pathText == nullptr) {
+        AndroidImageDecodeResult result;
+        result.error = "创建图片路径参数失败";
+        return result;
+    }
+    jobject javaResult = env->CallStaticObjectMethod(gBridgeClass, methodId, pathText);
+    env->DeleteLocalRef(pathText);
+    if (clearExceptionIfNeeded(env)) {
+        AndroidImageDecodeResult result;
+        result.error = "调用 Android 图片文件解码失败";
+        return result;
+    }
+
+    AndroidImageDecodeResult result = readImageDecodeResult(env, javaResult);
+    if (javaResult != nullptr) {
+        env->DeleteLocalRef(javaResult);
+    }
+    return result;
+}
+
+/** 调用 Java 内存图片解码入口，供 ALPKG 资源图片避免落地。 */
+AndroidImageDecodeResult callDecodeImageBytes(const unsigned char* data, size_t size) {
+    if (data == nullptr || size == 0 || size > static_cast<size_t>(std::numeric_limits<jint>::max())) {
+        AndroidImageDecodeResult result;
+        result.error = "图片字节数据无效";
+        return result;
+    }
+
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "decodeImageBytes",
+            "(Ljava/nio/ByteBuffer;I)Lcom/xiaoyv/engine/ImageDecodeResult;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        AndroidImageDecodeResult result;
+        result.error = "Android 内存图片解码方法不可用";
+        return result;
+    }
+
+    jobject buffer = env->NewDirectByteBuffer(
+            const_cast<unsigned char*>(data),
+            static_cast<jlong>(size)
+    );
+    if (clearExceptionIfNeeded(env) || buffer == nullptr) {
+        AndroidImageDecodeResult result;
+        result.error = "创建图片内存缓冲失败";
+        return result;
+    }
+    jobject javaResult = env->CallStaticObjectMethod(
+            gBridgeClass,
+            methodId,
+            buffer,
+            static_cast<jint>(size)
+    );
+    env->DeleteLocalRef(buffer);
+    if (clearExceptionIfNeeded(env)) {
+        AndroidImageDecodeResult result;
+        result.error = "调用 Android 内存图片解码失败";
+        return result;
+    }
+
+    AndroidImageDecodeResult result = readImageDecodeResult(env, javaResult);
+    if (javaResult != nullptr) {
+        env->DeleteLocalRef(javaResult);
+    }
+    return result;
+}
+
+/** 调用签名为 (String, String) -> String 的 RapidOCR Java 平台入口。 */
+AndroidOcrCallResult callOcrJson(
+        const std::string& operation,
+        const std::string& argumentsJson
+) {
+    AndroidOcrCallResult result;
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "ocrCall",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        result.error = "Android OCR 桥方法不可用";
+        return result;
+    }
+
+    jstring operationText = env->NewStringUTF(operation.c_str());
+    jstring argumentsText = env->NewStringUTF(argumentsJson.c_str());
+    if (clearExceptionIfNeeded(env) || operationText == nullptr || argumentsText == nullptr) {
+        if (operationText != nullptr) {
+            env->DeleteLocalRef(operationText);
+        }
+        if (argumentsText != nullptr) {
+            env->DeleteLocalRef(argumentsText);
+        }
+        result.error = "创建 OCR 调用参数失败";
+        return result;
+    }
+
+    jstring response = static_cast<jstring>(env->CallStaticObjectMethod(
+            gBridgeClass,
+            methodId,
+            operationText,
+            argumentsText
+    ));
+    env->DeleteLocalRef(operationText);
+    env->DeleteLocalRef(argumentsText);
+    if (clearExceptionIfNeeded(env)) {
+        result.error = "Android OCR 桥调用异常";
+        return result;
+    }
+
+    result.responseJson = jStringToString(env, response);
+    if (response != nullptr) {
+        env->DeleteLocalRef(response);
+    }
+    if (result.responseJson.empty()) {
+        result.error = "Android OCR 桥未返回结果";
+        return result;
+    }
+    result.invoked = true;
+    return result;
+}
+
 ScreenCaptureResult captureFailure(const std::string& error) {
     ScreenCaptureResult result;
     result.success = false;
@@ -785,6 +1020,75 @@ ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, siz
         env->DeleteLocalRef(resultObject);
     }
     return result;
+}
+
+AndroidImageDecodeResult AndroidBridge::decodeImageFile(const std::string& path) {
+    return callDecodeImageFile(path);
+}
+
+AndroidImageDecodeResult AndroidBridge::decodeImageBytes(const unsigned char* data, size_t size) {
+    return callDecodeImageBytes(data, size);
+}
+
+bool AndroidBridge::saveRgbaImage(
+        const unsigned char* pixels,
+        int width,
+        int height,
+        size_t size,
+        const std::string& path
+) {
+    if (pixels == nullptr
+            || width <= 0
+            || height <= 0
+            || size == 0
+            || size > static_cast<size_t>(std::numeric_limits<jint>::max())) {
+        return false;
+    }
+
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "saveRgbaImage",
+            "(Ljava/nio/ByteBuffer;IIILjava/lang/String;)Z"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        return false;
+    }
+
+    jobject buffer = env->NewDirectByteBuffer(
+            const_cast<unsigned char*>(pixels),
+            static_cast<jlong>(size)
+    );
+    jstring pathText = env->NewStringUTF(path.c_str());
+    if (clearExceptionIfNeeded(env) || buffer == nullptr || pathText == nullptr) {
+        if (buffer != nullptr) {
+            env->DeleteLocalRef(buffer);
+        }
+        if (pathText != nullptr) {
+            env->DeleteLocalRef(pathText);
+        }
+        return false;
+    }
+
+    jboolean ok = env->CallStaticBooleanMethod(
+            gBridgeClass,
+            methodId,
+            buffer,
+            static_cast<jint>(width),
+            static_cast<jint>(height),
+            static_cast<jint>(size),
+            pathText
+    );
+    env->DeleteLocalRef(buffer);
+    env->DeleteLocalRef(pathText);
+    return !clearExceptionIfNeeded(env) && ok == JNI_TRUE;
+}
+
+AndroidOcrCallResult AndroidBridge::callOcrApi(
+        const std::string& operation,
+        const std::string& argumentsJson
+) {
+    return callOcrJson(operation, argumentsJson);
 }
 
 bool AndroidBridge::touchDown(int id, int x, int y) {

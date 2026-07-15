@@ -691,5 +691,117 @@
         "md": "md/12-C-ABI/声明.md"
       }
     ]
+  },
+  {
+    "name": "图像",
+    "items": [
+      {
+        "name": "概述",
+        "md": "md/13-图像/概述.md"
+      },
+      {
+        "name": "保存当前截图",
+        "md": "md/13-图像/保存截图.md",
+        "cmd": "m.saveCapture"
+      },
+      {
+        "name": "区域找图",
+        "md": "md/13-图像/找图.md",
+        "cmd": "m.findPic"
+      },
+      {
+        "name": "清理模板缓存",
+        "md": "md/13-图像/清理图片缓存.md",
+        "cmd": "m.clearImageCache"
+      }
+    ]
+  },
+  {
+    "name": "OCR",
+    "items": [
+      {
+        "name": "概述",
+        "md": "md/14-OCR/概述.md"
+      },
+      {
+        "name": "加载模型",
+        "md": "md/14-OCR/加载模型.md",
+        "cmd": "m.ocr.load"
+      },
+      {
+        "name": "释放模型",
+        "md": "md/14-OCR/释放模型.md",
+        "cmd": "m.ocr.release"
+      },
+      {
+        "name": "模型状态",
+        "md": "md/14-OCR/模型状态.md",
+        "cmd": "m.ocr.isLoaded"
+      },
+      {
+        "name": "识别图片",
+        "md": "md/14-OCR/识别图片.md",
+        "cmd": "m.ocr.read"
+      },
+      {
+        "name": "找文字",
+        "md": "md/14-OCR/找文字.md",
+        "cmd": "m.ocr.findText"
+      }
+    ]
+  },
+  {
+    "name": "点阵字库",
+    "items": [
+      {
+        "name": "概述",
+        "md": "md/15-点阵字库/概述.md"
+      },
+      {
+        "name": "设置字库",
+        "md": "md/15-点阵字库/设置字库.md",
+        "cmd": "m.font.setDict"
+      },
+      {
+        "name": "追加字库",
+        "md": "md/15-点阵字库/追加字库.md",
+        "cmd": "m.font.addDict"
+      },
+      {
+        "name": "选择字库",
+        "md": "md/15-点阵字库/使用字库.md",
+        "cmd": "m.font.useDict"
+      },
+      {
+        "name": "获取字形点阵",
+        "md": "md/15-点阵字库/获取字形点阵.md",
+        "cmd": "m.font.getFontPixel"
+      },
+      {
+        "name": "结构化识字",
+        "md": "md/15-点阵字库/结构化识字.md",
+        "cmd": "m.font.read"
+      },
+      {
+        "name": "识字",
+        "md": "md/15-点阵字库/识字.md",
+        "cmd": "m.font.ocr"
+      },
+      {
+        "name": "识字详情",
+        "md": "md/15-点阵字库/识字详情.md",
+        "cmd": "m.font.ocrEx"
+      },
+      {
+        "name": "找字",
+        "md": "md/15-点阵字库/找字.md",
+        "cmd": "m.font.findStr"
+      },
+      {
+        "name": "找字全部",
+        "md": "md/15-点阵字库/找字全部.md",
+        "cmd": "m.font.findStrEx"
+      }
+    ]
   }
 ]

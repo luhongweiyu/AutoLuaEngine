@@ -66,6 +66,33 @@ struct AndroidDeviceCallResult {
 };
 
 /**
+ * Android 图片解码结果。
+ *
+ * pixels 固定为紧凑 RGBA8888。图片文件由 Java Framework 解码，C++ 图像算法只接收
+ * 统一点阵，不依赖 PNG/JPEG/WebP 等格式库。
+ */
+struct AndroidImageDecodeResult {
+    bool success = false;
+    int width = 0;
+    int height = 0;
+    std::vector<unsigned char> pixels;
+    long long sourceStamp = 0;
+    std::string error;
+};
+
+/**
+ * RapidOCR 平台调用结果。
+ *
+ * OCR 模型推理由 Android ONNX Runtime 完成；返回 JSON 信封后仍由 core/api 统一解析和
+ * 对外暴露，避免 Lua/JS/Go 分别依赖 Java OCR 类型。
+ */
+struct AndroidOcrCallResult {
+    bool invoked = false;
+    std::string responseJson;
+    std::string error;
+};
+
+/**
  * Android 平台能力桥。
  *
  * 这里是 libengine.so 到 Java 的唯一 JNI 边界。Java 只承接 Android 必须由
@@ -89,6 +116,19 @@ public:
     static RootStatusResult rootStatus();
 
     static ScreenCaptureResult captureRootScreen(unsigned char** pixels, size_t* capacity);
+    static AndroidImageDecodeResult decodeImageFile(const std::string& path);
+    static AndroidImageDecodeResult decodeImageBytes(const unsigned char* data, size_t size);
+    static bool saveRgbaImage(
+            const unsigned char* pixels,
+            int width,
+            int height,
+            size_t size,
+            const std::string& path
+    );
+    static AndroidOcrCallResult callOcrApi(
+            const std::string& operation,
+            const std::string& argumentsJson
+    );
     static bool touchDown(int id, int x, int y);
     static bool touchMove(int id, int x, int y);
     static bool touchUp(int id);

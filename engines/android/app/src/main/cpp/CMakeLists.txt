@@ -8,8 +8,11 @@ add_library(engine SHARED
         engine_jni.cpp
         core/api/color_api.cpp
         core/api/device_api.cpp
+        core/api/font_api.cpp
+        core/api/image_api.cpp
         core/api/ime_api.cpp
         core/api/input_api.cpp
+        core/api/ocr_api.cpp
         core/api/package_api.cpp
         core/api/runtime_api.cpp
         core/api/screen_api.cpp

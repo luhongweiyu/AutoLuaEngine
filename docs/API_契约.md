@@ -66,6 +66,39 @@ engine_findColors
 engine_findColorsLastError
 ```
 
+当前图像 C ABI：
+
+```c
+engine_saveCapture
+engine_findPic
+engine_clearImageCache
+engine_imageLastError
+```
+
+当前 OCR C ABI：
+
+```c
+engine_ocrLoadModel
+engine_ocrReleaseModel
+engine_ocrIsModelLoaded
+engine_ocrRead
+engine_ocrFindText
+engine_ocrLastError
+```
+
+当前点阵字库 C ABI：
+
+```c
+engine_fontSetDict
+engine_fontAddDict
+engine_fontUseDict
+engine_fontGetPixel
+engine_fontOcr
+engine_fontFindStr
+engine_fontFindStrEx
+engine_fontLastError
+```
+
 当前输入 C ABI：
 
 ```c
@@ -245,6 +278,89 @@ const char* engine_findColorsLastError();
 - 找到返回 `1`，`point.x/point.y` 为命中坐标。
 - 未找到或失败返回 `0`，`point.x/point.y` 为 `-1/-1`，原因通过 `engine_findColorsLastError()` 获取。
 
+## 图像 C ABI
+
+```c
+int engine_saveCapture(const char* path);
+int engine_findPic(
+        int x1, int y1, int x2, int y2,
+        const char* picName,
+        const char* deltaColor,
+        int dir,
+        double sim,
+        EnginePoint* point
+);
+void engine_clearImageCache(const char* picName);
+const char* engine_imageLastError();
+```
+
+规则：
+
+- `engine_saveCapture` 是唯一会将当前 RGBA 截图编码并写入文件的图像接口。
+- `engine_findPic` 直接复用截图缓存；模板仅在首次使用、普通文件修改或显式清理后解码。
+- 模板路径支持脚本目录相对路径、普通绝对路径和当前 `.alpkg` 的资源路径。
+- 找到时返回 `1` 并写入模板左上角；未找到时返回 `0`、坐标写为 `-1/-1` 且
+  `engine_imageLastError()` 为空；失败时同样返回 `0`，但错误接口有具体原因。
+
+## OCR C ABI
+
+```c
+int engine_ocrLoadModel(
+        const char* name,
+        const char* detPath,
+        const char* recPath,
+        const char* clsPath,
+        const char* keysPath,
+        int threads
+);
+int engine_ocrReleaseModel(const char* name);
+int engine_ocrIsModelLoaded(const char* name);
+const char* engine_ocrRead(const char* name, const char* imagePath, const char* optionsJson);
+const char* engine_ocrFindText(
+        const char* name,
+        const char* imagePath,
+        const char* text,
+        const char* optionsJson
+);
+const char* engine_ocrLastError();
+```
+
+规则：
+
+- OCR 使用 RapidOCR 兼容的 PP-OCR ONNX 检测、识别和可选方向分类模型；模型由脚本显式加载和释放。
+- 相同名称、相同配置的重复加载直接复用，不增加引用次数；不同名称的相同配置共享底层 ONNX session。
+- `engine_ocrRead` 返回 `{ "items": [...] }` JSON；`engine_ocrFindText` 返回
+  `{ "found": boolean, ... }` JSON。失败返回 `nullptr`，错误通过 `engine_ocrLastError()` 获取。
+- 图片必须是 Android 能直接读取的普通文件。当前截图可先用 `engine_saveCapture` 保存后再识别。
+
+## 点阵字库 C ABI
+
+```c
+int engine_fontSetDict(int index, const char* dictionary);
+int engine_fontAddDict(int index, const char* dictionary);
+int engine_fontUseDict(int index);
+const char* engine_fontGetPixel(int x1, int y1, int x2, int y2, const char* color);
+const char* engine_fontOcr(int x1, int y1, int x2, int y2, const char* color, double sim);
+int engine_fontFindStr(
+        int x1, int y1, int x2, int y2,
+        const char* text, const char* color, double sim,
+        EnginePoint* point
+);
+const char* engine_fontFindStrEx(
+        int x1, int y1, int x2, int y2,
+        const char* text, const char* color, double sim
+);
+const char* engine_fontLastError();
+```
+
+规则：
+
+- 新字库格式是 `文字$宽$高$十六进制点阵`，宽高允许 `1` 到 `256`，不受旧 11 行字库限制；
+  简化旧 `文字$十六进制点阵` 格式仍按 11 行兼容读取，也支持大漠/懒人带末尾字高元数据的旧格式。
+- 字库内容可直接传文本，也可传普通文件或当前 `.alpkg` 资源路径。
+- `engine_fontUseDict` 选择当前调用线程要使用的字库。多线程中需要使用非默认字库时，各线程各自调用一次。
+- 识字和找字均直接读取截图缓存，不保存图片、不依赖 OCR 模型；结构化结果通过 JSON 返回。
+
 ## 输入 C ABI
 
 ```c
@@ -347,7 +463,7 @@ const EngineApi* engine_getApi();
 ```
 
 外部插件 so 可以通过 `engine_getApi()` 取得函数表，再使用 `getDeviceApi()` 访问设备
-能力；运行时、截图、找色、输入、输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放
+能力；运行时、截图、找色、图像、OCR、点阵字库、输入、输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放
 稳定 C 类型，不暴露 C++ 对象。
 
 ## Lua 映射
@@ -377,6 +493,23 @@ m.keepCapture()
 m.releaseCapture()
 m.setCaptureCacheMs(ms)
 m.findColors(x1, y1, x2, y2, dir, sim, colors)
+m.saveCapture(path)
+m.findPic(x1, y1, x2, y2, picName, deltaColor, dir, sim)
+m.clearImageCache([picName])
+m.ocr.load(name, detPath, recPath, clsPath, keysPath[, threads])
+m.ocr.release(name)
+m.ocr.isLoaded(name)
+m.ocr.read(name, imagePath[, options])
+m.ocr.findText(name, imagePath, text[, options])
+m.font.setDict(index, dictionary)
+m.font.addDict(index, dictionary)
+m.font.useDict(index)
+m.font.getFontPixel(x1, y1, x2, y2, color)
+m.font.read(x1, y1, x2, y2, color, sim)
+m.font.ocr(x1, y1, x2, y2, color, sim)
+m.font.ocrEx(x1, y1, x2, y2, color, sim)
+m.font.findStr(x1, y1, x2, y2, text, color, sim)
+m.font.findStrEx(x1, y1, x2, y2, text, color, sim)
 m.ime.lock()
 m.ime.setText(text)
 m.ime.unlock()

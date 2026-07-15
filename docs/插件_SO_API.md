@@ -11,9 +11,9 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `EngineApi::abiVersion` 为 `12`。版本 12 仅在顶层函数表末尾新增 `getDeviceApi()`，
-设备能力统一放入独立 `EngineDeviceApi` 子表。函数表只允许尾部追加字段：旧插件继续调用
-既有字段时保持可用；只有要使用新字段的插件才需要使用新头文件重编译。
+当前 `EngineApi::abiVersion` 为 `13`。版本 13 在顶层函数表末尾新增图像、RapidOCR 和
+点阵字库函数；设备能力仍统一放入独立 `EngineDeviceApi` 子表。函数表只允许尾部追加字段：
+旧插件继续调用既有字段时保持可用；只有要使用新字段的插件才需要使用新头文件重编译。
 
 ## 当前函数表能力
 
@@ -68,6 +68,41 @@ typedef struct EngineApi {
         size_t* size
     );
     const EngineDeviceApi* (*getDeviceApi)();
+    int (*saveCapture)(const char* path);
+    int (*findPic)(
+        int x1, int y1, int x2, int y2,
+        const char* picName, const char* deltaColor,
+        int dir, double sim, EnginePoint* point
+    );
+    void (*clearImageCache)(const char* picName);
+    const char* (*imageLastError)();
+    int (*ocrLoadModel)(
+        const char* name, const char* detPath, const char* recPath,
+        const char* clsPath, const char* keysPath, int threads
+    );
+    int (*ocrReleaseModel)(const char* name);
+    int (*ocrIsModelLoaded)(const char* name);
+    const char* (*ocrRead)(const char* name, const char* imagePath, const char* optionsJson);
+    const char* (*ocrFindText)(
+        const char* name, const char* imagePath,
+        const char* text, const char* optionsJson
+    );
+    const char* (*ocrLastError)();
+    int (*fontSetDict)(int index, const char* dictionary);
+    int (*fontAddDict)(int index, const char* dictionary);
+    int (*fontUseDict)(int index);
+    const char* (*fontGetPixel)(int x1, int y1, int x2, int y2, const char* color);
+    const char* (*fontOcr)(int x1, int y1, int x2, int y2, const char* color, double sim);
+    int (*fontFindStr)(
+        int x1, int y1, int x2, int y2,
+        const char* text, const char* color, double sim,
+        EnginePoint* point
+    );
+    const char* (*fontFindStrEx)(
+        int x1, int y1, int x2, int y2,
+        const char* text, const char* color, double sim
+    );
+    const char* (*fontLastError)();
 } EngineApi;
 ```
 
@@ -89,6 +124,12 @@ const char* displayJson = device->getDisplayInfoJson();
 - 插件只调用 C ABI，不直接访问 C++ 对象。
 - `capture` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
 - `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
+- `saveCapture` 只在脚本或插件明确要求保存时编码图片；`findPic` 同样直接复用截图缓存，
+  模板图片会在 native 内缓存。
+- `ocrLoadModel` / `ocrReleaseModel` 由插件显式管理 RapidOCR ONNX 模型；重复加载同名同配置
+  会复用，`ocrRead` 和 `ocrFindText` 返回当前调用线程持有的 JSON 文本。
+- `fontSetDict` 支持 `文字$宽$高$十六进制点阵` 手机可变尺寸字库，也兼容简化 11 行格式和
+  大漠/懒人带末尾字高元数据的旧字库；`fontOcr` / `fontFindStr` 直接读取当前截图缓存。
 - `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前顶层脚本运行耗时，Lua 主任务和子线程共享起点。
 - `touch/key/inputText` 只走 Root helper 常驻进程，不走无障碍。
 - `imeLock/imeUnlock` 通过 Root helper 保存、切换和恢复系统输入法；`imeSetText` 通过

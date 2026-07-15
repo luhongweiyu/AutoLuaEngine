@@ -160,6 +160,39 @@ public final class AndroidHostBridge {
     }
 
     /**
+     * 解码普通图片文件为紧凑 RGBA 点阵。
+     *
+     * 找图算法仍在 native core/api 中；Java 仅承担 Android 图片格式解码。
+     */
+    public static ImageDecodeResult decodeImageFile(String path) {
+        return ImagePlatformBridge.decodeFile(path);
+    }
+
+    /**
+     * 解码 native 提供的图片字节，用于 ALPKG 内未落地的资源图片。
+     */
+    public static ImageDecodeResult decodeImageBytes(ByteBuffer source, int size) {
+        return ImagePlatformBridge.decodeBytes(source, size);
+    }
+
+    /**
+     * 把 native RGBA 截图保存为普通图片文件。
+     */
+    public static boolean saveRgbaImage(ByteBuffer source, int width, int height, int size, String path) {
+        return ImagePlatformBridge.saveRgba(source, width, height, size, path);
+    }
+
+    /**
+     * 调用 RapidOCR ONNX 平台实现。
+     *
+     * 固定操作名和 JSON 参数都由 libengine.so/core/api 生成，Java 不向脚本开放任意
+     * ONNX Runtime 反射入口。
+     */
+    public static String ocrCall(String operation, String argumentsJson) {
+        return OcrPlatformBridge.call(operation, argumentsJson);
+    }
+
+    /**
      * 设备 API 的唯一 Java 平台入口。
      *
      * operation 由 libengine.so/core/api 固定生成，argumentsJson 由 native 完成结构化

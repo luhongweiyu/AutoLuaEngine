@@ -75,6 +75,9 @@ local m = {
     log = host.log,
     screen = host.screen,
     color = host.color,
+    image = host.image,
+    ocr = host.ocr,
+    font = host.font,
     ime = host.ime,
     -- imeLib 是历史脚本使用的全局名称。它同样挂在 m 下，让默认导出和兼容 API
     -- 都由同一套切换逻辑管理。
@@ -87,7 +90,54 @@ m.capture = host.screen.capture
 m.keepCapture = host.screen.keepCapture
 m.releaseCapture = host.screen.releaseCapture
 m.setCaptureCacheMs = host.screen.setCaptureCacheMs
+m.saveCapture = host.screen.saveCapture
 m.findColors = host.color.findColors
+m.findPic = host.image.findPic
+m.clearImageCache = host.image.clearCache
+
+-- 点阵字库提供一套适合新脚本读取坐标的结构化结果，同时保留大漠风格的 ocr/ocrEx/findStrEx
+-- 字符串返回，方便把现有点阵脚本逐步迁移过来。
+local fontHost = host.font
+m.font = {
+    setDict = fontHost.setDict,
+    addDict = fontHost.addDict,
+    useDict = fontHost.useDict,
+    getFontPixel = fontHost.getFontPixel,
+    read = fontHost.ocr,
+    findStr = fontHost.findStr,
+}
+
+function m.font.ocr(x1, y1, x2, y2, color, sim)
+    local result, errorMessage = m.font.read(x1, y1, x2, y2, color, sim)
+    if not result then
+        return nil, errorMessage
+    end
+    return result.text or ""
+end
+
+function m.font.ocrEx(x1, y1, x2, y2, color, sim)
+    local result, errorMessage = m.font.read(x1, y1, x2, y2, color, sim)
+    if not result then
+        return nil, errorMessage
+    end
+    local values = {}
+    for index, item in ipairs(result.items or {}) do
+        values[index] = string.format("%s,%d,%d", item.text, item.x, item.y)
+    end
+    return table.concat(values, "|")
+end
+
+function m.font.findStrEx(x1, y1, x2, y2, text, color, sim)
+    local points, errorMessage = fontHost.findStrEx(x1, y1, x2, y2, text, color, sim)
+    if not points then
+        return nil, errorMessage
+    end
+    local values = {}
+    for index, point in ipairs(points) do
+        values[index] = string.format("%d,%d", point.x, point.y)
+    end
+    return table.concat(values, "|")
+end
 
 -- 原生弹窗和表单。弹窗事件始终回到当前脚本线程，不会在 Android UI 线程直接执行 Lua。
 local function openDialog(spec)

@@ -891,6 +891,304 @@ int luaColorsFind(lua_State* state) {
     return 2;
 }
 
+/** 将 C ABI JSON 结果解析为 Lua table；失败时保留 native 中文错误。 */
+int pushCAbiJsonOrError(lua_State* state, const char* jsonText, const char* errorText) {
+    if (jsonText == nullptr || jsonText[0] == '\0') {
+        lua_pushnil(state);
+        lua_pushstring(state, errorText == nullptr || errorText[0] == '\0' ? "native 调用失败" : errorText);
+        return 2;
+    }
+    JsonValue value;
+    std::string parseError;
+    if (!parseJsonText(jsonText, &value, &parseError)) {
+        lua_pushnil(state);
+        lua_pushstring(state, ("native JSON 返回无效：" + parseError).c_str());
+        return 2;
+    }
+    pushJsonValueToLua(state, value, 0);
+    return 1;
+}
+
+/** 把可选 Lua table OCR 配置转换为 C ABI JSON 对象。 */
+bool luaOptionalOptionsJson(lua_State* state, int index, std::string* output, std::string* error) {
+    if (output == nullptr || error == nullptr) {
+        return false;
+    }
+    if (lua_isnoneornil(state, index)) {
+        *output = "{}";
+        return true;
+    }
+    if (!lua_istable(state, index)) {
+        *error = "options 必须是 table";
+        return false;
+    }
+    return luaArgumentToJson(state, index, output, error);
+}
+
+/** 显式把当前截图缓存编码保存为图片文件。 */
+int luaSaveCapture(lua_State* state) {
+    const char* path = luaL_checkstring(state, 1);
+    if (!engine_saveCapture(path)) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_imageLastError());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** Lua 模板找图入口，参数与旧 findPic 保持同一顺序。 */
+int luaFindPic(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* picName = luaL_checkstring(state, 5);
+    const char* deltaColor = luaL_checkstring(state, 6);
+    int direction = luaCheckInt(state, 7, "dir");
+    double similarity = luaL_checknumber(state, 8);
+    EnginePoint point{-1, -1};
+    if (!engine_findPic(x1, y1, x2, y2, picName, deltaColor, direction, similarity, &point)) {
+        const char* error = engine_imageLastError();
+        if (error == nullptr || error[0] == '\0') {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnil(state);
+        lua_pushstring(state, error);
+        return 2;
+    }
+    lua_pushinteger(state, point.x);
+    lua_pushinteger(state, point.y);
+    return 2;
+}
+
+/** 清理找图模板缓存，picName 省略时清理所有模板。 */
+int luaClearImageCache(lua_State* state) {
+    const char* picName = lua_isnoneornil(state, 1) ? nullptr : luaL_checkstring(state, 1);
+    engine_clearImageCache(picName);
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 显式加载或复用 RapidOCR PP-OCR ONNX 模型。 */
+int luaOcrLoad(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    std::string detPath = luaL_checkstring(state, 2);
+    std::string recPath = luaL_checkstring(state, 3);
+    std::string clsPath = lua_isnoneornil(state, 4) ? "" : luaL_checkstring(state, 4);
+    std::string keysPath = luaL_checkstring(state, 5);
+    int threads = lua_isnoneornil(state, 6) ? 2 : luaCheckInt(state, 6, "threads");
+
+    // ONNX session 首次加载可能持续数秒。参数已复制到 native string，等待期间不会访问 Lua
+    // 栈，因此释放 VM Gate 后其余 Lua native 子线程仍可继续执行。
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    bool loaded = engine_ocrLoadModel(
+            name.c_str(),
+            detPath.c_str(),
+            recPath.c_str(),
+            clsPath.c_str(),
+            keysPath.c_str(),
+            threads
+    ) != 0;
+    std::string nativeError = engine_ocrLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    if (!loaded) {
+        lua_pushnil(state);
+        lua_pushstring(state, nativeError.c_str());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 释放一个脚本名称对 OCR 模型的持有。 */
+int luaOcrRelease(lua_State* state) {
+    const char* name = luaL_checkstring(state, 1);
+    bool released = engine_ocrReleaseModel(name) != 0;
+    if (!released && engine_ocrLastError()[0] != '\0') {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_ocrLastError());
+        return 2;
+    }
+    lua_pushboolean(state, released);
+    return 1;
+}
+
+/** 查询 OCR 模型是否已加载。 */
+int luaOcrIsLoaded(lua_State* state) {
+    const char* name = luaL_checkstring(state, 1);
+    bool loaded = engine_ocrIsModelLoaded(name) != 0;
+    if (!loaded && engine_ocrLastError()[0] != '\0') {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_ocrLastError());
+        return 2;
+    }
+    lua_pushboolean(state, loaded);
+    return 1;
+}
+
+/** 识别图片文件，返回每个文本框组成的 Lua table。 */
+int luaOcrRead(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    std::string path = luaL_checkstring(state, 2);
+    std::string optionsJson;
+    std::string error;
+    if (!luaOptionalOptionsJson(state, 3, &optionsJson, &error)) {
+        return luaL_argerror(state, 3, error.c_str());
+    }
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    const char* response = engine_ocrRead(name.c_str(), path.c_str(), optionsJson.c_str());
+    std::string resultJson = response == nullptr ? "" : response;
+    std::string nativeError = engine_ocrLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    return pushCAbiJsonOrError(state, resultJson.c_str(), nativeError.c_str());
+}
+
+/** 在图片 OCR 结果中查找文字。 */
+int luaOcrFindText(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    std::string path = luaL_checkstring(state, 2);
+    std::string text = luaL_checkstring(state, 3);
+    std::string optionsJson;
+    std::string error;
+    if (!luaOptionalOptionsJson(state, 4, &optionsJson, &error)) {
+        return luaL_argerror(state, 4, error.c_str());
+    }
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    const char* response = engine_ocrFindText(name.c_str(), path.c_str(), text.c_str(), optionsJson.c_str());
+    std::string resultJson = response == nullptr ? "" : response;
+    std::string nativeError = engine_ocrLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    return pushCAbiJsonOrError(state, resultJson.c_str(), nativeError.c_str());
+}
+
+/** 替换指定索引的自定义点阵字库。 */
+int luaFontSetDict(lua_State* state) {
+    int index = luaCheckInt(state, 1, "index");
+    const char* dictionary = luaL_checkstring(state, 2);
+    if (!engine_fontSetDict(index, dictionary)) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_fontLastError());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 向指定索引追加自定义点阵字库记录。 */
+int luaFontAddDict(lua_State* state) {
+    int index = luaCheckInt(state, 1, "index");
+    const char* dictionary = luaL_checkstring(state, 2);
+    if (!engine_fontAddDict(index, dictionary)) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_fontLastError());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 为当前 Lua native 线程选择自定义点阵字库。 */
+int luaFontUseDict(lua_State* state) {
+    int index = luaCheckInt(state, 1, "index");
+    if (!engine_fontUseDict(index)) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_fontLastError());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 从当前截图生成可直接拼入新格式字库记录的字形点阵。 */
+int luaFontGetPixel(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* color = luaL_checkstring(state, 5);
+    const char* result = engine_fontGetPixel(x1, y1, x2, y2, color);
+    if (result == nullptr) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_fontLastError());
+        return 2;
+    }
+    lua_pushstring(state, result);
+    return 1;
+}
+
+/** 按当前点阵字库识字，返回 text/items Lua table。 */
+int luaFontOcr(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* color = luaL_checkstring(state, 5);
+    double similarity = luaL_checknumber(state, 6);
+    return pushCAbiJsonOrError(
+            state,
+            engine_fontOcr(x1, y1, x2, y2, color, similarity),
+            engine_fontLastError()
+    );
+}
+
+/** 按当前点阵字库查找一段文字。 */
+int luaFontFindStr(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* text = luaL_checkstring(state, 5);
+    const char* color = luaL_checkstring(state, 6);
+    double similarity = luaL_checknumber(state, 7);
+    EnginePoint point{-1, -1};
+    if (!engine_fontFindStr(x1, y1, x2, y2, text, color, similarity, &point)) {
+        const char* error = engine_fontLastError();
+        if (error == nullptr || error[0] == '\0') {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnil(state);
+        lua_pushstring(state, error);
+        return 2;
+    }
+    lua_pushinteger(state, point.x);
+    lua_pushinteger(state, point.y);
+    return 2;
+}
+
+/** 按当前点阵字库返回全部文字命中坐标。 */
+int luaFontFindStrEx(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* text = luaL_checkstring(state, 5);
+    const char* color = luaL_checkstring(state, 6);
+    double similarity = luaL_checknumber(state, 7);
+    return pushCAbiJsonOrError(
+            state,
+            engine_fontFindStrEx(x1, y1, x2, y2, text, color, similarity),
+            engine_fontLastError()
+    );
+}
+
 /**
  * 打开 dialog、hud 或 web UI 会话。
  *
@@ -1145,12 +1443,39 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, screenTableIndex, "keepCapture", luaKeepCapture);
     setFunctionField(state, screenTableIndex, "releaseCapture", luaReleaseCapture);
     setFunctionField(state, screenTableIndex, "setCaptureCacheMs", luaSetCaptureCacheMs);
+    setFunctionField(state, screenTableIndex, "saveCapture", luaSaveCapture);
     lua_setfield(state, hostTableIndex, "screen");
 
     lua_newtable(state);
     int colorTableIndex = lua_gettop(state);
     setFunctionField(state, colorTableIndex, "findColors", luaColorsFind);
     lua_setfield(state, hostTableIndex, "color");
+
+    lua_newtable(state);
+    int imageTableIndex = lua_gettop(state);
+    setFunctionField(state, imageTableIndex, "findPic", luaFindPic);
+    setFunctionField(state, imageTableIndex, "clearCache", luaClearImageCache);
+    lua_setfield(state, hostTableIndex, "image");
+
+    lua_newtable(state);
+    int ocrTableIndex = lua_gettop(state);
+    setFunctionField(state, ocrTableIndex, "load", luaOcrLoad);
+    setFunctionField(state, ocrTableIndex, "release", luaOcrRelease);
+    setFunctionField(state, ocrTableIndex, "isLoaded", luaOcrIsLoaded);
+    setFunctionField(state, ocrTableIndex, "read", luaOcrRead);
+    setFunctionField(state, ocrTableIndex, "findText", luaOcrFindText);
+    lua_setfield(state, hostTableIndex, "ocr");
+
+    lua_newtable(state);
+    int fontTableIndex = lua_gettop(state);
+    setFunctionField(state, fontTableIndex, "setDict", luaFontSetDict);
+    setFunctionField(state, fontTableIndex, "addDict", luaFontAddDict);
+    setFunctionField(state, fontTableIndex, "useDict", luaFontUseDict);
+    setFunctionField(state, fontTableIndex, "getFontPixel", luaFontGetPixel);
+    setFunctionField(state, fontTableIndex, "ocr", luaFontOcr);
+    setFunctionField(state, fontTableIndex, "findStr", luaFontFindStr);
+    setFunctionField(state, fontTableIndex, "findStrEx", luaFontFindStrEx);
+    lua_setfield(state, hostTableIndex, "font");
 
     lua_newtable(state);
     int imeTableIndex = lua_gettop(state);
