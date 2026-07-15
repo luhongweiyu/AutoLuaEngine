@@ -19,7 +19,7 @@
 
 namespace {
 
-// 12 新增独立 EngineDeviceApi 函数表，旧版插件必须按新头文件重编译。
+// 12 在顶层表尾部新增独立 EngineDeviceApi；旧插件继续使用既有前缀字段时保持兼容。
 constexpr int kEngineAbiVersion = 12;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 

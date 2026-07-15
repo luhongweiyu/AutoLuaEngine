@@ -103,7 +103,7 @@ engine_exitScript
 engine_deviceLastError
 ```
 
-完整接口及 Lua 返回结构见 [Android 设备 API](ANDROID_设备_API.md)。
+完整接口及 Lua 返回结构见 [脚本文档 · 设备](脚本文档.md)；实现与 C ABI 见 [Android 设备 API](ANDROID_设备_API.md)。
 
 当前脚本 UI C ABI：
 
@@ -304,8 +304,8 @@ const char* engine_deviceLastError();
 
 规则：
 
-- `EngineDeviceApi` 是 `EngineApi::getDeviceApi()` 返回的子函数表，ABI 版本随
-  `EngineApi::abiVersion` 一起升级。
+- `EngineApi` 和 `EngineDeviceApi` 都有自己的 `abiVersion`。函数表只能尾部追加字段；
+  插件先检查所需版本再访问新增字段，旧插件继续使用已有字段时保持可用。
 - 结构化结果一律以 JSON 文本从 C ABI 返回；Lua HostApi 才转换为 table。
 - 设备字符串、JSON 和错误文本由调用线程持有，下一次设备调用可能覆盖内容。
 - `engine_exec` 只返回 shell 合并输出，不根据命令退出码改变成功状态；调用方自行判断。

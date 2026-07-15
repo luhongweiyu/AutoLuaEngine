@@ -11,8 +11,9 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `abiVersion` 为 `12`。版本 12 在顶层函数表末尾新增 `getDeviceApi()`，设备能力
-统一放入独立 `EngineDeviceApi` 子表；旧插件必须使用当前头文件重编译。
+当前 `EngineApi::abiVersion` 为 `12`。版本 12 仅在顶层函数表末尾新增 `getDeviceApi()`，
+设备能力统一放入独立 `EngineDeviceApi` 子表。函数表只允许尾部追加字段：旧插件继续调用
+既有字段时保持可用；只有要使用新字段的插件才需要使用新头文件重编译。
 
 ## 当前函数表能力
 
@@ -70,10 +71,11 @@ typedef struct EngineApi {
 } EngineApi;
 ```
 
-设备子表通过 `api->getDeviceApi()` 获取。它包含应用状态、应用启动/停止、安装 APK、
+设备子表通过 `api->getDeviceApi()` 获取。插件必须先确认 `api->abiVersion >= 12`，再读取该
+字段；取得子表后再检查 `device->abiVersion` 是否满足自身所需版本。它包含应用状态、应用启动/停止、安装 APK、
 Root `exec`、硬件信息、屏幕信息、传感器、网络/电话信息和系统控制函数。完整声明不在本文
 重复维护，以 [system_c_api.h](../engines/android/app/src/main/cpp/core/system_c_api.h) 和
-[Android 设备 API](ANDROID_设备_API.md) 为准：
+[脚本文档 · 设备](脚本文档.md) 与 [Android 设备 API](ANDROID_设备_API.md) 为准：
 
 ```c
 const EngineDeviceApi* device = api->getDeviceApi();

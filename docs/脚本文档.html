@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>小鱼精灵 脚本文档</title>
+  <style>
+    :root {
+      /* 中性黑灰底，不带蓝 */
+      --bg: #121212;
+      --panel: #1a1a1a;
+      --sidebar: #161616;
+      --border: #2a2a2a;
+      --border-strong: #3a3a3a;
+      --text: #e8e8e8;
+      --text-strong: #f3f3f3;
+      --muted: #8a8a8a;
+      --hover: #222222;
+      --active: #2a2a2a;
+      --active-bar: #c8a46a;      /* 选中条：暖金，不用青蓝 */
+      --code-bg: #0e0e0e;
+      --code-text: #f0c674;      /* 代码块：琥珀金，与绿色区分 */
+      --code-inline: #5ddea0;    /* 行内 code：与命令同系绿色 */
+      --link: #d0b48a;
+      --cmd: #5ddea0;            /* 命令：绿 */
+      --cmd-active: #7aefb4;
+      --name: #e0e0e0;           /* 侧栏中文 */
+      --cat: #c4b5fd;            /* 分类：淡紫 */
+      --heading: #e8d5a3;        /* 标题：浅暖金，不用 77dcf0 */
+      --meta-key: #8a8a8a;
+      --meta-val: #e0b86a;
+      --table-head: #222222;
+      --table-border: #333333;
+      --shadow: rgba(0, 0, 0, 0.4);
+      --sidebar-w: 300px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      flex: 0 0 auto;
+    }
+    #toggleSidebar {
+      width: 34px;
+      height: 32px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      flex: 0 0 auto;
+    }
+    #toggleSidebar:hover { background: var(--hover); }
+    header h1 {
+      font-size: 15px;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      color: var(--heading);
+    }
+    header input {
+      flex: 1;
+      max-width: 420px;
+      background: var(--bg);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 7px 11px;
+      outline: none;
+    }
+    header input::placeholder { color: #666; }
+    header input:focus { border-color: #666; }
+    main {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      position: relative;
+    }
+    #sidebar {
+      width: var(--sidebar-w);
+      min-width: 0;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      position: relative;
+      /* visible：拖动手感区可略伸出；清单裁切交给 #tree */
+      overflow: visible;
+      transition: width 0.18s ease, opacity 0.18s ease;
+    }
+    body.sidebar-collapsed #sidebar {
+      width: 0 !important;
+      border-right: none;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #tree {
+      flex: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 8px 0 24px;
+      min-width: 0;
+    }
+    #resizer {
+      /* 宽热区好点选；中间细线才是视觉 */
+      position: absolute;
+      top: 0;
+      right: -12px;
+      width: 32px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 30;
+      background: transparent;
+      touch-action: none;
+    }
+    #resizer::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      background: var(--border-strong);
+      opacity: 0.7;
+      transition: background 0.12s ease, width 0.12s ease, opacity 0.12s ease;
+      pointer-events: none;
+    }
+    #resizer:hover::after,
+    body.resizing #resizer::after {
+      width: 3px;
+      opacity: 1;
+      background: var(--active-bar);
+    }
+    #resizer:hover,
+    body.resizing #resizer {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    body.resizing #sidebar {
+      transition: none;
+    }
+    body.resizing,
+    body.resizing * {
+      cursor: col-resize !important;
+      user-select: none !important;
+    }
+    body.sidebar-collapsed #resizer {
+      display: none;
+    }
+    #detail {
+      flex: 1;
+      overflow: auto;
+      padding: 22px 30px 48px;
+      min-width: 0;
+      background: var(--bg);
+
+      position: relative;
+      padding-bottom: 28px;
+    }
+    .node {
+      min-width: 0;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      cursor: pointer;
+      border-left: 1px solid transparent;
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden; /* 从右侧裁：先裁中文，再裁命令尾部 */
+      min-width: 0;
+      flex-wrap: nowrap;
+    }
+    .row:hover { background: var(--hover); }
+    .row.active {
+      background: var(--active);
+      border-left-color: var(--text-strong);
+      color: var(--text-strong);
+    }
+    .row.cat .label-name {
+      color: var(--cat);
+      font-weight: 600;
+    }
+    .row .label-name {
+      color: var(--name);
+      font-weight: 500;
+      font-size: 13px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .row .label-cmd {
+      color: var(--cmd);
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 13px;
+      font-weight: 600;
+      margin-right: 8px;
+      margin-left: 0;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .row.active .label-name { color: var(--text-strong); }
+    .row.active .label-cmd { color: var(--cmd-active); }
+    .twisty {
+      width: 10px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 8px;
+      flex: 0 0 10px;
+      line-height: 1;
+      transform: scale(0.85);
+    }
+    .children { display: none; }
+    .children.open { display: block; }
+    .muted { color: var(--muted); }
+    #meta {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0 18px;
+      padding: 12px 14px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    #meta div { font-size: 13px; }
+    #meta b {
+      color: var(--meta-key);
+      font-weight: 600;
+      margin-right: 8px;
+      display: inline-block;
+      min-width: 2.5em;
+    }
+    #meta span {
+      color: var(--meta-val);
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 13px;
+    }
+    #titleWrap {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 10px;
+      margin: 0 0 8px;
+    }
+    #title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      color: var(--text-strong);
+    }
+    #titleCmd {
+      color: var(--cmd);
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 22px;
+      font-weight: 650;
+      order: -1;
+    }
+    #article {
+      position: relative;
+      min-height: 100%;
+      padding-bottom: 36px;
+    }
+    #filePath {
+      position: absolute;
+      right: 8px;
+      bottom: 6px;
+      font-size: 11px;
+      color: #666666;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      user-select: all;
+      max-width: 70%;
+      overflow: hidden;
+      text-overflow: clip;
+      white-space: nowrap;
+      pointer-events: auto;
+    }
+    #filePath:hover { color: #888; }
+    #body {
+      line-height: 1.7;
+      font-size: 14px;
+      color: var(--text);
+    }
+    #body h1, #body h2, #body h3 {
+      margin-top: 1.3em;
+      color: var(--heading);
+      font-weight: 600;
+    }
+    #body p { margin: 0.7em 0; }
+    #body ul { padding-left: 1.3em; }
+    #body li { margin: 0.25em 0; }
+    /* 仅行内 code；不要用 #body code 以免盖住代码块 */
+    #body :not(pre) > code,
+    #body p code,
+    #body li code,
+    #body td code,
+    #body th code,
+    #body h1 code,
+    #body h2 code,
+    #body h3 code {
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 0.92em;
+      background: var(--code-bg);
+      color: var(--code-inline);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+    }
+    #body pre {
+      /* 比页面底浅一截，才能看出框 */
+      background: #2c2c2c !important;
+      border: 1px solid #6a6a6a !important;
+      border-left: 4px solid var(--cmd) !important;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 1em 0;
+      overflow: auto;
+      color: var(--code-text) !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 4px 14px rgba(0,0,0,0.25);
+    }
+    #body pre code {
+      display: block;
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      color: #f0c674 !important;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre;
+      box-shadow: none !important;
+    }
+    #body table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0.9em 0;
+      font-size: 13px;
+    }
+    #body th, #body td {
+      border: 1px solid var(--table-border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    #body th {
+      background: var(--table-head);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    #body a {
+      color: var(--link);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    #body a:hover { color: var(--text-strong); }
+    #status { color: var(--muted); font-size: 13px; }
+    #showSidebarFab {
+      position: fixed;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 40px;
+      border-radius: 0 6px 6px 0;
+      border: 1px solid var(--border-strong);
+      border-left: none;
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      z-index: 40;
+      display: none;
+      font-size: 12px;
+      line-height: 38px;
+      padding: 0;
+      box-shadow: 2px 0 8px var(--shadow);
+    }
+    #showSidebarFab:hover {
+      color: var(--text);
+      background: var(--hover);
+    }
+    body.sidebar-collapsed #showSidebarFab { display: block; }
+
+    pre.md-code {
+      background: #2c2c2c !important;
+      border: 1px solid #6a6a6a !important;
+      border-left: 4px solid var(--cmd) !important;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 1em 0;
+      overflow: auto;
+      color: #f0c674 !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 4px 14px rgba(0,0,0,0.25);
+    }
+    pre.md-code code {
+      display: block;
+      background: transparent !important;
+      border: none !important;
+      color: #f0c674 !important;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+  </style>
+</head>
+<body>
+  <header>
+    <button id="toggleSidebar" type="button" title="隐藏/显示侧栏">☰</button>
+    <h1>小鱼精灵 · 脚本文档</h1>
+    <input id="search" type="search" placeholder="搜索分类或命令…" />
+  </header>
+  <main>
+    <aside id="sidebar">
+      <nav id="tree"></nav>
+      <div id="resizer" title="拖动调整宽度（双击恢复默认）"></div>
+    </aside>
+    <section id="detail">
+      <div id="status">正在加载 catalog.json …</div>
+      <div id="titleWrap" hidden>
+        <span id="titleCmd" hidden></span>
+        <h2 id="title"></h2>
+      </div>
+      <div id="meta" hidden></div>
+      <article id="body"></article>
+      <div id="filePath" hidden></div>
+    </section>
+  </main>
+  <button id="showSidebarFab" type="button" title="显示侧栏">›</button>
+  <script>
+    const BASE = "脚本文档/";
+    const LS_W = "xiaoyv.docs.sidebarWidth";
+    const LS_C = "xiaoyv.docs.sidebarCollapsed";
+    const MIN_W = 60;
+    const MAX_W = 720;
+    const DEF_W = 300;
+
+    const treeEl = document.getElementById("tree");
+    const sidebarEl = document.getElementById("sidebar");
+    const resizerEl = document.getElementById("resizer");
+    const toggleBtn = document.getElementById("toggleSidebar");
+    const showFab = document.getElementById("showSidebarFab");
+    const statusEl = document.getElementById("status");
+    const titleEl = document.getElementById("title");
+    const titleWrapEl = document.getElementById("titleWrap");
+    const titleCmdEl = document.getElementById("titleCmd");
+    const filePathEl = document.getElementById("filePath");
+    const metaEl = document.getElementById("meta");
+    const bodyEl = document.getElementById("body");
+    const searchEl = document.getElementById("search");
+
+    let catalog = [];
+    let activeRow = null;
+    let sidebarWidth = DEF_W;
+
+    function clampWidth(w) {
+      return Math.max(MIN_W, Math.min(MAX_W, w));
+    }
+
+    function applySidebarWidth(w, save) {
+      sidebarWidth = clampWidth(w);
+      document.documentElement.style.setProperty("--sidebar-w", sidebarWidth + "px");
+      if (save !== false) {
+        try { localStorage.setItem(LS_W, String(sidebarWidth)); } catch (_) {}
+      }
+    }
+
+    function setCollapsed(collapsed, save) {
+      document.body.classList.toggle("sidebar-collapsed", collapsed);
+      toggleBtn.title = collapsed ? "显示侧栏" : "隐藏侧栏";
+      showFab.title = "显示侧栏";
+      if (save !== false) {
+        try { localStorage.setItem(LS_C, collapsed ? "1" : "0"); } catch (_) {}
+      }
+    }
+
+    function initSidebarChrome() {
+      try {
+        const w = parseInt(localStorage.getItem(LS_W) || "", 10);
+        if (!Number.isNaN(w)) applySidebarWidth(w, false);
+        else applySidebarWidth(DEF_W, false);
+        setCollapsed(localStorage.getItem(LS_C) === "1", false);
+      } catch (_) {
+        applySidebarWidth(DEF_W, false);
+        setCollapsed(false, false);
+      }
+
+      toggleBtn.addEventListener("click", () => {
+        setCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+      });
+      showFab.addEventListener("click", () => setCollapsed(false));
+
+      let dragging = false;
+      let startX = 0;
+      let startW = 0;
+      let activePointerId = null;
+
+      function endDrag(e) {
+        if (!dragging) return;
+        dragging = false;
+        document.body.classList.remove("resizing");
+        applySidebarWidth(sidebarWidth, true);
+        if (e && activePointerId != null && resizerEl.releasePointerCapture) {
+          try { resizerEl.releasePointerCapture(activePointerId); } catch (_) {}
+        }
+        activePointerId = null;
+      }
+
+      resizerEl.addEventListener("pointerdown", (e) => {
+        if (document.body.classList.contains("sidebar-collapsed")) return;
+        if (e.button != null && e.button !== 0) return;
+        dragging = true;
+        activePointerId = e.pointerId;
+        startX = e.clientX;
+        startW = sidebarEl.getBoundingClientRect().width;
+        document.body.classList.add("resizing");
+        try { resizerEl.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+      });
+
+      resizerEl.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        applySidebarWidth(startW + (e.clientX - startX));
+      });
+
+      resizerEl.addEventListener("pointerup", endDrag);
+      resizerEl.addEventListener("pointercancel", endDrag);
+      // 双击恢复默认宽度
+      resizerEl.addEventListener("dblclick", (e) => {
+        if (document.body.classList.contains("sidebar-collapsed")) return;
+        applySidebarWidth(DEF_W, true);
+        e.preventDefault();
+      });
+    }
+
+
+    /** 生成/解析深链：优先 cmd，否则用 md 路径 */
+    function nodeHash(node) {
+      if (node && node.cmd) return String(node.cmd);
+      if (node && node.md) return String(node.md);
+      if (node && node.name) return String(node.name);
+      return "";
+    }
+
+    function findNodeByHash(nodes, hash) {
+      if (!hash) return null;
+      const h = decodeURIComponent(hash.replace(/^#/, "")).trim();
+      if (!h) return null;
+      const hLower = h.toLowerCase();
+      let found = null;
+      function walk(list, parents) {
+        for (const n of list) {
+          const chain = parents.concat([n]);
+          const cmd = (n.cmd || "").toLowerCase();
+          const md = (n.md || "").replace(/\\/g, "/");
+          const name = (n.name || "").toLowerCase();
+          if (cmd && cmd === hLower) { found = chain; return true; }
+          if (md && (md === h || md.endsWith("/" + h) || md === "md/" + h)) { found = chain; return true; }
+          if (!n.cmd && name === hLower) { found = chain; return true; }
+          if (n.items && walk(n.items, chain)) return true;
+        }
+        return false;
+      }
+      walk(nodes, []);
+      return found;
+    }
+
+    function expandChain(chain) {
+      // chain 为从根到目标的 node 数组；打开沿途 children
+      // 通过再次 paint 后按 hash 点选更简单：在 select 时展开
+      return chain;
+    }
+
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function inlineMd(text) {
+      let s = escapeHtml(text);
+      s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+      s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      return s;
+    }
+
+    /**
+     * 拆分 Markdown 表格行，并保留类型声明中的转义竖线（例如 boolean \| nil）。
+     * 不能直接使用 String.split("|")，否则联合类型会被误拆成额外单元格。
+     */
+    function splitMarkdownTableRow(row) {
+      let source = row.trim();
+      if (source.startsWith("|")) source = source.slice(1);
+      if (source.endsWith("|") && !source.endsWith("\\|")) source = source.slice(0, -1);
+
+      const cells = [];
+      let cell = "";
+      for (let index = 0; index < source.length; index++) {
+        const current = source[index];
+        if (current === "\\" && source[index + 1] === "|") {
+          cell += "|";
+          index++;
+          continue;
+        }
+        if (current === "|") {
+          cells.push(cell.trim());
+          cell = "";
+          continue;
+        }
+        cell += current;
+      }
+      cells.push(cell.trim());
+      return cells;
+    }
+
+    function renderMarkdown(src) {
+      const lines = src.replace(/\r\n/g, "\n").split("\n");
+      let html = "";
+      let i = 0;
+      let inCode = false;
+      let codeLines = [];
+      let inList = false;
+      let inTable = false;
+      let tableRows = [];
+
+      function closeList() {
+        if (inList) { html += "</ul>"; inList = false; }
+      }
+      function closeTable() {
+        if (!inTable) return;
+        html += "<table>";
+        tableRows.forEach((row, idx) => {
+          if (/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(row)) return;
+          const cells = splitMarkdownTableRow(row);
+          const tag = idx === 0 ? "th" : "td";
+          html += "<tr>" + cells.map(c => `<${tag}>${inlineMd(c)}</${tag}>`).join("") + "</tr>";
+        });
+        html += "</table>";
+        tableRows = [];
+        inTable = false;
+      }
+
+      while (i < lines.length) {
+        const line = lines[i];
+        if (line.startsWith("```")) {
+          closeList(); closeTable();
+          if (!inCode) {
+            inCode = true;
+            codeLines = [];
+          } else {
+            html += `<pre class="md-code"><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`;
+            inCode = false;
+          }
+          i++;
+          continue;
+        }
+        if (inCode) {
+          codeLines.push(line);
+          i++;
+          continue;
+        }
+        if (/^\s*\|/.test(line) && line.includes("|")) {
+          closeList();
+          inTable = true;
+          tableRows.push(line);
+          i++;
+          continue;
+        } else {
+          closeTable();
+        }
+        if (/^\s*[-*]\s+/.test(line)) {
+          if (!inList) { html += "<ul>"; inList = true; }
+          html += `<li>${inlineMd(line.replace(/^\s*[-*]\s+/, ""))}</li>`;
+          i++;
+          continue;
+        } else {
+          closeList();
+        }
+        if (!line.trim()) { i++; continue; }
+        if (line.startsWith("### ")) { html += `<h3>${inlineMd(line.slice(4))}</h3>`; i++; continue; }
+        if (line.startsWith("## ")) { html += `<h2>${inlineMd(line.slice(3))}</h2>`; i++; continue; }
+        if (line.startsWith("# ")) { html += `<h1>${inlineMd(line.slice(2))}</h1>`; i++; continue; }
+        html += `<p>${inlineMd(line)}</p>`;
+        i++;
+      }
+      closeList();
+      closeTable();
+      if (inCode) html += `<pre class="md-code"><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`;
+      return html;
+    }
+
+    function parseFrontMatter(text) {
+      const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+      if (!m) return { params: "", returns: "", body: text };
+      const head = m[1];
+      const body = m[2] || "";
+      let params = "", returns = "";
+      head.split(/\r?\n/).forEach(line => {
+        const pm = line.match(/^params:\s*(.*)$/);
+        const rm = line.match(/^returns:\s*(.*)$/);
+        if (pm) {
+          try { params = JSON.parse(pm[1]); }
+          catch { params = pm[1].replace(/^["']|["']$/g, ""); }
+        }
+        if (rm) {
+          try { returns = JSON.parse(rm[1]); }
+          catch { returns = rm[1].replace(/^["']|["']$/g, ""); }
+        }
+      });
+      return { params, returns, body };
+    }
+
+    function matchesQuery(node, q) {
+      if (!q) return true;
+      const name = (node.name || "").toLowerCase();
+      const cmd = (node.cmd || "").toLowerCase();
+      if (name.includes(q) || cmd.includes(q)) return true;
+      if (node.items) return node.items.some(ch => matchesQuery(ch, q));
+      return false;
+    }
+
+    function renderTree(nodes, parent, depth, q) {
+      nodes.forEach(node => {
+        if (!matchesQuery(node, q)) return;
+        const wrap = document.createElement("div");
+        wrap.className = "node";
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.paddingLeft = (12 + depth * 14) + "px";
+        const hasKids = Array.isArray(node.items) && node.items.length > 0;
+        const twisty = document.createElement("span");
+        twisty.className = "twisty";
+        twisty.textContent = hasKids ? "▶" : "";
+        if (hasKids) row.classList.add("cat");
+        row.appendChild(twisty);
+        if (node.cmd) {
+          const cmdEl = document.createElement("span");
+          cmdEl.className = "label-cmd";
+          cmdEl.textContent = node.cmd;
+          row.appendChild(cmdEl);
+        }
+        const label = document.createElement("span");
+        label.className = "label-name";
+        label.textContent = node.name;
+        row.appendChild(label);
+        wrap.appendChild(row);
+
+        let childBox = null;
+        if (hasKids) {
+          childBox = document.createElement("div");
+          childBox.className = "children" + (q ? " open" : "");
+          if (q) twisty.textContent = "▼";
+          renderTree(node.items, childBox, depth + 1, q);
+          wrap.appendChild(childBox);
+        }
+
+        row.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (hasKids) {
+            const open = childBox.classList.toggle("open");
+            twisty.textContent = open ? "▼" : "▶";
+          }
+          selectNode(node, row);
+        });
+        parent.appendChild(wrap);
+      });
+    }
+
+    async function selectNode(node, row) {
+      if (activeRow) activeRow.classList.remove("active");
+      activeRow = row;
+      row.classList.add("active");
+
+      // 深链
+      try {
+        const h = nodeHash(node);
+        if (h) {
+          const next = "#" + encodeURIComponent(h).replace(/%2F/gi, "/");
+          if (location.hash !== next) {
+            history.replaceState(null, "", next);
+          }
+        }
+      } catch (_) {}
+
+      // 标题：中文主色 + 短命令次色（一行）
+      if (titleWrapEl) titleWrapEl.hidden = false;
+      titleEl.hidden = false;
+      titleEl.textContent = node.name || "";
+      if (titleCmdEl) {
+        if (node.cmd) {
+          titleCmdEl.hidden = false;
+          titleCmdEl.textContent = node.cmd;
+        } else {
+          titleCmdEl.hidden = true;
+          titleCmdEl.textContent = "";
+        }
+      }
+      statusEl.textContent = "";
+      if (filePathEl) {
+        filePathEl.hidden = true;
+        filePathEl.textContent = "";
+      }
+
+      const hasKids = Array.isArray(node.items) && node.items.length > 0;
+      if (!node.md) {
+        metaEl.hidden = true;
+        bodyEl.innerHTML = hasKids
+          ? `<p class="muted">分类「${escapeHtml(node.name)}」下有 ${node.items.length} 项，请在左侧继续选择。</p>`
+          : `<p class="muted">无正文。</p>`;
+        return;
+      }
+
+      statusEl.textContent = "加载中…";
+      try {
+        const res = await fetch(BASE + node.md);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const text = await res.text();
+        const parsed = parseFrontMatter(text);
+        metaEl.hidden = false;
+        // 顶部只保留参数/返回；文件路径放到右下角
+        metaEl.innerHTML =
+          `<div><b>参数</b><span>${escapeHtml(parsed.params || "（无）")}</span></div>` +
+          `<div><b>返回</b><span>${escapeHtml(parsed.returns || "（无）")}</span></div>`;
+        bodyEl.innerHTML = renderMarkdown(parsed.body);
+        if (filePathEl) {
+          filePathEl.hidden = false;
+          filePathEl.textContent = node.md;
+          filePathEl.title = node.md;
+        }
+        statusEl.textContent = "";
+      } catch (err) {
+        metaEl.hidden = true;
+        bodyEl.innerHTML = `<p class="muted">无法读取 ${escapeHtml(node.md)}：${escapeHtml(err.message)}</p>`;
+        statusEl.textContent = "";
+        if (filePathEl) {
+          filePathEl.hidden = false;
+          filePathEl.textContent = node.md;
+        }
+      }
+    }
+
+    function paintTree(q) {
+      treeEl.innerHTML = "";
+      renderTree(catalog, treeEl, 0, (q || "").trim().toLowerCase());
+    }
+
+    async function boot() {
+      initSidebarChrome();
+      try {
+        const res = await fetch(BASE + "catalog.json");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        catalog = await res.json();
+        statusEl.textContent = "请从左侧选择分类或命令。";
+        paintTree("");
+        searchEl.addEventListener("input", () => paintTree(searchEl.value));
+        openFromHash();
+        window.addEventListener("hashchange", () => openFromHash());
+      } catch (err) {
+        statusEl.innerHTML = "加载 catalog 失败：" + escapeHtml(err.message) +
+          "。<br>请通过可访问本地相对路径的方式打开本页（例如 IDE 预览 / App WebView）。";
+      }
+    }
+
+    function openFromHash() {
+      const chain = findNodeByHash(catalog, location.hash);
+      if (!chain || !chain.length) return;
+      paintTree(searchEl.value || "");
+      let parentEl = treeEl;
+      let rowEl = null;
+      let node = null;
+      for (let depth = 0; depth < chain.length; depth++) {
+        node = chain[depth];
+        const rows = parentEl.querySelectorAll(":scope > .node > .row");
+        let wrap = null;
+        rowEl = null;
+        for (const r of rows) {
+          const nameEl = r.querySelector(".label-name");
+          const cmdEl = r.querySelector(".label-cmd");
+          const name = nameEl ? nameEl.textContent : "";
+          const cmd = cmdEl ? cmdEl.textContent : "";
+          if ((node.cmd && cmd === node.cmd) || (!node.cmd && name === node.name)) {
+            wrap = r.parentElement;
+            rowEl = r;
+            break;
+          }
+        }
+        if (!wrap || !rowEl) return;
+        const childBox = wrap.querySelector(":scope > .children");
+        const twisty = rowEl.querySelector(".twisty");
+        if (depth === chain.length - 1) {
+          selectNode(node, rowEl);
+          try { rowEl.scrollIntoView({ block: "nearest" }); } catch (_) {}
+          return;
+        }
+        if (childBox) {
+          childBox.classList.add("open");
+          if (twisty) twisty.textContent = "▼";
+          parentEl = childBox;
+        } else {
+          selectNode(node, rowEl);
+          return;
+        }
+      }
+    }
+
+
+    boot();
+  </script>
+</body>
+</html>

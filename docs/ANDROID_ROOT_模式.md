@@ -41,7 +41,7 @@
 已完成的 Root 能力统一按 `core/api -> system_c_api -> 语言绑定` 分层；尚未实现的
 自动化能力继续按这一边界新增，不在 Java 或 Lua 层单独实现业务逻辑。
 
-设备 API 的参数和 Lua 返回值见 [Android 设备 API](ANDROID_设备_API.md)。
+设备 API 的参数和 Lua 返回值见 [脚本文档 · 设备](脚本文档.md) / [设备实现说明](ANDROID_设备_API.md)。
 
 ## 截图接口
 
