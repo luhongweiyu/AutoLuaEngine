@@ -22,14 +22,14 @@
 
 namespace {
 
-// 16 在函数表尾部加入内置 OCR 模型加载接口；既有字段位置保持不变。
-constexpr int kEngineAbiVersion = 16;
+// 17 在函数表尾部加入目标字形快速找字接口；既有字段位置保持不变。
+constexpr int kEngineAbiVersion = 17;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.16\","
+        "\"abiVersion\":\"0.17\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -40,7 +40,7 @@ constexpr const char* kCapabilitiesJson =
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageApi\":[\"engine_findPic\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
         "\"ocrApi\":[\"engine_ocrLoadBuiltinModel\",\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
-        "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontOcr\",\"engine_fontFindStr\"],"
+        "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontAddDict\",\"engine_fontUseDict\",\"engine_fontGetPixel\",\"engine_fontOcr\",\"engine_fontFindStr\",\"engine_fontFindStrEx\",\"engine_fontFindStrFast\",\"engine_fontFindStrFastEx\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
@@ -296,7 +296,9 @@ const EngineApi kEngineApi = {
         engine_setImageCacheMaxBytes,
         engine_setScreenPixels,
         engine_restoreScreenPixels,
-        engine_ocrLoadBuiltinModel
+        engine_ocrLoadBuiltinModel,
+        engine_fontFindStrFast,
+        engine_fontFindStrFastEx
 };
 
 } // namespace
@@ -1256,6 +1258,54 @@ extern "C" const char* engine_fontFindStrEx(
 ) {
     gFontResult.clear();
     if (!xiaoyv::api::点阵找字全部(x1, y1, x2, y2, text, color, sim, &gFontResult)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        gFontResult.clear();
+        return nullptr;
+    }
+    gFontLastError.clear();
+    return gFontResult.c_str();
+}
+
+/** 只匹配目标文字涉及的字形并返回第一个命中。 */
+extern "C" int engine_fontFindStrFast(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim,
+        EnginePoint* point
+) {
+    if (point == nullptr) {
+        gFontLastError = "快速找字输出坐标不能为空";
+        return 0;
+    }
+    xiaoyv::api::字库坐标 result;
+    if (!xiaoyv::api::点阵快速找字(x1, y1, x2, y2, text, color, sim, &result)) {
+        gFontLastError = xiaoyv::api::取字库错误();
+        point->x = -1;
+        point->y = -1;
+        return 0;
+    }
+    point->x = result.x;
+    point->y = result.y;
+    gFontLastError.clear();
+    return 1;
+}
+
+/** 只匹配目标文字涉及的字形并返回全部命中坐标。 */
+extern "C" const char* engine_fontFindStrFastEx(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim
+) {
+    gFontResult.clear();
+    if (!xiaoyv::api::点阵快速找字全部(x1, y1, x2, y2, text, color, sim, &gFontResult)) {
         gFontLastError = xiaoyv::api::取字库错误();
         gFontResult.clear();
         return nullptr;

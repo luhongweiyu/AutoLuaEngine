@@ -1264,6 +1264,47 @@ int luaFontFindStrEx(lua_State* state) {
     );
 }
 
+/** 只识别目标文字涉及的字形，返回第一个快速找字命中。 */
+int luaFontFindStrFast(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* text = luaL_checkstring(state, 5);
+    const char* color = luaL_checkstring(state, 6);
+    double similarity = luaL_checknumber(state, 7);
+    EnginePoint point{-1, -1};
+    if (!engine_fontFindStrFast(x1, y1, x2, y2, text, color, similarity, &point)) {
+        const char* error = engine_fontLastError();
+        if (error == nullptr || error[0] == '\0') {
+            lua_pushnil(state);
+            return 1;
+        }
+        lua_pushnil(state);
+        lua_pushstring(state, error);
+        return 2;
+    }
+    lua_pushinteger(state, point.x);
+    lua_pushinteger(state, point.y);
+    return 2;
+}
+
+/** 只识别目标文字涉及的字形，返回全部快速找字命中坐标。 */
+int luaFontFindStrFastEx(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* text = luaL_checkstring(state, 5);
+    const char* color = luaL_checkstring(state, 6);
+    double similarity = luaL_checknumber(state, 7);
+    return pushCAbiJsonOrError(
+            state,
+            engine_fontFindStrFastEx(x1, y1, x2, y2, text, color, similarity),
+            engine_fontLastError()
+    );
+}
+
 /**
  * 打开 dialog、hud 或 web UI 会话。
  *
@@ -1554,6 +1595,8 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, fontTableIndex, "ocr", luaFontOcr);
     setFunctionField(state, fontTableIndex, "findStr", luaFontFindStr);
     setFunctionField(state, fontTableIndex, "findStrEx", luaFontFindStrEx);
+    setFunctionField(state, fontTableIndex, "findStrFast", luaFontFindStrFast);
+    setFunctionField(state, fontTableIndex, "findStrFastEx", luaFontFindStrFastEx);
     lua_setfield(state, hostTableIndex, "font");
 
     lua_newtable(state);

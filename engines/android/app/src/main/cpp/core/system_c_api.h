@@ -246,6 +246,25 @@ typedef struct EngineApi {
     int (*setScreenPixels)(const char* imagePath);
     int (*restoreScreenPixels)();
     int (*ocrLoadBuiltinModel)(const char* name, int threads);
+    int (*fontFindStrFast)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* text,
+            const char* color,
+            double sim,
+            EnginePoint* point
+    );
+    const char* (*fontFindStrFastEx)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* text,
+            const char* color,
+            double sim
+    );
 } EngineApi;
 
 /**
@@ -623,6 +642,29 @@ int engine_fontFindStr(
 
 /** 在当前截图区域内查找全部文字命中，返回坐标数组 JSON。 */
 const char* engine_fontFindStrEx(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim
+);
+
+/** 只识别目标文字涉及的字形并返回第一个命中，适合大字库固定文本查找。 */
+int engine_fontFindStrFast(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double sim,
+        EnginePoint* point
+);
+
+/** 只识别目标文字涉及的字形并返回全部命中坐标 JSON 数组。 */
+const char* engine_fontFindStrFastEx(
         int x1,
         int y1,
         int x2,

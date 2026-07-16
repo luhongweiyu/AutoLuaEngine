@@ -100,6 +100,8 @@ engine_fontGetPixel
 engine_fontOcr
 engine_fontFindStr
 engine_fontFindStrEx
+engine_fontFindStrFast
+engine_fontFindStrFastEx
 engine_fontLastError
 ```
 
@@ -386,15 +388,30 @@ const char* engine_fontFindStrEx(
         int x1, int y1, int x2, int y2,
         const char* text, const char* color, double sim
 );
+int engine_fontFindStrFast(
+        int x1, int y1, int x2, int y2,
+        const char* text, const char* color, double sim,
+        EnginePoint* point
+);
+const char* engine_fontFindStrFastEx(
+        int x1, int y1, int x2, int y2,
+        const char* text, const char* color, double sim
+);
 const char* engine_fontLastError();
 ```
 
 规则：
 
 - 新字库格式是 `文字$宽$高$十六进制点阵`，宽高允许 `1` 到 `256`，不受旧 11 行字库限制；
-  简化旧 `文字$十六进制点阵` 格式仍按 11 行兼容读取，也支持大漠/懒人带末尾字高元数据的旧格式。
+  简化旧 `文字$十六进制点阵` 格式仍按 11 行兼容读取，也支持懒人
+  `文字$点阵$元数据...$真实高度` 和大漠 `点阵$文字$偏移元数据$真实高度` 格式。
 - 字库内容可直接传文本，也可传普通文件或当前 `.alpkg` 资源路径。
 - `engine_fontUseDict` 选择当前调用线程要使用的字库。多线程中需要使用非默认字库时，各线程各自调用一次。
+- 字形保留任意宽高完整点阵；纵向 11 位特征只用于候选分桶，最终结果始终用 64 位行块比较
+  全部点阵，并同时限制缺失点和多余点。
+- `engine_fontFindStr` / `engine_fontFindStrEx` 先执行完整识字再查找连续文本；
+  `engine_fontFindStrFast` / `engine_fontFindStrFastEx` 只搜索目标标签涉及的字形，适合大字库
+  固定文本查找。
 - 识字和找字均直接读取截图缓存，不保存图片、不依赖 OCR 模型；结构化结果通过 JSON 返回。
 
 ## 输入 C ABI
@@ -551,6 +568,8 @@ m.font.ocr(x1, y1, x2, y2, color, sim)
 m.font.ocrEx(x1, y1, x2, y2, color, sim)
 m.font.findStr(x1, y1, x2, y2, text, color, sim)
 m.font.findStrEx(x1, y1, x2, y2, text, color, sim)
+m.font.findStrFast(x1, y1, x2, y2, text, color, sim)
+m.font.findStrFastEx(x1, y1, x2, y2, text, color, sim)
 m.ime.lock()
 m.ime.setText(text)
 m.ime.unlock()

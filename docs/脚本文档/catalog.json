@@ -821,6 +821,16 @@
         "name": "找字全部",
         "md": "md/15-点阵字库/找字全部.md",
         "cmd": "m.font.findStrEx"
+      },
+      {
+        "name": "快速找字",
+        "md": "md/15-点阵字库/快速找字.md",
+        "cmd": "m.font.findStrFast"
+      },
+      {
+        "name": "快速找字全部",
+        "md": "md/15-点阵字库/快速找字全部.md",
+        "cmd": "m.font.findStrFastEx"
       }
     ]
   }

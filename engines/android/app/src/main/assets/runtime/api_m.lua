@@ -99,8 +99,8 @@ m.findPic = host.image.findPic
 m.clearImageCache = host.image.clearCache
 m.setImageCacheMaxBytes = host.image.setCacheMaxBytes
 
--- 点阵字库提供一套适合新脚本读取坐标的结构化结果，同时保留大漠风格的 ocr/ocrEx/findStrEx
--- 字符串返回，方便把现有点阵脚本逐步迁移过来。
+-- 点阵字库提供结构化识字结果，并区分“完整识字后查找”的 findStr 与“只识别目标字形”的
+-- findStrFast。ocr/ocrEx/findStrEx 系列保留字符串返回，方便现有点阵脚本迁移。
 local fontHost = host.font
 m.font = {
     setDict = fontHost.setDict,
@@ -109,6 +109,7 @@ m.font = {
     getFontPixel = fontHost.getFontPixel,
     read = fontHost.ocr,
     findStr = fontHost.findStr,
+    findStrFast = fontHost.findStrFast,
 }
 
 function m.font.ocr(x1, y1, x2, y2, color, sim)
@@ -133,6 +134,18 @@ end
 
 function m.font.findStrEx(x1, y1, x2, y2, text, color, sim)
     local points, errorMessage = fontHost.findStrEx(x1, y1, x2, y2, text, color, sim)
+    if not points then
+        return nil, errorMessage
+    end
+    local values = {}
+    for index, point in ipairs(points) do
+        values[index] = string.format("%d,%d", point.x, point.y)
+    end
+    return table.concat(values, "|")
+end
+
+function m.font.findStrFastEx(x1, y1, x2, y2, text, color, sim)
+    local points, errorMessage = fontHost.findStrFastEx(x1, y1, x2, y2, text, color, sim)
     if not points then
         return nil, errorMessage
     end

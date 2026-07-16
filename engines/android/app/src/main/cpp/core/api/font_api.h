@@ -1,5 +1,5 @@
 /**
- * 文件用途：声明自定义点阵字库识字和找字核心 API，兼容大漠/懒人旧字库并支持任意尺寸手机字库。
+ * 文件用途：声明点阵字库核心 API，统一提供完整识字、完整找字和目标字形快速找字。
  */
 #pragma once
 
@@ -25,7 +25,7 @@ bool 使用字库(int index);
 /**
  * 从当前截图生成一个可写入新字库的点阵描述，返回 "宽$高$十六进制点阵"。
  *
- * 输出会自动裁去纯背景边缘，手机字库因此不再受旧插件 11 行高度限制。
+ * 输出会自动裁去纯背景边缘。11 位仅是内部候选索引宽度，字形仍保存完整宽高点阵。
  */
 bool 获取字形点阵(
         int x1,
@@ -61,6 +61,30 @@ bool 点阵找字(
 
 /** 在当前截图指定区域内查找所有文字命中，成功返回结构化 JSON 数组。 */
 bool 点阵找字全部(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double similarity,
+        std::string* resultJson
+);
+
+/** 只识别目标文字涉及的字形并返回第一个命中；适合大字库中的固定文字查找。 */
+bool 点阵快速找字(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* text,
+        const char* color,
+        double similarity,
+        字库坐标* point
+);
+
+/** 只识别目标文字涉及的字形并返回全部命中坐标 JSON 数组。 */
+bool 点阵快速找字全部(
         int x1,
         int y1,
         int x2,

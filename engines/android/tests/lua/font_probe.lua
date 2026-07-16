@@ -27,6 +27,21 @@ if pixel then
         local x, y = m.font.findStr(0, 1200, 200, 1280, "脚", color, 1.0)
         print("点阵找字", x, y)
         print("点阵找字全部", m.font.findStrEx(0, 1200, 200, 1280, "脚", color, 1.0))
+        local fastX, fastY = m.font.findStrFast(0, 1200, 200, 1280, "脚", color, 1.0)
+        print("快速点阵找字", fastX, fastY)
+        print("快速点阵找字全部", m.font.findStrFastEx(0, 1200, 200, 1280, "脚", color, 1.0))
+    end
+
+    -- 大漠字库把点阵放在文字前面，最后一段保存真实高度。这里直接使用刚从屏幕生成的
+    -- 完整点阵，验证加载器不会把 11 位候选索引误当成字形高度。
+    local width, height, bits = pixel:match("^(%d+)%$(%d+)%$([%x]+)$")
+    if width and height and bits then
+        local dmOk, dmError = m.font.setDict(3, bits .. "$脚$0.0." .. width .. "$" .. height)
+        print("设置大漠顺序字库", dmOk, dmError)
+        if dmOk then
+            assert(m.font.useDict(3))
+            print("大漠顺序字库识字", m.font.ocr(0, 1200, 200, 1280, color, 1.0))
+        end
     end
 end
 
