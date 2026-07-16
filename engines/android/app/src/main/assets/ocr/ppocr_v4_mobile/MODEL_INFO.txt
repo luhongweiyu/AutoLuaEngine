@@ -1,0 +1,22 @@
+文件用途：记录小鱼精灵内置 OCR 模型的来源、版本和完整性信息。
+
+模型：RapidOCR PP-OCRv4 mobile，简体中文/英文
+版本：RapidOCR v3.9.1
+来源：https://www.modelscope.cn/models/RapidAI/RapidOCR
+许可：Apache License 2.0，详见 LICENSE_RapidOCR.txt
+
+文件与 SHA-256：
+
+ch_PP-OCRv4_det_mobile.onnx
+d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9
+
+ch_PP-OCRv4_rec_mobile.onnx
+48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b
+
+ch_ppocr_mobile_v2.0_cls_mobile.onnx
+e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c
+
+ppocr_keys_v1.txt
+28b2362ad4ab2dc38769aa72feb535e3a9ddb3fd2a7585a05920e6393b1dc7f7
+
+RapidOCR 项目说明：OCR 模型版权归百度所有，工程代码由 RapidOCR 项目维护。

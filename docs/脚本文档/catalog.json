@@ -739,6 +739,11 @@
         "md": "md/14-OCR/概述.md"
       },
       {
+        "name": "加载内置模型",
+        "md": "md/14-OCR/加载内置模型.md",
+        "cmd": "m.ocr.loadBuiltin"
+      },
+      {
         "name": "加载模型",
         "md": "md/14-OCR/加载模型.md",
         "cmd": "m.ocr.load"

@@ -1057,6 +1057,31 @@ int luaOcrLoad(lua_State* state) {
     return 1;
 }
 
+/** 加载 APK 内置中文 PP-OCRv4 mobile 模型，名称默认 builtin，推理线程默认 2。 */
+int luaOcrLoadBuiltin(lua_State* state) {
+    std::string name = lua_isnoneornil(state, 1) ? "builtin" : luaL_checkstring(state, 1);
+    int threads = lua_isnoneornil(state, 2) ? 2 : luaCheckInt(state, 2, "threads");
+
+    // 首次调用需要复制模型并创建 ONNX session，耗时特征与自定义 load 相同；参数已复制到
+    // native 局部变量，因此等待期间可以安全释放 VM Gate。
+    lua_getfield(state, LUA_REGISTRYINDEX, "小鱼精灵Runtime");
+    LuaRuntime* runtime = static_cast<LuaRuntime*>(lua_touserdata(state, -1));
+    lua_pop(state, 1);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    bool loaded = engine_ocrLoadBuiltinModel(name.c_str(), threads) != 0;
+    std::string nativeError = engine_ocrLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    if (!loaded) {
+        lua_pushnil(state);
+        lua_pushstring(state, nativeError.c_str());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 /** 释放一个脚本名称对 OCR 模型的持有。 */
 int luaOcrRelease(lua_State* state) {
     const char* name = luaL_checkstring(state, 1);
@@ -1513,6 +1538,7 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int ocrTableIndex = lua_gettop(state);
     setFunctionField(state, ocrTableIndex, "load", luaOcrLoad);
+    setFunctionField(state, ocrTableIndex, "loadBuiltin", luaOcrLoadBuiltin);
     setFunctionField(state, ocrTableIndex, "release", luaOcrRelease);
     setFunctionField(state, ocrTableIndex, "isLoaded", luaOcrIsLoaded);
     setFunctionField(state, ocrTableIndex, "read", luaOcrRead);

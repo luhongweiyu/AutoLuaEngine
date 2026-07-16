@@ -32,6 +32,6 @@ dependencies {
     implementation "androidx.core:core:1.13.1"
     // 让 WebView 在 HTML 的首段脚本执行前注入 xiaoyv，页面可直接在初始化阶段调用 UI 桥。
     implementation "androidx.webkit:webkit:1.11.0"
-    // RapidOCR 的 ONNX 模型由 Android ONNX Runtime 执行；模型文件仍由脚本显式加载与释放。
+    // RapidOCR 的内置与自定义 ONNX 模型都由 Android ONNX Runtime 执行。
     implementation "com.microsoft.onnxruntime:onnxruntime-android:1.18.0"
 }

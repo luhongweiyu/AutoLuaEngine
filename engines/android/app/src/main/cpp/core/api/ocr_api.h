@@ -8,6 +8,13 @@
 namespace xiaoyv::api {
 
 /**
+ * 加载 APK 内置的中文 PP-OCRv4 mobile 模型。
+ *
+ * name 是脚本侧模型名称；模型资源由 Android 平台首次加载时准备到应用私有目录。
+ */
+bool 加载内置OCR模型(const char* name, int threads);
+
+/**
  * 加载一组 RapidOCR PP-OCR ONNX 模型。
  *
  * name 是脚本侧模型名称；det/rec/keys 必填，cls 可为空。相同名称且同配置重复加载会直接

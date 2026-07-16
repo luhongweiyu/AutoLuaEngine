@@ -11,9 +11,9 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `EngineApi::abiVersion` 为 `15`。版本 15 在函数表尾部追加 `setScreenPixels` 和
-`restoreScreenPixels`；版本 14 及以前的字段位置不变。新插件必须使用当前头文件编译，使用
-图片屏幕字段前检查版本不低于 15。
+当前 `EngineApi::abiVersion` 为 `16`。版本 16 在函数表尾部追加 `ocrLoadBuiltinModel`；
+版本 15 及以前的字段位置不变。新插件必须使用当前头文件编译，使用内置 OCR 模型字段前检查
+版本不低于 16；图片屏幕字段仍要求版本不低于 15。
 
 ## 当前函数表能力
 
@@ -113,6 +113,7 @@ typedef struct EngineApi {
     int (*setImageCacheMaxBytes)(size_t maxBytes);
     int (*setScreenPixels)(const char* imagePath);
     int (*restoreScreenPixels)();
+    int (*ocrLoadBuiltinModel)(const char* name, int threads);
 } EngineApi;
 ```
 
@@ -141,8 +142,9 @@ const char* displayJson = device->getDisplayInfoJson();
   只是 `capture` 的直接别名，不占用额外函数表字段。`findPic` 同样直接复用当前点阵，
   模板默认按 `5 MiB` 字节上限执行 LRU，脚本结束后全部释放；`setImageCacheMaxBytes(0)` 可
   关闭当前脚本的模板缓存。
-- `ocrLoadModel` / `ocrReleaseModel` 由插件显式管理 RapidOCR ONNX 模型；重复加载同名同配置
-  会复用，`ocrRead` 和 `ocrFindText` 返回当前调用线程持有的 JSON 文本。
+- `ocrLoadBuiltinModel` 可直接加载 APK 内置中文/英文 PP-OCRv4 mobile 模型；`ocrLoadModel`
+  继续加载自定义模型。两种模型都由 `ocrReleaseModel` 显式释放，重复加载同名同配置会复用；
+  `ocrRead` 和 `ocrFindText` 返回当前调用线程持有的 JSON 文本。
 - `fontSetDict` 支持 `文字$宽$高$十六进制点阵` 手机可变尺寸字库，也兼容简化 11 行格式和
   大漠/懒人带末尾字高元数据的旧字库；`fontOcr` / `fontFindStr` 直接读取当前截图缓存。
 - `systemTime` 返回 Unix 毫秒时间戳；`tickCount` 返回当前顶层脚本运行耗时，Lua 主任务和子线程共享起点。

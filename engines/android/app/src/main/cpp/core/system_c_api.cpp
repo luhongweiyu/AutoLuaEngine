@@ -22,14 +22,14 @@
 
 namespace {
 
-// 15 在函数表尾部加入图片屏幕的设置与还原接口；既有字段位置保持不变。
-constexpr int kEngineAbiVersion = 15;
+// 16 在函数表尾部加入内置 OCR 模型加载接口；既有字段位置保持不变。
+constexpr int kEngineAbiVersion = 16;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.15\","
+        "\"abiVersion\":\"0.16\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -39,7 +39,7 @@ constexpr const char* kCapabilitiesJson =
         "\"screenCapture\":[\"engine_getScreenPixels\",\"engine_setScreenPixels\",\"engine_restoreScreenPixels\",\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageApi\":[\"engine_findPic\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
-        "\"ocrApi\":[\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
+        "\"ocrApi\":[\"engine_ocrLoadBuiltinModel\",\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
         "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontOcr\",\"engine_fontFindStr\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
@@ -295,7 +295,8 @@ const EngineApi kEngineApi = {
         engine_fontLastError,
         engine_setImageCacheMaxBytes,
         engine_setScreenPixels,
-        engine_restoreScreenPixels
+        engine_restoreScreenPixels,
+        engine_ocrLoadBuiltinModel
 };
 
 } // namespace
@@ -1062,7 +1063,17 @@ extern "C" const char* engine_imageLastError() {
     return gImageLastError.c_str();
 }
 
-/** 加载或复用一组 RapidOCR ONNX 模型。 */
+/** 加载或复用 APK 内置中文 PP-OCRv4 mobile 模型。 */
+extern "C" int engine_ocrLoadBuiltinModel(const char* name, int threads) {
+    if (!xiaoyv::api::加载内置OCR模型(name, threads)) {
+        gOcrLastError = xiaoyv::api::取OCR错误();
+        return 0;
+    }
+    gOcrLastError.clear();
+    return 1;
+}
+
+/** 加载或复用一组脚本指定的 RapidOCR ONNX 模型。 */
 extern "C" int engine_ocrLoadModel(
         const char* name,
         const char* detPath,

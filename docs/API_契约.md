@@ -81,6 +81,7 @@ engine_imageLastError
 当前 OCR C ABI：
 
 ```c
+engine_ocrLoadBuiltinModel
 engine_ocrLoadModel
 engine_ocrReleaseModel
 engine_ocrIsModelLoaded
@@ -336,6 +337,7 @@ const char* engine_imageLastError();
 ## OCR C ABI
 
 ```c
+int engine_ocrLoadBuiltinModel(const char* name, int threads);
 int engine_ocrLoadModel(
         const char* name,
         const char* detPath,
@@ -358,7 +360,10 @@ const char* engine_ocrLastError();
 
 规则：
 
-- OCR 使用 RapidOCR 兼容的 PP-OCR ONNX 检测、识别和可选方向分类模型；模型由脚本显式加载和释放。
+- `engine_ocrLoadBuiltinModel` 加载 APK 内置 PP-OCRv4 mobile 中文/英文检测、识别、方向分类
+  模型和字典。首次使用从 assets 准备到应用私有目录，不联网、不需要脚本传路径。
+- `engine_ocrLoadModel` 加载脚本指定的 RapidOCR 兼容 PP-OCR ONNX 模型；两种入口最终共享
+  相同的 session 缓存和释放规则。
 - 相同名称、相同配置的重复加载直接复用，不增加引用次数；不同名称的相同配置共享底层 ONNX session。
 - `engine_ocrRead` 返回 `{ "items": [...] }` JSON；`engine_ocrFindText` 返回
   `{ "found": boolean, ... }` JSON。失败返回 `nullptr`，错误通过 `engine_ocrLastError()` 获取。
@@ -531,6 +536,7 @@ m.snapShot(path[, left, top, right, bottom])
 m.findPic(x1, y1, x2, y2, picName, deltaColor, dir, sim)
 m.clearImageCache([picName])
 m.setImageCacheMaxBytes(maxBytes)
+m.ocr.loadBuiltin([name[, threads]])
 m.ocr.load(name, detPath, recPath, clsPath, keysPath[, threads])
 m.ocr.release(name)
 m.ocr.isLoaded(name)

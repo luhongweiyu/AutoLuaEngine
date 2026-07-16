@@ -10,6 +10,7 @@ import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import ai.onnxruntime.TensorInfo;
 import ai.onnxruntime.ValueInfo;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
@@ -20,8 +21,10 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,11 +39,23 @@ import java.util.Map;
  *
  * 本类只实现 Android 必须依赖 ONNX Runtime 和 Bitmap 的部分。Lua、JS、Go 与插件均通过
  * libengine.so 的统一 C ABI 调用，不会直接接触 OrtSession、Bitmap 或 Java 对象。模型按脚本
- * 显式 load/release 管理；相同配置重复加载会复用同一组 session。
+ * 显式 load/release 管理；内置和自定义模型最终进入同一组 session 缓存，相同配置重复加载
+ * 会直接复用。
  */
 public final class OcrPlatformBridge {
     private static final Object MODEL_LOCK = new Object();
     private static final Map<String, OcrModel> MODELS_BY_NAME = new HashMap<>();
+    private static final String BUILTIN_MODEL_ASSET_DIRECTORY = "ocr/ppocr_v4_mobile";
+    private static final String BUILTIN_MODEL_STORAGE_DIRECTORY = "ocr/ppocr_v4_mobile_v3_9_1";
+    private static final String BUILTIN_DET_FILE = "ch_PP-OCRv4_det_mobile.onnx";
+    private static final String BUILTIN_REC_FILE = "ch_PP-OCRv4_rec_mobile.onnx";
+    private static final String BUILTIN_CLS_FILE = "ch_ppocr_mobile_v2.0_cls_mobile.onnx";
+    private static final String BUILTIN_KEYS_FILE = "ppocr_keys_v1.txt";
+    private static final long BUILTIN_DET_BYTES = 4_745_517L;
+    private static final long BUILTIN_REC_BYTES = 10_857_958L;
+    private static final long BUILTIN_CLS_BYTES = 585_532L;
+    private static final long BUILTIN_KEYS_BYTES = 26_249L;
+    private static final int ASSET_COPY_BUFFER_BYTES = 64 * 1024;
     private static OrtEnvironment environment;
 
     private OcrPlatformBridge() {
@@ -56,6 +71,9 @@ public final class OcrPlatformBridge {
         try {
             JSONObject arguments = new JSONObject(argumentsJson == null ? "{}" : argumentsJson);
             synchronized (MODEL_LOCK) {
+                if ("loadBuiltin".equals(operation)) {
+                    return loadBuiltin(arguments);
+                }
                 if ("load".equals(operation)) {
                     return load(arguments);
                 }
@@ -78,6 +96,128 @@ public final class OcrPlatformBridge {
         } catch (RuntimeException exception) {
             return failure("OCR 平台调用失败：" + safeMessage(exception));
         }
+    }
+
+    /**
+     * 把 APK 内置 PP-OCRv4 mobile 模型准备到应用私有目录，再进入与自定义模型相同的加载路径。
+     *
+     * ONNX Runtime 的路径接口不能直接读取压缩 assets。模型只在首次使用时复制；后续加载通过
+     * 固定版本目录和文件长度确认已有副本，不重复产生磁盘 IO。
+     */
+    private static String loadBuiltin(JSONObject arguments) {
+        String name = required(arguments, "name");
+        int threads = Math.max(1, arguments.optInt("threads", 2));
+        if (name.isEmpty()) {
+            return failure("内置 OCR 模型名称不能为空");
+        }
+
+        Context context = AndroidHostBridge.appContext();
+        if (context == null) {
+            return failure("Android 应用上下文尚未初始化");
+        }
+
+        File modelDirectory = new File(
+                context.getNoBackupFilesDir(),
+                BUILTIN_MODEL_STORAGE_DIRECTORY
+        );
+        if (!modelDirectory.isDirectory() && !modelDirectory.mkdirs()) {
+            return failure("无法创建内置 OCR 模型目录：" + modelDirectory.getAbsolutePath());
+        }
+
+        try {
+            File det = prepareBuiltinAsset(
+                    context,
+                    modelDirectory,
+                    BUILTIN_DET_FILE,
+                    BUILTIN_DET_BYTES
+            );
+            File rec = prepareBuiltinAsset(
+                    context,
+                    modelDirectory,
+                    BUILTIN_REC_FILE,
+                    BUILTIN_REC_BYTES
+            );
+            File cls = prepareBuiltinAsset(
+                    context,
+                    modelDirectory,
+                    BUILTIN_CLS_FILE,
+                    BUILTIN_CLS_BYTES
+            );
+            File keys = prepareBuiltinAsset(
+                    context,
+                    modelDirectory,
+                    BUILTIN_KEYS_FILE,
+                    BUILTIN_KEYS_BYTES
+            );
+
+            JSONObject loadArguments = new JSONObject();
+            loadArguments.put("name", name);
+            loadArguments.put("det", det.getAbsolutePath());
+            loadArguments.put("rec", rec.getAbsolutePath());
+            loadArguments.put("cls", cls.getAbsolutePath());
+            loadArguments.put("keys", keys.getAbsolutePath());
+            loadArguments.put("threads", threads);
+            return load(loadArguments);
+        } catch (IOException | JSONException exception) {
+            return failure("准备内置 OCR 模型失败：" + safeMessage(exception));
+        }
+    }
+
+    /**
+     * 取得一个内置模型的应用私有文件。
+     *
+     * 写入先落到同目录临时文件，长度完整后再原子改名；进程在复制中途退出不会留下被下一次
+     * 加载误用的半个 ONNX 文件。asset 文件名和目标文件名保持一致，便于设备侧排查。
+     */
+    private static File prepareBuiltinAsset(
+            Context context,
+            File modelDirectory,
+            String fileName,
+            long expectedBytes
+    ) throws IOException {
+        File target = new File(modelDirectory, fileName);
+        if (target.isFile() && target.canRead() && target.length() == expectedBytes) {
+            return target;
+        }
+
+        File temporary = new File(modelDirectory, fileName + ".tmp");
+        if (temporary.exists() && !temporary.delete()) {
+            throw new IOException("无法清理模型临时文件：" + temporary.getAbsolutePath());
+        }
+
+        String assetPath = BUILTIN_MODEL_ASSET_DIRECTORY + "/" + fileName;
+        try (InputStream input = context.getAssets().open(assetPath);
+             FileOutputStream output = new FileOutputStream(temporary, false)) {
+            byte[] buffer = new byte[ASSET_COPY_BUFFER_BYTES];
+            int readCount;
+            while ((readCount = input.read(buffer)) != -1) {
+                if (readCount > 0) {
+                    output.write(buffer, 0, readCount);
+                }
+            }
+            output.getFD().sync();
+        } catch (IOException exception) {
+            temporary.delete();
+            throw exception;
+        }
+
+        if (temporary.length() != expectedBytes) {
+            long actualBytes = temporary.length();
+            temporary.delete();
+            throw new IOException(
+                    "内置模型长度不正确：" + fileName
+                            + "，期望 " + expectedBytes + "，实际 " + actualBytes
+            );
+        }
+        if (target.exists() && !target.delete()) {
+            temporary.delete();
+            throw new IOException("无法替换旧模型文件：" + target.getAbsolutePath());
+        }
+        if (!temporary.renameTo(target)) {
+            temporary.delete();
+            throw new IOException("无法保存内置模型文件：" + target.getAbsolutePath());
+        }
+        return target;
     }
 
     /** 加载或复用一组 RapidOCR ONNX 检测、识别和可选方向分类模型。 */
@@ -594,7 +734,7 @@ public final class OcrPlatformBridge {
             return false;
         }
         int bestIndex = output.values[1] > output.values[0] ? 1 : 0;
-        return bestIndex == 1 && softmaxProbability(output.values, 0, 2, bestIndex) >= 0.90f;
+        return bestIndex == 1 && classProbability(output.values, 0, 2, bestIndex) >= 0.90f;
     }
 
     /** 执行一个 ONNX 模型并读取紧凑 float 输出，避免 getValue() 的多维数组和装箱分配。 */
@@ -849,24 +989,49 @@ public final class OcrPlatformBridge {
         return Math.max(minimum, Math.min(maximum, value));
     }
 
-    /** 单步 softmax 最大类别概率，用于给文本框返回可比较的置信度。 */
-    private static float softmaxProbability(float[] values, int offset, int classes, int targetIndex) {
+    /**
+     * 返回指定类别的真实概率。
+     *
+     * 不同 ONNX 导出版本可能输出已归一化概率或原始 logits。概率行直接读取，logits 行才做
+     * softmax，避免把 PP-OCRv4 已接近 1 的置信度再次压缩到约 1 / 类别数。
+     */
+    private static float classProbability(float[] values, int offset, int classes, int targetIndex) {
         float maximum = values[offset];
         for (int index = 1; index < classes; ++index) {
             maximum = Math.max(maximum, values[offset + index]);
         }
-        double total = 0.0;
-        for (int index = 0; index < classes; ++index) {
-            total += Math.exp(values[offset + index] - maximum);
+        float maximumProbability = maximumClassProbability(values, offset, classes, maximum);
+        if (targetIndex < 0 || targetIndex >= classes || maximum == values[offset + targetIndex]) {
+            return maximumProbability;
         }
-        return total <= 0.0 ? 0.0f : (float) (Math.exp(values[offset + targetIndex] - maximum) / total);
+
+        // 该分支只用于方向分类等非最大类别查询。先判断整行是否已经归一化；否则以同一最大值
+        // 执行稳定 softmax，避免大 logits 指数溢出。
+        double probabilitySum = 0.0;
+        boolean normalized = true;
+        for (int index = 0; index < classes; ++index) {
+            float value = values[offset + index];
+            normalized &= Float.isFinite(value) && value >= 0.0f && value <= 1.0f;
+            probabilitySum += value;
+        }
+        if (normalized && Math.abs(probabilitySum - 1.0) <= 0.01) {
+            return clampFloat(values[offset + targetIndex], 0.0f, 1.0f);
+        }
+        double exponentTotal = 0.0;
+        for (int index = 0; index < classes; ++index) {
+            exponentTotal += Math.exp(values[offset + index] - maximum);
+        }
+        return exponentTotal <= 0.0
+                ? 0.0f
+                : (float) (Math.exp(values[offset + targetIndex] - maximum) / exponentTotal);
     }
 
     /**
-     * 返回已知最大类别的 softmax 概率。
+     * 返回已知最大类别的概率。
      *
-     * CTC 解码已经扫描过一次类别并得到 maxValue，复用它避免额外寻找最大值。该函数只在实际
-     * 输出一个字符的时间步调用，blank 或连续重复字符不做无意义的指数计算。
+     * CTC 解码已经扫描过一次类别并得到 maximum，复用它避免额外寻找最大值。整行位于
+     * `[0, 1]` 且总和接近 1 时，模型已经完成 softmax，直接返回 maximum；否则按 logits
+     * 计算稳定 softmax。blank 或连续重复字符不会调用本函数。
      */
     private static float maximumClassProbability(
             float[] values,
@@ -874,11 +1039,21 @@ public final class OcrPlatformBridge {
             int classes,
             float maximum
     ) {
-        double total = 0.0;
+        double probabilitySum = 0.0;
+        boolean normalized = true;
         for (int index = 0; index < classes; ++index) {
-            total += Math.exp(values[offset + index] - maximum);
+            float value = values[offset + index];
+            normalized &= Float.isFinite(value) && value >= 0.0f && value <= 1.0f;
+            probabilitySum += value;
         }
-        return total <= 0.0 ? 0.0f : (float) (1.0 / total);
+        if (normalized && Math.abs(probabilitySum - 1.0) <= 0.01) {
+            return clampFloat(maximum, 0.0f, 1.0f);
+        }
+        double exponentTotal = 0.0;
+        for (int index = 0; index < classes; ++index) {
+            exponentTotal += Math.exp(values[offset + index] - maximum);
+        }
+        return exponentTotal <= 0.0 ? 0.0f : (float) (1.0 / exponentTotal);
     }
 
     /**

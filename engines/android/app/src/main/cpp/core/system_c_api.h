@@ -245,6 +245,7 @@ typedef struct EngineApi {
     int (*setImageCacheMaxBytes)(size_t maxBytes);
     int (*setScreenPixels)(const char* imagePath);
     int (*restoreScreenPixels)();
+    int (*ocrLoadBuiltinModel)(const char* name, int threads);
 } EngineApi;
 
 /**
@@ -557,6 +558,9 @@ int engine_ocrLoadModel(
         const char* keysPath,
         int threads
 );
+
+/** 加载 APK 内置中文 PP-OCRv4 mobile 模型；成功返回 1，失败返回 0。 */
+int engine_ocrLoadBuiltinModel(const char* name, int threads);
 
 /** 释放指定 OCR 模型名称的引用。 */
 int engine_ocrReleaseModel(const char* name);

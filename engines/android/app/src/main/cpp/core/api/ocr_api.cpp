@@ -108,6 +108,22 @@ bool 校验模型名称(const char* name, std::string* output) {
 
 } // namespace
 
+bool 加载内置OCR模型(const char* name, int threads) {
+    std::string modelName;
+    if (!校验模型名称(name, &modelName)) {
+        return false;
+    }
+    if (threads <= 0 || threads > 32) {
+        return 设置OCR错误("OCR 线程数必须在 1 到 32 之间");
+    }
+
+    JsonValue ignored;
+    return 调用OCR平台("loadBuiltin", OCR参数({
+            {"name", JsonValue::makeString(modelName)},
+            {"threads", JsonValue::makeNumber(threads)}
+    }), &ignored);
+}
+
 bool 加载OCR模型(
         const char* name,
         const char* detPath,
