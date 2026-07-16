@@ -35,8 +35,10 @@ print("点阵地址 =", string.format("0x%x", pixels))
 - 第 3 个返回值 `pixels:integer`：点阵首地址。
 - 点阵格式固定为紧凑 RGBA，长度为 `w * h * 4`。
 - 点阵由 `libengine.so` 持有，只能读取，脚本不能释放或修改。
-- 缓存过期、分辨率变化或脚本结束后，原地址可能失效，不能跨帧长期保存。
+- 缓存过期、分辨率变化、调用 `setScreenPixels()` / `restoreScreenPixels()` 或脚本结束后，
+  原地址可能失效，不能跨帧长期保存。
 
 默认缓存时间为 `20ms`。缓存时间内重复调用 `getScreenPixels()` 会复用当前点阵；超过缓存
 时间后重新截图并覆盖内部缓存。`keepCapture()` 可锁住当前帧，`releaseCapture()` 恢复按时间
-缓存。
+缓存。`setScreenPixels(imagePath)` 激活后返回图片的宽、高和固定点阵地址，不再按时间刷新；
+`restoreScreenPixels()` 后重新使用物理截图规则。

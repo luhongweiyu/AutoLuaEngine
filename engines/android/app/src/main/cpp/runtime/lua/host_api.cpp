@@ -839,6 +839,25 @@ int luaGetScreenPixels(lua_State* state) {
     return 3;
 }
 
+/** 把普通文件或 ALPKG 资源图片设置为固定活动屏幕，成功返回 true。 */
+int luaSetScreenPixels(lua_State* state) {
+    const char* imagePath = luaL_checkstring(state, 1);
+    if (!engine_setScreenPixels(imagePath)) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_screenLastError());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 还原系统屏幕点阵；无图片屏幕时重复调用仍返回 true。 */
+int luaRestoreScreenPixels(lua_State* state) {
+    engine_restoreScreenPixels();
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
 int luaKeepCapture(lua_State* state) {
     engine_keepCapture();
     lua_pushboolean(state, 1);
@@ -1471,6 +1490,8 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int screenTableIndex = lua_gettop(state);
     setFunctionField(state, screenTableIndex, "getScreenPixels", luaGetScreenPixels);
+    setFunctionField(state, screenTableIndex, "setScreenPixels", luaSetScreenPixels);
+    setFunctionField(state, screenTableIndex, "restoreScreenPixels", luaRestoreScreenPixels);
     setFunctionField(state, screenTableIndex, "keepCapture", luaKeepCapture);
     setFunctionField(state, screenTableIndex, "releaseCapture", luaReleaseCapture);
     setFunctionField(state, screenTableIndex, "setCaptureCacheMs", luaSetCaptureCacheMs);

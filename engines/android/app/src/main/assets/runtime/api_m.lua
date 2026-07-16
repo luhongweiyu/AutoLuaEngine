@@ -87,6 +87,8 @@ local m = {
 }
 
 m.getScreenPixels = host.screen.getScreenPixels
+m.setScreenPixels = host.screen.setScreenPixels
+m.restoreScreenPixels = host.screen.restoreScreenPixels
 m.keepCapture = host.screen.keepCapture
 m.releaseCapture = host.screen.releaseCapture
 m.setCaptureCacheMs = host.screen.setCaptureCacheMs

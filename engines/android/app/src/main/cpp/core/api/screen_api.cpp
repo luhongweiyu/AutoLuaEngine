@@ -1,13 +1,16 @@
 /**
- * 文件用途：实现屏幕截图核心 API，统一服务 Lua/JS/Go 绑定和 C ABI 门面。
+ * 文件用途：实现物理截图缓存和图片屏幕切换，统一服务 Lua/JS/Go 绑定与 C ABI 门面。
  */
 #include "screen_api.h"
 
 #include <chrono>
 #include <cstdlib>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../platform/android_bridge.h"
 
@@ -33,6 +36,12 @@ int gCaptureCacheMs = kDefaultCaptureCacheMs;
 bool gKeepCapture = false;
 long long gCaptureFrameId = 0;
 std::string gLastError;
+
+// 图片屏幕与系统截图使用两块独立内存。活动期间只切换读取来源，不覆盖 gCapturePixels；
+// shared_ptr 使并发中的旧 ScreenFrame 可以在还原或替换后继续安全读取。
+std::shared_ptr<const std::vector<unsigned char>> gOverridePixels;
+int gOverrideWidth = 0;
+int gOverrideHeight = 0;
 
 /**
  * 返回单调递增时间，单位毫秒。
@@ -78,13 +87,24 @@ bool isCacheUsableLocked() {
 /**
  * 把当前缓存帧写入输出参数。
  *
- * pixels 返回的是 gCapturePixels 的内部地址，调用方只读，不负责释放。
+ * 图片屏幕优先于系统截图。pixelOwner 在图片屏幕模式下持有点阵生命周期；系统截图模式下
+ * pixels 返回 gCapturePixels，沿用现有只读、不释放的契约。
  */
 void writeCaptureResultLocked(ScreenFrame* frame) {
+    if (gOverridePixels != nullptr) {
+        frame->width = gOverrideWidth;
+        frame->height = gOverrideHeight;
+        frame->pixels = const_cast<unsigned char*>(gOverridePixels->data());
+        frame->frameId = gCaptureFrameId;
+        frame->pixelOwner = gOverridePixels;
+        return;
+    }
+
     frame->width = gCaptureWidth;
     frame->height = gCaptureHeight;
     frame->pixels = gCapturePixels;
     frame->frameId = gCaptureFrameId;
+    frame->pixelOwner.reset();
 }
 
 /**
@@ -124,6 +144,28 @@ bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
     return true;
 }
 
+/**
+ * 刷新物理屏幕缓冲。调用方必须持有 gCaptureMutex。
+ *
+ * 该函数从不读取或覆盖图片屏幕内存。
+ */
+bool refreshPhysicalScreenLocked() {
+    ScreenCaptureResult result = AndroidBridge::captureRootScreen(&gCapturePixels, &gCaptureCapacity);
+    if (!validateCaptureResultLocked(result)) {
+        return false;
+    }
+
+    gCaptureSize = static_cast<size_t>(result.width)
+            * static_cast<size_t>(result.height)
+            * static_cast<size_t>(kPixelBytes);
+    gCaptureWidth = result.width;
+    gCaptureHeight = result.height;
+    gCaptureStoredAtMs = steadyNowMs();
+    ++gCaptureFrameId;
+    gLastError.clear();
+    return true;
+}
+
 } // namespace
 
 bool captureScreen(ScreenFrame* frame) {
@@ -134,30 +176,25 @@ bool captureScreen(ScreenFrame* frame) {
         return false;
     }
 
+    // 图片屏幕是显式设置的固定帧，不参与 20ms 缓存判断，也不会触发系统截图。
+    if (gOverridePixels != nullptr) {
+        writeCaptureResultLocked(frame);
+        return true;
+    }
+
     if (isCacheUsableLocked()) {
         writeCaptureResultLocked(frame);
         return true;
     }
 
-    ScreenCaptureResult result = AndroidBridge::captureRootScreen(&gCapturePixels, &gCaptureCapacity);
-    if (!validateCaptureResultLocked(result)) {
+    if (!refreshPhysicalScreenLocked()) {
         frame->width = 0;
         frame->height = 0;
         frame->pixels = nullptr;
         frame->frameId = gCaptureFrameId;
+        frame->pixelOwner.reset();
         return false;
     }
-
-    size_t expectedLength = static_cast<size_t>(result.width)
-            * static_cast<size_t>(result.height)
-            * static_cast<size_t>(kPixelBytes);
-    gCaptureSize = expectedLength;
-
-    gCaptureWidth = result.width;
-    gCaptureHeight = result.height;
-    gCaptureStoredAtMs = steadyNowMs();
-    ++gCaptureFrameId;
-    gLastError.clear();
 
     writeCaptureResultLocked(frame);
     return true;
@@ -186,9 +223,68 @@ bool setScreenCaptureCacheMs(int durationMs) {
     return true;
 }
 
+bool setScreenPixelOverride(
+        std::vector<unsigned char>&& pixels,
+        int width,
+        int height,
+        int screenWidth,
+        int screenHeight
+) {
+    if (width <= 0 || height <= 0) {
+        std::lock_guard<std::mutex> lock(gCaptureMutex);
+        return setErrorLocked("图片屏幕尺寸必须大于 0");
+    }
+
+    long long expectedLength = static_cast<long long>(width)
+            * static_cast<long long>(height)
+            * static_cast<long long>(kPixelBytes);
+    if (expectedLength <= 0
+            || static_cast<unsigned long long>(expectedLength) != pixels.size()) {
+        std::lock_guard<std::mutex> lock(gCaptureMutex);
+        return setErrorLocked("图片屏幕点阵长度与宽高不一致");
+    }
+
+    // 在加锁前完成共享对象分配；锁内只切换活动引用，避免图片内存分配阻塞高频读帧。
+    if (screenWidth <= 0 || screenHeight <= 0) {
+        std::lock_guard<std::mutex> lock(gCaptureMutex);
+        return setErrorLocked("物理屏幕尺寸无效");
+    }
+    if (width > screenWidth || height > screenHeight) {
+        std::lock_guard<std::mutex> lock(gCaptureMutex);
+        return setErrorLocked(
+                "图片尺寸超过屏幕范围：图片 "
+                + std::to_string(width) + "x" + std::to_string(height)
+                + "，屏幕 " + std::to_string(screenWidth) + "x" + std::to_string(screenHeight)
+        );
+    }
+
+    auto newPixels = std::make_shared<const std::vector<unsigned char>>(std::move(pixels));
+    std::lock_guard<std::mutex> lock(gCaptureMutex);
+    gOverridePixels = std::move(newPixels);
+    gOverrideWidth = width;
+    gOverrideHeight = height;
+    ++gCaptureFrameId;
+    gLastError.clear();
+    return true;
+}
+
+void restoreScreenPixelOverride() {
+    std::lock_guard<std::mutex> lock(gCaptureMutex);
+    if (gOverridePixels != nullptr) {
+        gOverridePixels.reset();
+        gOverrideWidth = 0;
+        gOverrideHeight = 0;
+        ++gCaptureFrameId;
+    }
+    gLastError.clear();
+}
+
 void clearScreenCaptureCache() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
+    gOverridePixels.reset();
+    gOverrideWidth = 0;
+    gOverrideHeight = 0;
     std::free(gCapturePixels);
     gCapturePixels = nullptr;
     gCaptureCapacity = 0;

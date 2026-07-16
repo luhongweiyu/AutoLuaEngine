@@ -146,7 +146,7 @@ FloatingControlService 控制脚本 -> 发送 Intent 给 EngineService
 
 ### 4.2 脚本 API 能力边界
 
-当前 `m.getScreenPixels()` 走：
+物理屏幕来源下，`m.getScreenPixels()` 走：
 
 ```text
 Lua -> HostApi -> system_c_api C ABI -> core/api/screen_api -> AndroidBridge -> RootScreenCaptureBridge -> RootHelperBridge
@@ -157,6 +157,9 @@ Lua -> HostApi -> system_c_api C ABI -> core/api/screen_api -> AndroidBridge -> 
 
 - `screen_api` 位于 `libengine.so/core/api`，负责截图缓存、锁帧和 Root 截图分发。
 - `engine_getScreenPixels` 位于 `system_c_api`，只做 C ABI 参数检查和转发。
+- `m.setScreenPixels(path)` 经过 HostApi、C ABI 和 `image_api` 解码独立图片点阵，再交给
+  `screen_api` 切换来源；激活后读帧停在 `screen_api`，不会进入 Root 路线。
+- `m.restoreScreenPixels()` 只切回原物理缓冲，后续读取再按缓存规则决定是否 Root 截图。
 - `RootHelperBridge` 只复用 `:engine` 到 RootDaemon 的已认证 socket；它不会探测 Root、启动 `su` 或创建特权进程。
 - 截图缓存由 `libengine.so` 按时间和锁帧状态管理。
 - HTTP 不传输大像素数据。

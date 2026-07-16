@@ -25,8 +25,9 @@ constexpr const char* kLuaLoadFailurePrefix = "Lua 加载失败：";
 /**
  * 释放只属于一个脚本任务的 native 资源。
  *
- * 截图帧、找色转置点阵和找图模板都不能跨脚本复用；统一在任务结束处释放，可以避免普通
- * 脚本或下一个 ALPKG 继承上一任务的缓存。UI 也在这里关闭，保证异常退出使用同一清理路径。
+ * 物理截图、图片屏幕、找色转置点阵和找图模板都不能跨脚本复用；统一在任务结束处释放，
+ * 可以避免普通脚本或下一个 ALPKG 继承上一任务的点阵。UI 也在这里关闭，保证正常结束、
+ * 外部停止、exitScript 和 Lua/native 异常都使用同一清理路径。
  */
 void 清理脚本任务资源() {
     xiaoyv::api::closeAllUiSurfaces();

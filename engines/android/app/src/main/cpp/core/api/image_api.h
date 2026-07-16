@@ -1,5 +1,5 @@
 /**
- * 文件用途：声明模板找图与截图保存核心 API，统一复用当前 Root 截图缓存。
+ * 文件用途：声明图片屏幕加载、模板找图与截图保存核心 API，统一复用当前屏幕点阵。
  */
 #pragma once
 
@@ -52,6 +52,13 @@ bool 在屏幕中找图(
  * findPic 不会产生文件 IO。
  */
 bool 保存当前截图(const char* path, const 截图区域* region);
+
+/**
+ * 解码图片并把它设置为当前活动屏幕点阵。
+ *
+ * imagePath 支持脚本目录相对路径、绝对路径和当前 ALPKG 资源。图片宽高不得超过物理屏幕。
+ */
+bool 设置屏幕图片(const char* imagePath);
 
 /** 清理全部模板缓存，或清理指定图片路径对应的模板缓存。 */
 void 清理图片缓存(const char* picName);

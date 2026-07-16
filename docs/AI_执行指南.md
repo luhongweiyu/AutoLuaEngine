@@ -18,6 +18,8 @@ int engine_logPrint(const char* text);
 int engine_sleep(int durationMs);
 int engine_sleepInterruptible(...);
 int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
+int engine_setScreenPixels(const char* imagePath);
+int engine_restoreScreenPixels();
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);

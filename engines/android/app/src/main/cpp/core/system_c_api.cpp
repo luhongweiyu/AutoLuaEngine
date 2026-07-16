@@ -22,21 +22,21 @@
 
 namespace {
 
-// 14 明确区分取点阵与保存截图，加入区域截图和可配置的模板缓存字节上限。
-constexpr int kEngineAbiVersion = 14;
+// 15 在函数表尾部加入图片屏幕的设置与还原接口；既有字段位置保持不变。
+constexpr int kEngineAbiVersion = 15;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.14\","
+        "\"abiVersion\":\"0.15\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"go-reserved\",\"plugin-reserved\"],"
         "\"pluginApi\":\"engine_getApi\","
         "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
-        "\"screenCapture\":[\"engine_getScreenPixels\",\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
+        "\"screenCapture\":[\"engine_getScreenPixels\",\"engine_setScreenPixels\",\"engine_restoreScreenPixels\",\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageApi\":[\"engine_findPic\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
         "\"ocrApi\":[\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
@@ -293,7 +293,9 @@ const EngineApi kEngineApi = {
         engine_fontFindStr,
         engine_fontFindStrEx,
         engine_fontLastError,
-        engine_setImageCacheMaxBytes
+        engine_setImageCacheMaxBytes,
+        engine_setScreenPixels,
+        engine_restoreScreenPixels
 };
 
 } // namespace
@@ -875,6 +877,23 @@ extern "C" int engine_getScreenPixels(int* width, int* height, unsigned char** p
     *width = frame.width;
     *height = frame.height;
     *pixels = frame.pixels;
+    gScreenLastError.clear();
+    return 1;
+}
+
+/** 设置图片屏幕；图片解码和路径解析由 image_api 完成，活动点阵切换由 screen_api 完成。 */
+extern "C" int engine_setScreenPixels(const char* imagePath) {
+    if (!xiaoyv::api::设置屏幕图片(imagePath)) {
+        gScreenLastError = xiaoyv::api::取图片错误();
+        return 0;
+    }
+    gScreenLastError.clear();
+    return 1;
+}
+
+/** 还原系统屏幕点阵。 */
+extern "C" int engine_restoreScreenPixels() {
+    xiaoyv::api::restoreScreenPixelOverride();
     gScreenLastError.clear();
     return 1;
 }

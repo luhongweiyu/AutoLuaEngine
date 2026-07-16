@@ -53,6 +53,8 @@ int engine_readAlpkgFile(
 
 ```c
 engine_getScreenPixels
+engine_setScreenPixels
+engine_restoreScreenPixels
 engine_keepCapture
 engine_releaseCapture
 engine_setCaptureCacheMs
@@ -210,6 +212,8 @@ const char* engine_runtimeLastError();
 
 ```c
 int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
+int engine_setScreenPixels(const char* imagePath);
+int engine_restoreScreenPixels();
 ```
 
 参数：
@@ -228,7 +232,20 @@ int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
 - 固定 RGBA。
 - 紧凑排列。
 - 长度为 `width * height * 4`。
-- 内存由 `libengine.so` 持有，调用方只读，不释放。
+- 内存由 `libengine.so` 持有，调用方只读，不释放。物理帧刷新、图片屏幕替换或还原、脚本
+  结束后，先前取得的裸地址可能失效。
+
+## 图片屏幕
+
+- `engine_setScreenPixels` 支持脚本相对路径、绝对路径和当前 ALPKG 资源，成功返回 `1`。
+- 图片解码为独立的紧凑 RGBA 点阵，宽高不得超过当前物理屏幕，不缩放、不裁剪，也不覆盖
+  物理截图缓冲。
+- 激活期间 `engine_getScreenPixels`、找色、找图、点阵识字和 `engine_capture` 都读取固定图片，
+  完全绕过截图缓存时间和 Root 截图。
+- `engine_restoreScreenPixels` 还原物理屏幕；没有图片屏幕时重复调用也返回 `1`。
+- 替换或还原时，已经持有内部 `ScreenFrame` 的 native 算法可安全读完旧图片；直接 C ABI
+  取得的裸地址不能跨替换、还原或脚本结束长期保存。
+- 脚本正常结束、停止、`exitScript` 和错误退出共用任务清理路径，都会自动还原并释放图片。
 
 ## 截图缓存
 
@@ -246,7 +263,8 @@ const char* engine_screenLastError();
 - 缓存过期重新截图并覆盖缓存。
 - `engine_keepCapture()` 锁帧。
 - `engine_releaseCapture()` 取消锁帧。
-- 脚本运行中不会主动清空截图缓存；脚本结束时由引擎内部统一释放。
+- 图片屏幕激活期间，上述设置仍被保留但不参与读帧；还原后继续生效。
+- 脚本运行中不会主动清空物理截图缓存；脚本结束时由引擎统一释放物理帧和图片屏幕。
 
 ## 找色 C ABI
 
@@ -502,6 +520,8 @@ m.systemTime()
 m.tickCount()
 m.log.print(text)
 m.getScreenPixels()
+m.setScreenPixels(imagePath)
+m.restoreScreenPixels()
 m.keepCapture()
 m.releaseCapture()
 m.setCaptureCacheMs(ms)

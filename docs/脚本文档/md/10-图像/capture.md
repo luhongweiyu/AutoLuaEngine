@@ -42,6 +42,7 @@ assert(capture("/sdcard/xiaoyv/scripts/region.png", 100, 200, 500, 600))
 坐标时使用 `(0, 0, 屏幕宽度, 屏幕高度)`，即保存全屏。四个坐标必须同时提供，区域必须完全
 位于屏幕内且宽高大于 0；无效区域返回 `nil, errorMessage:string`，不会自动交换或裁剪坐标。
 
-此方法取得受截图缓存规则管理的当前帧，然后只读取目标区域并编码到文件，不会先生成全屏
-Bitmap 再裁剪。只有显式调用 `capture` 或其别名 `snapShot` 才会产生图片编码和磁盘 IO；
-`getScreenPixels()`、`findPic()` 和 `findColors()` 都不会隐式保存图片。
+此方法取得当前屏幕点阵，然后只读取目标区域并编码到文件，不会先生成全屏 Bitmap 再裁剪。
+默认保存受截图缓存规则管理的物理帧；`setScreenPixels()` 激活期间则保存固定图片屏幕。只有显式
+调用 `capture` 或其别名 `snapShot` 才会产生图片编码和磁盘 IO；`getScreenPixels()`、
+`findPic()` 和 `findColors()` 都不会隐式保存图片。

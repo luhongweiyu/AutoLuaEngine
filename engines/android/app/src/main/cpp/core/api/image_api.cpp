@@ -1,5 +1,5 @@
 /**
- * 文件用途：实现模板找图与截图保存，图片格式解码由 AndroidBridge 完成，匹配热路径在 C++ 内执行。
+ * 文件用途：实现图片屏幕加载、模板找图与截图保存；格式解码由 AndroidBridge 完成，热路径在 C++ 内执行。
  */
 #include "image_api.h"
 
@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "device_api.h"
 #include "package_api.h"
 #include "runtime_api.h"
 #include "screen_api.h"
@@ -531,6 +532,59 @@ bool 获取模板(const std::string& picName, std::shared_ptr<const 模板图片
     return true;
 }
 
+/**
+ * 解码一张普通文件或当前 ALPKG 资源图片，不进入找图模板缓存。
+ *
+ * setScreenPixels 需要保留完整 RGBA 点阵，不能复用已经去透明并转成坐标列表的模板对象。
+ */
+bool 解码屏幕图片(const std::string& imageName, AndroidImageDecodeResult* output) {
+    if (output == nullptr) {
+        return 设置图片错误("图片点阵输出对象为空");
+    }
+    std::string name = 去空白(imageName);
+    if (name.empty()) {
+        return 设置图片错误("图片路径不能为空");
+    }
+
+    if (!是绝对图片路径(name)) {
+        std::vector<unsigned char> resourceBytes;
+        std::string resourceError;
+        if (readActiveAlpkgResource(name, &resourceBytes, &resourceError)) {
+            *output = AndroidBridge::decodeImageBytes(resourceBytes.data(), resourceBytes.size());
+            if (!output->success) {
+                return 设置图片错误(output->error.empty() ? "包内图片解码失败" : output->error);
+            }
+            return true;
+        }
+    }
+
+    *output = AndroidBridge::decodeImageFile(解析普通图片路径(name));
+    if (!output->success) {
+        return 设置图片错误(output->error.empty() ? "图片文件解码失败" : output->error);
+    }
+    return true;
+}
+
+/** 读取当前显示区域宽高，只获取系统显示信息，不触发 Root 截图或修改原截图缓存。 */
+bool 获取物理屏幕尺寸(int* width, int* height) {
+    if (width == nullptr || height == nullptr) {
+        return 设置图片错误("屏幕尺寸输出参数为空");
+    }
+    JsonValue value;
+    std::string error;
+    if (!callDeviceApi("device.displaySize", JsonValue::makeObject({}), &value, &error)) {
+        return 设置图片错误(error.empty() ? "获取屏幕尺寸失败" : error);
+    }
+    const JsonValue* widthValue = value.get("width");
+    const JsonValue* heightValue = value.get("height");
+    *width = widthValue == nullptr ? 0 : widthValue->intValue(0);
+    *height = heightValue == nullptr ? 0 : heightValue->intValue(0);
+    if (*width <= 0 || *height <= 0) {
+        return 设置图片错误("系统返回的屏幕尺寸无效");
+    }
+    return true;
+}
+
 } // namespace
 
 bool 在屏幕中找图(
@@ -655,6 +709,29 @@ bool 保存当前截图(const char* path, const 截图区域* region) {
             outputPath
     )) {
         return 设置图片错误("保存截图失败：" + outputPath);
+    }
+    gImageLastError.clear();
+    return true;
+}
+
+bool 设置屏幕图片(const char* imagePath) {
+    AndroidImageDecodeResult decoded;
+    if (!解码屏幕图片(imagePath == nullptr ? "" : imagePath, &decoded)) {
+        return false;
+    }
+    int screenWidth = 0;
+    int screenHeight = 0;
+    if (!获取物理屏幕尺寸(&screenWidth, &screenHeight)) {
+        return false;
+    }
+    if (!setScreenPixelOverride(
+            std::move(decoded.pixels),
+            decoded.width,
+            decoded.height,
+            screenWidth,
+            screenHeight
+    )) {
+        return 设置图片错误(screenLastError());
     }
     gImageLastError.clear();
     return true;

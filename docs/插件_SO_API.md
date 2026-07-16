@@ -11,9 +11,9 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `EngineApi::abiVersion` 为 `14`。版本 14 将获取点阵字段明确命名为 `getScreenPixels`，
-将保存图片字段命名为 `capture`，支持可选 `EngineRect` 区域，并在函数表尾部追加模板缓存
-上限设置。新插件必须使用当前头文件编译，并在使用这些字段前检查版本不低于 14。
+当前 `EngineApi::abiVersion` 为 `15`。版本 15 在函数表尾部追加 `setScreenPixels` 和
+`restoreScreenPixels`；版本 14 及以前的字段位置不变。新插件必须使用当前头文件编译，使用
+图片屏幕字段前检查版本不低于 15。
 
 ## 当前函数表能力
 
@@ -111,6 +111,8 @@ typedef struct EngineApi {
     );
     const char* (*fontLastError)();
     int (*setImageCacheMaxBytes)(size_t maxBytes);
+    int (*setScreenPixels)(const char* imagePath);
+    int (*restoreScreenPixels)();
 } EngineApi;
 ```
 
@@ -130,10 +132,13 @@ const char* displayJson = device->getDisplayInfoJson();
 ## 规则
 
 - 插件只调用 C ABI，不直接访问 C++ 对象。
-- `getScreenPixels` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
-- `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
+- `getScreenPixels` 返回的点阵由 `libengine.so` 持有，插件只读、不释放，也不能跨物理帧刷新、
+  图片屏幕替换/还原或脚本结束长期保存。
+- `setScreenPixels` 把普通文件、脚本相对文件或 ALPKG 资源设为固定当前点阵；图片宽高不能
+  超过物理屏幕。激活期间不会按缓存时间刷新，`restoreScreenPixels` 负责切回物理屏幕。
+- `findColors` 直接使用当前屏幕点阵，不带“是否截屏”参数。
 - `capture` 的 `region` 为空时保存全屏，非空时保存左闭右开的指定区域。Lua 的 `snapShot`
-  只是 `capture` 的直接别名，不占用额外函数表字段。`findPic` 同样直接复用截图缓存，
+  只是 `capture` 的直接别名，不占用额外函数表字段。`findPic` 同样直接复用当前点阵，
   模板默认按 `5 MiB` 字节上限执行 LRU，脚本结束后全部释放；`setImageCacheMaxBytes(0)` 可
   关闭当前脚本的模板缓存。
 - `ocrLoadModel` / `ocrReleaseModel` 由插件显式管理 RapidOCR ONNX 模型；重复加载同名同配置

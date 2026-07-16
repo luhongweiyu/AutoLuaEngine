@@ -243,6 +243,8 @@ typedef struct EngineApi {
     );
     const char* (*fontLastError)();
     int (*setImageCacheMaxBytes)(size_t maxBytes);
+    int (*setScreenPixels)(const char* imagePath);
+    int (*restoreScreenPixels)();
 } EngineApi;
 
 /**
@@ -425,11 +427,21 @@ long long engine_tickCount();
  * - 0：失败，可通过 engine_screenLastError() 读取错误文本。
  *
  * 注意：
- * pixels 指向 libengine.so 内部缓存，调用方只读，不要释放。下一次缓存过期后
- * 缓存仅在当前脚本任务中保留。脚本结束或分辨率变化导致内部缓存扩容时，该地址
- * 可能失效。
+ * pixels 指向 libengine.so 内部缓存，调用方只读，不要释放。物理帧刷新、图片屏幕设置/
+ * 替换/还原、分辨率变化或脚本任务结束后，该裸地址可能失效。
  */
 int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
+
+/**
+ * 把图片设置为当前活动屏幕点阵。
+ *
+ * imagePath 支持脚本相对路径、绝对路径和当前 ALPKG 资源。图片激活期间不按截图缓存时间刷新；
+ * 成功返回 1，失败返回 0，错误通过 engine_screenLastError() 获取。
+ */
+int engine_setScreenPixels(const char* imagePath);
+
+/** 还原系统屏幕点阵并释放不再被读取的图片内存。该操作可重复调用，成功返回 1。 */
+int engine_restoreScreenPixels();
 
 /**
  * 锁定当前截图帧。

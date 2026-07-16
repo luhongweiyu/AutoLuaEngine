@@ -9,7 +9,8 @@
 - RootDaemon 由 `su -c app_process` 创建，监听仅限本机的认证 socket；`:engine` 只连接它，绝不执行 `su`。
 - RootDaemon 端口由当前 Android 应用 UID 映射生成，不同安装包使用不同回环端口。保留旧版
   `com.autolua.engine` 或其他测试包时，不会抢占 小鱼精灵 的 RootDaemon 端口。
-- `engine_getScreenPixels` 缓存未命中时，通过当前 Android root 截图路线获取 RGBA 点阵。
+- 未激活图片屏幕且 `engine_getScreenPixels` 缓存未命中时，通过当前 Android root 截图路线
+  获取 RGBA 点阵；图片屏幕激活期间完全不进入 Root 截图路线。
 - `touchDown`、`touchMove`、`touchUp`、`keyDown`、`keyUp`、`keyPress`、`inputText`
   通过 RootDaemon 注入，不为每条命令拉起 `input` 外部进程。
 - `engine_imeLock` / `engine_imeUnlock` 通过 RootDaemon 执行系统输入法切换；
@@ -47,6 +48,8 @@
 
 ```c
 int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
+int engine_setScreenPixels(const char* imagePath);
+int engine_restoreScreenPixels();
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);

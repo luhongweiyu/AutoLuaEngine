@@ -653,6 +653,16 @@
         "cmd": "m.getScreenPixels"
       },
       {
+        "name": "设置屏幕像素",
+        "md": "md/10-图像/setScreenPixels.md",
+        "cmd": "m.setScreenPixels"
+      },
+      {
+        "name": "还原屏幕像素",
+        "md": "md/10-图像/restoreScreenPixels.md",
+        "cmd": "m.restoreScreenPixels"
+      },
+      {
         "name": "保存截图",
         "md": "md/10-图像/capture.md",
         "cmd": "m.capture"
