@@ -123,6 +123,10 @@ public:
             int width,
             int height,
             size_t size,
+            int left,
+            int top,
+            int right,
+            int bottom,
             const std::string& path
     );
     static AndroidOcrCallResult callOcrApi(

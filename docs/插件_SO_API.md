@@ -11,13 +11,20 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `EngineApi::abiVersion` 为 `13`。版本 13 在顶层函数表末尾新增图像、RapidOCR 和
-点阵字库函数；设备能力仍统一放入独立 `EngineDeviceApi` 子表。函数表只允许尾部追加字段：
-旧插件继续调用既有字段时保持可用；只有要使用新字段的插件才需要使用新头文件重编译。
+当前 `EngineApi::abiVersion` 为 `14`。版本 14 将获取点阵字段明确命名为 `getScreenPixels`，
+将保存图片字段命名为 `capture`，支持可选 `EngineRect` 区域，并在函数表尾部追加模板缓存
+上限设置。新插件必须使用当前头文件编译，并在使用这些字段前检查版本不低于 14。
 
 ## 当前函数表能力
 
 ```c
+typedef struct EngineRect {
+    int left;
+    int top;
+    int right;
+    int bottom;
+} EngineRect;
+
 typedef struct EngineApi {
     int abiVersion;
     const char* (*getVersion)();
@@ -29,11 +36,11 @@ typedef struct EngineApi {
     long long (*systemTime)();
     long long (*tickCount)();
     const char* (*runtimeLastError)();
-    int (*capture)(int* width, int* height, unsigned char** pixels);
+    int (*getScreenPixels)(int* width, int* height, unsigned char** pixels);
     void (*keepCapture)();
     void (*releaseCapture)();
     int (*setCaptureCacheMs)(int durationMs);
-    const char* (*captureLastError)();
+    const char* (*screenLastError)();
     int (*findColors)(int x1, int y1, int x2, int y2, int dir, int sim, const char* colors, EnginePoint* point);
     const char* (*findColorsLastError)();
     int (*touchDown)(int id, int x, int y);
@@ -68,7 +75,7 @@ typedef struct EngineApi {
         size_t* size
     );
     const EngineDeviceApi* (*getDeviceApi)();
-    int (*saveCapture)(const char* path);
+    int (*capture)(const char* path, const EngineRect* region);
     int (*findPic)(
         int x1, int y1, int x2, int y2,
         const char* picName, const char* deltaColor,
@@ -103,6 +110,7 @@ typedef struct EngineApi {
         const char* text, const char* color, double sim
     );
     const char* (*fontLastError)();
+    int (*setImageCacheMaxBytes)(size_t maxBytes);
 } EngineApi;
 ```
 
@@ -122,10 +130,12 @@ const char* displayJson = device->getDisplayInfoJson();
 ## 规则
 
 - 插件只调用 C ABI，不直接访问 C++ 对象。
-- `capture` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
+- `getScreenPixels` 返回的点阵由 `libengine.so` 持有，插件只读，不释放。
 - `findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
-- `saveCapture` 只在脚本或插件明确要求保存时编码图片；`findPic` 同样直接复用截图缓存，
-  模板图片会在 native 内缓存。
+- `capture` 的 `region` 为空时保存全屏，非空时保存左闭右开的指定区域。Lua 的 `snapShot`
+  只是 `capture` 的直接别名，不占用额外函数表字段。`findPic` 同样直接复用截图缓存，
+  模板默认按 `5 MiB` 字节上限执行 LRU，脚本结束后全部释放；`setImageCacheMaxBytes(0)` 可
+  关闭当前脚本的模板缓存。
 - `ocrLoadModel` / `ocrReleaseModel` 由插件显式管理 RapidOCR ONNX 模型；重复加载同名同配置
   会复用，`ocrRead` 和 `ocrFindText` 返回当前调用线程持有的 JSON 文本。
 - `fontSetDict` 支持 `文字$宽$高$十六进制点阵` 手机可变尺寸字库，也兼容简化 11 行格式和

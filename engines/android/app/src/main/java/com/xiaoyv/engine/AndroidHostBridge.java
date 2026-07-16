@@ -94,7 +94,7 @@ public final class AndroidHostBridge {
     /**
      * Root 截图入口。
      *
-     * C ABI 的 screen_capture 只走这里，不在失败时切换到其他截图路线。
+     * C ABI 的 engine_getScreenPixels 只走这里，不在失败时切换到其他截图路线。
      */
     public static ScreenCaptureResult captureRootScreen() {
         return captureRootScreen(null, 0);
@@ -178,8 +178,28 @@ public final class AndroidHostBridge {
     /**
      * 把 native RGBA 截图保存为普通图片文件。
      */
-    public static boolean saveRgbaImage(ByteBuffer source, int width, int height, int size, String path) {
-        return ImagePlatformBridge.saveRgba(source, width, height, size, path);
+    public static boolean saveRgbaImage(
+            ByteBuffer source,
+            int width,
+            int height,
+            int size,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            String path
+    ) {
+        return ImagePlatformBridge.saveRgba(
+                source,
+                width,
+                height,
+                size,
+                left,
+                top,
+                right,
+                bottom,
+                path
+        );
     }
 
     /**

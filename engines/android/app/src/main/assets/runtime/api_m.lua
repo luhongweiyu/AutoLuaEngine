@@ -86,14 +86,16 @@ local m = {
     ui = host.ui,
 }
 
-m.capture = host.screen.capture
+m.getScreenPixels = host.screen.getScreenPixels
 m.keepCapture = host.screen.keepCapture
 m.releaseCapture = host.screen.releaseCapture
 m.setCaptureCacheMs = host.screen.setCaptureCacheMs
-m.saveCapture = host.screen.saveCapture
+m.capture = host.screen.capture
+m.snapShot = host.screen.capture
 m.findColors = host.color.findColors
 m.findPic = host.image.findPic
 m.clearImageCache = host.image.clearCache
+m.setImageCacheMaxBytes = host.image.setCacheMaxBytes
 
 -- 点阵字库提供一套适合新脚本读取坐标的结构化结果，同时保留大漠风格的 ocr/ocrEx/findStrEx
 -- 字符串返回，方便把现有点阵脚本逐步迁移过来。

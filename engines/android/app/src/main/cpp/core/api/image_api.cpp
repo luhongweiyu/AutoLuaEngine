@@ -7,10 +7,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <map>
+#include <iterator>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -25,6 +27,9 @@ namespace {
 constexpr int kRgbaPixelBytes = 4;
 constexpr int kMaxTemplatePixels = 16 * 1024 * 1024;
 constexpr int kMaxAnchorCount = 64;
+// 模板缓存只服务当前脚本任务。长时间脚本按已分配点阵容量限制为 5 MiB，超限时淘汰
+// 最久未使用模板；单个模板超过上限时仍可完成当前找图，但不会进入缓存。
+constexpr size_t kDefaultTemplateCacheBytes = 5u * 1024u * 1024u;
 
 /** 模板中一个需要比较的非透明像素。 */
 struct 模板像素 {
@@ -40,14 +45,119 @@ struct 模板图片 {
     int width = 0;
     int height = 0;
     long long sourceStamp = 0;
-    bool isPackageResource = false;
     std::vector<模板像素> pixels;
     std::vector<模板像素> anchors;
 };
 
+/** 模板缓存项。shared_ptr 允许清缓存时，正在执行的 findPic 安全完成本次匹配。 */
+struct 模板缓存项 {
+    std::shared_ptr<const 模板图片> image;
+    size_t memoryBytes = 0;
+    std::uint64_t lastAccess = 0;
+};
+
+using 模板缓存表 = std::unordered_map<std::string, 模板缓存项>;
+
 std::mutex gTemplateMutex;
-std::map<std::string, 模板图片> gTemplates;
+模板缓存表 gTemplates;
+size_t gTemplateCacheBytes = 0;
+size_t gTemplateCacheMaxBytes = kDefaultTemplateCacheBytes;
+std::uint64_t gTemplateAccessSequence = 0;
 thread_local std::string gImageLastError;
+
+/**
+ * 按容器实际已分配容量统计一个缓存项。
+ *
+ * vector 使用 capacity 而不是 size，才能把预留但尚未使用的内存计入；标准库哈希节点与
+ * shared_ptr 控制块没有可移植的精确查询接口，因此额外计入对应对象本身和缓存键字节。
+ */
+size_t 计算模板缓存字节(const std::string& cacheKey, const 模板图片& image) {
+    return sizeof(模板缓存项)
+            + sizeof(模板图片)
+            + sizeof(std::string)
+            + cacheKey.size() + 1
+            + image.pixels.capacity() * sizeof(模板像素)
+            + image.anchors.capacity() * sizeof(模板像素);
+}
+
+/** 删除一个缓存项并同步维护总内存。调用前必须持有 gTemplateMutex。 */
+void 删除模板缓存项(模板缓存表::iterator iterator) {
+    if (iterator == gTemplates.end()) {
+        return;
+    }
+    gTemplateCacheBytes = iterator->second.memoryBytes > gTemplateCacheBytes
+            ? 0
+            : gTemplateCacheBytes - iterator->second.memoryBytes;
+    gTemplates.erase(iterator);
+}
+
+/**
+ * 读取缓存并更新最近访问顺序。
+ *
+ * checkSourceStamp 只用于普通文件；文件时间变化时立即移除旧点阵，随后由调用方重新解码。
+ */
+std::shared_ptr<const 模板图片> 读取模板缓存(
+        const std::string& cacheKey,
+        bool checkSourceStamp,
+        long long sourceStamp
+) {
+    std::lock_guard<std::mutex> lock(gTemplateMutex);
+    auto iterator = gTemplates.find(cacheKey);
+    if (iterator == gTemplates.end()) {
+        return nullptr;
+    }
+    if (checkSourceStamp && (sourceStamp == 0 || iterator->second.image->sourceStamp != sourceStamp)) {
+        删除模板缓存项(iterator);
+        return nullptr;
+    }
+    iterator->second.lastAccess = ++gTemplateAccessSequence;
+    return iterator->second.image;
+}
+
+/** 按最近访问顺序淘汰到当前内存上限；调用前必须持有 gTemplateMutex。 */
+void 淘汰超限模板() {
+    while (gTemplateCacheBytes > gTemplateCacheMaxBytes && !gTemplates.empty()) {
+        auto oldest = gTemplates.begin();
+        for (auto iterator = std::next(gTemplates.begin()); iterator != gTemplates.end(); ++iterator) {
+            if (iterator->second.lastAccess < oldest->second.lastAccess) {
+                oldest = iterator;
+            }
+        }
+        删除模板缓存项(oldest);
+    }
+}
+
+/**
+ * 写入模板缓存并按总内存执行 LRU 淘汰。
+ *
+ * 淘汰只在新模板进入缓存或主动缩小上限时发生；缓存命中的热路径只更新访问序号。
+ */
+void 写入模板缓存(
+        const std::string& cacheKey,
+        const std::shared_ptr<const 模板图片>& image
+) {
+    if (image == nullptr) {
+        return;
+    }
+    size_t memoryBytes = 计算模板缓存字节(cacheKey, *image);
+
+    std::lock_guard<std::mutex> lock(gTemplateMutex);
+    if (gTemplateCacheMaxBytes == 0 || memoryBytes > gTemplateCacheMaxBytes) {
+        return;
+    }
+    auto previous = gTemplates.find(cacheKey);
+    if (previous != gTemplates.end()) {
+        删除模板缓存项(previous);
+    }
+
+    模板缓存项 entry;
+    entry.image = image;
+    entry.memoryBytes = memoryBytes;
+    entry.lastAccess = ++gTemplateAccessSequence;
+    gTemplateCacheBytes += memoryBytes;
+    gTemplates.emplace(cacheKey, std::move(entry));
+    淘汰超限模板();
+}
 
 /** 设置当前线程错误并统一返回 false。 */
 bool 设置图片错误(const std::string& error) {
@@ -70,6 +180,21 @@ bool 是绝对图片路径(const std::string& path) {
     return !path.empty() && (path[0] == '/' || path.rfind("file://", 0) == 0);
 }
 
+/** 把普通文件模板的相对路径解析到当前脚本工作目录，供加载和精确清理共用。 */
+std::string 解析普通图片路径(const std::string& name) {
+    if (是绝对图片路径(name)) {
+        return name;
+    }
+    std::string workPath = runtimeScriptWorkPath();
+    if (workPath.empty()) {
+        return name;
+    }
+    if (workPath.back() != '/') {
+        workPath.push_back('/');
+    }
+    return workPath + name;
+}
+
 /** 取得普通文件的低成本修改时间。不存在时返回 0，由 Java 解码入口给出具体错误。 */
 long long 获取文件时间戳(const std::string& path) {
     std::string filePath = path.rfind("file://", 0) == 0 ? path.substr(7) : path;
@@ -88,7 +213,7 @@ long long 获取文件时间戳(const std::string& path) {
 /**
  * 把 Java 返回的 RGBA 图片转成模板比较项，并挑选均匀分布的锚点加速绝大多数不命中位置。
  */
-bool 构建模板(const AndroidImageDecodeResult& decoded, bool isPackageResource, 模板图片* output) {
+bool 构建模板(const AndroidImageDecodeResult& decoded, 模板图片* output) {
     if (output == nullptr) {
         return 设置图片错误("模板图片输出对象为空");
     }
@@ -106,7 +231,6 @@ bool 构建模板(const AndroidImageDecodeResult& decoded, bool isPackageResourc
     templateImage.width = decoded.width;
     templateImage.height = decoded.height;
     templateImage.sourceStamp = decoded.sourceStamp;
-    templateImage.isPackageResource = isPackageResource;
     templateImage.pixels.reserve(static_cast<size_t>(pixelCount));
 
     for (int y = 0; y < decoded.height; ++y) {
@@ -348,10 +472,10 @@ bool 按方向扫描(int x1, int y1, int x2, int y2, int direction, Visitor&& vi
 /**
  * 加载或复用模板。
  *
- * 普通文件缓存会用 stat 修改时间检测变更；ALPKG 资源在同一脚本运行期间保持缓存，避免每次
- * findPic 都重新读取 ZIP 和图片解码。脚本结束后的清理由调用方可显式触发。
+ * 普通文件缓存会用 stat 修改时间检测变更；ALPKG 资源只在当前脚本任务内缓存。返回
+ * shared_ptr，避免每次 findPic 命中缓存时复制整份模板点阵。
  */
-bool 获取模板(const std::string& picName, 模板图片* output) {
+bool 获取模板(const std::string& picName, std::shared_ptr<const 模板图片>* output) {
     if (output == nullptr) {
         return 设置图片错误("模板输出对象为空");
     }
@@ -365,43 +489,31 @@ bool 获取模板(const std::string& picName, 模板图片* output) {
     AndroidImageDecodeResult decoded;
 
     if (!是绝对图片路径(name)) {
+        // ALPKG 模板缓存只活到当前脚本结束，因此资源相对路径在任务内已经是唯一键。
+        // 先查缓存再读 ZIP，避免高频 findPic 反复读取同一资源字节。
+        cacheKey = "alpkg:" + name;
+        std::shared_ptr<const 模板图片> cached = 读取模板缓存(cacheKey, false, 0);
+        if (cached != nullptr) {
+            *output = std::move(cached);
+            return true;
+        }
+
         std::vector<unsigned char> resourceBytes;
         std::string resourceError;
         if (readActiveAlpkgResource(name, &resourceBytes, &resourceError)) {
             packageResource = true;
-            cacheKey = "alpkg:" + runtimeScriptWorkPath() + ":" + name;
-            {
-                std::lock_guard<std::mutex> lock(gTemplateMutex);
-                auto iterator = gTemplates.find(cacheKey);
-                if (iterator != gTemplates.end()) {
-                    *output = iterator->second;
-                    return true;
-                }
-            }
             decoded = AndroidBridge::decodeImageBytes(resourceBytes.data(), resourceBytes.size());
         }
     }
 
     if (!packageResource) {
-        std::string path = name;
-        if (!是绝对图片路径(path)) {
-            std::string workPath = runtimeScriptWorkPath();
-            if (!workPath.empty()) {
-                if (workPath.back() != '/') {
-                    workPath.push_back('/');
-                }
-                path = workPath + path;
-            }
-        }
+        std::string path = 解析普通图片路径(name);
         cacheKey = "file:" + path;
         long long fileStamp = 获取文件时间戳(path);
-        {
-            std::lock_guard<std::mutex> lock(gTemplateMutex);
-            auto iterator = gTemplates.find(cacheKey);
-            if (iterator != gTemplates.end() && iterator->second.sourceStamp == fileStamp) {
-                *output = iterator->second;
-                return true;
-            }
+        std::shared_ptr<const 模板图片> cached = 读取模板缓存(cacheKey, true, fileStamp);
+        if (cached != nullptr) {
+            *output = std::move(cached);
+            return true;
         }
         decoded = AndroidBridge::decodeImageFile(path);
         if (decoded.success && fileStamp != 0) {
@@ -409,15 +521,12 @@ bool 获取模板(const std::string& picName, 模板图片* output) {
         }
     }
 
-    模板图片 templateImage;
-    if (!构建模板(decoded, packageResource, &templateImage)) {
+    auto templateImage = std::make_shared<模板图片>();
+    if (!构建模板(decoded, templateImage.get())) {
         return false;
     }
 
-    {
-        std::lock_guard<std::mutex> lock(gTemplateMutex);
-        gTemplates[cacheKey] = templateImage;
-    }
+    写入模板缓存(cacheKey, templateImage);
     *output = std::move(templateImage);
     return true;
 }
@@ -454,7 +563,7 @@ bool 在屏幕中找图(
         return 设置图片错误("图片色差格式无效，应为 6 位十六进制 RGB，例如 101010");
     }
 
-    模板图片 templateImage;
+    std::shared_ptr<const 模板图片> templateImage;
     if (!获取模板(picName == nullptr ? "" : picName, &templateImage)) {
         return false;
     }
@@ -469,8 +578,8 @@ bool 在屏幕中找图(
 
     int left = std::max(0, std::min(x1, x2));
     int top = std::max(0, std::min(y1, y2));
-    int right = std::min(frame.width - templateImage.width, std::max(x1, x2) - templateImage.width + 1);
-    int bottom = std::min(frame.height - templateImage.height, std::max(y1, y2) - templateImage.height + 1);
+    int right = std::min(frame.width - templateImage->width, std::max(x1, x2) - templateImage->width + 1);
+    int bottom = std::min(frame.height - templateImage->height, std::max(y1, y2) - templateImage->height + 1);
     if (left > right || top > bottom) {
         return 设置图片错误("找图区域不足以容纳模板图片");
     }
@@ -481,7 +590,7 @@ bool 在屏幕中找图(
                 frame.width,
                 x,
                 y,
-                templateImage,
+                *templateImage,
                 redDelta,
                 greenDelta,
                 blueDelta,
@@ -502,7 +611,7 @@ bool 在屏幕中找图(
     return true;
 }
 
-bool 保存当前截图(const char* path) {
+bool 保存当前截图(const char* path, const 截图区域* region) {
     std::string outputPath = 去空白(path == nullptr ? "" : path);
     if (outputPath.empty()) {
         return 设置图片错误("截图保存路径不能为空");
@@ -512,8 +621,39 @@ bool 保存当前截图(const char* path) {
     if (!captureScreen(&frame)) {
         return 设置图片错误(screenLastError());
     }
+    if (frame.pixels == nullptr || frame.width <= 0 || frame.height <= 0) {
+        return 设置图片错误("当前截图点阵无效");
+    }
+
+    int left = 0;
+    int top = 0;
+    int right = frame.width;
+    int bottom = frame.height;
+    if (region != nullptr) {
+        left = region->left;
+        top = region->top;
+        right = region->right;
+        bottom = region->bottom;
+        if (left < 0 || top < 0 || right > frame.width || bottom > frame.height) {
+            return 设置图片错误("截图区域超出屏幕范围");
+        }
+        if (left >= right || top >= bottom) {
+            return 设置图片错误("截图区域必须满足 left < right 且 top < bottom");
+        }
+    }
+
     size_t bytes = static_cast<size_t>(frame.width) * static_cast<size_t>(frame.height) * kRgbaPixelBytes;
-    if (!AndroidBridge::saveRgbaImage(frame.pixels, frame.width, frame.height, bytes, outputPath)) {
+    if (!AndroidBridge::saveRgbaImage(
+            frame.pixels,
+            frame.width,
+            frame.height,
+            bytes,
+            left,
+            top,
+            right,
+            bottom,
+            outputPath
+    )) {
         return 设置图片错误("保存截图失败：" + outputPath);
     }
     gImageLastError.clear();
@@ -522,18 +662,46 @@ bool 保存当前截图(const char* path) {
 
 void 清理图片缓存(const char* picName) {
     std::string name = 去空白(picName == nullptr ? "" : picName);
+    std::string packageKey;
+    std::string fileKey;
+    if (!name.empty()) {
+        if (!是绝对图片路径(name)) {
+            packageKey = "alpkg:" + name;
+        }
+        // 路径解析会读取脚本工作目录，必须在取得模板缓存锁之前完成，保持固定锁顺序。
+        fileKey = "file:" + 解析普通图片路径(name);
+    }
+
     std::lock_guard<std::mutex> lock(gTemplateMutex);
     if (name.empty()) {
         gTemplates.clear();
+        gTemplateCacheBytes = 0;
+        gTemplateAccessSequence = 0;
         return;
     }
-    for (auto iterator = gTemplates.begin(); iterator != gTemplates.end();) {
-        if (iterator->first.find(name) != std::string::npos) {
-            iterator = gTemplates.erase(iterator);
-        } else {
-            ++iterator;
-        }
+
+    // 一个相对路径在 ALPKG 中可能是包资源，也可能回退到脚本目录普通文件；分别按与加载时
+    // 完全相同的键精确删除，不能用子串匹配误删其他同名模板。
+    if (!packageKey.empty()) {
+        auto packageIterator = gTemplates.find(packageKey);
+        删除模板缓存项(packageIterator);
     }
+    auto fileIterator = gTemplates.find(fileKey);
+    删除模板缓存项(fileIterator);
+}
+
+void 设置图片缓存上限(std::size_t maxBytes) {
+    std::lock_guard<std::mutex> lock(gTemplateMutex);
+    gTemplateCacheMaxBytes = maxBytes;
+    淘汰超限模板();
+}
+
+void 重置图片缓存() {
+    std::lock_guard<std::mutex> lock(gTemplateMutex);
+    gTemplates.clear();
+    gTemplateCacheBytes = 0;
+    gTemplateCacheMaxBytes = kDefaultTemplateCacheBytes;
+    gTemplateAccessSequence = 0;
 }
 
 std::string 取图片错误() {

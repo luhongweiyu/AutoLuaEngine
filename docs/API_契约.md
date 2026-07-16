@@ -52,11 +52,11 @@ int engine_readAlpkgFile(
 当前截图 C ABI：
 
 ```c
-engine_capture
+engine_getScreenPixels
 engine_keepCapture
 engine_releaseCapture
 engine_setCaptureCacheMs
-engine_captureLastError
+engine_screenLastError
 ```
 
 当前找色 C ABI：
@@ -69,9 +69,10 @@ engine_findColorsLastError
 当前图像 C ABI：
 
 ```c
-engine_saveCapture
+engine_capture
 engine_findPic
 engine_clearImageCache
+engine_setImageCacheMaxBytes
 engine_imageLastError
 ```
 
@@ -208,7 +209,7 @@ const char* engine_runtimeLastError();
 ## 截图 C ABI
 
 ```c
-int engine_capture(int* width, int* height, unsigned char** pixels);
+int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
 ```
 
 参数：
@@ -220,7 +221,7 @@ int engine_capture(int* width, int* height, unsigned char** pixels);
 返回：
 
 - `1`：成功。
-- `0`：失败，通过 `engine_captureLastError()` 取错误。
+- `0`：失败，通过 `engine_screenLastError()` 取错误。
 
 点阵：
 
@@ -235,7 +236,7 @@ int engine_capture(int* width, int* height, unsigned char** pixels);
 void engine_keepCapture();
 void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);
-const char* engine_captureLastError();
+const char* engine_screenLastError();
 ```
 
 规则：
@@ -271,7 +272,7 @@ const char* engine_findColorsLastError();
 规则：
 
 - `engine_findColors` 直接使用当前截图缓存，不带“是否截屏”参数。
-- 截图是否刷新由 `engine_capture` 的缓存时间、`engine_keepCapture` 和 `engine_releaseCapture` 控制。
+- 截图是否刷新由 `engine_getScreenPixels` 的缓存时间、`engine_keepCapture` 和 `engine_releaseCapture` 控制。
 - `dir` 取值为 `1` 到 `8`，沿用旧找色算法扫描方向。
 - `sim` 为默认容差，格式为 `0xRRGGBB`。
 - `colors` 格式示例：`0|0|FFFFFF,10|5|FF0000-101010`。
@@ -281,7 +282,14 @@ const char* engine_findColorsLastError();
 ## 图像 C ABI
 
 ```c
-int engine_saveCapture(const char* path);
+typedef struct EngineRect {
+    int left;
+    int top;
+    int right;
+    int bottom;
+} EngineRect;
+
+int engine_capture(const char* path, const EngineRect* region);
 int engine_findPic(
         int x1, int y1, int x2, int y2,
         const char* picName,
@@ -291,13 +299,18 @@ int engine_findPic(
         EnginePoint* point
 );
 void engine_clearImageCache(const char* picName);
+int engine_setImageCacheMaxBytes(size_t maxBytes);
 const char* engine_imageLastError();
 ```
 
 规则：
 
-- `engine_saveCapture` 是唯一会将当前 RGBA 截图编码并写入文件的图像接口。
-- `engine_findPic` 直接复用截图缓存；模板仅在首次使用、普通文件修改或显式清理后解码。
+- `region == nullptr` 时保存全屏；非空时按左闭右开坐标保存指定区域，不交换坐标也不自动裁剪。
+- `engine_capture` 是主动将当前 RGBA 截图编码并写入文件的统一接口；Lua 的 `snapShot` 直接
+  指向同一个 `capture` 绑定，不重复增加 C ABI。
+- `engine_findPic` 直接复用截图缓存；模板仅在首次使用、普通文件修改、LRU 淘汰或显式清理后解码。
+- 模板缓存默认上限为 `5 MiB`，按预处理容器实际分配容量计算，超限时按 LRU 淘汰；
+  `engine_setImageCacheMaxBytes(0)` 可关闭缓存。脚本结束后全部释放并恢复默认上限。
 - 模板路径支持脚本目录相对路径、普通绝对路径和当前 `.alpkg` 的资源路径。
 - 找到时返回 `1` 并写入模板左上角；未找到时返回 `0`、坐标写为 `-1/-1` 且
   `engine_imageLastError()` 为空；失败时同样返回 `0`，但错误接口有具体原因。
@@ -331,7 +344,7 @@ const char* engine_ocrLastError();
 - 相同名称、相同配置的重复加载直接复用，不增加引用次数；不同名称的相同配置共享底层 ONNX session。
 - `engine_ocrRead` 返回 `{ "items": [...] }` JSON；`engine_ocrFindText` 返回
   `{ "found": boolean, ... }` JSON。失败返回 `nullptr`，错误通过 `engine_ocrLastError()` 获取。
-- 图片必须是 Android 能直接读取的普通文件。当前截图可先用 `engine_saveCapture` 保存后再识别。
+- 图片必须是 Android 能直接读取的普通文件。当前截图可先用 `engine_capture` 保存后再识别。
 
 ## 点阵字库 C ABI
 
@@ -488,14 +501,16 @@ m.sleep(ms)
 m.systemTime()
 m.tickCount()
 m.log.print(text)
-m.capture()
+m.getScreenPixels()
 m.keepCapture()
 m.releaseCapture()
 m.setCaptureCacheMs(ms)
 m.findColors(x1, y1, x2, y2, dir, sim, colors)
-m.saveCapture(path)
+m.capture(path[, left, top, right, bottom])
+m.snapShot(path[, left, top, right, bottom])
 m.findPic(x1, y1, x2, y2, picName, deltaColor, dir, sim)
 m.clearImageCache([picName])
+m.setImageCacheMaxBytes(maxBytes)
 m.ocr.load(name, detPath, recPath, clsPath, keysPath[, threads])
 m.ocr.release(name)
 m.ocr.isLoaded(name)

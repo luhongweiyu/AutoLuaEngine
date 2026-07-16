@@ -89,10 +89,20 @@ public final class ImagePlatformBridge {
     /**
      * 将 native 紧凑 RGBA8888 点阵保存为图片。
      *
-     * 截图缓存本身不经过图片编码；只有脚本显式调用 saveCapture 时才走本方法。PNG 为默认
+     * 截图缓存本身不经过图片编码；只有脚本显式调用 capture(path) 时才走本方法。PNG 为默认
      * 格式，路径以 .jpg/.jpeg/.webp 结尾时使用对应压缩器。
      */
-    public static boolean saveRgba(ByteBuffer source, int width, int height, int size, String path) {
+    public static boolean saveRgba(
+            ByteBuffer source,
+            int width,
+            int height,
+            int size,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            String path
+    ) {
         if (source == null || width <= 0 || height <= 0 || path == null || path.trim().isEmpty()) {
             return false;
         }
@@ -101,17 +111,30 @@ public final class ImagePlatformBridge {
         if (expected <= 0L || expected > Integer.MAX_VALUE || size != (int) expected || size > source.capacity()) {
             return false;
         }
+        if (left < 0 || top < 0 || right > width || bottom > height || left >= right || top >= bottom) {
+            return false;
+        }
 
-        int[] colors = new int[width * height];
+        int outputWidth = right - left;
+        int outputHeight = bottom - top;
+        long outputPixels = (long) outputWidth * (long) outputHeight;
+        if (outputPixels <= 0L || outputPixels > Integer.MAX_VALUE) {
+            return false;
+        }
+
+        int[] colors = new int[(int) outputPixels];
         try {
             ByteBuffer view = source.duplicate();
-            view.position(0);
-            for (int index = 0; index < colors.length; index++) {
-                int red = view.get() & 0xff;
-                int green = view.get() & 0xff;
-                int blue = view.get() & 0xff;
-                int alpha = view.get() & 0xff;
-                colors[index] = (alpha << 24) | (red << 16) | (green << 8) | blue;
+            int targetIndex = 0;
+            for (int y = top; y < bottom; y++) {
+                view.position((y * width + left) * 4);
+                for (int x = left; x < right; x++) {
+                    int red = view.get() & 0xff;
+                    int green = view.get() & 0xff;
+                    int blue = view.get() & 0xff;
+                    int alpha = view.get() & 0xff;
+                    colors[targetIndex++] = (alpha << 24) | (red << 16) | (green << 8) | blue;
+                }
             }
         } catch (RuntimeException exception) {
             return false;
@@ -126,7 +149,7 @@ public final class ImagePlatformBridge {
 
         Bitmap bitmap = null;
         try {
-            bitmap = Bitmap.createBitmap(colors, width, height, Bitmap.Config.ARGB_8888);
+            bitmap = Bitmap.createBitmap(colors, outputWidth, outputHeight, Bitmap.Config.ARGB_8888);
             Bitmap.CompressFormat format = outputFormat(file.getName());
             int quality = format == Bitmap.CompressFormat.PNG ? 100 : 95;
             try (FileOutputStream output = new FileOutputStream(file, false)) {

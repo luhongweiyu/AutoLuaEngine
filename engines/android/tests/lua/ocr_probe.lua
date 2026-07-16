@@ -2,7 +2,7 @@
 local imagePath = "/sdcard/xiaoyv/scripts/ocr_probe.png"
 local modelDir = "/sdcard/xiaoyv/models"
 
-local saved, saveError = m.saveCapture(imagePath)
+local saved, saveError = m.capture(imagePath)
 print("保存截图", saved, saveError)
 
 local loaded, loadError = m.ocr.load(

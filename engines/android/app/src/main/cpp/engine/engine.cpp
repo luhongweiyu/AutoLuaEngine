@@ -5,6 +5,7 @@
 
 #include "script_task.h"
 #include "../core/api/color_api.h"
+#include "../core/api/image_api.h"
 #include "../core/api/package_api.h"
 #include "../core/api/runtime_api.h"
 #include "../core/api/screen_api.h"
@@ -20,6 +21,19 @@ namespace {
 constexpr const char* kAlreadyRunningMessage = "已有脚本正在运行";
 constexpr const char* kLuaRunFailurePrefix = "Lua 执行失败：";
 constexpr const char* kLuaLoadFailurePrefix = "Lua 加载失败：";
+
+/**
+ * 释放只属于一个脚本任务的 native 资源。
+ *
+ * 截图帧、找色转置点阵和找图模板都不能跨脚本复用；统一在任务结束处释放，可以避免普通
+ * 脚本或下一个 ALPKG 继承上一任务的缓存。UI 也在这里关闭，保证异常退出使用同一清理路径。
+ */
+void 清理脚本任务资源() {
+    xiaoyv::api::closeAllUiSurfaces();
+    xiaoyv::api::clearScreenCaptureCache();
+    xiaoyv::api::清空找色缓存();
+    xiaoyv::api::重置图片缓存();
+}
 
 /**
  * 让 getWorkPath 只在当前顶层脚本生命周期内可见。
@@ -151,21 +165,18 @@ std::string Engine::runLuaInternal(
     } catch (...) {
         // activeLuaRuntime_ 只在 runtime 对象存活时有效。任何 native 异常向上返回前都要
         // 先解除注册，避免并发停止请求访问已经开始析构的运行时。
-        std::lock_guard<std::mutex> lock(runtimeMutex_);
-        activeLuaRuntime_ = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(runtimeMutex_);
+            activeLuaRuntime_ = nullptr;
+        }
+        清理脚本任务资源();
         throw;
     }
     {
         std::lock_guard<std::mutex> lock(runtimeMutex_);
         activeLuaRuntime_ = nullptr;
     }
-    // 脚本结束后必须回收该任务打开的弹窗、HUD 和 HTML 页面。UI 宿主在 App 主进程，
-    // 因此不能依赖 LuaRuntime 析构时的本地对象自动回收。
-    xiaoyv::api::closeAllUiSurfaces();
-    // 截图点阵只在本次脚本任务中保留。运行期间不主动清理，任务结束后统一释放，
-    // 避免缓存跨脚本保留无意义内存，也确保 keepCapture 状态不会泄漏到下一次运行。
-    xiaoyv::api::clearScreenCaptureCache();
-    xiaoyv::api::清空找色缓存();
+    清理脚本任务资源();
     pauseRequested_.store(false);
     controlCondition_.notify_all();
 

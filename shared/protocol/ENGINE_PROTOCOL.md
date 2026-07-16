@@ -35,7 +35,7 @@ device.setRootModeEnabled
 ## 当前截图核心
 
 ```c
-int screen_capture(int* width, int* height, unsigned char** pixels);
+int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
 ```
 
 更多细节见：

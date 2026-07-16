@@ -12,7 +12,7 @@ print("已开启固定截图缓存")
 
 local firstPixels = nil
 for i = 1, frameCount do
-    local width, height, pixelsOrErr = m.capture()
+    local width, height, pixelsOrErr = m.getScreenPixels()
     if not width then
         print("第", i, "帧截图失败 =", height)
         break

@@ -22,23 +22,23 @@
 
 namespace {
 
-// 13 在顶层表尾部追加找图、RapidOCR 与自定义字库 API；旧插件继续使用既有前缀字段时保持兼容。
-constexpr int kEngineAbiVersion = 13;
+// 14 明确区分取点阵与保存截图，加入区域截图和可配置的模板缓存字节上限。
+constexpr int kEngineAbiVersion = 14;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.13\","
+        "\"abiVersion\":\"0.14\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"go-reserved\",\"plugin-reserved\"],"
         "\"pluginApi\":\"engine_getApi\","
         "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
-        "\"screenCapture\":[\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
+        "\"screenCapture\":[\"engine_getScreenPixels\",\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
-        "\"imageApi\":[\"engine_saveCapture\",\"engine_findPic\"],"
+        "\"imageApi\":[\"engine_findPic\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
         "\"ocrApi\":[\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
         "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontOcr\",\"engine_fontFindStr\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
@@ -245,11 +245,11 @@ const EngineApi kEngineApi = {
         engine_systemTime,
         engine_tickCount,
         engine_runtimeLastError,
-        engine_capture,
+        engine_getScreenPixels,
         engine_keepCapture,
         engine_releaseCapture,
         engine_setCaptureCacheMs,
-        engine_captureLastError,
+        engine_screenLastError,
         engine_findColors,
         engine_findColorsLastError,
         engine_touchDown,
@@ -275,7 +275,7 @@ const EngineApi kEngineApi = {
         engine_uiLastError,
         engine_readAlpkgFile,
         engine_getDeviceApi,
-        engine_saveCapture,
+        engine_capture,
         engine_findPic,
         engine_clearImageCache,
         engine_imageLastError,
@@ -292,7 +292,8 @@ const EngineApi kEngineApi = {
         engine_fontOcr,
         engine_fontFindStr,
         engine_fontFindStrEx,
-        engine_fontLastError
+        engine_fontLastError,
+        engine_setImageCacheMaxBytes
 };
 
 } // namespace
@@ -851,12 +852,12 @@ extern "C" long long engine_tickCount() {
 }
 
 /**
- * 获取屏幕截图。
+ * 获取屏幕像素。
  *
  * 成功时写出 width、height 和 pixels；pixels 指向内部缓存，格式固定为紧凑 RGBA。
  * 缓存、锁帧和 Root 截图分发都在 screen_api 中完成。
  */
-extern "C" int engine_capture(int* width, int* height, unsigned char** pixels) {
+extern "C" int engine_getScreenPixels(int* width, int* height, unsigned char** pixels) {
     if (width == nullptr || height == nullptr || pixels == nullptr) {
         gScreenLastError = "截图输出指针不能为空";
         return 0;
@@ -906,9 +907,9 @@ extern "C" int engine_setCaptureCacheMs(int durationMs) {
 }
 
 /**
- * 返回最近一次截图 C ABI 失败原因。
+ * 返回最近一次屏幕取帧或缓存控制 C ABI 失败原因。
  */
-extern "C" const char* engine_captureLastError() {
+extern "C" const char* engine_screenLastError() {
     return gScreenLastError.c_str();
 }
 
@@ -916,7 +917,7 @@ extern "C" const char* engine_captureLastError() {
  * 在当前屏幕截图缓存上执行多点找色。
  *
  * 找色核心内部会调用 screen_api，所以这里没有“是否截屏”参数；缓存策略统一由
- * engine_capture/engine_keepCapture/engine_releaseCapture/engine_setCaptureCacheMs 控制。
+ * engine_getScreenPixels/engine_keepCapture/engine_releaseCapture/engine_setCaptureCacheMs 控制。
  */
 extern "C" int engine_findColors(
         int x1,
@@ -968,8 +969,18 @@ extern "C" const char* engine_findColorsLastError() {
  *
  * screen_api 保持内存 RGBA 缓存；图片编码和文件写入只在这个 C ABI 被调用时发生。
  */
-extern "C" int engine_saveCapture(const char* path) {
-    if (!xiaoyv::api::保存当前截图(path)) {
+extern "C" int engine_capture(const char* path, const EngineRect* region) {
+    xiaoyv::api::截图区域 captureRegion;
+    const xiaoyv::api::截图区域* captureRegionPointer = nullptr;
+    if (region != nullptr) {
+        captureRegion.left = region->left;
+        captureRegion.top = region->top;
+        captureRegion.right = region->right;
+        captureRegion.bottom = region->bottom;
+        captureRegionPointer = &captureRegion;
+    }
+
+    if (!xiaoyv::api::保存当前截图(path, captureRegionPointer)) {
         gImageLastError = xiaoyv::api::取图片错误();
         return 0;
     }
@@ -1019,6 +1030,12 @@ extern "C" int engine_findPic(
 extern "C" void engine_clearImageCache(const char* picName) {
     xiaoyv::api::清理图片缓存(picName);
     gImageLastError.clear();
+}
+
+/** 设置当前脚本任务的模板缓存内存上限。 */
+extern "C" int engine_setImageCacheMaxBytes(size_t maxBytes) {
+    xiaoyv::api::设置图片缓存上限(maxBytes);
+    return 1;
 }
 
 /** 返回最近一次图片 API 的失败原因。 */

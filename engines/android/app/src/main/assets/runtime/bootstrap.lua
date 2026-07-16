@@ -1,5 +1,5 @@
 -- 文件用途：脚本启动时加载的 Lua 引导层，负责切换 m/lr/cd API 到全局环境。
--- 默认直接启用 m，因此普通脚本可调用 appIsFront()、runApp()、capture() 等函数。
+-- 默认直接启用 m，因此普通脚本可调用 appIsFront()、getScreenPixels()、capture(path) 等函数。
 
 local exportedGlobals = {}
 

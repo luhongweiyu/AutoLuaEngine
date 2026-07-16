@@ -1,7 +1,7 @@
--- 文件用途：内置示例脚本，用于验证 screen_capture C ABI 返回宽、高、点阵地址。
+-- 文件用途：内置示例脚本，用于验证 getScreenPixels 返回宽、高、点阵地址。
 print("截图脚本已开始运行")
 
-local width, height, pixels = m.capture()
+local width, height, pixels = m.getScreenPixels()
 if width then
     print("截图成功")
     print("宽度 =", width)

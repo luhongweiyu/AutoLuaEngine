@@ -817,19 +817,19 @@ int luaVibrate(lua_State* state) {
 }
 
 /**
- * Lua 截图入口。
+ * Lua 获取屏幕像素入口。
  *
  * 成功返回：width, height, pixelsAddress。
  * 失败返回：nil, errorMessage。
  */
-int luaRootCapture(lua_State* state) {
+int luaGetScreenPixels(lua_State* state) {
     int width = 0;
     int height = 0;
     unsigned char* pixels = nullptr;
 
-    if (!engine_capture(&width, &height, &pixels)) {
+    if (!engine_getScreenPixels(&width, &height, &pixels)) {
         lua_pushnil(state);
-        lua_pushstring(state, engine_captureLastError());
+        lua_pushstring(state, engine_screenLastError());
         return 2;
     }
 
@@ -855,7 +855,7 @@ int luaSetCaptureCacheMs(lua_State* state) {
     lua_Integer durationMs = luaL_checkinteger(state, 1);
     if (!engine_setCaptureCacheMs(static_cast<int>(durationMs))) {
         lua_pushnil(state);
-        lua_pushstring(state, engine_captureLastError());
+        lua_pushstring(state, engine_screenLastError());
         return 2;
     }
 
@@ -925,10 +925,25 @@ bool luaOptionalOptionsJson(lua_State* state, int index, std::string* output, st
     return luaArgumentToJson(state, index, output, error);
 }
 
-/** 显式把当前截图缓存编码保存为图片文件。 */
-int luaSaveCapture(lua_State* state) {
+/** 显式把当前截图缓存的全屏或指定区域编码保存为图片文件。 */
+int luaCapture(lua_State* state) {
     const char* path = luaL_checkstring(state, 1);
-    if (!engine_saveCapture(path)) {
+    int argumentCount = lua_gettop(state);
+    if (argumentCount != 1 && argumentCount != 5) {
+        return luaL_error(state, "capture 需要 path，或 path、left、top、right、bottom 五个参数");
+    }
+
+    EngineRect region{};
+    const EngineRect* regionPointer = nullptr;
+    if (argumentCount == 5) {
+        region.left = luaCheckInt(state, 2, "left");
+        region.top = luaCheckInt(state, 3, "top");
+        region.right = luaCheckInt(state, 4, "right");
+        region.bottom = luaCheckInt(state, 5, "bottom");
+        regionPointer = &region;
+    }
+
+    if (!engine_capture(path, regionPointer)) {
         lua_pushnil(state);
         lua_pushstring(state, engine_imageLastError());
         return 2;
@@ -968,6 +983,22 @@ int luaClearImageCache(lua_State* state) {
     const char* picName = lua_isnoneornil(state, 1) ? nullptr : luaL_checkstring(state, 1);
     engine_clearImageCache(picName);
     lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 设置当前脚本任务的找图模板缓存上限，单位字节；0 表示关闭缓存。 */
+int luaSetImageCacheMaxBytes(lua_State* state) {
+    lua_Integer maxBytes = luaL_checkinteger(state, 1);
+    if (maxBytes < 0
+            || static_cast<unsigned long long>(maxBytes)
+                    > static_cast<unsigned long long>(std::numeric_limits<size_t>::max())) {
+        lua_pushnil(state);
+        lua_pushstring(state, "图片缓存上限必须是当前平台 size_t 可表示的非负整数");
+        return 2;
+    }
+
+    engine_setImageCacheMaxBytes(static_cast<size_t>(maxBytes));
+    lua_pushinteger(state, maxBytes);
     return 1;
 }
 
@@ -1439,11 +1470,11 @@ void registerHostApi(lua_State* state) {
 
     lua_newtable(state);
     int screenTableIndex = lua_gettop(state);
-    setFunctionField(state, screenTableIndex, "capture", luaRootCapture);
+    setFunctionField(state, screenTableIndex, "getScreenPixels", luaGetScreenPixels);
     setFunctionField(state, screenTableIndex, "keepCapture", luaKeepCapture);
     setFunctionField(state, screenTableIndex, "releaseCapture", luaReleaseCapture);
     setFunctionField(state, screenTableIndex, "setCaptureCacheMs", luaSetCaptureCacheMs);
-    setFunctionField(state, screenTableIndex, "saveCapture", luaSaveCapture);
+    setFunctionField(state, screenTableIndex, "capture", luaCapture);
     lua_setfield(state, hostTableIndex, "screen");
 
     lua_newtable(state);
@@ -1455,6 +1486,7 @@ void registerHostApi(lua_State* state) {
     int imageTableIndex = lua_gettop(state);
     setFunctionField(state, imageTableIndex, "findPic", luaFindPic);
     setFunctionField(state, imageTableIndex, "clearCache", luaClearImageCache);
+    setFunctionField(state, imageTableIndex, "setCacheMaxBytes", luaSetImageCacheMaxBytes);
     lua_setfield(state, hostTableIndex, "image");
 
     lua_newtable(state);

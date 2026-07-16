@@ -1035,12 +1035,22 @@ bool AndroidBridge::saveRgbaImage(
         int width,
         int height,
         size_t size,
+        int left,
+        int top,
+        int right,
+        int bottom,
         const std::string& path
 ) {
     if (pixels == nullptr
             || width <= 0
             || height <= 0
             || size == 0
+            || left < 0
+            || top < 0
+            || right > width
+            || bottom > height
+            || left >= right
+            || top >= bottom
             || size > static_cast<size_t>(std::numeric_limits<jint>::max())) {
         return false;
     }
@@ -1049,7 +1059,7 @@ bool AndroidBridge::saveRgbaImage(
     jmethodID methodId = staticMethod(
             env,
             "saveRgbaImage",
-            "(Ljava/nio/ByteBuffer;IIILjava/lang/String;)Z"
+            "(Ljava/nio/ByteBuffer;IIIIIIILjava/lang/String;)Z"
     );
     if (env == nullptr || methodId == nullptr) {
         return false;
@@ -1077,6 +1087,10 @@ bool AndroidBridge::saveRgbaImage(
             static_cast<jint>(width),
             static_cast<jint>(height),
             static_cast<jint>(size),
+            static_cast<jint>(left),
+            static_cast<jint>(top),
+            static_cast<jint>(right),
+            static_cast<jint>(bottom),
             pathText
     );
     env->DeleteLocalRef(buffer);

@@ -27,6 +27,18 @@ typedef struct EnginePoint {
 } EnginePoint;
 
 /**
+ * C ABI 图像区域，采用左闭右开坐标。
+ *
+ * width = right - left，height = bottom - top。传给截图接口的区域必须完全位于屏幕内。
+ */
+typedef struct EngineRect {
+    int left;
+    int top;
+    int right;
+    int bottom;
+} EngineRect;
+
+/**
  * 设备能力函数表。
  *
  * 所有成员都是 libengine.so 的稳定 C ABI。字符串和 JSON 返回指针均由当前调用线程持有，
@@ -118,11 +130,11 @@ typedef struct EngineApi {
     long long (*systemTime)();
     long long (*tickCount)();
     const char* (*runtimeLastError)();
-    int (*capture)(int* width, int* height, unsigned char** pixels);
+    int (*getScreenPixels)(int* width, int* height, unsigned char** pixels);
     void (*keepCapture)();
     void (*releaseCapture)();
     int (*setCaptureCacheMs)(int durationMs);
-    const char* (*captureLastError)();
+    const char* (*screenLastError)();
     int (*findColors)(
             int x1,
             int y1,
@@ -166,7 +178,7 @@ typedef struct EngineApi {
             size_t* size
     );
     const EngineDeviceApi* (*getDeviceApi)();
-    int (*saveCapture)(const char* path);
+    int (*capture)(const char* path, const EngineRect* region);
     int (*findPic)(
             int x1,
             int y1,
@@ -230,6 +242,7 @@ typedef struct EngineApi {
             double sim
     );
     const char* (*fontLastError)();
+    int (*setImageCacheMaxBytes)(size_t maxBytes);
 } EngineApi;
 
 /**
@@ -400,7 +413,7 @@ long long engine_systemTime();
 long long engine_tickCount();
 
 /**
- * 屏幕截图。
+ * 获取屏幕像素。
  *
  * 参数：
  * - width：输出屏幕宽度。
@@ -409,20 +422,20 @@ long long engine_tickCount();
  *
  * 返回：
  * - 1：成功，width/height/pixels 都已写入。
- * - 0：失败，可通过 engine_captureLastError() 读取错误文本。
+ * - 0：失败，可通过 engine_screenLastError() 读取错误文本。
  *
  * 注意：
  * pixels 指向 libengine.so 内部缓存，调用方只读，不要释放。下一次缓存过期后
  * 缓存仅在当前脚本任务中保留。脚本结束或分辨率变化导致内部缓存扩容时，该地址
  * 可能失效。
  */
-int engine_capture(int* width, int* height, unsigned char** pixels);
+int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
 
 /**
  * 锁定当前截图帧。
  *
- * 开启后 engine_capture 会一直返回当前缓存帧；如果当前还没有缓存帧，
- * 下一次 engine_capture 会先截图并锁住这一帧。
+ * 开启后 engine_getScreenPixels 会一直返回当前缓存帧；如果当前还没有缓存帧，
+ * 下一次 engine_getScreenPixels 会先截图并锁住这一帧。
  */
 void engine_keepCapture();
 
@@ -439,11 +452,11 @@ void engine_releaseCapture();
 int engine_setCaptureCacheMs(int durationMs);
 
 /**
- * 返回最近一次截图 C ABI 调用失败原因。
+ * 返回最近一次屏幕取帧或缓存控制调用失败原因。
  *
  * 返回指针由 libengine.so 内部持有，调用方只读，不要释放。
  */
-const char* engine_captureLastError();
+const char* engine_screenLastError();
 
 /**
  * 在当前屏幕截图缓存上执行多点找色。
@@ -480,10 +493,11 @@ const char* engine_findColorsLastError();
 /**
  * 保存当前截图缓存为图片文件。
  *
+ * region 为 nullptr 时保存全屏；非空时保存指定的左闭右开区域。
  * 成功返回 1；失败返回 0，原因通过 engine_imageLastError() 获取。普通截图缓存不会因为
  * 此接口以外的调用产生 PNG/JPEG 编码或磁盘 IO。
  */
-int engine_saveCapture(const char* path);
+int engine_capture(const char* path, const EngineRect* region);
 
 /**
  * 在当前截图缓存中查找模板图片。
@@ -506,6 +520,13 @@ int engine_findPic(
 
 /** 清理全部模板缓存，picName 非空时只清理对应图片缓存。 */
 void engine_clearImageCache(const char* picName);
+
+/**
+ * 设置当前脚本任务的找图模板缓存上限，单位字节。
+ *
+ * 设置为 0 会关闭模板缓存；缩小上限时立即按 LRU 淘汰。成功返回 1。
+ */
+int engine_setImageCacheMaxBytes(size_t maxBytes);
 
 /** 返回最近一次找图或截图保存 C ABI 失败原因。 */
 const char* engine_imageLastError();

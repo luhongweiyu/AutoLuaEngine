@@ -641,31 +641,60 @@
     ]
   },
   {
-    "name": "截图",
+    "name": "图像",
     "items": [
       {
-        "name": "截图",
-        "md": "md/10-截图/capture.md",
+        "name": "概述",
+        "md": "md/10-图像/概述.md"
+      },
+      {
+        "name": "获取屏幕像素",
+        "md": "md/10-图像/getScreenPixels.md",
+        "cmd": "m.getScreenPixels"
+      },
+      {
+        "name": "保存截图",
+        "md": "md/10-图像/capture.md",
         "cmd": "m.capture"
       },
       {
+        "name": "保存截图别名",
+        "md": "md/10-图像/snapShot.md",
+        "cmd": "m.snapShot"
+      },
+      {
         "name": "锁住截图帧",
-        "md": "md/10-截图/keepCapture.md",
+        "md": "md/10-图像/keepCapture.md",
         "cmd": "m.keepCapture"
       },
       {
         "name": "解锁截图帧",
-        "md": "md/10-截图/releaseCapture.md",
+        "md": "md/10-图像/releaseCapture.md",
         "cmd": "m.releaseCapture"
       },
       {
         "name": "截图缓存时间",
-        "md": "md/10-截图/setCaptureCacheMs.md",
+        "md": "md/10-图像/setCaptureCacheMs.md",
         "cmd": "m.setCaptureCacheMs"
       },
       {
         "name": "缓存规则",
-        "md": "md/10-截图/缓存规则.md"
+        "md": "md/10-图像/缓存规则.md"
+      },
+      {
+        "name": "区域找图",
+        "md": "md/10-图像/找图.md",
+        "cmd": "m.findPic"
+      },
+      {
+        "name": "清理模板缓存",
+        "md": "md/10-图像/清理图片缓存.md",
+        "cmd": "m.clearImageCache"
+      },
+      {
+        "name": "模板缓存上限",
+        "md": "md/10-图像/setImageCacheMaxBytes.md",
+        "cmd": "m.setImageCacheMaxBytes"
       }
     ]
   },
@@ -689,30 +718,6 @@
       {
         "name": "声明摘录",
         "md": "md/12-C-ABI/声明.md"
-      }
-    ]
-  },
-  {
-    "name": "图像",
-    "items": [
-      {
-        "name": "概述",
-        "md": "md/13-图像/概述.md"
-      },
-      {
-        "name": "保存当前截图",
-        "md": "md/13-图像/保存截图.md",
-        "cmd": "m.saveCapture"
-      },
-      {
-        "name": "区域找图",
-        "md": "md/13-图像/找图.md",
-        "cmd": "m.findPic"
-      },
-      {
-        "name": "清理模板缓存",
-        "md": "md/13-图像/清理图片缓存.md",
-        "cmd": "m.clearImageCache"
       }
     ]
   },
