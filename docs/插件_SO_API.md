@@ -11,10 +11,10 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `EngineApi::abiVersion` 为 `17`。版本 17 在函数表尾部追加
-`fontFindStrFast` / `fontFindStrFastEx`；版本 16 及以前的字段位置不变。新插件必须使用当前
-头文件编译，使用快速找字字段前检查版本不低于 17；内置 OCR 模型字段要求版本不低于 16，
-图片屏幕字段要求版本不低于 15。
+当前 `EngineApi::abiVersion` 为 `18`。版本 18 只在函数表尾部追加 `getImGuiApi`；版本 17
+及以前的字段位置不变。新插件必须使用当前头文件编译，使用 ImGui 子表前检查版本不低于
+18，使用快速找字字段前检查版本不低于 17；内置 OCR 模型字段要求版本不低于 16，图片屏幕
+字段要求版本不低于 15。
 
 ## 当前函数表能力
 
@@ -25,6 +25,8 @@ typedef struct EngineRect {
     int right;
     int bottom;
 } EngineRect;
+
+typedef struct EngineImGuiApi EngineImGuiApi;
 
 typedef struct EngineApi {
     int abiVersion;
@@ -124,6 +126,7 @@ typedef struct EngineApi {
         int x1, int y1, int x2, int y2,
         const char* text, const char* color, double sim
     );
+    const EngineImGuiApi* (*getImGuiApi)();
 } EngineApi;
 ```
 
@@ -139,6 +142,21 @@ int foreground = device->appIsFront("com.example.app");
 const char* output = device->exec("id", 1);
 const char* displayJson = device->getDisplayInfoJson();
 ```
+
+ImGui 子表通过 `api->getImGuiApi()` 获取。插件必须先确认 `api->abiVersion >= 18`，再检查
+`imgui->abiVersion`。当前 `EngineImGuiApi::abiVersion` 为 `1`，包含框架、窗口、布局、控件、
+表格、图片、样式、图形和事件等待能力：
+
+```c
+const EngineImGuiApi* imgui = api->getImGuiApi();
+if (imgui != NULL && imgui->abiVersion >= 1 && imgui->isSupport()) {
+    EngineImGuiHandle window = imgui->createWindow("插件窗口", 20, 80, 600, 420, 1);
+}
+```
+
+完整结构和事件枚举以
+[imgui_c_api.h](../engines/android/app/src/main/cpp/core/imgui_c_api.h) 为准。直接调用
+`engine_getImGuiApi()` 会取得同一张只读子函数表。
 
 ## 规则
 
@@ -167,6 +185,10 @@ const char* displayJson = device->getDisplayInfoJson();
 - `uiOpen` 的 `surface` 当前为 `dialog`、`hud`、`web`；配置和消息参数均为 JSON 文本。
 - `uiWaitEvent` 返回 `{"type":...,"data":...}` JSON，`uiWaitEventInterruptible` 适用于
   需要响应脚本停止请求的语言运行时。
+- `getImGuiApi` 返回的函数表由 `libengine.so` 持有，插件只读、不释放。C ABI 不传递具体
+  语言的回调对象；插件通过 `waitEvent` 消费事件，再在自己的线程模型中分发回调。
+- ImGui 句柄只属于当前脚本任务，`reset`、脚本停止或引擎进程结束后失效；插件不得跨任务
+  缓存句柄。渲染线程独占 Dear ImGui、EGL 和 OpenGL ES context。
 - `readAlpkgFile` 仅在当前调用线程正在运行 `.alpkg` 时可用，只读取 manifest 的
   `resource` 条目；返回字节由 SO 当前线程持有，插件只读、不释放，并应在下次调用前复制。
 - `getDeviceApi` 返回的字符串、JSON 和 `lastError` 指针由调用线程持有，下一次设备 API

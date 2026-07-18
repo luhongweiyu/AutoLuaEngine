@@ -1180,3 +1180,23 @@ bool AndroidBridge::postScriptWebMessage(long long sessionId, const std::string&
 bool AndroidBridge::closeScriptUi(long long sessionId) {
     return callBooleanLong("closeScriptUi", sessionId);
 }
+
+bool AndroidBridge::isScriptImGuiSupported() {
+    return callBoolean0("isScriptImGuiSupported");
+}
+
+bool AndroidBridge::showScriptImGui(const std::string& configJson) {
+    return callBooleanString("showScriptImGui", configJson);
+}
+
+bool AndroidBridge::updateScriptImGui(const std::string& configJson) {
+    return callBooleanString("updateScriptImGui", configJson);
+}
+
+bool AndroidBridge::closeScriptImGui() {
+    return callBoolean0("closeScriptImGui");
+}
+
+bool AndroidBridge::setScriptImGuiKeyboardVisible(bool visible) {
+    return callBoolean1("setScriptImGuiKeyboardVisible", visible);
+}

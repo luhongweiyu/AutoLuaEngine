@@ -76,7 +76,7 @@ std::string LuaTaskScheduler::runBootstrap() {
 }
 
 std::string LuaTaskScheduler::runMain(lua_State* mainState, int registryReference) {
-    std::shared_ptr<LuaTask> task = createTask(mainState, registryReference, 0, true);
+    std::shared_ptr<LuaTask> task = createTask(mainState, registryReference, 0, true, false);
     std::string result = executeTask(task);
 
     // 主任务结束就代表整个脚本生命周期结束。先释放主任务持有的 Gate，再通知并等待
@@ -89,6 +89,31 @@ long long LuaTaskScheduler::startChild(
         lua_State* caller,
         int callbackIndex,
         int argumentCount,
+        std::string* error
+) {
+    return startChildImpl(caller, callbackIndex, argumentCount, true, error);
+}
+
+long long LuaTaskScheduler::startInternalChild(
+        lua_State* caller,
+        int callbackIndex,
+        int argumentCount,
+        std::string* error
+) {
+    return startChildImpl(caller, callbackIndex, argumentCount, false, error);
+}
+
+/**
+ * 创建用户或引擎内部子任务。
+ *
+ * 两类任务共享完整生命周期；countsTowardUserLimit 只决定是否计入脚本公开的 10 线程
+ * 上限，不能绕过停止、VM Gate 或最终 join。
+ */
+long long LuaTaskScheduler::startChildImpl(
+        lua_State* caller,
+        int callbackIndex,
+        int argumentCount,
+        bool countsTowardUserLimit,
         std::string* error
 ) {
     if (caller == nullptr || runtime_ == nullptr) {
@@ -114,7 +139,7 @@ long long LuaTaskScheduler::startChild(
     // 线程句柄会一直积累到主脚本结束。Lua 线程对象只保存 ID，任务被回收后再次停止
     // 该对象会按“已经结束”处理。
     reapFinishedChildren();
-    if (activeChildCount_.load() >= kMaxChildThreads) {
+    if (countsTowardUserLimit && activeUserChildCount_.load() >= kMaxChildThreads) {
         if (error != nullptr) {
             *error = "同时运行的子线程不能超过 10 个";
         }
@@ -143,15 +168,20 @@ long long LuaTaskScheduler::startChild(
             childState,
             registryReference,
             argumentCount,
-            false
+            false,
+            countsTowardUserLimit
     );
-    activeChildCount_.fetch_add(1);
+    if (countsTowardUserLimit) {
+        activeUserChildCount_.fetch_add(1);
+    }
     try {
         task->worker = std::thread([this, task]() {
             runChildWorker(task);
         });
     } catch (...) {
-        activeChildCount_.fetch_sub(1);
+        if (countsTowardUserLimit) {
+            activeUserChildCount_.fetch_sub(1);
+        }
         luaL_unref(caller, LUA_REGISTRYINDEX, registryReference);
         {
             std::lock_guard<std::mutex> lock(tasksMutex_);
@@ -321,7 +351,8 @@ std::shared_ptr<LuaTaskScheduler::LuaTask> LuaTaskScheduler::createTask(
         lua_State* state,
         int registryReference,
         int argumentCount,
-        bool mainTask
+        bool mainTask,
+        bool countsTowardUserLimit
 ) {
     std::shared_ptr<LuaTask> task = std::make_shared<LuaTask>();
     task->id = nextTaskId_.fetch_add(1);
@@ -329,6 +360,7 @@ std::shared_ptr<LuaTaskScheduler::LuaTask> LuaTaskScheduler::createTask(
     task->registryReference = registryReference;
     task->argumentCount = argumentCount;
     task->mainTask = mainTask;
+    task->countsTowardUserLimit = countsTowardUserLimit;
     bindTaskToState(state, task.get());
     runtime_->configureTaskState(state);
 
@@ -375,7 +407,9 @@ std::string LuaTaskScheduler::executeTask(const std::shared_ptr<LuaTask>& task) 
 
 void LuaTaskScheduler::runChildWorker(const std::shared_ptr<LuaTask>& task) {
     std::string result = executeTask(task);
-    activeChildCount_.fetch_sub(1);
+    if (task->countsTowardUserLimit) {
+        activeUserChildCount_.fetch_sub(1);
+    }
 
     if (task->status.load() == TaskState::Failed) {
         const std::string message = "Lua 子线程 "

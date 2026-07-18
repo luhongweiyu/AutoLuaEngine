@@ -8,6 +8,7 @@
 #include "json_value.h"
 #include "../platform/android_bridge.h"
 #include "../core/api/ui_api.h"
+#include "../core/api/imgui_api.h"
 #include "../runtime/common/log_buffer.h"
 #include "../runtime/lua/alpkg_package.h"
 
@@ -360,6 +361,7 @@ std::string commandResult(Engine& engine,
 
     if (method == "ui.closeAll") {
         xiaoyv::api::closeAllUiSurfaces();
+        xiaoyv::api::imguiReset();
         return "{\"closed\":true}";
     }
 

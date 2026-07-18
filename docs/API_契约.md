@@ -157,10 +157,29 @@ engine_uiCloseAll
 engine_uiLastError
 ```
 
+当前 ImGui C ABI：
+
+```c
+engine_getImGuiApi
+engine_imguiIsSupport
+engine_imguiShow
+engine_imguiClose
+engine_imguiReset
+engine_imguiCreateWindow
+engine_imguiCreateButton
+engine_imguiWaitEvent
+engine_imguiWaitClosed
+engine_imguiLastError
+```
+
+以上仅列出代表性入口。窗口、布局、控件、表格、图片、样式和图形的完整直接导出声明位于
+`core/imgui_c_api.h`，并全部收录在 `EngineImGuiApi` 子函数表中。
+
 当前插件函数表入口：
 
 ```c
 engine_getApi
+engine_getImGuiApi
 ```
 
 Lua 当前通过 HostApi 暴露脚本函数，但 HostApi 只做 Lua 类型转换，并调用同一组
@@ -512,15 +531,51 @@ const char* engine_uiLastError();
 - Android UI 线程只把事件投递进 native 会话队列，不能直接执行语言运行时。
 - `engine_uiCloseAll` 在脚本结束、停止和引擎销毁时调用，确保 App 主进程没有遗留界面。
 
+## ImGui C ABI
+
+```c
+const EngineImGuiApi* engine_getImGuiApi();
+int engine_imguiShow(const EngineImGuiSurfaceConfig* config);
+void engine_imguiClose();
+void engine_imguiReset();
+int engine_imguiWaitEvent(
+        EngineImGuiEvent* event,
+        int timeoutMs,
+        engine_imgui_interrupt_callback shouldInterrupt,
+        void* userData
+);
+int engine_imguiWaitClosed(
+        engine_imgui_interrupt_callback shouldInterrupt,
+        void* userData
+);
+const char* engine_imguiLastError();
+```
+
+规则：
+
+- `EngineApi::abiVersion` 当前为 `18`，版本 18 只在顶层函数表尾部追加 `getImGuiApi`；
+  版本 17 及以前字段位置不变。
+- `EngineImGuiApi::abiVersion` 当前为 `1`。ImGui 子函数表同样只能在尾部追加字段；调用方
+  必须先检查版本，再访问自己需要的字段。
+- `engine_getImGuiApi()` 与 `engine_getApi()->getImGuiApi()` 返回同一张进程级只读函数表，
+  调用方不得释放或修改。
+- 控件和图形句柄使用 `EngineImGuiHandle`，只在当前脚本任务内有效；脚本结束、停止、强停
+  或 `engine_imguiReset()` 后全部失效。
+- C ABI 不接收 Lua、JS 或 Go 的函数对象。点击、选择、滑块、窗口关闭和 `post` 事件统一
+  写入 `EngineImGuiEvent` 队列，各语言绑定在自己的运行时线程消费事件并执行回调。
+- RGBA 点阵参数只在调用期间读取；路径图片和 RGBA 图片最终进入同一纹理管理流程。
+- 完整结构、枚举和直接导出以 `core/imgui_c_api.h` 为准；Android 生命周期和线程边界见
+  `docs/ANDROID_ImGui.md`。
+
 ## 插件函数表
 
 ```c
 const EngineApi* engine_getApi();
 ```
 
-外部插件 so 可以通过 `engine_getApi()` 取得函数表，再使用 `getDeviceApi()` 访问设备
-能力；运行时、截图、找色、图像、OCR、点阵字库、输入、输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放
-稳定 C 类型，不暴露 C++ 对象。
+外部插件 so 可以通过 `engine_getApi()` 取得函数表，再使用 `getDeviceApi()` 访问设备能力，
+使用 `getImGuiApi()` 访问 ImGui 能力；运行时、截图、找色、图像、OCR、点阵字库、输入、
+输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放稳定 C 类型，不暴露 C++ 对象。
 
 ## Lua 映射
 
@@ -589,7 +644,11 @@ m.web.open(spec)
 m.web.waitEvent(handle, timeoutMs)
 m.web.postMessage(handle, data)
 m.web.close(handle)
+imgui.*
 ```
+
+`imgui.*` 的每个固定方法都通过 `runtime/lua/imgui_lua_api` 转换参数，再调用同名语义的
+`engine_imgui*` 直接 C ABI；回调函数只保存在 Lua 绑定层，不进入跨语言函数表。
 
 ## 暂未定义契约
 

@@ -737,6 +737,26 @@ bool 设置屏幕图片(const char* imagePath) {
     return true;
 }
 
+bool 加载脚本图片(const char* imagePath, 脚本图片* image) {
+    if (image == nullptr) {
+        return 设置图片错误("图片输出对象为空");
+    }
+
+    AndroidImageDecodeResult decoded;
+    if (!解码屏幕图片(imagePath == nullptr ? "" : imagePath, &decoded)) {
+        image->width = 0;
+        image->height = 0;
+        image->rgba.clear();
+        return false;
+    }
+
+    image->width = decoded.width;
+    image->height = decoded.height;
+    image->rgba = std::move(decoded.pixels);
+    gImageLastError.clear();
+    return true;
+}
+
 void 清理图片缓存(const char* picName) {
     std::string name = 去空白(picName == nullptr ? "" : picName);
     std::string packageKey;

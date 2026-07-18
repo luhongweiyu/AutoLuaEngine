@@ -3,6 +3,7 @@
  */
 #include <jni.h>
 #include <android/log.h>
+#include <android/native_window_jni.h>
 
 #include <cstdint>
 #include <cstring>
@@ -10,9 +11,11 @@
 #include <vector>
 
 #include "core/api/screen_api.h"
+#include "core/api/imgui_api.h"
 #include "engine/engine.h"
 #include "engine/engine_command.h"
 #include "platform/android_bridge.h"
+#include "platform/imgui_renderer.h"
 #include "runtime/common/log_buffer.h"
 #include "runtime/lua/java_bridge.h"
 
@@ -116,4 +119,100 @@ Java_com_xiaoyv_engine_NativeEngine_nativeGetScreenFrame(JNIEnv* env, jclass cla
             reinterpret_cast<const jbyte*>(payload.data())
     );
     return result;
+}
+
+/**
+ * 将 Java Surface 转为带引用的 ANativeWindow，并启动独立 EGL 渲染线程。
+ */
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeAttachImGuiSurface(
+        JNIEnv* env,
+        jclass clazz,
+        jobject surface
+) {
+    (void) clazz;
+    if (surface == nullptr) {
+        return JNI_FALSE;
+    }
+    ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
+    if (window == nullptr) {
+        return JNI_FALSE;
+    }
+    bool attached = attachImGuiSurface(window);
+    ANativeWindow_release(window);
+    return attached ? JNI_TRUE : JNI_FALSE;
+}
+
+/** SurfaceHolder 销毁时同步停止渲染，确保下一次脚本不会复用旧 EGLContext。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeDetachImGuiSurface(JNIEnv* env, jclass clazz) {
+    (void) env;
+    (void) clazz;
+    detachImGuiSurface();
+}
+
+/** 把 Java WindowManager/Surface 的异步创建错误送入统一 ImGui 生命周期。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeNotifyImGuiSurfaceFailure(
+        JNIEnv* env,
+        jclass clazz,
+        jstring message
+) {
+    (void) clazz;
+    xiaoyv::api::imguiNotifyRendererFailure(jStringToString(env, message));
+}
+
+/** 把 MotionEvent 基础字段复制进 native 输入队列。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeEnqueueImGuiTouch(
+        JNIEnv* env,
+        jclass clazz,
+        jint action,
+        jint pointerId,
+        jfloat x,
+        jfloat y
+) {
+    (void) env;
+    (void) clazz;
+    enqueueImGuiTouch(action, pointerId, x, y);
+}
+
+/** 把 Android 输入法提交文本复制进 native 输入队列。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeEnqueueImGuiText(
+        JNIEnv* env,
+        jclass clazz,
+        jstring text
+) {
+    (void) clazz;
+    std::string utf8 = jStringToString(env, text);
+    enqueueImGuiText(utf8.c_str());
+}
+
+/** 把 Android KeyEvent 字段复制进 native 输入队列。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeEnqueueImGuiKey(
+        JNIEnv* env,
+        jclass clazz,
+        jint action,
+        jint keyCode,
+        jint unicodeCodePoint,
+        jint metaState
+) {
+    (void) env;
+    (void) clazz;
+    enqueueImGuiKey(action, keyCode, unicodeCodePoint, metaState);
+}
+
+/** 把鼠标或触控板滚轮数据复制进 native 输入队列。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeEnqueueImGuiScroll(
+        JNIEnv* env,
+        jclass clazz,
+        jfloat horizontal,
+        jfloat vertical
+) {
+    (void) env;
+    (void) clazz;
+    enqueueImGuiScroll(horizontal, vertical);
 }

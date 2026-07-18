@@ -549,6 +549,474 @@
     "md": "md/05-界面/概述.md"
   },
   {
+    "name": "ImGui",
+    "items": [
+      {
+        "name": "概述与完整示例",
+        "md": "md/13-ImGui/概述.md"
+      },
+      {
+        "name": "常量表",
+        "md": "md/13-ImGui/常量表.md"
+      },
+      {
+        "name": "框架与窗口",
+        "md": "md/13-ImGui/框架与窗口.md",
+        "items": [
+          {
+            "name": "检测支持状态",
+            "md": "md/13-ImGui/框架与窗口/isSupport.md",
+            "cmd": "imgui.isSupport"
+          },
+          {
+            "name": "显示全屏框架",
+            "md": "md/13-ImGui/框架与窗口/show.md",
+            "cmd": "imgui.show"
+          },
+          {
+            "name": "显示独立窗口",
+            "md": "md/13-ImGui/框架与窗口/showWindow.md",
+            "cmd": "imgui.showWindow"
+          },
+          {
+            "name": "关闭框架",
+            "md": "md/13-ImGui/框架与窗口/close.md",
+            "cmd": "imgui.close"
+          },
+          {
+            "name": "设置颜色主题",
+            "md": "md/13-ImGui/框架与窗口/setColorTheme.md",
+            "cmd": "imgui.setColorTheme"
+          },
+          {
+            "name": "创建窗口",
+            "md": "md/13-ImGui/框架与窗口/createWindow.md",
+            "cmd": "imgui.createWindow"
+          },
+          {
+            "name": "销毁窗口",
+            "md": "md/13-ImGui/框架与窗口/destroyWindow.md",
+            "cmd": "imgui.destroyWindow"
+          },
+          {
+            "name": "窗口关闭回调",
+            "md": "md/13-ImGui/框架与窗口/setOnClose.md",
+            "cmd": "imgui.setOnClose"
+          },
+          {
+            "name": "设置窗口位置",
+            "md": "md/13-ImGui/框架与窗口/setWindowPos.md",
+            "cmd": "imgui.setWindowPos"
+          },
+          {
+            "name": "设置窗口大小",
+            "md": "md/13-ImGui/框架与窗口/setWindowSize.md",
+            "cmd": "imgui.setWindowSize"
+          },
+          {
+            "name": "获取窗口位置",
+            "md": "md/13-ImGui/框架与窗口/getWindowPos.md",
+            "cmd": "imgui.getWindowPos"
+          },
+          {
+            "name": "设置窗口标志",
+            "md": "md/13-ImGui/框架与窗口/setWindowFlags.md",
+            "cmd": "imgui.setWindowFlags"
+          }
+        ]
+      },
+      {
+        "name": "布局与基础控件",
+        "md": "md/13-ImGui/布局与基础控件.md",
+        "items": [
+          {
+            "name": "垂直布局",
+            "md": "md/13-ImGui/布局与基础控件/createVerticalLayout.md",
+            "cmd": "imgui.createVerticalLayout"
+          },
+          {
+            "name": "水平布局",
+            "md": "md/13-ImGui/布局与基础控件/createHorticalLayout.md",
+            "cmd": "imgui.createHorticalLayout"
+          },
+          {
+            "name": "树形布局",
+            "md": "md/13-ImGui/布局与基础控件/createTreeBoxLayout.md",
+            "cmd": "imgui.createTreeBoxLayout"
+          },
+          {
+            "name": "创建标签栏",
+            "md": "md/13-ImGui/布局与基础控件/createTabBar.md",
+            "cmd": "imgui.createTabBar"
+          },
+          {
+            "name": "添加标签页",
+            "md": "md/13-ImGui/布局与基础控件/addTabBarItem.md",
+            "cmd": "imgui.addTabBarItem"
+          },
+          {
+            "name": "控件同行",
+            "md": "md/13-ImGui/布局与基础控件/sameLine.md",
+            "cmd": "imgui.sameLine"
+          },
+          {
+            "name": "布局边框",
+            "md": "md/13-ImGui/布局与基础控件/setLayoutBorderVisible.md",
+            "cmd": "imgui.setLayoutBorderVisible"
+          },
+          {
+            "name": "创建按钮",
+            "md": "md/13-ImGui/布局与基础控件/createButton.md",
+            "cmd": "imgui.createButton"
+          },
+          {
+            "name": "按钮点击回调",
+            "md": "md/13-ImGui/布局与基础控件/setOnClick.md",
+            "cmd": "imgui.setOnClick"
+          },
+          {
+            "name": "创建标签",
+            "md": "md/13-ImGui/布局与基础控件/createLabel.md",
+            "cmd": "imgui.createLabel"
+          },
+          {
+            "name": "创建复选框",
+            "md": "md/13-ImGui/布局与基础控件/createCheckBox.md",
+            "cmd": "imgui.createCheckBox"
+          },
+          {
+            "name": "创建开关",
+            "md": "md/13-ImGui/布局与基础控件/createSwitch.md",
+            "cmd": "imgui.createSwitch"
+          },
+          {
+            "name": "设置选中状态",
+            "md": "md/13-ImGui/布局与基础控件/setChecked.md",
+            "cmd": "imgui.setChecked"
+          },
+          {
+            "name": "获取选中状态",
+            "md": "md/13-ImGui/布局与基础控件/isChecked.md",
+            "cmd": "imgui.isChecked"
+          },
+          {
+            "name": "选中状态回调",
+            "md": "md/13-ImGui/布局与基础控件/setOnCheck.md",
+            "cmd": "imgui.setOnCheck"
+          },
+          {
+            "name": "创建输入框",
+            "md": "md/13-ImGui/布局与基础控件/createInputText.md",
+            "cmd": "imgui.createInputText"
+          },
+          {
+            "name": "获取输入文本",
+            "md": "md/13-ImGui/布局与基础控件/getInputText.md",
+            "cmd": "imgui.getInputText"
+          },
+          {
+            "name": "设置输入文本",
+            "md": "md/13-ImGui/布局与基础控件/setInputText.md",
+            "cmd": "imgui.setInputText"
+          },
+          {
+            "name": "设置输入类型",
+            "md": "md/13-ImGui/布局与基础控件/setInputType.md",
+            "cmd": "imgui.setInputType"
+          },
+          {
+            "name": "创建进度条",
+            "md": "md/13-ImGui/布局与基础控件/createProgressBar.md",
+            "cmd": "imgui.createProgressBar"
+          },
+          {
+            "name": "设置进度",
+            "md": "md/13-ImGui/布局与基础控件/setProgressBarPos.md",
+            "cmd": "imgui.setProgressBarPos"
+          },
+          {
+            "name": "获取进度",
+            "md": "md/13-ImGui/布局与基础控件/getProgressBarPos.md",
+            "cmd": "imgui.getProgressBarPos"
+          },
+          {
+            "name": "创建滑动条",
+            "md": "md/13-ImGui/布局与基础控件/createSlider.md",
+            "cmd": "imgui.createSlider"
+          },
+          {
+            "name": "设置滑动条",
+            "md": "md/13-ImGui/布局与基础控件/setSlider.md",
+            "cmd": "imgui.setSlider"
+          },
+          {
+            "name": "获取滑动条位置",
+            "md": "md/13-ImGui/布局与基础控件/getSliderPos.md",
+            "cmd": "imgui.getSliderPos"
+          },
+          {
+            "name": "滑动条回调",
+            "md": "md/13-ImGui/布局与基础控件/setOnSliderEvent.md",
+            "cmd": "imgui.setOnSliderEvent"
+          },
+          {
+            "name": "创建颜色选择器",
+            "md": "md/13-ImGui/布局与基础控件/createColorPicker.md",
+            "cmd": "imgui.createColorPicker"
+          }
+        ]
+      },
+      {
+        "name": "选择控件与表格",
+        "md": "md/13-ImGui/选择控件与表格.md",
+        "items": [
+          {
+            "name": "创建组合框",
+            "md": "md/13-ImGui/选择控件与表格/createComboBox.md",
+            "cmd": "imgui.createComboBox"
+          },
+          {
+            "name": "添加组合框选项",
+            "md": "md/13-ImGui/选择控件与表格/addOptionItem.md",
+            "cmd": "imgui.addOptionItem"
+          },
+          {
+            "name": "获取选项文本",
+            "md": "md/13-ImGui/选择控件与表格/getItemText.md",
+            "cmd": "imgui.getItemText"
+          },
+          {
+            "name": "删除选项",
+            "md": "md/13-ImGui/选择控件与表格/removeItemAt.md",
+            "cmd": "imgui.removeItemAt"
+          },
+          {
+            "name": "清空选项",
+            "md": "md/13-ImGui/选择控件与表格/removeAllItems.md",
+            "cmd": "imgui.removeAllItems"
+          },
+          {
+            "name": "获取选择索引",
+            "md": "md/13-ImGui/选择控件与表格/getSelectedItemIndex.md",
+            "cmd": "imgui.getSelectedItemIndex"
+          },
+          {
+            "name": "设置选择项",
+            "md": "md/13-ImGui/选择控件与表格/setItemSelected.md",
+            "cmd": "imgui.setItemSelected"
+          },
+          {
+            "name": "选择回调",
+            "md": "md/13-ImGui/选择控件与表格/setOnSelectEvent.md",
+            "cmd": "imgui.setOnSelectEvent"
+          },
+          {
+            "name": "创建单选组",
+            "md": "md/13-ImGui/选择控件与表格/createRadioGroup.md",
+            "cmd": "imgui.createRadioGroup"
+          },
+          {
+            "name": "添加单选项",
+            "md": "md/13-ImGui/选择控件与表格/addRadioBox.md",
+            "cmd": "imgui.addRadioBox"
+          },
+          {
+            "name": "获取项目数量",
+            "md": "md/13-ImGui/选择控件与表格/getItemCount.md",
+            "cmd": "imgui.getItemCount"
+          },
+          {
+            "name": "创建表格",
+            "md": "md/13-ImGui/选择控件与表格/createTableView.md",
+            "cmd": "imgui.createTableView"
+          },
+          {
+            "name": "设置表头",
+            "md": "md/13-ImGui/选择控件与表格/setTableHeaderItem.md",
+            "cmd": "imgui.setTableHeaderItem"
+          },
+          {
+            "name": "插入表格行",
+            "md": "md/13-ImGui/选择控件与表格/insertTableRow.md",
+            "cmd": "imgui.insertTableRow"
+          },
+          {
+            "name": "获取单元格文本",
+            "md": "md/13-ImGui/选择控件与表格/getTableItemText.md",
+            "cmd": "imgui.getTableItemText"
+          },
+          {
+            "name": "设置单元格文本",
+            "md": "md/13-ImGui/选择控件与表格/setTableItemText.md",
+            "cmd": "imgui.setTableItemText"
+          },
+          {
+            "name": "删除表格行",
+            "md": "md/13-ImGui/选择控件与表格/deleteTableRow.md",
+            "cmd": "imgui.deleteTableRow"
+          },
+          {
+            "name": "清空表格",
+            "md": "md/13-ImGui/选择控件与表格/clearTable.md",
+            "cmd": "imgui.clearTable"
+          },
+          {
+            "name": "表格选择回调",
+            "md": "md/13-ImGui/选择控件与表格/setOnSelectEventEx.md",
+            "cmd": "imgui.setOnSelectEventEx"
+          }
+        ]
+      },
+      {
+        "name": "图片、样式与图形",
+        "md": "md/13-ImGui/图片样式与图形.md",
+        "items": [
+          {
+            "name": "设置控件尺寸",
+            "md": "md/13-ImGui/图片样式与图形/setWidgetSize.md",
+            "cmd": "imgui.setWidgetSize"
+          },
+          {
+            "name": "设置控件可见性",
+            "md": "md/13-ImGui/图片样式与图形/setWidgetVisible.md",
+            "cmd": "imgui.setWidgetVisible"
+          },
+          {
+            "name": "获取控件可见性",
+            "md": "md/13-ImGui/图片样式与图形/isWidgetVisible.md",
+            "cmd": "imgui.isWidgetVisible"
+          },
+          {
+            "name": "设置控件样式",
+            "md": "md/13-ImGui/图片样式与图形/setWidgetStyle.md",
+            "cmd": "imgui.setWidgetStyle"
+          },
+          {
+            "name": "设置控件颜色",
+            "md": "md/13-ImGui/图片样式与图形/setWidgetColor.md",
+            "cmd": "imgui.setWidgetColor"
+          },
+          {
+            "name": "创建图片控件",
+            "md": "md/13-ImGui/图片样式与图形/createImage.md",
+            "cmd": "imgui.createImage"
+          },
+          {
+            "name": "设置路径图片",
+            "md": "md/13-ImGui/图片样式与图形/setImage.md",
+            "cmd": "imgui.setImage"
+          },
+          {
+            "name": "设置 Bitmap 图片",
+            "md": "md/13-ImGui/图片样式与图形/setImageFromBitmap.md",
+            "cmd": "imgui.setImageFromBitmap"
+          },
+          {
+            "name": "创建矩形",
+            "md": "md/13-ImGui/图片样式与图形/createRectangle.md",
+            "cmd": "imgui.createRectangle"
+          },
+          {
+            "name": "创建圆形",
+            "md": "md/13-ImGui/图片样式与图形/createCircle.md",
+            "cmd": "imgui.createCircle"
+          },
+          {
+            "name": "创建多边形",
+            "md": "md/13-ImGui/图片样式与图形/createPolygon.md",
+            "cmd": "imgui.createPolygon"
+          },
+          {
+            "name": "创建线段",
+            "md": "md/13-ImGui/图片样式与图形/createLine.md",
+            "cmd": "imgui.createLine"
+          },
+          {
+            "name": "创建位图图形",
+            "md": "md/13-ImGui/图片样式与图形/createBitmapShape.md",
+            "cmd": "imgui.createBitmapShape"
+          },
+          {
+            "name": "创建文本图形",
+            "md": "md/13-ImGui/图片样式与图形/createShapeText.md",
+            "cmd": "imgui.createShapeText"
+          },
+          {
+            "name": "设置图形位置",
+            "md": "md/13-ImGui/图片样式与图形/setShapePosition.md",
+            "cmd": "imgui.setShapePosition"
+          },
+          {
+            "name": "设置图形可见性",
+            "md": "md/13-ImGui/图片样式与图形/setShapeVisibility.md",
+            "cmd": "imgui.setShapeVisibility"
+          },
+          {
+            "name": "获取图形可见性",
+            "md": "md/13-ImGui/图片样式与图形/isShapeVisibility.md",
+            "cmd": "imgui.isShapeVisibility"
+          },
+          {
+            "name": "设置图形文本",
+            "md": "md/13-ImGui/图片样式与图形/setShapeTextString.md",
+            "cmd": "imgui.setShapeTextString"
+          },
+          {
+            "name": "设置图形文字颜色",
+            "md": "md/13-ImGui/图片样式与图形/setShapeTextColor.md",
+            "cmd": "imgui.setShapeTextColor"
+          },
+          {
+            "name": "设置图形文字背景",
+            "md": "md/13-ImGui/图片样式与图形/setShapeTextBackground.md",
+            "cmd": "imgui.setShapeTextBackground"
+          },
+          {
+            "name": "设置图形文字缩放",
+            "md": "md/13-ImGui/图片样式与图形/setShapeTextFontScale.md",
+            "cmd": "imgui.setShapeTextFontScale"
+          },
+          {
+            "name": "替换位图图形",
+            "md": "md/13-ImGui/图片样式与图形/setBitmapShape.md",
+            "cmd": "imgui.setBitmapShape"
+          },
+          {
+            "name": "设置图形线宽",
+            "md": "md/13-ImGui/图片样式与图形/setShapeThickness.md",
+            "cmd": "imgui.setShapeThickness"
+          },
+          {
+            "name": "删除图形",
+            "md": "md/13-ImGui/图片样式与图形/removeShape.md",
+            "cmd": "imgui.removeShape"
+          }
+        ]
+      },
+      {
+        "name": "辅助、回调与生命周期",
+        "md": "md/13-ImGui/回调线程与生命周期.md",
+        "items": [
+          {
+            "name": "获取最近错误",
+            "md": "md/13-ImGui/辅助方法/getLastError.md",
+            "cmd": "imgui.getLastError"
+          },
+          {
+            "name": "检查句柄",
+            "md": "md/13-ImGui/辅助方法/isValidHandle.md",
+            "cmd": "imgui.isValidHandle"
+          },
+          {
+            "name": "投递回调",
+            "md": "md/13-ImGui/辅助方法/post.md",
+            "cmd": "imgui.post"
+          }
+        ]
+      }
+    ]
+  },
+  {
     "name": "脚本包",
     "items": [
       {
@@ -724,6 +1192,10 @@
       {
         "name": "对应关系",
         "md": "md/12-C-ABI/对应关系.md"
+      },
+      {
+        "name": "ImGui 完整对应关系",
+        "md": "md/12-C-ABI/ImGui对应关系.md"
       },
       {
         "name": "声明摘录",

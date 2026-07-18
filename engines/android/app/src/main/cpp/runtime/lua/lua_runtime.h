@@ -68,6 +68,14 @@ public:
             std::string* error
     );
 
+    /** 启动不占用用户线程名额的引擎内部 Lua 子任务，例如 ImGui 事件泵。 */
+    long long startInternalChildThread(
+            struct lua_State* caller,
+            int callbackIndex,
+            int argumentCount,
+            std::string* error
+    );
+
     /** 请求子线程停止并等待其退出。 */
     bool stopChildThread(long long taskId, std::string* error);
 

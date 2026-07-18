@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.22.1)
 project(XiaoyvEngine)
 
 set(LUA_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/lua-5.4.8/src)
+set(IMGUI_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/imgui)
 
 add_library(engine SHARED
         engine_jni.cpp
@@ -10,6 +11,7 @@ add_library(engine SHARED
         core/api/device_api.cpp
         core/api/font_api.cpp
         core/api/image_api.cpp
+        core/api/imgui_api.cpp
         core/api/ime_api.cpp
         core/api/input_api.cpp
         core/api/ocr_api.cpp
@@ -17,19 +19,28 @@ add_library(engine SHARED
         core/api/runtime_api.cpp
         core/api/screen_api.cpp
         core/api/ui_api.cpp
+        core/imgui_c_api.cpp
         core/system_c_api.cpp
         engine/engine.cpp
         engine/engine_command.cpp
         engine/json_value.cpp
         engine/script_task.cpp
         platform/android_bridge.cpp
+        platform/imgui_renderer.cpp
         runtime/common/log_buffer.cpp
         runtime/lua/alpkg_package.cpp
         runtime/lua/host_api.cpp
+        runtime/lua/imgui_lua_api.cpp
         runtime/lua/java_bridge.cpp
         runtime/lua/lua_runtime.cpp
         runtime/lua/lua_task_scheduler.cpp
         runtime/lua/lua_thread_api.cpp
+        ${IMGUI_SRC_DIR}/imgui.cpp
+        ${IMGUI_SRC_DIR}/imgui_draw.cpp
+        ${IMGUI_SRC_DIR}/imgui_tables.cpp
+        ${IMGUI_SRC_DIR}/imgui_widgets.cpp
+        ${IMGUI_SRC_DIR}/backends/imgui_impl_android.cpp
+        ${IMGUI_SRC_DIR}/backends/imgui_impl_opengl3.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/native/image_core/image_core.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/package/alpkg_crypto.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/third_party/monocypher/monocypher.c
@@ -69,9 +80,19 @@ add_library(engine SHARED
 target_include_directories(engine PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared
+        ${IMGUI_SRC_DIR}
+        ${IMGUI_SRC_DIR}/backends
         ${LUA_SRC_DIR})
 
 find_library(log-lib log)
+find_library(android-lib android)
+find_library(egl-lib EGL)
+find_library(glesv3-lib GLESv3)
+find_library(jnigraphics-lib jnigraphics)
 
 target_link_libraries(engine
-        ${log-lib})
+        ${log-lib}
+        ${android-lib}
+        ${egl-lib}
+        ${glesv3-lib}
+        ${jnigraphics-lib})

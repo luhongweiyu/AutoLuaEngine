@@ -7,6 +7,7 @@
 #include "../core/api/color_api.h"
 #include "../core/api/font_api.h"
 #include "../core/api/image_api.h"
+#include "../core/api/imgui_api.h"
 #include "../core/api/package_api.h"
 #include "../core/api/runtime_api.h"
 #include "../core/api/screen_api.h"
@@ -32,6 +33,7 @@ constexpr const char* kLuaLoadFailurePrefix = "Lua 加载失败：";
  */
 void 清理脚本任务资源() {
     xiaoyv::api::closeAllUiSurfaces();
+    xiaoyv::api::imguiReset();
     xiaoyv::api::clearScreenCaptureCache();
     xiaoyv::api::清空找色缓存();
     xiaoyv::api::重置图片缓存();

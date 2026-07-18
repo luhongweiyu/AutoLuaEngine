@@ -4,6 +4,7 @@
 package com.xiaoyv.engine;
 
 import android.content.Context;
+import android.view.Surface;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -69,6 +70,41 @@ public final class NativeEngine {
         return nativeGetScreenFrame();
     }
 
+    /** 把 ScriptImGuiService 创建的 Surface 附着到 native EGL 渲染线程。 */
+    public static boolean attachImGuiSurface(Surface surface) {
+        return surface != null && surface.isValid() && nativeAttachImGuiSurface(surface);
+    }
+
+    /** Surface 销毁或脚本结束时同步停止 native ImGui 渲染线程。 */
+    public static void detachImGuiSurface() {
+        nativeDetachImGuiSurface();
+    }
+
+    /** 把 WindowManager 或 Surface 创建阶段的异步错误送回等待中的脚本。 */
+    public static void notifyImGuiSurfaceFailure(String message) {
+        nativeNotifyImGuiSurfaceFailure(message == null ? "ImGui Surface 创建失败" : message);
+    }
+
+    /** 转发 Android 触摸事件；native 只使用一个活动 pointerId。 */
+    public static void enqueueImGuiTouch(int action, int pointerId, float x, float y) {
+        nativeEnqueueImGuiTouch(action, pointerId, x, y);
+    }
+
+    /** 转发输入法最终确认的 UTF-8 文本。 */
+    public static void enqueueImGuiText(String text) {
+        nativeEnqueueImGuiText(text == null ? "" : text);
+    }
+
+    /** 转发实体键或输入法删除、回车等 KeyEvent。 */
+    public static void enqueueImGuiKey(int action, int keyCode, int unicodeCodePoint, int metaState) {
+        nativeEnqueueImGuiKey(action, keyCode, unicodeCodePoint, metaState);
+    }
+
+    /** 转发鼠标或触控板滚轮。 */
+    public static void enqueueImGuiScroll(float horizontal, float vertical) {
+        nativeEnqueueImGuiScroll(horizontal, vertical);
+    }
+
     /**
      * 从 assets/runtime 读取 Lua 运行时层。
      *
@@ -107,4 +143,28 @@ public final class NativeEngine {
     );
 
     private static native byte[] nativeGetScreenFrame();
+
+    private static native boolean nativeAttachImGuiSurface(Surface surface);
+
+    private static native void nativeDetachImGuiSurface();
+
+    private static native void nativeNotifyImGuiSurfaceFailure(String message);
+
+    private static native void nativeEnqueueImGuiTouch(
+            int action,
+            int pointerId,
+            float x,
+            float y
+    );
+
+    private static native void nativeEnqueueImGuiText(String text);
+
+    private static native void nativeEnqueueImGuiKey(
+            int action,
+            int keyCode,
+            int unicodeCodePoint,
+            int metaState
+    );
+
+    private static native void nativeEnqueueImGuiScroll(float horizontal, float vertical);
 }

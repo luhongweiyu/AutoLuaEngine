@@ -4,6 +4,8 @@
 #pragma once
 
 #include <jni.h>
+#include <string>
+#include <vector>
 
 struct lua_State;
 class LuaRuntime;
@@ -33,3 +35,18 @@ void unregisterLuaJavaBridge(lua_State* state);
  * Gate 串行进入根 lua_State，不依赖固定 owner thread。
  */
 void processLuaJavaCallbacks(lua_State* state);
+
+/**
+ * 把 Lua Java userdata 中的 android.graphics.Bitmap 复制为紧凑 RGBA8888。
+ *
+ * 该入口只负责 Lua-Java 边界拆箱；图片随后仍通过 engine_imgui* C ABI 进入统一核心。
+ * 支持 RGBA_8888、RGB_565 和 A_8，失败时写入可直接展示给脚本的中文错误。
+ */
+bool copyLuaJavaBitmapRgba(
+        lua_State* state,
+        int index,
+        std::vector<unsigned char>* rgba,
+        int* width,
+        int* height,
+        std::string* error
+);

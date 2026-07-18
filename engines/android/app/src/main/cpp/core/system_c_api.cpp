@@ -22,14 +22,14 @@
 
 namespace {
 
-// 17 在函数表尾部加入目标字形快速找字接口；既有字段位置保持不变。
-constexpr int kEngineAbiVersion = 17;
+// 18 在函数表尾部加入 Dear ImGui 子函数表；既有字段位置保持不变。
+constexpr int kEngineAbiVersion = 18;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.17\","
+        "\"abiVersion\":\"0.18\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -44,6 +44,7 @@ constexpr const char* kCapabilitiesJson =
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
+        "\"imguiApi\":[\"engine_getImGuiApi\",\"engine_imguiShow\",\"engine_imguiCreateWindow\",\"engine_imguiWaitEvent\"],"
         "\"deviceApi\":[\"engine_getDeviceApi\",\"engine_appIsFront\",\"engine_exec\",\"engine_getDisplayInfoJson\"],"
         "\"alpkgApi\":[\"engine_readAlpkgFile\"],"
         "\"imageFormat\":\"rgba8888\""
@@ -298,7 +299,8 @@ const EngineApi kEngineApi = {
         engine_restoreScreenPixels,
         engine_ocrLoadBuiltinModel,
         engine_fontFindStrFast,
-        engine_fontFindStrFastEx
+        engine_fontFindStrFastEx,
+        engine_getImGuiApi
 };
 
 } // namespace

@@ -58,6 +58,19 @@ public:
     );
 
     /**
+     * 启动一个引擎内部 Lua 子任务，不占用脚本公开的 10 个用户子线程名额。
+     *
+     * 内部任务仍由同一 VM Gate、停止通知和 join 流程管理，只是不允许后台事件泵让
+     * `beginThread` / `newThread` 提前触发用户线程数量上限。
+     */
+    long long startInternalChild(
+            lua_State* caller,
+            int callbackIndex,
+            int argumentCount,
+            std::string* error
+    );
+
+    /**
      * 请求一个子线程停止并等待其退出。
      *
      * 等待期间会释放 VM Gate，避免被停止的子线程因拿不到 Gate 而无法执行停止 hook。
@@ -117,6 +130,7 @@ private:
         int registryReference = -2;
         int argumentCount = 0;
         bool mainTask = false;
+        bool countsTowardUserLimit = false;
         std::atomic_bool stopRequested{false};
         std::atomic_bool finished{false};
         std::atomic<TaskState> status{TaskState::Created};
@@ -151,7 +165,7 @@ private:
     LuaRuntime* runtime_;
     LuaVmGate vmGate_;
     std::atomic_llong nextTaskId_{1};
-    std::atomic_int activeChildCount_{0};
+    std::atomic_int activeUserChildCount_{0};
     mutable std::mutex tasksMutex_;
     std::unordered_map<long long, std::shared_ptr<LuaTask>> tasks_;
 
@@ -159,7 +173,15 @@ private:
             lua_State* state,
             int registryReference,
             int argumentCount,
-            bool mainTask
+            bool mainTask,
+            bool countsTowardUserLimit
+    );
+    long long startChildImpl(
+            lua_State* caller,
+            int callbackIndex,
+            int argumentCount,
+            bool countsTowardUserLimit,
+            std::string* error
     );
     std::string executeTask(const std::shared_ptr<LuaTask>& task);
     void runChildWorker(const std::shared_ptr<LuaTask>& task);

@@ -86,6 +86,12 @@
             android:exported="false"
             android:process=":engine" />
 
+        <!-- Dear ImGui Surface 与 Lua 引擎运行在同一 :engine 进程，JNI 直接复用 libengine.so。 -->
+        <service
+            android:name=".ScriptImGuiService"
+            android:exported="false"
+            android:process=":engine" />
+
         <service
             android:name=".EngineInputMethodService"
             android:exported="true"

@@ -167,4 +167,19 @@ public:
     static bool showScriptWeb(long long sessionId, const std::string& specJson);
     static bool postScriptWebMessage(long long sessionId, const std::string& messageJson);
     static bool closeScriptUi(long long sessionId);
+
+    /** 查询 Android 设备是否具备当前 Dear ImGui 所需的 OpenGL ES 3 能力。 */
+    static bool isScriptImGuiSupported();
+
+    /** 在 :engine 进程创建或替换 Dear ImGui 透明悬浮 Surface。 */
+    static bool showScriptImGui(const std::string& configJson);
+
+    /** 更新独立 ImGui Surface 的位置、尺寸和窗口配置。 */
+    static bool updateScriptImGui(const std::string& configJson);
+
+    /** 关闭当前 ImGui Surface；该操作可重复调用。 */
+    static bool closeScriptImGui();
+
+    /** 根据 Dear ImGui WantTextInput 状态显示或隐藏 Android 软键盘。 */
+    static bool setScriptImGuiKeyboardVisible(bool visible);
 };

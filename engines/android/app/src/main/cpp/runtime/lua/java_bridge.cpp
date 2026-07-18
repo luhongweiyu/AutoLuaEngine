@@ -3,6 +3,8 @@
  */
 #include "java_bridge.h"
 
+#include <android/bitmap.h>
+
 #include "lua_runtime.h"
 #include "../../core/api/package_api.h"
 #include "../../core/system_c_api.h"
@@ -10,7 +12,9 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <cstring>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -1993,4 +1997,130 @@ Java_com_xiaoyv_engine_interop_LuaCallback_nativeInvoke(
         request->result = nullptr;
     }
     return result;
+}
+
+bool copyLuaJavaBitmapRgba(
+        lua_State* state,
+        int index,
+        std::vector<unsigned char>* rgba,
+        int* width,
+        int* height,
+        std::string* error
+) {
+    if (state == nullptr || rgba == nullptr || width == nullptr || height == nullptr) {
+        if (error != nullptr) *error = "Bitmap 输出参数为空";
+        return false;
+    }
+    rgba->clear();
+    *width = 0;
+    *height = 0;
+    JavaObjectUserdata* userdata = testJavaObject(state, index);
+    if (userdata == nullptr || userdata->object == nullptr || userdata->isClass) {
+        if (error != nullptr) *error = "参数不是有效的 Java Bitmap 对象";
+        return false;
+    }
+
+    JNIEnv* env = currentEnv();
+    if (env == nullptr) {
+        if (error != nullptr) *error = "当前线程无法访问 Java VM";
+        return false;
+    }
+    jclass bitmapClass = env->FindClass("android/graphics/Bitmap");
+    if (bitmapClass == nullptr || env->IsInstanceOf(userdata->object, bitmapClass) != JNI_TRUE) {
+        if (env->ExceptionCheck()) env->ExceptionClear();
+        if (bitmapClass != nullptr) env->DeleteLocalRef(bitmapClass);
+        if (error != nullptr) *error = "Java 对象不是 android.graphics.Bitmap";
+        return false;
+    }
+    env->DeleteLocalRef(bitmapClass);
+
+    AndroidBitmapInfo info{};
+    if (AndroidBitmap_getInfo(env, userdata->object, &info) != ANDROID_BITMAP_RESULT_SUCCESS
+            || info.width == 0 || info.height == 0) {
+        if (error != nullptr) *error = "读取 Bitmap 尺寸和格式失败";
+        return false;
+    }
+    if (info.width > static_cast<std::uint32_t>(std::numeric_limits<int>::max())
+            || info.height > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
+        if (error != nullptr) *error = "Bitmap 尺寸超出整数范围";
+        return false;
+    }
+
+    std::size_t sourcePixelBytes = 0;
+    if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
+        sourcePixelBytes = 4U;
+    } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+        sourcePixelBytes = 2U;
+    } else if (info.format == ANDROID_BITMAP_FORMAT_A_8) {
+        sourcePixelBytes = 1U;
+    } else {
+        if (error != nullptr) *error = "当前 Bitmap 像素格式不受支持";
+        return false;
+    }
+
+    const std::size_t bitmapWidth = static_cast<std::size_t>(info.width);
+    const std::size_t bitmapHeight = static_cast<std::size_t>(info.height);
+    const std::size_t maximum = std::numeric_limits<std::size_t>::max();
+    if (bitmapWidth > maximum / 4U
+            || bitmapHeight > maximum / (bitmapWidth * 4U)
+            || bitmapWidth > maximum / sourcePixelBytes
+            || static_cast<std::size_t>(info.stride) < bitmapWidth * sourcePixelBytes
+            || bitmapHeight > maximum / static_cast<std::size_t>(info.stride)) {
+        if (error != nullptr) *error = "Bitmap 点阵尺寸或行跨度无效";
+        return false;
+    }
+
+    const std::size_t targetRowBytes = bitmapWidth * 4U;
+    const std::size_t targetByteCount = targetRowBytes * bitmapHeight;
+    try {
+        rgba->assign(targetByteCount, 0);
+    } catch (...) {
+        rgba->clear();
+        if (error != nullptr) *error = "Bitmap 点阵内存分配失败";
+        return false;
+    }
+
+    void* sourcePixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, userdata->object, &sourcePixels)
+            != ANDROID_BITMAP_RESULT_SUCCESS || sourcePixels == nullptr) {
+        rgba->clear();
+        if (error != nullptr) *error = "锁定 Bitmap 点阵失败";
+        return false;
+    }
+
+    for (std::uint32_t y = 0; y < info.height; ++y) {
+        const auto* sourceRow = static_cast<const unsigned char*>(sourcePixels)
+                + static_cast<std::size_t>(y) * info.stride;
+        unsigned char* targetRow = rgba->data() + static_cast<std::size_t>(y) * targetRowBytes;
+        if (info.format == ANDROID_BITMAP_FORMAT_RGBA_8888) {
+            std::memcpy(targetRow, sourceRow, targetRowBytes);
+        } else if (info.format == ANDROID_BITMAP_FORMAT_RGB_565) {
+            const auto* source = reinterpret_cast<const std::uint16_t*>(sourceRow);
+            for (std::uint32_t x = 0; x < info.width; ++x) {
+                const std::uint16_t pixel = source[x];
+                targetRow[x * 4U] = static_cast<unsigned char>(
+                        ((pixel >> 11U) & 0x1FU) * 255U / 31U
+                );
+                targetRow[x * 4U + 1U] = static_cast<unsigned char>(
+                        ((pixel >> 5U) & 0x3FU) * 255U / 63U
+                );
+                targetRow[x * 4U + 2U] = static_cast<unsigned char>(
+                        (pixel & 0x1FU) * 255U / 31U
+                );
+                targetRow[x * 4U + 3U] = 255;
+            }
+        } else if (info.format == ANDROID_BITMAP_FORMAT_A_8) {
+            for (std::uint32_t x = 0; x < info.width; ++x) {
+                targetRow[x * 4U] = 255;
+                targetRow[x * 4U + 1U] = 255;
+                targetRow[x * 4U + 2U] = 255;
+                targetRow[x * 4U + 3U] = sourceRow[x];
+            }
+        }
+    }
+    AndroidBitmap_unlockPixels(env, userdata->object);
+    *width = static_cast<int>(info.width);
+    *height = static_cast<int>(info.height);
+    if (error != nullptr) error->clear();
+    return true;
 }

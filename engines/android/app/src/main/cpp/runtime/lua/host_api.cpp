@@ -18,6 +18,7 @@
 #include "../../core/system_c_api.h"
 #include "../../engine/json_value.h"
 #include "java_bridge.h"
+#include "imgui_lua_api.h"
 #include "lua_runtime.h"
 #include "lua_thread_api.h"
 
@@ -1617,4 +1618,7 @@ void registerHostApi(lua_State* state) {
     lua_setfield(state, hostTableIndex, "ui");
 
     lua_setglobal(state, "_host");
+
+    // imgui 是独立全局库，名称和调用方式兼容懒人精灵；控件逻辑仍统一进入 C ABI。
+    registerLuaImGuiApi(state);
 }

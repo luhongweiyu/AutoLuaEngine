@@ -299,6 +299,47 @@ public final class AndroidHostBridge {
         return true;
     }
 
+    /** 返回设备是否声明 OpenGL ES 3，供 native imgui.isSupport() 快速检测。 */
+    public static boolean isScriptImGuiSupported() {
+        return ScriptImGuiService.isSupported(appContext);
+    }
+
+    /** 在 :engine 进程创建或替换 Dear ImGui 悬浮 Surface。 */
+    public static boolean showScriptImGui(String configJson) {
+        return ScriptImGuiService.sendCommand(
+                appContext,
+                ScriptImGuiService.ACTION_SHOW,
+                configJson
+        );
+    }
+
+    /** 更新独立 ImGui Surface 的位置和尺寸，不重建 EGLContext。 */
+    public static boolean updateScriptImGui(String configJson) {
+        return ScriptImGuiService.sendCommand(
+                appContext,
+                ScriptImGuiService.ACTION_UPDATE,
+                configJson
+        );
+    }
+
+    /** 关闭 ImGui Surface；服务不存在时该操作仍视为完成。 */
+    public static boolean closeScriptImGui() {
+        if (appContext == null) {
+            return false;
+        }
+        ScriptImGuiService.sendCommand(
+                appContext,
+                ScriptImGuiService.ACTION_CLOSE,
+                "{}"
+        );
+        return true;
+    }
+
+    /** 把 Dear ImGui 的 WantTextInput 状态转给当前输入代理。 */
+    public static boolean setScriptImGuiKeyboardVisible(boolean visible) {
+        return ScriptImGuiService.setKeyboardVisible(visible);
+    }
+
     /**
      * 强停引擎进程前关闭全部脚本界面，避免 UI 宿主留在屏幕上。
      */
@@ -314,5 +355,6 @@ public final class AndroidHostBridge {
                 "{}"
         );
         ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_CLOSE_ALL, 0, "{}");
+        closeScriptImGui();
     }
 }

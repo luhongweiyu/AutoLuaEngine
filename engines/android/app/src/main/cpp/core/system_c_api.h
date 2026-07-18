@@ -4,6 +4,7 @@
 #pragma once
 
 #include <stddef.h>
+#include "imgui_c_api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -265,6 +266,7 @@ typedef struct EngineApi {
             const char* color,
             double sim
     );
+    const EngineImGuiApi* (*getImGuiApi)();
 } EngineApi;
 
 /**

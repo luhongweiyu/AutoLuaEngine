@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace xiaoyv::api {
 
@@ -24,6 +25,18 @@ struct 截图区域 {
     int top = 0;
     int right = 0;
     int bottom = 0;
+};
+
+/**
+ * 语言无关的紧凑 RGBA 图片。
+ *
+ * 图片解码仍由 Android Framework 完成，本结构只把统一后的宽、高和 width*height*4
+ * 点阵留在 libengine.so。ImGui、找图和后续 JS/Go 图片控件可以复用同一条加载路径。
+ */
+struct 脚本图片 {
+    int width = 0;
+    int height = 0;
+    std::vector<unsigned char> rgba;
 };
 
 /**
@@ -59,6 +72,14 @@ bool 保存当前截图(const char* path, const 截图区域* region);
  * imagePath 支持脚本目录相对路径、绝对路径和当前 ALPKG 资源。图片宽高不得超过物理屏幕。
  */
 bool 设置屏幕图片(const char* imagePath);
+
+/**
+ * 解码普通文件或当前 ALPKG 中的资源图片。
+ *
+ * imagePath 支持脚本目录相对路径、绝对路径和 ALPKG resource 相对路径；成功时输出紧凑
+ * RGBA8888 点阵。该函数不进入找图模板缓存，调用方负责管理返回点阵生命周期。
+ */
+bool 加载脚本图片(const char* imagePath, 脚本图片* image);
 
 /** 清理全部模板缓存，或清理指定图片路径对应的模板缓存。 */
 void 清理图片缓存(const char* picName);

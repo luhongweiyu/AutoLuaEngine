@@ -362,6 +362,21 @@ long long LuaRuntime::startChildThread(
     return scheduler_->startChild(caller, callbackIndex, argumentCount, error);
 }
 
+long long LuaRuntime::startInternalChildThread(
+        lua_State* caller,
+        int callbackIndex,
+        int argumentCount,
+        std::string* error
+) {
+    if (scheduler_ == nullptr) {
+        if (error != nullptr) {
+            *error = "Lua 多线程运行时不可用";
+        }
+        return 0;
+    }
+    return scheduler_->startInternalChild(caller, callbackIndex, argumentCount, error);
+}
+
 bool LuaRuntime::stopChildThread(long long taskId, std::string* error) {
     if (scheduler_ == nullptr) {
         if (error != nullptr) {
