@@ -79,7 +79,7 @@ inline constexpr std::array<ActionSpec, static_cast<int>(ActionId::Count)> kActi
         {ActionId::CheckConnection, MenuId::Device, "刷新连接状态", "checkConnectionAction", "", ToolIcon::Settings, false, false, 5},
         {ActionId::ConnectionSettings, MenuId::Device, "连接设置", "connectionSettingsAction", "", ToolIcon::Settings, true, true, 5},
         {ActionId::ReloadFormats, MenuId::Tools, "重新加载生成格式", "reloadFormatsAction", "", ToolIcon::Settings, false, false, 0},
-        {ActionId::OpenFormatsDirectory, MenuId::Tools, "打开自定义格式目录", "openFormatsDirectoryAction", "", ToolIcon::Open, false, false, 0},
+        {ActionId::OpenFormatsDirectory, MenuId::Tools, "打开格式目录", "openFormatsDirectoryAction", "", ToolIcon::Open, false, false, 0},
 }};
 
 inline int actionIndex(ActionId id) {

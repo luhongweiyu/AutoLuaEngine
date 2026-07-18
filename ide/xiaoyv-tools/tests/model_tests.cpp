@@ -9,6 +9,8 @@
 #include "model/font_dictionary_document.h"
 #include "model/image_document.h"
 
+#include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
@@ -31,6 +33,7 @@ private slots:
     void mergesExternalDictionaryChangesAtomically();
     void resolvesExternalDictionaryConflict();
     void generatesAllBuiltInFormats();
+    void usesExecutableFormatsDirectory();
 };
 
 void ModelTests::parsesSelectionWithoutImageBounds() {
@@ -318,6 +321,15 @@ void ModelTests::generatesAllBuiltInFormats() {
             QStringLiteral("coordinate-list-js"), context, &error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QVERIFY(coordinateJavaScript.contains(QStringLiteral("const points")));
+}
+
+void ModelTests::usesExecutableFormatsDirectory() {
+    GeneratorEngine generator;
+    const QString expected = QDir::cleanPath(
+            QCoreApplication::applicationDirPath() + QStringLiteral("/formats"));
+    // 格式目录必须与当前测试程序同级，确保正式程序也不会回退到系统配置目录。
+    QCOMPARE(QDir::cleanPath(generator.formatsDirectory()), expected);
+    QVERIFY(QDir(expected).exists());
 }
 
 QTEST_MAIN(ModelTests)

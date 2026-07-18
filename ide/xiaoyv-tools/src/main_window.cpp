@@ -418,7 +418,7 @@ void MainWindow::connectActions() {
     connect(action(ActionId::ReloadFormats), &QAction::triggered,
             colorPanel_, &ColorPanel::reloadFormats);
     connect(action(ActionId::OpenFormatsDirectory), &QAction::triggered, this, [this] {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(generator_.userFormatsDirectory()));
+        QDesktopServices::openUrl(QUrl::fromLocalFile(generator_.formatsDirectory()));
     });
     connect(windowCaptureButton_, &WindowCaptureButton::imageCaptured, this,
             [this](const QImage& image) {

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -18,7 +19,6 @@ struct GeneratorFormat {
     QString name;
     QString language;
     QString generatorPath;
-    bool builtIn = false;
 };
 
 class GeneratorEngine final : public QObject {
@@ -30,7 +30,8 @@ public:
     void reload();
     const QVector<GeneratorFormat>& formats() const;
     const QStringList& loadErrors() const;
-    QString userFormatsDirectory() const;
+    /** 返回 exe 同级的唯一格式目录；内置格式和用户新增格式都存放于此。 */
+    QString formatsDirectory() const;
     const GeneratorFormat* find(const QString& id) const;
 
     /** 执行单个格式；Lua 使用指令/时间预算，JavaScript 使用可中断执行边界。 */
@@ -43,7 +44,7 @@ signals:
     void formatsChanged();
 
 private:
-    void loadDirectory(const QString& root, bool builtIn, QSet<QString>* ids);
+    void loadDirectory(const QString& root, QSet<QString>* ids);
     static QString runLua(const QString& path, const QVariantMap& context, QString* error);
     static QString runJavaScript(const QString& path, const QVariantMap& context, QString* error);
     static void pushLuaValue(::lua_State* state, const QVariant& value);

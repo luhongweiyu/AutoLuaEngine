@@ -12,7 +12,6 @@
 #include <QJSValue>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QStandardPaths>
 
 #include <atomic>
 #include <chrono>
@@ -74,13 +73,13 @@ void GeneratorEngine::reload() {
     formats_.clear();
     loadErrors_.clear();
     QSet<QString> ids;
-    const QString builtInRoot = QCoreApplication::applicationDirPath() + QStringLiteral("/formats");
-    if (QDir(builtInRoot).exists()) {
-        loadDirectory(builtInRoot, true, &ids);
+    const QString root = formatsDirectory();
+    if (QDir(root).exists()) {
+        // 内置格式在构建时已经复制到这里，用户也可以直接修改或新增同级格式。
+        loadDirectory(root, &ids);
     } else {
-        loadErrors_.push_back(QString::fromUtf8("内置生成格式目录不存在：") + builtInRoot);
+        loadErrors_.push_back(QString::fromUtf8("格式目录不存在：") + root);
     }
-    loadDirectory(userFormatsDirectory(), false, &ids);
     if (formats_.isEmpty()) loadErrors_.push_back(QString::fromUtf8("没有可用的代码生成格式"));
     std::sort(formats_.begin(), formats_.end(), [](const GeneratorFormat& left, const GeneratorFormat& right) {
         return QString::localeAwareCompare(left.name, right.name) < 0;
@@ -96,9 +95,10 @@ const QStringList& GeneratorEngine::loadErrors() const {
     return loadErrors_;
 }
 
-QString GeneratorEngine::userFormatsDirectory() const {
-    const QString path = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
-            + QStringLiteral("/formats");
+QString GeneratorEngine::formatsDirectory() const {
+    // 取色器采用便携式目录布局，格式文件随 exe 放置，便于用户直接编辑和备份。
+    const QString path = QDir::cleanPath(
+            QCoreApplication::applicationDirPath() + QStringLiteral("/formats"));
     QDir().mkpath(path);
     return path;
 }
@@ -126,7 +126,7 @@ QString GeneratorEngine::generate(
     return {};
 }
 
-void GeneratorEngine::loadDirectory(const QString& root, bool builtIn, QSet<QString>* ids) {
+void GeneratorEngine::loadDirectory(const QString& root, QSet<QString>* ids) {
     QDir directory(root);
     if (!directory.exists()) return;
     const QFileInfoList children = directory.entryInfoList(
@@ -153,7 +153,6 @@ void GeneratorEngine::loadDirectory(const QString& root, bool builtIn, QSet<QStr
         format.language = object.value(QStringLiteral("language")).toString().trimmed().toLower();
         const QString generatorName = object.value(QStringLiteral("generator")).toString().trimmed();
         format.generatorPath = child.filePath() + QLatin1Char('/') + generatorName;
-        format.builtIn = builtIn;
         if (format.id.isEmpty() || format.name.isEmpty() || format.language.isEmpty()
                 || generatorName.isEmpty() || !QFileInfo::exists(format.generatorPath)) {
             loadErrors_.push_back(QString::fromUtf8("%1：格式配置缺少必要字段或生成器文件")

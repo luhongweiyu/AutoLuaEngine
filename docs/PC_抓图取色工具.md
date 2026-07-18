@@ -17,7 +17,7 @@ VSCode 插件 ----独立 ADB forward / LAN----\
 
 ```text
 ide/xiaoyv-tools/
-  formats/                 内置 Lua/JavaScript 代码生成格式
+  formats/                 内置及用户可编辑的 Lua/JavaScript 代码生成格式
   src/model/               图片、取色点、点阵字库状态和不变量
   src/core/                QImage 与跨平台 image_core 的适配
   src/workspace/           图片标签、保存关闭、待用框选和当前画布
@@ -99,8 +99,9 @@ formats/<格式目录>/
 }
 ```
 
-内置格式从程序目录 `formats` 读取，自定义格式从应用配置目录 `formats` 读取。重复 ID、无效
-JSON、缺失文件和不支持的扩展名会显示为加载错误，不会静默消失。Lua 生成器有指令和
+格式统一从 exe 同级的 `formats` 目录读取。内置格式随程序放在这里，用户可以直接修改、删除
+或新增格式；点击“打开格式目录”即可打开该目录。重复 ID、无效 JSON、缺失文件和不支持的扩展名
+会显示为加载错误，不会静默消失。Lua 生成器有指令和
 两秒时间预算，JavaScript 生成器有两秒中断边界，单个生成器文件最大 1 MiB。
 
 生成上下文保持统一：
