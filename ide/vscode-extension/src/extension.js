@@ -18,6 +18,7 @@ function activate(context) {
     vscode.commands.registerCommand('xiaoyv.stopScript', stopScript),
     vscode.commands.registerCommand('xiaoyv.drainLogs', drainLogs),
     vscode.commands.registerCommand('xiaoyv.packageWorkspace', packageWorkspace),
+    vscode.commands.registerCommand('xiaoyv.openColorTool', openColorTool),
     outputChannel,
     ...statusItems
   );
@@ -41,7 +42,8 @@ function createStatusBarItems() {
   const stopItem = createStatusBarItem('$(debug-stop) 停止', 'xiaoyv.stopScript', '请求停止当前脚本', 96);
   const logsItem = createStatusBarItem('$(output) 日志', 'xiaoyv.drainLogs', '读取小鱼精灵日志', 95);
   const packageItem = createStatusBarItem('$(package) 打包', 'xiaoyv.packageWorkspace', '打包当前小鱼精灵脚本项目', 94);
-  return [checkItem, runItem, pauseItem, resumeItem, stopItem, logsItem, packageItem];
+  const colorToolItem = createStatusBarItem('$(preview) 抓图', 'xiaoyv.openColorTool', '打开小鱼抓图取色器', 93);
+  return [checkItem, runItem, pauseItem, resumeItem, stopItem, logsItem, packageItem, colorToolItem];
 }
 
 function createStatusBarItem(text, command, tooltip, priority) {
@@ -194,6 +196,67 @@ async function packageWorkspace() {
   }
 }
 
+/**
+ * 启动独立 Qt 抓图取色器。
+ *
+ * Qt 工具会自行申请 ADB 动态端口或直接连接局域网设备，不复用也不删除 VSCode 的端口转发。
+ */
+async function openColorTool() {
+  const toolPath = resolveDesktopToolPath();
+  outputChannel.show(true);
+  outputChannel.appendLine(`[抓图工具] ${toolPath}`);
+  try {
+    await ensureDesktopTool(toolPath);
+    const connection = readConnectionConfig();
+    const args = connection.useAdbForward
+      ? [
+          '--connection-mode', 'adb',
+          '--adb', connection.adbPath,
+          '--remote-port', String(connection.remotePort)
+        ]
+      : [
+          '--connection-mode', 'lan',
+          '--host', connection.host,
+          '--port', String(connection.port)
+        ];
+    if (connection.useAdbForward && connection.deviceSerial) {
+      args.push('--device', connection.deviceSerial);
+    }
+    const editor = vscode.window.activeTextEditor;
+    if (editor && /\.(png|jpe?g|bmp|webp|gif|tiff?|ico)$/i.test(editor.document.fileName)) {
+      args.push('--open', editor.document.fileName);
+    }
+    const process = childProcess.spawn(toolPath, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false
+    });
+    process.unref();
+  } catch (error) {
+    outputChannel.appendLine(`[错误] ${error.message}`);
+    vscode.window.showErrorMessage(`打开小鱼抓图取色器失败：${error.message}`);
+  }
+}
+
+function resolveDesktopToolPath() {
+  const configured = vscode.workspace.getConfiguration('xiaoyv').get('desktopToolPath');
+  if (configured && String(configured).trim()) {
+    return String(configured).trim();
+  }
+  const path = require('path');
+  return path.resolve(__dirname, '..', '..', 'xiaoyv-tools', 'build', 'xiaoyv_tools.exe');
+}
+
+function ensureDesktopTool(toolPath) {
+  const fs = require('fs');
+  if (fs.existsSync(toolPath)) {
+    return Promise.resolve();
+  }
+  const path = require('path');
+  const buildScript = path.resolve(__dirname, '..', '..', 'xiaoyv-tools', '构建.ps1');
+  return runPowerShellScript(buildScript, ['-Configuration', 'Release']);
+}
+
 function resolvePackToolPath() {
   const configPath = vscode.workspace.getConfiguration('xiaoyv').get('packToolPath');
   if (configPath && String(configPath).trim()) {
@@ -212,12 +275,23 @@ function ensurePackTool(toolPath) {
 
   const path = require('path');
   const buildScript = path.resolve(__dirname, '..', '..', '..', 'tools', 'pack', '构建打包器.ps1');
-  return execFile('powershell.exe', [
-    '-NoProfile',
-    '-ExecutionPolicy', 'Bypass',
-    '-File', buildScript,
-    '-Release'
-  ]);
+  return runPowerShellScript(buildScript, ['-Release']);
+}
+
+/**
+ * 优先使用原生 UTF-8 的 PowerShell 7，确保中文脚本和构建日志不乱码。
+ * 只有系统未安装 pwsh.exe 时才使用 Windows PowerShell，脚本执行失败不会被误判为缺少程序。
+ */
+async function runPowerShellScript(scriptPath, scriptArguments) {
+  const commonArguments = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath];
+  try {
+    return await execFile('pwsh.exe', [...commonArguments, ...scriptArguments]);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+    return execFile('powershell.exe', [...commonArguments, ...scriptArguments]);
+  }
 }
 
 function execFile(file, args) {
@@ -225,7 +299,9 @@ function execFile(file, args) {
     childProcess.execFile(file, args, { windowsHide: true }, (error, stdout, stderr) => {
       if (error) {
         const detail = stderr || stdout || error.message;
-        reject(new Error(detail));
+        const failure = new Error(detail);
+        failure.code = error.code;
+        reject(failure);
         return;
       }
       resolve({ stdout: stdout || '', stderr: stderr || '' });
@@ -255,7 +331,12 @@ async function callJsonRpc(method, params) {
   const connection = readConnectionConfig();
 
   if (connection.useAdbForward) {
-    await ensureAdbForward(connection.adbPath, connection.port, connection.remotePort);
+    await ensureAdbForward(
+      connection.adbPath,
+      connection.deviceSerial,
+      connection.port,
+      connection.remotePort
+    );
   }
 
   const response = await postJson(connection.host, connection.port, {
@@ -276,18 +357,24 @@ function readConnectionConfig() {
   const config = vscode.workspace.getConfiguration('xiaoyv');
   return {
     adbPath: config.get('adbPath'),
+    deviceSerial: String(config.get('deviceSerial') || '').trim(),
     host: config.get('host') || '127.0.0.1',
     port: config.get('port') || 18380,
-    useAdbForward: config.get('useAdbForward') !== false,
+    useAdbForward: config.get('useAdbForward') === true,
     remotePort: config.get('remotePort') || config.get('port') || 18380
   };
 }
 
-function ensureAdbForward(adbPath, localPort, remotePort) {
+function ensureAdbForward(adbPath, deviceSerial, localPort, remotePort) {
   return new Promise((resolve, reject) => {
+    const arguments = [];
+    if (deviceSerial) {
+      arguments.push('-s', deviceSerial);
+    }
+    arguments.push('forward', `tcp:${localPort}`, `tcp:${remotePort}`);
     childProcess.execFile(
       adbPath,
-      ['forward', `tcp:${localPort}`, `tcp:${remotePort}`],
+      arguments,
       { windowsHide: true },
       (error) => {
         if (error) {

@@ -143,8 +143,8 @@ const char* displayJson = device->getDisplayInfoJson();
 ## 规则
 
 - 插件只调用 C ABI，不直接访问 C++ 对象。
-- `getScreenPixels` 返回的点阵由 `libengine.so` 持有，插件只读、不释放，也不能跨物理帧刷新、
-  图片屏幕替换/还原或脚本结束长期保存。
+- `getScreenPixels` 返回当前脚本任务的固定屏幕缓冲区，插件只读、不释放。物理帧刷新、
+  图片屏幕替换/还原会覆盖内容但不更换地址；脚本任务结束后地址失效。
 - `setScreenPixels` 把普通文件、脚本相对文件或 ALPKG 资源设为固定当前点阵；图片宽高不能
   超过物理屏幕。激活期间不会按缓存时间刷新，`restoreScreenPixels` 负责切回物理屏幕。
 - `findColors` 直接使用当前屏幕点阵，不带“是否截屏”参数。

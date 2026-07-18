@@ -16,4 +16,17 @@
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:colorAccent">#2563EB</item>
     </style>
+
+    <!-- PC 工具投影必须是覆盖整块真实屏幕的纯图片窗口，不能复用脚本 Web 小窗的透明主题。 -->
+    <style name="ToolProjectionTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 </resources>

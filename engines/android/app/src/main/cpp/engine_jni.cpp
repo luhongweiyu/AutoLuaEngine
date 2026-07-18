@@ -4,6 +4,12 @@
 #include <jni.h>
 #include <android/log.h>
 
+#include <cstdint>
+#include <cstring>
+#include <limits>
+#include <vector>
+
+#include "core/api/screen_api.h"
 #include "engine/engine.h"
 #include "engine/engine_command.h"
 #include "platform/android_bridge.h"
@@ -69,4 +75,45 @@ Java_com_xiaoyv_engine_NativeEngine_nativeCallJson(JNIEnv* env,
             jStringToString(env, luaRuntimeBootstrap)
     );
     return env->NewStringUTF(result.c_str());
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeGetScreenFrame(JNIEnv* env, jclass clazz) {
+    (void) clazz;
+
+    // 当前脚本任务内固定屏幕缓冲区不会被刷新或图片切换释放。这里立即复制当前宽高
+    // 对应的 RGBA 数据；并发刷新可能改变复制中的像素内容，但不会更换缓冲区地址。
+    xiaoyv::api::ScreenFrame frame;
+    if (!xiaoyv::api::captureScreen(&frame) || frame.pixels == nullptr) return nullptr;
+    constexpr std::size_t kHeaderBytes = 12;
+    std::size_t pixelBytes = static_cast<std::size_t>(frame.width)
+            * static_cast<std::size_t>(frame.height) * 4U;
+    if (pixelBytes > static_cast<std::size_t>(std::numeric_limits<jsize>::max()) - kHeaderBytes) {
+        return nullptr;
+    }
+
+    std::vector<std::uint8_t> payload(kHeaderBytes + pixelBytes);
+    payload[0] = 'X';
+    payload[1] = 'Y';
+    payload[2] = 'V';
+    payload[3] = 'F';
+    auto writeInt32 = [&](std::size_t offset, std::uint32_t value) {
+        payload[offset] = static_cast<std::uint8_t>(value & 0xFFU);
+        payload[offset + 1] = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
+        payload[offset + 2] = static_cast<std::uint8_t>((value >> 16U) & 0xFFU);
+        payload[offset + 3] = static_cast<std::uint8_t>((value >> 24U) & 0xFFU);
+    };
+    writeInt32(4, static_cast<std::uint32_t>(frame.width));
+    writeInt32(8, static_cast<std::uint32_t>(frame.height));
+    std::memcpy(payload.data() + kHeaderBytes, frame.pixels, pixelBytes);
+
+    jbyteArray result = env->NewByteArray(static_cast<jsize>(payload.size()));
+    if (result == nullptr) return nullptr;
+    env->SetByteArrayRegion(
+            result,
+            0,
+            static_cast<jsize>(payload.size()),
+            reinterpret_cast<const jbyte*>(payload.data())
+    );
+    return result;
 }

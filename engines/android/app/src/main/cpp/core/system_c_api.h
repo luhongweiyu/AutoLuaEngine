@@ -447,8 +447,8 @@ long long engine_tickCount();
  * - 0：失败，可通过 engine_screenLastError() 读取错误文本。
  *
  * 注意：
- * pixels 指向 libengine.so 内部缓存，调用方只读，不要释放。物理帧刷新、图片屏幕设置/
- * 替换/还原、分辨率变化或脚本任务结束后，该裸地址可能失效。
+ * pixels 指向 libengine.so 当前脚本任务的固定屏幕缓冲区，调用方只读，不要释放。
+ * 物理帧刷新和图片屏幕设置/替换/还原只会覆盖内容；脚本任务结束后地址失效。
  */
 int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
 
@@ -460,7 +460,7 @@ int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
  */
 int engine_setScreenPixels(const char* imagePath);
 
-/** 还原系统屏幕点阵并释放不再被读取的图片内存。该操作可重复调用，成功返回 1。 */
+/** 关闭图片屏幕并使物理帧失效；下一次读取实时截图到同一地址。可重复调用，成功返回 1。 */
 int engine_restoreScreenPixels();
 
 /**

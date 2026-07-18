@@ -5,8 +5,8 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -23,8 +23,8 @@ constexpr int kPixelBytes = 4;
 // 默认 20ms 缓存窗口用于减少短时间内重复截图的开销。
 constexpr int kDefaultCaptureCacheMs = 20;
 
-// 截图缓存的所有状态都由 gCaptureMutex 保护。
-// pixels 指针会直接返回给调用方，所以只能在持锁状态下替换、扩容或任务结束后释放。
+// 截图缓存的所有状态都由 gCaptureMutex 保护。物理截图和图片屏幕共用这一块缓冲区；
+// 当前脚本任务内只覆盖内容、不更换地址，任务结束后统一释放。
 std::mutex gCaptureMutex;
 unsigned char* gCapturePixels = nullptr;
 size_t gCaptureCapacity = 0;
@@ -37,9 +37,8 @@ bool gKeepCapture = false;
 long long gCaptureFrameId = 0;
 std::string gLastError;
 
-// 图片屏幕与系统截图使用两块独立内存。活动期间只切换读取来源，不覆盖 gCapturePixels；
-// shared_ptr 使并发中的旧 ScreenFrame 可以在还原或替换后继续安全读取。
-std::shared_ptr<const std::vector<unsigned char>> gOverridePixels;
+// 图片屏幕只记录当前缓冲区内容的逻辑宽高，不再持有第二块点阵内存。
+bool gOverrideActive = false;
 int gOverrideWidth = 0;
 int gOverrideHeight = 0;
 
@@ -87,16 +86,15 @@ bool isCacheUsableLocked() {
 /**
  * 把当前缓存帧写入输出参数。
  *
- * 图片屏幕优先于系统截图。pixelOwner 在图片屏幕模式下持有点阵生命周期；系统截图模式下
- * pixels 返回 gCapturePixels，沿用现有只读、不释放的契约。
+ * 图片屏幕和系统截图始终返回 gCapturePixels，区别只在当前逻辑宽高。调用方可以看到
+ * 其他线程后续覆盖的内容，但地址在当前脚本任务结束前保持有效。
  */
 void writeCaptureResultLocked(ScreenFrame* frame) {
-    if (gOverridePixels != nullptr) {
+    if (gOverrideActive) {
         frame->width = gOverrideWidth;
         frame->height = gOverrideHeight;
-        frame->pixels = const_cast<unsigned char*>(gOverridePixels->data());
+        frame->pixels = gCapturePixels;
         frame->frameId = gCaptureFrameId;
-        frame->pixelOwner = gOverridePixels;
         return;
     }
 
@@ -104,7 +102,6 @@ void writeCaptureResultLocked(ScreenFrame* frame) {
     frame->height = gCaptureHeight;
     frame->pixels = gCapturePixels;
     frame->frameId = gCaptureFrameId;
-    frame->pixelOwner.reset();
 }
 
 /**
@@ -147,7 +144,7 @@ bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
 /**
  * 刷新物理屏幕缓冲。调用方必须持有 gCaptureMutex。
  *
- * 该函数从不读取或覆盖图片屏幕内存。
+ * 图片屏幕关闭后，本函数会用实时帧覆盖同一个固定缓冲区。
  */
 bool refreshPhysicalScreenLocked() {
     ScreenCaptureResult result = AndroidBridge::captureRootScreen(&gCapturePixels, &gCaptureCapacity);
@@ -177,7 +174,7 @@ bool captureScreen(ScreenFrame* frame) {
     }
 
     // 图片屏幕是显式设置的固定帧，不参与 20ms 缓存判断，也不会触发系统截图。
-    if (gOverridePixels != nullptr) {
+    if (gOverrideActive) {
         writeCaptureResultLocked(frame);
         return true;
     }
@@ -192,7 +189,6 @@ bool captureScreen(ScreenFrame* frame) {
         frame->height = 0;
         frame->pixels = nullptr;
         frame->frameId = gCaptureFrameId;
-        frame->pixelOwner.reset();
         return false;
     }
 
@@ -244,7 +240,6 @@ bool setScreenPixelOverride(
         return setErrorLocked("图片屏幕点阵长度与宽高不一致");
     }
 
-    // 在加锁前完成共享对象分配；锁内只切换活动引用，避免图片内存分配阻塞高频读帧。
     if (screenWidth <= 0 || screenHeight <= 0) {
         std::lock_guard<std::mutex> lock(gCaptureMutex);
         return setErrorLocked("物理屏幕尺寸无效");
@@ -258,11 +253,37 @@ bool setScreenPixelOverride(
         );
     }
 
-    auto newPixels = std::make_shared<const std::vector<unsigned char>>(std::move(pixels));
+    const size_t screenCapacity = static_cast<size_t>(screenWidth)
+            * static_cast<size_t>(screenHeight)
+            * static_cast<size_t>(kPixelBytes);
     std::lock_guard<std::mutex> lock(gCaptureMutex);
-    gOverridePixels = std::move(newPixels);
+
+    // 第一次使用时按完整物理屏幕申请容量。图片已经被限制在屏幕范围内，后续设置
+    // 任意合法图片都只覆盖同一地址，不会因为图片尺寸变化再次扩容。
+    if (gCapturePixels == nullptr) {
+        void* newBuffer = std::malloc(screenCapacity);
+        if (newBuffer == nullptr) {
+            return setErrorLocked("固定屏幕缓冲区内存不足");
+        }
+        gCapturePixels = static_cast<unsigned char*>(newBuffer);
+        gCaptureCapacity = screenCapacity;
+    } else if (gCaptureCapacity < screenCapacity) {
+        // 裸地址一旦通过 C ABI 返回就不能再用 realloc 更换。屏幕分辨率在引擎进程
+        // 运行中发生增长时明确失败，由用户重启引擎重新建立固定容量。
+        return setErrorLocked("固定屏幕缓冲区容量不足，请重启引擎");
+    }
+
+    std::memcpy(gCapturePixels, pixels.data(), static_cast<size_t>(expectedLength));
+    gOverrideActive = true;
     gOverrideWidth = width;
     gOverrideHeight = height;
+
+    // 图片已经覆盖物理帧。还原时必须重新获取实时截图，不能把当前缓冲误判为
+    // keepCapture 或缓存时间内仍可复用的旧物理帧。
+    gCaptureSize = 0;
+    gCaptureWidth = 0;
+    gCaptureHeight = 0;
+    gCaptureStoredAtMs = 0;
     ++gCaptureFrameId;
     gLastError.clear();
     return true;
@@ -270,8 +291,8 @@ bool setScreenPixelOverride(
 
 void restoreScreenPixelOverride() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
-    if (gOverridePixels != nullptr) {
-        gOverridePixels.reset();
+    if (gOverrideActive) {
+        gOverrideActive = false;
         gOverrideWidth = 0;
         gOverrideHeight = 0;
         ++gCaptureFrameId;
@@ -282,7 +303,7 @@ void restoreScreenPixelOverride() {
 void clearScreenCaptureCache() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
 
-    gOverridePixels.reset();
+    gOverrideActive = false;
     gOverrideWidth = 0;
     gOverrideHeight = 0;
     std::free(gCapturePixels);

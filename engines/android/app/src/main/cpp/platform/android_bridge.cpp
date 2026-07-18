@@ -761,8 +761,8 @@ ScreenCaptureResult readScreenCaptureResult(
                 result.success = false;
                 result.error = "Root 截图点阵缓冲过大，无法通过 JNI 复制";
             } else {
-                if (*targetPixels == nullptr || *targetCapacity < targetSize) {
-                    void* newBuffer = std::realloc(*targetPixels, targetSize);
+                if (*targetPixels == nullptr) {
+                    void* newBuffer = std::malloc(targetSize);
                     if (newBuffer == nullptr) {
                         result.success = false;
                         result.error = "Root 截图原生缓冲内存不足";
@@ -770,6 +770,11 @@ ScreenCaptureResult readScreenCaptureResult(
                         *targetPixels = static_cast<unsigned char*>(newBuffer);
                         *targetCapacity = targetSize;
                     }
+                } else if (*targetCapacity < targetSize) {
+                    // getScreenPixels 会把该地址交给 FFI、JS、Go 和插件。已经返回过的
+                    // 缓冲区禁止 realloc，避免分辨率变化后旧地址成为悬空指针。
+                    result.success = false;
+                    result.error = "固定屏幕缓冲区容量不足，请重启引擎";
                 }
 
                 if (!result.success) {

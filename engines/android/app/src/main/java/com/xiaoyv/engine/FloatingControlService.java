@@ -37,6 +37,10 @@ import org.json.JSONObject;
  */
 public final class FloatingControlService extends Service {
     static final String ACTION_SHOW = "com.xiaoyv.engine.action.SHOW_FLOATING_CONTROL";
+    static final String ACTION_TEMPORARY_HIDE =
+            "com.xiaoyv.engine.action.TEMPORARY_HIDE_FLOATING_CONTROL";
+    static final String ACTION_RESTORE_AFTER_PROJECTION =
+            "com.xiaoyv.engine.action.RESTORE_FLOATING_CONTROL_AFTER_PROJECTION";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -80,6 +84,17 @@ public final class FloatingControlService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent == null ? "" : intent.getAction();
+        if (ACTION_TEMPORARY_HIDE.equals(action)) {
+            removePanelView();
+            removeBubbleView();
+            return START_STICKY;
+        }
+        if (ACTION_RESTORE_AFTER_PROJECTION.equals(action)) {
+            createBubbleViewIfAllowed();
+            refreshRunningStateFromEngine();
+            return START_STICKY;
+        }
         createBubbleViewIfAllowed();
         refreshRunningStateFromEngine();
         return START_STICKY;

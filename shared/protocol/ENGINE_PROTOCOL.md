@@ -1,8 +1,26 @@
-# Engine Protocol
+# 引擎通讯协议
 
-IDE / PC 工具与 Android 引擎当前只保留控制类 HTTP JSON 命令。脚本 API 和可复用
-运行时能力的真实逻辑收敛到 `libengine.so/core/api`，对外复用走 `system_c_api`
-C ABI。
+IDE、VSCode 插件和 PC 工具通过 HTTP 连接 Android `EngineHttpServer`。服务监听设备引擎
+端口，使用线程池支持多个客户端并发连接。ADB 客户端各自建立独立端口转发，局域网客户端
+各自直连设备，不通过其他 IDE 或工具中转。Qt 工具使用动态本机端口，VSCode 使用配置端口。
+
+脚本 API 和可复用运行时能力的真实逻辑仍收敛到 `libengine.so/core/api`，对外复用走
+`system_c_api` C ABI。HTTP 只承载调试控制、工具数据传输和 Android UI 边界命令。
+
+## HTTP 入口
+
+```text
+GET  /health             引擎服务健康检查
+POST /jsonrpc            控制命令
+GET  /tool/screenshot    获取当前设备截图原始帧
+PUT  /tool/image         上传一张待投影图片
+```
+
+`/jsonrpc` 请求使用 JSON-RPC 2.0：
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"script.status","params":{}}
+```
 
 ## 保留命令
 
@@ -32,7 +50,46 @@ device.setRootModeEnabled
 它只接受共享存储中的 `.alpkg` 文件。ZIP 解析、manifest 校验、Lua 字节码认证解密和
 执行均在 `libengine.so` 内完成。
 
-## 当前截图核心
+## 工具截图
+
+`GET /tool/screenshot` 返回 `application/x-xiaoyv-rgba`：
+
+```text
+offset  size  内容
+0       4     ASCII "XYVF"
+4       4     little-endian int32 width
+8       4     little-endian int32 height
+12      ...   width * height * 4 字节 RGBA8888
+```
+
+该入口直接复制 `libengine.so` 当前截图帧，不进行 PNG 编码或磁盘 IO。
+
+## 工具投影
+
+上传图片：
+
+```text
+PUT /tool/image
+Content-Type: image/png 或设备可解码的图片类型
+Body: 图片二进制
+```
+
+响应：
+
+```json
+{"fileId":"随机图片标识.image"}
+```
+
+打开图片：
+
+```json
+{"jsonrpc":"2.0","id":2,"method":"viewer.openImage","params":{"fileId":"..."}}
+```
+
+投影协议只包含上传和打开。没有关闭、刷新、状态查询接口；用户在设备上按返回键退出，
+重新投影就是再次执行上传和打开。
+
+## 截图核心 C ABI
 
 ```c
 int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);

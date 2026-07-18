@@ -1,0 +1,6 @@
+{
+  "id": "coordinate-list-lua",
+  "name": "坐标颜色列表 (Lua)",
+  "language": "lua",
+  "generator": "generator.lua"
+}

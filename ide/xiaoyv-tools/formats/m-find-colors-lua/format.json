@@ -1,0 +1,6 @@
+{
+  "id": "m-find-colors-lua",
+  "name": "小鱼 m.findColors (Lua)",
+  "language": "lua",
+  "generator": "generator.lua"
+}

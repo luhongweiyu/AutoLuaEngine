@@ -22,6 +22,7 @@
 #include "package_api.h"
 #include "screen_api.h"
 #include "../../engine/json_value.h"
+#include "native/image_core/image_core.h"
 
 namespace xiaoyv::api {
 namespace {
@@ -1012,33 +1013,6 @@ std::vector<字库坐标> 快速查找目标文字(
     return found;
 }
 
-/** 将一位点阵编码成行优先十六进制文本，高位在前，末尾不足四位时补零。 */
-std::string 点阵区域转十六进制(
-        const 二值区域& region,
-        int left,
-        int top,
-        int width,
-        int height
-) {
-    static const char* digits = "0123456789ABCDEF";
-    long long totalBits = static_cast<long long>(width) * static_cast<long long>(height);
-    std::string output;
-    output.reserve(static_cast<size_t>((totalBits + 3) / 4));
-    for (long long start = 0; start < totalBits; start += 4) {
-        int value = 0;
-        for (int bit = 0; bit < 4; ++bit) {
-            value <<= 1;
-            long long offset = start + bit;
-            if (offset >= totalBits) continue;
-            int x = left + static_cast<int>(offset % width);
-            int y = top + static_cast<int>(offset / width);
-            if (读取点阵位(region.packedRows, region.wordsPerRow, x, y)) value |= 1;
-        }
-        output.push_back(digits[value]);
-    }
-    return output;
-}
-
 bool 校验识别参数(double similarity, const char* color, 颜色规则* rule) {
     if (!std::isfinite(similarity) || similarity <= 0.0 || similarity > 1.0) {
         return 设置字库错误("字库相似度必须大于 0 且不超过 1");
@@ -1121,6 +1095,17 @@ bool 使用字库(int index) {
     return true;
 }
 
+void 清空全部字库() {
+    // 识字热路径先取得 shared_ptr 快照再读取。清空全局表不会破坏已经开始的识字操作，
+    // 最后一个读取者退出后对应字库内存才会自动释放。
+    {
+        std::lock_guard<std::mutex> lock(gDictionaryMutex);
+        gDictionaries.clear();
+    }
+    gActiveDictionaryIndex = 0;
+    gFontLastError.clear();
+}
+
 bool 获取字形点阵(
         int x1,
         int y1,
@@ -1131,29 +1116,31 @@ bool 获取字形点阵(
 ) {
     gFontLastError.clear();
     if (fontPixel == nullptr) return 设置字库错误("字形点阵输出对象为空");
-    颜色规则 rule;
-    if (!解析颜色规则(color, &rule)) return 设置字库错误("字形颜色格式无效，应为 FFFFFF-101010");
-    二值区域 region;
-    if (!二值化截图(x1, y1, x2, y2, rule, false, &region)) return false;
-
-    int left = region.width;
-    int top = region.height;
-    int right = -1;
-    int bottom = -1;
-    for (int y = 0; y < region.height; ++y) {
-        for (int x = 0; x < region.width; ++x) {
-            if (!读取点阵位(region.packedRows, region.wordsPerRow, x, y)) continue;
-            left = std::min(left, x);
-            top = std::min(top, y);
-            right = std::max(right, x);
-            bottom = std::max(bottom, y);
-        }
+    xiaoyv::image::ColorRule rule;
+    std::string error;
+    if (!xiaoyv::image::parseColorRule(color == nullptr ? "" : color, &rule, &error)) {
+        return 设置字库错误(error);
     }
-    if (right < left || bottom < top) return 设置字库错误("指定区域没有符合颜色的字形点阵");
-    int width = right - left + 1;
-    int height = bottom - top + 1;
-    *fontPixel = std::to_string(width) + "$" + std::to_string(height) + "$"
-            + 点阵区域转十六进制(region, left, top, width, height);
+    ScreenFrame frame;
+    if (!captureScreen(&frame)) return 设置字库错误(screenLastError());
+    xiaoyv::image::RgbaImageView image{
+            frame.pixels,
+            frame.width,
+            frame.height,
+            frame.width * kRgbaPixelBytes
+    };
+    // 既有脚本允许反向传入区域坐标；共享核心本身保持严格坐标契约，因此在绑定边界统一排序。
+    if (!xiaoyv::image::makeFontPixel(
+            image,
+            std::min(x1, x2),
+            std::min(y1, y2),
+            std::max(x1, x2),
+            std::max(y1, y2),
+            rule,
+            fontPixel,
+            &error)) {
+        return 设置字库错误(error);
+    }
     gFontLastError.clear();
     return true;
 }

@@ -15,7 +15,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -28,14 +27,15 @@ import java.util.concurrent.Executors;
 /**
  * Android 引擎本地 HTTP 服务。
  *
- * 这个类只负责 127.0.0.1 HTTP、JSON-RPC 包装和 UI 状态广播。具体命令校验、
+ * 这个类只负责设备端口 HTTP、JSON-RPC 包装和 UI 状态广播。具体命令校验、
  * 脚本任务控制、root/截图/设备/应用 API 调度都统一交给 libengine.so，避免
  * Java 层和 native 层各维护一套业务分发。
  */
 public final class EngineHttpServer {
     private static final String TAG = "小鱼精灵";
     private static final Object LOCK = new Object();
-    private static final int MAX_BODY_BYTES = 1024 * 1024;
+    private static final int MAX_JSON_BODY_BYTES = 1024 * 1024;
+    private static final int MAX_IMAGE_BODY_BYTES = 64 * 1024 * 1024;
 
     private static EngineHttpServer instance;
 
@@ -89,9 +89,10 @@ public final class EngineHttpServer {
 
     private void runAcceptLoop() {
         try {
-            InetAddress loopback = InetAddress.getByName("127.0.0.1");
-            serverSocket = new ServerSocket(port, 50, loopback);
-            Log.i(TAG, "引擎 HTTP 服务已启动：127.0.0.1:" + port);
+            // 同一个设备端口允许 VSCode、抓图取色器和其他调试工具同时连接。ADB 客户端
+            // 各自管理独立 forward；局域网客户端则直接访问设备 IP，不需要任何中转进程。
+            serverSocket = new ServerSocket(port, 50);
+            Log.i(TAG, "引擎 HTTP 服务已启动：0.0.0.0:" + port);
 
             while (running) {
                 Socket socket = serverSocket.accept();
@@ -126,6 +127,25 @@ public final class EngineHttpServer {
             return HttpResponse.json(200, result);
         }
 
+        if ("GET".equals(request.method) && "/tool/screenshot".equals(request.path)) {
+            byte[] frame = NativeEngine.getScreenFrame();
+            if (frame == null || frame.length < 12) {
+                return HttpResponse.json(500, makePlainError("读取设备截图失败"));
+            }
+            return HttpResponse.binary(200, "application/x-xiaoyv-rgba", frame);
+        }
+
+        if ("PUT".equals(request.method) && "/tool/image".equals(request.path)) {
+            try {
+                String fileId = ToolImageStore.store(appContext, request.bodyBytes);
+                JSONObject result = new JSONObject();
+                result.put("fileId", fileId);
+                return HttpResponse.json(200, result);
+            } catch (IOException exception) {
+                return HttpResponse.json(400, makePlainError(exception.getMessage()));
+            }
+        }
+
         if (!"POST".equals(request.method) || !"/jsonrpc".equals(request.path)) {
             return HttpResponse.json(404, makePlainError("未找到请求地址"));
         }
@@ -137,6 +157,16 @@ public final class EngineHttpServer {
             id = call.has("id") ? call.opt("id") : JSONObject.NULL;
             method = call.optString("method", "");
             String paramsJson = readParamsJson(call);
+
+            // 投影只包含“上传图片”和“打开图片”两个动作。Activity 由 Android 框架承载，
+            // 因而此命令在 Java 平台边界直接处理，不在 native 重复建立图片屏幕状态。
+            if ("viewer.openImage".equals(method)) {
+                JSONObject params = new JSONObject(paramsJson);
+                ToolProjectionActivity.open(appContext, params.optString("fileId", ""));
+                JSONObject result = new JSONObject();
+                result.put("opened", true);
+                return HttpResponse.json(200, makeJsonRpcResult(id, result));
+            }
 
             broadcastBeforeNativeCommand(method);
             JSONObject nativeEnvelope = new JSONObject(NativeEngine.callJson(method, paramsJson));
@@ -273,7 +303,14 @@ public final class EngineHttpServer {
         }
 
         int contentLength = parseContentLength(headers);
-        if (contentLength > MAX_BODY_BYTES) {
+        if (contentLength < 0) {
+            throw new IOException("Content-Length 不能为负数");
+        }
+        int maximumBodyBytes = "PUT".equals(requestParts[0])
+                && "/tool/image".equals(requestParts[1])
+                ? MAX_IMAGE_BODY_BYTES
+                : MAX_JSON_BODY_BYTES;
+        if (contentLength > maximumBodyBytes) {
             throw new IOException("HTTP 请求体过大");
         }
 
@@ -281,7 +318,7 @@ public final class EngineHttpServer {
         return new HttpRequest(
                 requestParts[0],
                 requestParts[1],
-                new String(bodyBytes, StandardCharsets.UTF_8)
+                bodyBytes
         );
     }
 
@@ -343,15 +380,14 @@ public final class EngineHttpServer {
 
     private static void writeResponse(OutputStream outputStream, HttpResponse response)
             throws IOException {
-        byte[] bodyBytes = response.body.getBytes(StandardCharsets.UTF_8);
         String header = "HTTP/1.1 " + response.statusCode + " " + response.reason + "\r\n"
-                + "Content-Type: application/json; charset=utf-8\r\n"
-                + "Content-Length: " + bodyBytes.length + "\r\n"
+                + "Content-Type: " + response.contentType + "\r\n"
+                + "Content-Length: " + response.body.length + "\r\n"
                 + "Connection: close\r\n"
                 + "\r\n";
 
         outputStream.write(header.getBytes(StandardCharsets.ISO_8859_1));
-        outputStream.write(bodyBytes);
+        outputStream.write(response.body);
         outputStream.flush();
     }
 
@@ -397,29 +433,58 @@ public final class EngineHttpServer {
     private static final class HttpRequest {
         private final String method;
         private final String path;
+        private final byte[] bodyBytes;
         private final String bodyText;
 
-        private HttpRequest(String method, String path, String bodyText) {
+        private HttpRequest(
+                String method,
+                String path,
+                byte[] bodyBytes
+        ) {
             this.method = method;
             this.path = path;
-            this.bodyText = bodyText;
+            this.bodyBytes = bodyBytes;
+            this.bodyText = new String(bodyBytes, StandardCharsets.UTF_8);
         }
     }
 
     private static final class HttpResponse {
         private final int statusCode;
         private final String reason;
-        private final String body;
+        private final String contentType;
+        private final byte[] body;
 
-        private HttpResponse(int statusCode, String reason, String body) {
+        private HttpResponse(
+                int statusCode,
+                String reason,
+                String contentType,
+                byte[] body
+        ) {
             this.statusCode = statusCode;
             this.reason = reason;
+            this.contentType = contentType;
             this.body = body;
         }
 
         private static HttpResponse json(int statusCode, JSONObject body) {
-            String reason = statusCode == 200 ? "OK" : "Not Found";
-            return new HttpResponse(statusCode, reason, body.toString());
+            String reason = reasonFor(statusCode);
+            return new HttpResponse(
+                    statusCode,
+                    reason,
+                    "application/json; charset=utf-8",
+                    body.toString().getBytes(StandardCharsets.UTF_8)
+            );
+        }
+
+        private static HttpResponse binary(int statusCode, String contentType, byte[] body) {
+            return new HttpResponse(statusCode, reasonFor(statusCode), contentType, body);
+        }
+
+        private static String reasonFor(int statusCode) {
+            if (statusCode == 200) return "OK";
+            if (statusCode == 400) return "Bad Request";
+            if (statusCode == 404) return "Not Found";
+            return "Internal Server Error";
         }
     }
 }

@@ -1,19 +1,19 @@
 # IDE
 
-IDE 相关代码预留目录。
-
-后续 VS Code 插件、Qt 工具或 Qt IDE 都放在这里，并通过统一协议连接各平台引擎。
-
-当前已加入最小 VS Code 插件雏形：
+IDE 和桌面工具统一放在本目录，通过统一协议连接各平台引擎：
 
 ```text
-ide/vscode-extension
+ide/vscode-extension   脚本编辑、控制、日志、打包和工具启动入口
+ide/xiaoyv-tools       C++20 + Qt 6 独立抓图取色器
 ```
 
-第一版只提供两个命令：
+两个程序平级直连设备。ADB 模式分别管理自己的转发端口，局域网模式分别连接设备 IP，
+不互相中转。
+
+VSCode 当前命令：
 
 ```text
-小鱼精灵: Check Connection
-小鱼精灵: Run Current Lua File
-小鱼精灵: Drain Logs
+检查连接、运行 Lua、暂停、继续、停止、读取日志、打包项目、打开抓图取色器
 ```
+
+Qt 工具构建和功能说明见 [PC 抓图取色工具](../docs/PC_抓图取色工具.md)。

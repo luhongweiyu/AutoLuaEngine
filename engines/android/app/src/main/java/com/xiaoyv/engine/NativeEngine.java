@@ -60,6 +60,16 @@ public final class NativeEngine {
     }
 
     /**
+     * 复制当前截图为桌面工具使用的 XYVF 二进制帧。
+     *
+     * 帧头为 ASCII "XYVF"、little-endian int32 宽度和高度，后面紧跟 RGBA8888 点阵。
+     * Java 和 HTTP 层只搬运字节，不重新截图、不编码图片也不写磁盘。
+     */
+    public static byte[] getScreenFrame() {
+        return nativeGetScreenFrame();
+    }
+
+    /**
      * 从 assets/runtime 读取 Lua 运行时层。
      *
      * C++ 只暴露 native _host 表；m/lr/cd/useApi 这些命名空间和兼容逻辑都放在
@@ -95,4 +105,6 @@ public final class NativeEngine {
             String paramsJson,
             String luaRuntimeBootstrap
     );
+
+    private static native byte[] nativeGetScreenFrame();
 }

@@ -4,13 +4,14 @@
 
 当前命令：
 
-- `小鱼精灵: Check Connection`
-- `小鱼精灵: Run Current Lua File`
-- `小鱼精灵: Pause Script`
-- `小鱼精灵: Resume Script`
-- `小鱼精灵: Stop Script`
-- `小鱼精灵: Drain Logs`
-- `小鱼精灵: Package Current Project`
+- `小鱼精灵：检查连接`
+- `小鱼精灵：运行当前 Lua 文件`
+- `小鱼精灵：暂停脚本`
+- `小鱼精灵：继续脚本`
+- `小鱼精灵：停止脚本`
+- `小鱼精灵：读取日志`
+- `小鱼精灵：打包当前项目`
+- `小鱼精灵：打开抓图取色器`
 
 插件激活后会在 VS Code 底部状态栏显示：
 
@@ -21,6 +22,10 @@
 - `Stop`：请求引擎停止当前脚本
 - `Logs`：读取引擎日志到 `小鱼精灵` Output 面板
 - `打包`：根据工作区根目录的 `alpkg.json` 生成 `.alpkg` 脚本包
+- `抓图`：启动独立的 `xiaoyv_tools.exe`
+
+抓图取色器与 VSCode 不互相中转。两者分别申请自己的 ADB 动态端口，可以同时连接同一个
+Android 引擎；局域网模式下则分别直连设备 IP。
 
 打包项目根目录使用：
 
@@ -45,12 +50,16 @@
 连接配置：
 
 - `xiaoyv.host`：IDE 连接的主机，默认 `127.0.0.1`
+- `xiaoyv.deviceSerial`：可选 ADB 设备序列号，多设备连接时必须填写
 - `xiaoyv.port`：IDE 本机连接端口，默认 `18380`
 - `xiaoyv.useAdbForward`：是否自动执行 adb forward，默认 `true`
 - `xiaoyv.remotePort`：Android 引擎端口，默认 `18380`
 
 默认连接方式是 `adb forward tcp:18380 tcp:18380`，然后 IDE 访问
 `http://127.0.0.1:18380/jsonrpc`。
+
+VSCode 启动抓图取色器时会传递 ADB 路径、设备序列号或 LAN 地址。抓图取色器仍会建立并
+释放自己的动态 ADB 转发，不复用 VSCode 的 `18380` 本机转发。
 
 调试插件时，用 VS Code 打开当前目录 `ide/vscode-extension`，然后按 F5，
 选择 `Run 小鱼精灵 Extension` 启动 Extension Development Host。

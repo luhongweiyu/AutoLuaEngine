@@ -1,8 +1,8 @@
--- 文件用途：验证图片屏幕固定帧、图像算法读取、显式还原和脚本结束自动清理。
+-- 文件用途：验证当前脚本内图片屏幕与物理截图共用固定地址、图像算法读取和实时截图还原。
 local testPath = "/sdcard/xiaoyv/scripts/screen_pixels_override_probe.png"
 local copyPath = "/sdcard/xiaoyv/scripts/screen_pixels_override_copy.png"
 
--- 锁住一张物理帧，显式还原后可精确验证原宽高和点阵地址均未被图片屏幕修改。
+-- 锁住一张物理帧，记录当前脚本任务的固定点阵地址。
 assert(keepCapture())
 local screenWidth, screenHeight, screenPixels = getScreenPixels()
 assert(screenWidth and screenHeight and screenPixels, "获取原物理屏幕失败")
@@ -14,7 +14,7 @@ assert(setScreenPixels(testPath))
 
 local imageWidth, imageHeight, imagePixels = getScreenPixels()
 assert(imageWidth == testWidth and imageHeight == testHeight, "图片屏幕尺寸不正确")
-assert(imagePixels ~= screenPixels, "图片屏幕覆盖了原物理点阵")
+assert(imagePixels == screenPixels, "图片屏幕没有复用固定屏幕点阵地址")
 
 -- 图片屏幕是固定帧，等待时间超过默认 20ms 后仍必须返回同一地址。
 sleep(100)
@@ -41,10 +41,10 @@ assert(capture(copyPath))
 assert(restoreScreenPixels())
 local restoredWidth, restoredHeight, restoredPixels = getScreenPixels()
 assert(restoredWidth == screenWidth and restoredHeight == screenHeight, "还原后的物理屏幕尺寸不正确")
-assert(restoredPixels == screenPixels, "还原时没有切回原物理点阵")
+assert(restoredPixels == screenPixels, "还原截图后固定点阵地址发生变化")
 
--- 再次激活后不主动还原，用于验证任务统一清理路径会在脚本结束时自动释放图片屏幕。
+-- 再次激活后不主动还原，用于验证任务统一清理路径会清除图片屏幕状态。
 assert(setScreenPixels(copyPath))
 os.remove(testPath)
 os.remove(copyPath)
-print("图片屏幕探针通过；任务结束后应自动还原")
+print("图片屏幕探针通过；当前脚本内物理截图和图片屏幕共用固定地址")

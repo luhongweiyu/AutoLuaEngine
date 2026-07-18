@@ -9,7 +9,7 @@
 - 阶段：Android + Lua 第一版基础闭环
 - 第一版平台：Android
 - 第一版脚本语言：Lua 5.4.8
-- 第一版 IDE 方向：已加入 VS Code 插件雏形和本地 PowerShell 工具，后续再评估 Qt
+- 第一版 IDE：VSCode 插件负责脚本开发与控制，Qt 6 独立工具负责抓图、取色和图像分析
 
 ## 文档索引
 
@@ -20,24 +20,18 @@
 - [Android 脚本 UI](docs/ANDROID_脚本_UI.md)
 - [构建与运行](docs/构建与运行.md)
 - [引擎通讯协议](shared/protocol/ENGINE_PROTOCOL.md)
+- [PC 抓图取色工具](docs/PC_抓图取色工具.md)
 - [旧项目参考记录](docs/旧项目参考记录.md)
 - [Android 引擎独立进程拆分方案](docs/ANDROID_引擎进程拆分.md)
 - [Android Root 模式](docs/ANDROID_ROOT_模式.md)
 - [AI 执行规范](docs/AI_执行指南.md)
 - [用户待办事项](docs/用户待办事项.md)
 
-## 最小可运行目标
-
-第一轮只证明这条链路跑通：
-
-```text
-Android APK -> JNI -> libengine.so -> Lua 5.4 Runtime -> print/sleep/log
-```
-
-跑通以后，再逐步增加触控、截图、图色、线程、IDE 通讯等能力。
-
-当前已跑通：
+## 当前运行链路
 
 ```text
 Android APK -> JNI -> libengine.so -> Lua 5.4.8 -> HostApi -> HTTP JSON-RPC -> VS Code/PC 工具
 ```
+
+VSCode 与 `xiaoyv_tools.exe` 各自直连 Android 引擎。Qt 工具当前已支持设备原始帧截图、
+全屏图片投影、Lua 测试运行与日志回传。

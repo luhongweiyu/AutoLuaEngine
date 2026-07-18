@@ -18,7 +18,8 @@
     "onCommand:xiaoyv.resumeScript",
     "onCommand:xiaoyv.stopScript",
     "onCommand:xiaoyv.drainLogs",
-    "onCommand:xiaoyv.packageWorkspace"
+    "onCommand:xiaoyv.packageWorkspace",
+    "onCommand:xiaoyv.openColorTool"
   ],
   "main": "./src/extension.js",
   "contributes": {
@@ -29,6 +30,11 @@
           "type": "string",
           "default": "D:\\soft\\Android\\Sdk\\platform-tools\\adb.exe",
           "description": "ADB 可执行文件路径。"
+        },
+        "xiaoyv.deviceSerial": {
+          "type": "string",
+          "default": "",
+          "description": "可选的 ADB 设备序列号；连接多个设备时必须填写。"
         },
         "xiaoyv.host": {
           "type": "string",
@@ -42,8 +48,8 @@
         },
         "xiaoyv.useAdbForward": {
           "type": "boolean",
-          "default": true,
-          "description": "每次请求前是否通过 ADB 将本地端口转发到 Android 引擎。"
+          "default": false,
+          "description": "是否通过 ADB 将本地端口转发到 Android 引擎；默认关闭并使用局域网直连。"
         },
         "xiaoyv.remotePort": {
           "type": "number",
@@ -54,6 +60,11 @@
           "type": "string",
           "default": "",
           "description": "可选的 xiaoyv_pack.exe 路径；留空时使用仓库内 tools/pack/build/xiaoyv_pack.exe。"
+        },
+        "xiaoyv.desktopToolPath": {
+          "type": "string",
+          "default": "",
+          "description": "可选的 xiaoyv_tools.exe 路径；留空时使用仓库内 ide/xiaoyv-tools/build/xiaoyv_tools.exe。"
         }
       }
     },
@@ -85,6 +96,10 @@
       {
         "command": "xiaoyv.packageWorkspace",
         "title": "小鱼精灵：打包当前项目"
+      },
+      {
+        "command": "xiaoyv.openColorTool",
+        "title": "小鱼精灵：打开抓图取色器"
       }
     ]
   }
