@@ -5,7 +5,6 @@ project(XiaoyvTools VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
 
 option(XIAOYV_BUILD_TESTS "Build Xiaoyv automated tests" OFF)
 
@@ -105,8 +104,6 @@ set(XIAOYV_TOOLS_SOURCES
         src/ui/action_catalog.h
         src/ui/app_theme.cpp
         src/ui/app_theme.h
-        src/ui/color_input.cpp
-        src/ui/color_input.h
         src/ui/compact_dock_widget.cpp
         src/ui/compact_dock_widget.h
         src/ui/instant_tooltip_filter.h

@@ -4,7 +4,6 @@
 #pragma once
 
 #include <QList>
-#include <QPalette>
 #include <QString>
 
 class QApplication;
@@ -38,7 +37,6 @@ struct ThemePalette {
     QString selectedText;
     QString disabled;
     QString disabledInput;
-    QString titleBar;
     QString success;
     QString danger;
 };
@@ -50,7 +48,6 @@ bool isDarkTheme(AppTheme theme);
 AppTheme loadTheme();
 void saveTheme(AppTheme theme);
 void applyApplicationTheme(QApplication* application, AppTheme theme);
-void applyWidgetTheme(QWidget* root, AppTheme theme);
 /** Windows 下同步原生标题栏明暗；其他平台为空操作。 */
 void applyNativeTitleBar(QWidget* window, bool dark);
 

@@ -51,6 +51,12 @@ void RangeEditor::setSelectionMode(bool enabled) {
     selectButton_->setChecked(enabled);
 }
 
+void RangeEditor::setInputMinimumDigits(int count) {
+    if (count <= 0) return;
+    const QString sample(count, QLatin1Char('0'));
+    rangeEdit_->setMinimumWidth(rangeEdit_->fontMetrics().horizontalAdvance(sample) + 18);
+}
+
 void RangeEditor::commitText() {
     QRect parsed;
     QString error;

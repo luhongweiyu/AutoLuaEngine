@@ -376,10 +376,6 @@ WindowCaptureButton::WindowCaptureButton(QWidget* parent)
 #endif
 }
 
-WindowCaptureButton::CaptureMode WindowCaptureButton::captureMode() const {
-    return captureMode_;
-}
-
 void WindowCaptureButton::setCaptureMode(CaptureMode mode) {
     captureMode_ = mode;
     updateModeUi();

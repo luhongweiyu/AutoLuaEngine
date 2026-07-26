@@ -20,6 +20,7 @@ public:
 
     void setRange(const QRect& range);
     void setSelectionMode(bool enabled);
+    void setInputMinimumDigits(int count);
 
 signals:
     void rangeEdited(const QRect& range);

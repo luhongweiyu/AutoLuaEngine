@@ -143,8 +143,7 @@ FontPanel::FontPanel(QWidget* parent)
             this, &FontPanel::statusMessage);
     connect(labelEdit_, &QLineEdit::textChanged, this, [this](const QString& text) {
         if (updatingPreview_) return;
-        if (previewSource_ == PreviewSource::Extracted
-                && previewSourceRow_ >= 0 && previewSourceRow_ < extractedRows_.size()) {
+        if (previewSourceRow_ >= 0 && previewSourceRow_ < extractedRows_.size()) {
             extractedRows_[previewSourceRow_].label = text.trimmed();
             if (auto* edit = qobject_cast<QLineEdit*>(extractedTable_->cellWidget(previewSourceRow_, 1))) {
                 const QSignalBlocker blocker(edit);
@@ -160,8 +159,7 @@ FontPanel::FontPanel(QWidget* parent)
         previewWidth_ = width;
         previewHeight_ = height;
         previewMask_ = mask;
-        if (previewSource_ == PreviewSource::Extracted
-                && previewSourceRow_ >= 0 && previewSourceRow_ < extractedRows_.size()) {
+        if (previewSourceRow_ >= 0 && previewSourceRow_ < extractedRows_.size()) {
             // 网格修正属于当前提取结果；批量入库必须使用修正后的点阵，而不是提取时旧副本。
             extractedRows_[previewSourceRow_].glyph.width = width;
             extractedRows_[previewSourceRow_].glyph.height = height;
@@ -213,7 +211,6 @@ void FontPanel::clearExtractionResults() {
     extractedRows_.clear();
     extractedTable_->clearContents();
     extractedTable_->setRowCount(0);
-    previewSource_ = PreviewSource::None;
     previewSourceRow_ = -1;
     previewWidth_ = 0;
     previewHeight_ = 0;
@@ -272,7 +269,7 @@ void FontPanel::rebuildExtractedTable() {
         connect(edit, &QLineEdit::textChanged, this, [this, row](const QString& text) {
             if (row >= extractedRows_.size()) return;
             extractedRows_[row].label = text.trimmed();
-            if (previewSource_ == PreviewSource::Extracted && previewSourceRow_ == row) {
+            if (previewSourceRow_ == row) {
                 const QSignalBlocker blocker(labelEdit_);
                 labelEdit_->setText(text);
                 updatePreviewText();
@@ -290,8 +287,7 @@ void FontPanel::rebuildExtractedTable() {
 void FontPanel::showExtractedRow(int row) {
     if (row < 0 || row >= extractedRows_.size()) return;
     const ExtractedRow& item = extractedRows_[row];
-    setPreview(item.label, item.glyph.width, item.glyph.height, item.glyph.mask,
-               PreviewSource::Extracted, row);
+    setPreview(item.label, item.glyph.width, item.glyph.height, item.glyph.mask, row);
 }
 
 void FontPanel::showDictionaryRecord(const FontDictionaryRecord& record) {
@@ -303,7 +299,7 @@ void FontPanel::showDictionaryRecord(const FontDictionaryRecord& record) {
         emit statusMessage(error);
         return;
     }
-    setPreview(record.label, width, height, std::move(mask), PreviewSource::Dictionary, -1);
+    setPreview(record.label, width, height, std::move(mask), -1);
 }
 
 void FontPanel::setPreview(
@@ -311,10 +307,8 @@ void FontPanel::setPreview(
         int width,
         int height,
         std::vector<std::uint8_t> mask,
-        PreviewSource source,
         int sourceRow) {
     updatingPreview_ = true;
-    previewSource_ = source;
     previewSourceRow_ = sourceRow;
     previewWidth_ = width;
     previewHeight_ = height;
@@ -344,7 +338,6 @@ void FontPanel::parseEditedPreviewText() {
     std::vector<std::uint8_t> mask;
     if (!decodeFontPixel(pixelText_->toPlainText(), &width, &height, &mask, &label)) return;
     updatingPreview_ = true;
-    previewSource_ = PreviewSource::Manual;
     previewSourceRow_ = -1;
     previewWidth_ = width;
     previewHeight_ = height;

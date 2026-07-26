@@ -4,8 +4,8 @@
 #include "ui/app_theme.h"
 
 #include <QApplication>
+#include <QPalette>
 #include <QSettings>
-#include <QStyle>
 #include <QStyleFactory>
 #include <QWidget>
 
@@ -22,27 +22,27 @@ const QList<ThemePalette> kThemes = {
         {AppTheme::Dark, "dark", QString::fromUtf8("中性暗色"), true,
          "#181818", "#1F1F1F", "#252526", "#D4D4D4", "#9D9D9D", "#3C3C3C",
          "#202020", "#2A2D2E", "#094771", "#FFFFFF", "#6D6D6D", "#242424",
-         "#202020", "#4EC9B0", "#F14C4C"},
+         "#4EC9B0", "#F14C4C"},
         {AppTheme::Light, "light", QString::fromUtf8("清爽亮色"), false,
          "#F3F3F3", "#FFFFFF", "#F7F7F7", "#202124", "#666A70", "#D0D0D0",
          "#FFFFFF", "#E8E8E8", "#CDE8FF", "#111111", "#A0A0A0", "#EEEEEE",
-         "#E7E7E7", "#16825D", "#C42B1C"},
+         "#16825D", "#C42B1C"},
         {AppTheme::Midnight, "midnight", QString::fromUtf8("深夜蓝灰"), true,
          "#16191F", "#1D222B", "#252C37", "#D8DEE9", "#8F9BAD", "#3A4555",
          "#202630", "#2B3441", "#285F87", "#FFFFFF", "#697586", "#242B35",
-         "#202630", "#60C6A8", "#FF6B6B"},
+         "#60C6A8", "#FF6B6B"},
         {AppTheme::Carbon, "carbon", QString::fromUtf8("碳黑暖灰"), true,
          "#1B1A19", "#23211F", "#2B2926", "#E3DED8", "#A59E96", "#48433E",
          "#262320", "#332F2B", "#6D5030", "#FFFFFF", "#746C64", "#292622",
-         "#24211E", "#70C1A4", "#F07167"},
+         "#70C1A4", "#F07167"},
         {AppTheme::SoftLight, "soft-light", QString::fromUtf8("柔和浅色"), false,
          "#EEF1F2", "#FAFBFB", "#F3F5F5", "#243034", "#69777B", "#CAD1D3",
          "#FFFFFF", "#E2E8EA", "#BFDCE5", "#172126", "#9AA4A7", "#E7EBEC",
-         "#E5EAEB", "#197A66", "#B83A3A"},
+         "#197A66", "#B83A3A"},
         {AppTheme::HighContrast, "high-contrast", QString::fromUtf8("高对比"), true,
          "#000000", "#080808", "#111111", "#FFFFFF", "#CCCCCC", "#FFFFFF",
          "#000000", "#222222", "#004C99", "#FFFFFF", "#888888", "#111111",
-         "#000000", "#00FFB3", "#FF4D4D"},
+         "#00FFB3", "#FF4D4D"},
 };
 
 QString themeStyleSheet(const ThemePalette& p) {
@@ -138,14 +138,6 @@ void applyApplicationTheme(QApplication* application, AppTheme theme) {
     palette.setColor(QPalette::Disabled, QPalette::WindowText, p.disabled);
     application->setPalette(palette);
     application->setStyleSheet(themeStyleSheet(p));
-}
-
-void applyWidgetTheme(QWidget* root, AppTheme theme) {
-    if (root == nullptr) return;
-    root->setProperty("xiaoyvTheme", themePalette(theme).key);
-    root->style()->unpolish(root);
-    root->style()->polish(root);
-    root->update();
 }
 
 void applyNativeTitleBar(QWidget* window, bool dark) {

@@ -48,13 +48,6 @@ private:
         QString label;
     };
 
-    enum class PreviewSource {
-        None,
-        Extracted,
-        Dictionary,
-        Manual,
-    };
-
     void syncColorRulesFromDocument();
     /** 清空旧提取结果和预览，保证切图或重新提取失败后不会继续显示过期点阵。 */
     void clearExtractionResults();
@@ -67,7 +60,6 @@ private:
             int width,
             int height,
             std::vector<std::uint8_t> mask,
-            PreviewSource source,
             int sourceRow);
     void updatePreviewText();
     void parseEditedPreviewText();
@@ -89,7 +81,6 @@ private:
     PixelGrid* pixelGrid_ = nullptr;
     FontDictionaryEditor* dictionaryEditor_ = nullptr;
     QVector<ExtractedRow> extractedRows_;
-    PreviewSource previewSource_ = PreviewSource::None;
     int previewSourceRow_ = -1;
     int previewWidth_ = 0;
     int previewHeight_ = 0;

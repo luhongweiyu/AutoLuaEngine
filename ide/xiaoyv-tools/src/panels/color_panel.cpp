@@ -128,13 +128,22 @@ public:
 ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
         : QWidget(parent), generator_(generator) {
     rangeEditor_ = new RangeEditor(this);
+    rangeEditor_->setInputMinimumDigits(24);
     formatCombo_ = new QComboBox(this);
+    formatCombo_->setSizeAdjustPolicy(
+            QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    formatCombo_->setMinimumContentsLength(6);
+    formatCombo_->setMinimumWidth(
+            formatCombo_->fontMetrics().horizontalAdvance(
+                    QString(6, QChar(0x6c49))) + 30);
     directionCombo_ = new QComboBox(this);
     for (int direction = 1; direction <= 8; ++direction) {
         directionCombo_->addItem(QString::number(direction), direction);
     }
     defaultDeltaEdit_ = new QLineEdit(QStringLiteral("000000"), this);
     defaultDeltaEdit_->setMaxLength(8);
+    defaultDeltaEdit_->setFixedWidth(
+            defaultDeltaEdit_->fontMetrics().horizontalAdvance(QStringLiteral("00000000")) + 18);
     defaultDeltaEdit_->setToolTip(QString::fromUtf8("m.findColors 的默认偏色，格式为 RRGGBB"));
 
     table_ = new QTableView(this);
@@ -175,32 +184,38 @@ ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
 
     auto* form = new QFormLayout();
     form->setContentsMargins(0, 0, 0, 0);
-    form->addRow(QString::fromUtf8("框选范围"), rangeEditor_);
-    form->addRow(QString::fromUtf8("生成格式"), formatCombo_);
-    auto* options = new QWidget(this);
-    auto* optionsLayout = new QHBoxLayout(options);
+    form->setVerticalSpacing(5);
+    form->addRow(rangeEditor_);
+    auto* optionsLayout = new QHBoxLayout();
     optionsLayout->setContentsMargins(0, 0, 0, 0);
     optionsLayout->setSpacing(4);
     optionsLayout->addWidget(directionCombo_);
-    optionsLayout->addWidget(defaultDeltaEdit_, 1);
-    form->addRow(QString::fromUtf8("方向 / 偏色"), options);
+    optionsLayout->addWidget(defaultDeltaEdit_);
+    optionsLayout->addWidget(formatCombo_, 1);
+    form->addRow(QString::fromUtf8("方向 / 偏色"), optionsLayout);
 
-    auto* actions = new QHBoxLayout();
-    actions->setContentsMargins(0, 0, 0, 0);
-    actions->setSpacing(4);
-    actions->addWidget(refreshSelectedButton);
-    actions->addWidget(refreshAllButton);
-    actions->addWidget(clearButton);
-    actions->addStretch();
-    actions->addWidget(generateButton_);
-    actions->addWidget(runButton);
+    auto* tableActions = new QHBoxLayout();
+    tableActions->setContentsMargins(0, 0, 0, 0);
+    tableActions->setSpacing(4);
+    tableActions->addWidget(refreshSelectedButton);
+    tableActions->addWidget(refreshAllButton);
+    tableActions->addWidget(clearButton);
+    tableActions->addStretch();
+
+    auto* generateActions = new QHBoxLayout();
+    generateActions->setContentsMargins(0, 0, 0, 0);
+    generateActions->setSpacing(4);
+    generateActions->addWidget(generateButton_);
+    generateActions->addWidget(runButton);
+    generateActions->addStretch();
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
     layout->setSpacing(5);
-    layout->addLayout(form);
     layout->addWidget(table_, 1);
-    layout->addLayout(actions);
+    layout->addLayout(tableActions);
+    layout->addLayout(form);
+    layout->addLayout(generateActions);
 
     connect(rangeEditor_, &RangeEditor::rangeEdited, this, [this](const QRect& range) {
         // 框选状态只由当前 ImageDocument 或主窗口的待用范围持有；面板仅提交用户输入。
@@ -259,7 +274,7 @@ void ColorPanel::setDocument(ImageDocument* document) {
         const int indicatorWidth = table_->style()->pixelMetric(QStyle::PM_IndicatorWidth);
         const int indicatorSpacing = table_->style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing);
         const int sequenceWidth = indicatorWidth + indicatorSpacing
-                + metrics.horizontalAdvance(QStringLiteral("99")) + 6;
+                + metrics.horizontalAdvance(QStringLiteral("99")) + 10;
         const int coordinateWidth = metrics.horizontalAdvance(QStringLiteral("9999,9999 ")) + 6;
         const int relativeCoordinateWidth =
                 metrics.horizontalAdvance(QStringLiteral("-9999,-9999 ")) + 6;

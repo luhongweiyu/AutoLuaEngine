@@ -534,7 +534,6 @@ void MainWindow::setTheme(AppTheme theme) {
     theme_ = theme;
     saveTheme(theme_);
     applyApplicationTheme(qApp, theme_);
-    applyWidgetTheme(this, theme_);
     applyNativeTitleBar(this, isDarkTheme(theme_));
     for (CompactDockWidget* dock : findChildren<CompactDockWidget*>()) {
         dock->setDarkChrome(isDarkTheme(theme_));

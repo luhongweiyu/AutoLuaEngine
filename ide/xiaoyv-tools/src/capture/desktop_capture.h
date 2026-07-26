@@ -63,7 +63,6 @@ public:
 
     explicit WindowCaptureButton(QWidget* parent = nullptr);
 
-    CaptureMode captureMode() const;
     void setCaptureMode(CaptureMode mode);
     void triggerCapture();
     void setDarkTheme(bool dark);

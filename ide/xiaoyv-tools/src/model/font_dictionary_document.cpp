@@ -6,7 +6,6 @@
 #include "core/image_processing.h"
 
 #include <QFile>
-#include <QFileInfo>
 #include <QSaveFile>
 #include <QTextStream>
 
