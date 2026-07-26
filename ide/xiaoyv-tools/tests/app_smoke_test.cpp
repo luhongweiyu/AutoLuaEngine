@@ -1,5 +1,5 @@
 /**
- * 文件用途：验证主窗口、主题、动作目录和连接对话框能够完整构造。
+ * 文件用途：验证主窗口、程序 logo、主题、动作目录和连接对话框能够完整构造。
  */
 #include <QtTest/QTest>
 
@@ -8,6 +8,7 @@
 #include "model/image_document.h"
 #include "ui/action_catalog.h"
 #include "ui/app_theme.h"
+#include "ui/tool_icons.h"
 #include "workspace/image_workspace.h"
 
 #include <QAction>
@@ -27,6 +28,7 @@ class AppSmokeTest final : public QObject {
 
 private slots:
     void actionCatalogIsComplete();
+    void applicationLogoRenders();
     void toolIconsUseHardEdges();
     void themesAreRegistered();
     void mainWindowBuilds();
@@ -42,6 +44,15 @@ void AppSmokeTest::actionCatalogIsComplete() {
         QVERIFY2(!names.contains(name), spec.objectName);
         names.insert(name);
     }
+}
+
+void AppSmokeTest::applicationLogoRenders() {
+    const QIcon logo = makeApplicationLogoIcon();
+    QVERIFY(!logo.isNull());
+    const QImage image = logo.pixmap(QSize(64, 64)).toImage();
+    QVERIFY(!image.isNull());
+    QVERIFY(image.width() >= 32);
+    QVERIFY(image.height() >= 32);
 }
 
 void AppSmokeTest::toolIconsUseHardEdges() {
@@ -98,7 +109,8 @@ void AppSmokeTest::mainWindowBuilds() {
     QVERIFY(zoomStatus != nullptr);
     QCOMPARE(imageStatus->text(), QStringLiteral("8 x 8"));
     QVERIFY(zoomStatus->x() < imageStatus->x());
-    auto* imageDocuments = workspace->findChild<QTabWidget*>(QStringLiteral("imageDocuments"));
+    auto* imageDocuments = workspace->findChild<QTabWidget*>(
+            QStringLiteral("imageDocuments"));
     QVERIFY(imageDocuments != nullptr);
     QVERIFY(imageDocuments->tabBar()->tabRect(0).height() <= 23);
 
@@ -122,7 +134,8 @@ void AppSmokeTest::mainWindowBuilds() {
         auto* dock = qobject_cast<QDockWidget*>(grip->parentWidget());
         QVERIFY(dock != nullptr);
         QVERIFY(grip->x() >= dock->width() - grip->width() - 4);
-        auto* floatingTitle = dock->findChild<QWidget*>(QStringLiteral("floatingDockTitleBar"));
+        auto* floatingTitle = dock->findChild<QWidget*>(
+                QStringLiteral("floatingDockTitleBar"));
         QVERIFY(floatingTitle != nullptr);
         QVERIFY(!floatingTitle->isVisible());
     }

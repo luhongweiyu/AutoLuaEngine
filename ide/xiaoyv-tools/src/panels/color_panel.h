@@ -10,6 +10,7 @@
 
 class QComboBox;
 class QLineEdit;
+class QPushButton;
 class QTableView;
 
 namespace xiaoyv::tools {
@@ -34,6 +35,7 @@ signals:
     void selectionModeRequested(bool enabled);
     void codeGenerated(const QString& language, const QString& code);
     void runRequested(const QString& language, const QString& code);
+    void generatedCodeStaleChanged(bool stale);
     void statusMessage(const QString& message);
 
 private:
@@ -41,17 +43,23 @@ private:
     void refreshSelected();
     void refreshAll();
     void generateCode(bool runAfterGenerate);
+    void markGeneratedCodeStale();
+    void setGeneratedCodeStale(bool stale);
     QVariantMap buildContext(QString* error) const;
     QString currentLanguage() const;
 
     GeneratorEngine* generator_ = nullptr;
     QPointer<ImageDocument> document_;
     QMetaObject::Connection selectionConnection_;
+    QMetaObject::Connection pointsConnection_;
     RangeEditor* rangeEditor_ = nullptr;
     QTableView* table_ = nullptr;
     QComboBox* formatCombo_ = nullptr;
     QComboBox* directionCombo_ = nullptr;
     QLineEdit* defaultDeltaEdit_ = nullptr;
+    QPushButton* generateButton_ = nullptr;
+    bool hasGeneratedCode_ = false;
+    bool generatedCodeStale_ = false;
 };
 
 } // namespace xiaoyv::tools

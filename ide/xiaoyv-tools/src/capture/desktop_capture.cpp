@@ -4,7 +4,9 @@
 #include "capture/desktop_capture.h"
 
 #include <QApplication>
+#include <QActionGroup>
 #include <QGuiApplication>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
@@ -12,11 +14,11 @@
 
 #ifdef Q_OS_WIN
 #define NOMINMAX
-#include <dwmapi.h>
 #include <windows.h>
 #endif
 
 #include <algorithm>
+#include <cstring>
 
 namespace xiaoyv::tools {
 namespace {
@@ -57,7 +59,20 @@ QIcon targetIcon(bool dark, bool active) {
     painter.drawLine(12, 17, 12, 22);
     painter.drawLine(2, 12, 7, 12);
     painter.drawLine(17, 12, 22, 12);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color);
+    painter.drawPolygon(QPolygon({QPoint(18, 19), QPoint(22, 19), QPoint(20, 21)}));
     return QIcon(pixmap);
+}
+
+QString captureModeName(WindowCaptureButton::CaptureMode mode) {
+    switch (mode) {
+    case WindowCaptureButton::CaptureMode::Window:
+        return QString::fromUtf8("后台截图");
+    case WindowCaptureButton::CaptureMode::Screen:
+        return QString::fromUtf8("前台截图");
+    }
+    return {};
 }
 
 #ifdef Q_OS_WIN
@@ -67,14 +82,15 @@ QString windowDescription(HWND window) {
     wchar_t className[256]{};
     GetWindowTextW(window, title, 511);
     GetClassNameW(window, className, 255);
-    RECT rect{};
-    GetWindowRect(window, &rect);
+    RECT clientRect{};
+    GetClientRect(window, &clientRect);
     const QString visibleTitle = QString::fromWCharArray(title).trimmed();
-    return QString::fromUtf8("目标：%1  [%2]  %3 x %4")
+    return QString::fromUtf8("目标句柄：%1  [%2]  客户区 %3 x %4  HWND 0x%5")
             .arg(visibleTitle.isEmpty() ? QString::fromUtf8("无标题窗口") : visibleTitle)
             .arg(QString::fromWCharArray(className))
-            .arg(rect.right - rect.left)
-            .arg(rect.bottom - rect.top);
+            .arg(clientRect.right - clientRect.left)
+            .arg(clientRect.bottom - clientRect.top)
+            .arg(static_cast<qulonglong>(reinterpret_cast<quintptr>(window)), 0, 16);
 }
 
 QImage captureWindow(HWND window, QString* error) {
@@ -82,14 +98,15 @@ QImage captureWindow(HWND window, QString* error) {
         if (error != nullptr) *error = QString::fromUtf8("尚未指定有效窗口");
         return {};
     }
-    RECT rect{};
-    if (FAILED(DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS, &rect, sizeof(rect)))) {
-        GetWindowRect(window, &rect);
+    RECT clientRect{};
+    if (!GetClientRect(window, &clientRect)) {
+        if (error != nullptr) *error = QString::fromUtf8("无法读取目标句柄的客户区");
+        return {};
     }
-    const int width = rect.right - rect.left;
-    const int height = rect.bottom - rect.top;
+    const int width = clientRect.right - clientRect.left;
+    const int height = clientRect.bottom - clientRect.top;
     if (width <= 0 || height <= 0) {
-        if (error != nullptr) *error = QString::fromUtf8("目标窗口尺寸无效");
+        if (error != nullptr) *error = QString::fromUtf8("目标句柄的客户区尺寸无效");
         return {};
     }
 
@@ -103,24 +120,107 @@ QImage captureWindow(HWND window, QString* error) {
 
     void* bits = nullptr;
     HDC screenDc = GetDC(nullptr);
-    HDC memoryDc = CreateCompatibleDC(screenDc);
-    HBITMAP bitmap = CreateDIBSection(screenDc, &bitmapInfo, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HDC memoryDc = screenDc == nullptr ? nullptr : CreateCompatibleDC(screenDc);
+    HBITMAP bitmap = memoryDc == nullptr
+            ? nullptr
+            : CreateDIBSection(screenDc, &bitmapInfo, DIB_RGB_COLORS, &bits, nullptr, 0);
     HGDIOBJ previous = bitmap == nullptr ? nullptr : SelectObject(memoryDc, bitmap);
+    if (bits != nullptr) {
+        std::memset(
+                bits,
+                0,
+                static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4);
+    }
     const BOOL printed = bitmap != nullptr
-            && PrintWindow(window, memoryDc, 0x00000002 /* PW_RENDERFULLCONTENT */);
+            && previous != nullptr
+            && previous != HGDI_ERROR
+            && PrintWindow(window, memoryDc, PW_CLIENTONLY);
 
     QImage result;
     if (printed) {
         QImage view(static_cast<uchar*>(bits), width, height, width * 4, QImage::Format_ARGB32);
         result = view.convertToFormat(QImage::Format_RGB32);
     } else if (error != nullptr) {
-        *error = QString::fromUtf8("系统无法抓取该窗口，目标可能禁止 PrintWindow");
+        *error = QString::fromUtf8("系统无法抓取该句柄的客户区，目标可能禁止 PrintWindow");
     }
 
-    if (previous != nullptr) SelectObject(memoryDc, previous);
+    if (previous != nullptr && previous != HGDI_ERROR) SelectObject(memoryDc, previous);
     if (bitmap != nullptr) DeleteObject(bitmap);
-    DeleteDC(memoryDc);
-    ReleaseDC(nullptr, screenDc);
+    if (memoryDc != nullptr) DeleteDC(memoryDc);
+    if (screenDc != nullptr) ReleaseDC(nullptr, screenDc);
+    return result;
+}
+
+QImage captureVisibleWindowClient(HWND window, QString* error) {
+    if (window == nullptr || !IsWindow(window)) {
+        if (error != nullptr) *error = QString::fromUtf8("尚未指定有效窗口");
+        return {};
+    }
+
+    RECT clientRect{};
+    if (!GetClientRect(window, &clientRect)) {
+        if (error != nullptr) *error = QString::fromUtf8("无法读取目标句柄的客户区");
+        return {};
+    }
+    POINT origin{clientRect.left, clientRect.top};
+    if (!ClientToScreen(window, &origin)) {
+        if (error != nullptr) *error = QString::fromUtf8("无法确定目标客户区的屏幕位置");
+        return {};
+    }
+    const int width = clientRect.right - clientRect.left;
+    const int height = clientRect.bottom - clientRect.top;
+    if (width <= 0 || height <= 0) {
+        if (error != nullptr) *error = QString::fromUtf8("目标句柄的客户区尺寸无效");
+        return {};
+    }
+
+    BITMAPINFO bitmapInfo{};
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = width;
+    bitmapInfo.bmiHeader.biHeight = -height;
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = nullptr;
+    HDC screenDc = GetDC(nullptr);
+    HDC memoryDc = screenDc == nullptr ? nullptr : CreateCompatibleDC(screenDc);
+    HBITMAP bitmap = memoryDc == nullptr
+            ? nullptr
+            : CreateDIBSection(screenDc, &bitmapInfo, DIB_RGB_COLORS, &bits, nullptr, 0);
+    HGDIOBJ previous = bitmap == nullptr ? nullptr : SelectObject(memoryDc, bitmap);
+    if (bits != nullptr) {
+        std::memset(
+                bits,
+                0,
+                static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4);
+    }
+    const BOOL copied = bitmap != nullptr
+            && previous != nullptr
+            && previous != HGDI_ERROR
+            && BitBlt(
+                    memoryDc,
+                    0,
+                    0,
+                    width,
+                    height,
+                    screenDc,
+                    origin.x,
+                    origin.y,
+                    SRCCOPY | CAPTUREBLT);
+
+    QImage result;
+    if (copied) {
+        QImage view(static_cast<uchar*>(bits), width, height, width * 4, QImage::Format_ARGB32);
+        result = view.convertToFormat(QImage::Format_RGB32);
+    } else if (error != nullptr) {
+        *error = QString::fromUtf8("系统无法从屏幕读取目标句柄的可见客户区");
+    }
+
+    if (previous != nullptr && previous != HGDI_ERROR) SelectObject(memoryDc, previous);
+    if (bitmap != nullptr) DeleteObject(bitmap);
+    if (memoryDc != nullptr) DeleteDC(memoryDc);
+    if (screenDc != nullptr) ReleaseDC(nullptr, screenDc);
     return result;
 }
 
@@ -238,8 +338,37 @@ void FloatingCaptureWindow::captureRegion() {
 
 WindowCaptureButton::WindowCaptureButton(QWidget* parent)
         : QToolButton(parent) {
-    setToolTip(QString::fromUtf8("单击抓取已指定窗口；按住拖动靶心可重新指定"));
     setAutoRaise(true);
+
+    captureModeMenu_ = new QMenu(this);
+    captureModeMenu_->setObjectName(QStringLiteral("windowCaptureModeMenu"));
+    auto* modeGroup = new QActionGroup(captureModeMenu_);
+    modeGroup->setExclusive(true);
+    const auto addMode = [this, modeGroup](
+                                 const QString& text,
+                                 const QString& objectName,
+                                 CaptureMode mode) {
+        QAction* action = captureModeMenu_->addAction(text);
+        action->setObjectName(objectName);
+        action->setCheckable(true);
+        action->setData(static_cast<int>(mode));
+        modeGroup->addAction(action);
+        return action;
+    };
+    addMode(
+            QString::fromUtf8("后台截图"),
+            QStringLiteral("windowCaptureModeAction"),
+            CaptureMode::Window);
+    addMode(
+            QString::fromUtf8("前台截图（可见画面）"),
+            QStringLiteral("screenCaptureModeAction"),
+            CaptureMode::Screen);
+    connect(modeGroup, &QActionGroup::triggered, this, [this](QAction* action) {
+        setCaptureMode(static_cast<CaptureMode>(action->data().toInt()));
+        emit statusMessage(QString::fromUtf8("已切换为%1").arg(captureModeName(captureMode_)));
+    });
+
+    updateModeUi();
     updateTargetIcon(false);
 #ifndef Q_OS_WIN
     setEnabled(false);
@@ -247,18 +376,55 @@ WindowCaptureButton::WindowCaptureButton(QWidget* parent)
 #endif
 }
 
+WindowCaptureButton::CaptureMode WindowCaptureButton::captureMode() const {
+    return captureMode_;
+}
+
+void WindowCaptureButton::setCaptureMode(CaptureMode mode) {
+    captureMode_ = mode;
+    updateModeUi();
+}
+
 void WindowCaptureButton::triggerCapture() {
 #ifdef Q_OS_WIN
     if (targetWindow_ == 0) {
-        emit captureFailed(QString::fromUtf8("请按住窗口抓图图标，拖到目标窗口后释放"));
+        emit captureFailed(QString::fromUtf8(
+                "请按住句柄抓图图标，拖到目标窗口或子控件后释放"));
+        return;
+    }
+    if (captureMode_ == CaptureMode::Screen) {
+        captureVisibleTarget();
+        return;
+    }
+
+    QString error;
+    const QImage image = captureWindow(reinterpret_cast<HWND>(targetWindow_), &error);
+    if (image.isNull()) {
+        emit captureFailed(error);
+        return;
+    }
+    emit imageCaptured(image);
+#else
+    emit captureFailed(QString::fromUtf8("指定窗口抓图当前只支持 Windows"));
+#endif
+}
+
+void WindowCaptureButton::captureVisibleTarget() {
+#ifdef Q_OS_WIN
+    const HWND target = reinterpret_cast<HWND>(targetWindow_);
+    if (target == nullptr || !IsWindow(target)) {
+        emit captureFailed(QString::fromUtf8("尚未指定有效窗口"));
         return;
     }
     QString error;
-    const QImage image = captureWindow(reinterpret_cast<HWND>(targetWindow_), &error);
-    if (image.isNull()) emit captureFailed(error);
-    else emit imageCaptured(image);
+    const QImage image = captureVisibleWindowClient(target, &error);
+    if (image.isNull()) {
+        emit captureFailed(error);
+        return;
+    }
+    emit imageCaptured(image);
 #else
-    emit captureFailed(QString::fromUtf8("指定窗口抓图当前只支持 Windows"));
+    emit captureFailed(QString::fromUtf8("前台截图当前只支持 Windows"));
 #endif
 }
 
@@ -270,6 +436,11 @@ void WindowCaptureButton::setDarkTheme(bool dark) {
 void WindowCaptureButton::mousePressEvent(QMouseEvent* event) {
     if (event->button() != Qt::LeftButton) {
         QToolButton::mousePressEvent(event);
+        return;
+    }
+    if (menuIndicatorRect().contains(event->position().toPoint())) {
+        captureModeMenu_->popup(mapToGlobal(QPoint(width(), height())));
+        event->accept();
         return;
     }
     pressed_ = true;
@@ -297,7 +468,7 @@ void WindowCaptureButton::mouseReleaseEvent(QMouseEvent* event) {
     if (dragging_) {
         if (dragTargetWindow_ != 0) {
             targetWindow_ = dragTargetWindow_;
-            emit statusMessage(QString::fromUtf8("已指定窗口，单击图标即可抓图"));
+            emit statusMessage(QString::fromUtf8("已指定句柄，单击图标即可抓取其客户区"));
         }
         dragTargetWindow_ = 0;
         dragging_ = false;
@@ -308,11 +479,30 @@ void WindowCaptureButton::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
 }
 
+QRect WindowCaptureButton::menuIndicatorRect() const {
+    constexpr int extent = 9;
+    return QRect(width() - extent, height() - extent, extent, extent);
+}
+
 quintptr WindowCaptureButton::windowAt(const QPoint& globalPosition) const {
 #ifdef Q_OS_WIN
-    HWND window = WindowFromPoint({globalPosition.x(), globalPosition.y()});
+    const POINT screenPoint{globalPosition.x(), globalPosition.y()};
+    HWND window = WindowFromPoint(screenPoint);
     if (window == nullptr) return 0;
-    window = GetAncestor(window, GA_ROOT);
+
+    // WindowFromPoint 会跳过禁用控件；从它返回的可见窗口继续逐层查找，
+    // 才能让禁用按钮及更深层的原生子控件也成为独立抓图目标。
+    while (true) {
+        POINT clientPoint = screenPoint;
+        if (!ScreenToClient(window, &clientPoint)) break;
+        const HWND child = ChildWindowFromPointEx(
+                window,
+                clientPoint,
+                CWP_SKIPINVISIBLE | CWP_SKIPTRANSPARENT);
+        if (child == nullptr || child == window) break;
+        window = child;
+    }
+
     DWORD processId = 0;
     GetWindowThreadProcessId(window, &processId);
     if (processId == GetCurrentProcessId()) return 0;
@@ -328,7 +518,7 @@ void WindowCaptureButton::updateDragTarget(const QPoint& globalPosition) {
     if (next == dragTargetWindow_) return;
     dragTargetWindow_ = next;
 #ifdef Q_OS_WIN
-    if (next == 0) emit statusMessage(QString::fromUtf8("当前没有可指定的外部窗口"));
+    if (next == 0) emit statusMessage(QString::fromUtf8("当前没有可指定的外部窗口句柄"));
     else emit statusMessage(windowDescription(reinterpret_cast<HWND>(next)));
 #endif
 }
@@ -336,6 +526,29 @@ void WindowCaptureButton::updateDragTarget(const QPoint& globalPosition) {
 void WindowCaptureButton::updateTargetIcon(bool active) {
     setIcon(targetIcon(darkTheme_, active));
     setIconSize(QSize(22, 22));
+}
+
+void WindowCaptureButton::updateModeUi() {
+    if (captureModeMenu_ != nullptr) {
+        for (QAction* action : captureModeMenu_->actions()) {
+            action->setChecked(action->data().toInt() == static_cast<int>(captureMode_));
+        }
+    }
+
+    QString details;
+    switch (captureMode_) {
+    case CaptureMode::Window:
+        details = QString::fromUtf8(
+                "后台截图：通过 PrintWindow 抓取目标句柄客户区，窗口被遮挡时仍可使用");
+        break;
+    case CaptureMode::Screen:
+        details = QString::fromUtf8(
+                "前台截图：直接读取目标客户区当前对应的屏幕画面，不改变窗口状态");
+        break;
+    }
+    setToolTip(QString::fromUtf8(
+            "%1\n单击抓图；按住拖动靶心可重新指定窗口或子控件；点击右下角三角切换模式")
+                       .arg(details));
 }
 
 } // namespace xiaoyv::tools

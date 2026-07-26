@@ -3,6 +3,7 @@
  */
 #include "canvas/image_canvas.h"
 
+#include "model/color_point_model.h"
 #include "model/image_document.h"
 
 #include <QCursor>
@@ -75,6 +76,18 @@ QPoint ImageCanvas::currentImagePosition() const {
     return hoverImagePosition_;
 }
 
+QString ImageCanvas::magnifierCaption() const {
+    if (document_ == nullptr
+            || !document_->displayedImage().rect().contains(hoverImagePosition_)) {
+        return {};
+    }
+    return QStringLiteral("%1 %2,%3")
+            .arg(colorToHex(
+                    document_->displayedImage().pixelColor(hoverImagePosition_)).toLower())
+            .arg(hoverImagePosition_.x())
+            .arg(hoverImagePosition_.y());
+}
+
 void ImageCanvas::zoomIn() {
     setZoom(nextZoom(zoom_, true));
 }
@@ -141,6 +154,7 @@ void ImageCanvas::mousePressEvent(QMouseEvent* event) {
         selecting_ = true;
         selectionAnchor_ = viewportToImageClamped(event->position().toPoint());
         transientSelection_ = QRect(selectionAnchor_, selectionAnchor_);
+        updateHover(event->position().toPoint(), true);
         viewport()->update();
         event->accept();
         return;
@@ -162,7 +176,7 @@ void ImageCanvas::mouseMoveEvent(QMouseEvent* event) {
     }
     if (selecting_ && document_ != nullptr) {
         transientSelection_ = QRect(selectionAnchor_, viewportToImageClamped(position)).normalized();
-        updateHover(position);
+        updateHover(position, true);
         viewport()->update();
         event->accept();
         return;
@@ -295,10 +309,12 @@ QRect ImageCanvas::imageRectInViewport() const {
     };
 }
 
-bool ImageCanvas::updateHover(const QPoint& viewportPosition) {
+bool ImageCanvas::updateHover(const QPoint& viewportPosition, bool clampToImage) {
     hoverViewportPosition_ = viewportPosition;
     if (document_ == nullptr || document_->displayedImage().isNull()) return false;
-    const QPoint imagePosition = viewportToImage(viewportPosition);
+    const QPoint imagePosition = clampToImage
+            ? viewportToImageClamped(viewportPosition)
+            : viewportToImage(viewportPosition);
     if (!document_->displayedImage().rect().contains(imagePosition)) {
         if (hoverImagePosition_.x() >= 0) emit hoverLeftImage();
         hoverImagePosition_ = {-1, -1};
@@ -383,8 +399,7 @@ void ImageCanvas::drawSelection(QPainter* painter) const {
 }
 
 void ImageCanvas::drawMagnifier(QPainter* painter) const {
-    if (document_ == nullptr || !document_->displayedImage().rect().contains(hoverImagePosition_)
-            || selecting_) {
+    if (document_ == nullptr || !document_->displayedImage().rect().contains(hoverImagePosition_)) {
         return;
     }
     const int extent = kMagnifierCells * kMagnifierCellSize;
@@ -423,6 +438,45 @@ void ImageCanvas::drawMagnifier(QPainter* painter) const {
             kMagnifierCellSize);
     painter->setPen(QPen(Qt::red, 2));
     painter->drawRect(center.adjusted(0, 0, -1, -1));
+
+    const QString caption = magnifierCaption();
+    const int labelGap = 3;
+    const int labelHeight = painter->fontMetrics().height() + 8;
+    const int labelWidth = std::max(
+            frame.width(),
+            painter->fontMetrics().horizontalAdvance(caption) + 16);
+    const int minimumLeft = 2;
+    const int maximumLeft = std::max(minimumLeft, viewport()->width() - labelWidth - 2);
+    const int labelLeft = std::clamp(
+            frame.center().x() - labelWidth / 2,
+            minimumLeft,
+            maximumLeft);
+
+    // 信息条放在放大镜靠近鼠标的一侧；仅移动信息条，不改变原有放大镜位置。
+    const bool magnifierBelowCursor = frame.center().y() > hoverViewportPosition_.y();
+    const int nearSideTop = magnifierBelowCursor
+            ? frame.top() - labelGap - labelHeight
+            : frame.bottom() + 1 + labelGap;
+    const int farSideTop = magnifierBelowCursor
+            ? frame.bottom() + 1 + labelGap
+            : frame.top() - labelGap - labelHeight;
+    const auto fitsVertically = [this, labelHeight](int top) {
+        return top >= 2 && top + labelHeight <= viewport()->height() - 2;
+    };
+    int labelTop = fitsVertically(nearSideTop) ? nearSideTop : farSideTop;
+    labelTop = std::clamp(
+            labelTop,
+            2,
+            std::max(2, viewport()->height() - labelHeight - 2));
+
+    const QRect labelRect(labelLeft, labelTop, labelWidth, labelHeight);
+    painter->fillRect(labelRect, QColor(20, 20, 20, 235));
+    painter->setPen(QPen(QColor(QStringLiteral("#8B96A3")), 1));
+    painter->drawRect(labelRect.adjusted(0, 0, -1, -1));
+    painter->setPen(Qt::white);
+    painter->drawText(labelRect.adjusted(8, 0, -8, 0),
+                      Qt::AlignVCenter | Qt::AlignLeft,
+                      caption);
 }
 
 } // namespace xiaoyv::tools

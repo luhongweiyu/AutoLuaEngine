@@ -180,6 +180,67 @@ void drawToolIcon(QPainter& painter, ToolIcon icon, bool darkTheme, bool disable
     }
 }
 
+void drawApplicationLogo(QPainter& painter) {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(QStringLiteral("#1479D1")));
+    painter.drawRoundedRect(QRectF(2, 2, 104, 104), 23, 23);
+
+    QPainterPath tail;
+    tail.moveTo(77, 43);
+    tail.lineTo(96, 31);
+    tail.lineTo(91, 48);
+    tail.lineTo(100, 54);
+    tail.lineTo(91, 60);
+    tail.lineTo(96, 77);
+    tail.lineTo(77, 65);
+    tail.closeSubpath();
+    painter.fillPath(tail, QColor(QStringLiteral("#4FD7C8")));
+
+    QPainterPath body;
+    body.moveTo(16, 54);
+    body.cubicTo(16, 36.3, 31.3, 23, 51, 23);
+    body.cubicTo(69.8, 23, 84, 36.5, 84, 54);
+    body.cubicTo(84, 71.5, 69.8, 85, 51, 85);
+    body.cubicTo(31.3, 85, 16, 71.7, 16, 54);
+    body.closeSubpath();
+    painter.fillPath(body, Qt::white);
+
+    QPainterPath dorsalFin;
+    dorsalFin.moveTo(54, 24);
+    dorsalFin.cubicTo(64, 25, 72, 29, 77, 36);
+    dorsalFin.cubicTo(68, 35, 61, 37, 55, 42);
+    dorsalFin.closeSubpath();
+    painter.fillPath(dorsalFin, QColor(QStringLiteral("#4FD7C8")));
+
+    QPainterPath sideFin;
+    sideFin.moveTo(53, 55);
+    sideFin.cubicTo(65, 57, 71, 64, 69, 74);
+    sideFin.cubicTo(61, 70, 55, 65, 49, 59);
+    sideFin.closeSubpath();
+    painter.fillPath(sideFin, QColor(QStringLiteral("#C4F5EF")));
+
+    const QColor detailColor(QStringLiteral("#123A63"));
+    painter.setBrush(detailColor);
+    painter.drawEllipse(QRectF(33, 39, 12, 12));
+
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(detailColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPainterPath mouth;
+    mouth.moveTo(21, 61);
+    mouth.cubicTo(24, 63, 28, 63, 31, 61);
+    painter.drawPath(mouth);
+
+    painter.setPen(QPen(QColor(QStringLiteral("#1479D1")),
+                        3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPainterPath gill;
+    gill.moveTo(48, 39);
+    gill.cubicTo(43, 46, 43, 61, 48, 68);
+    painter.drawPath(gill);
+}
+
 /**
  * 在 QIcon 请求的最终尺寸上直接绘制，避免先生成 24px 位图再缩放到工具栏尺寸。
  * 这样无抗锯齿策略不会被 QIcon 的二次缩放重新引入灰色边缘。
@@ -237,7 +298,58 @@ private:
     bool darkTheme_ = true;
 };
 
+class ApplicationLogoIconEngine final : public QIconEngine {
+public:
+    QIconEngine* clone() const override {
+        return new ApplicationLogoIconEngine();
+    }
+
+    void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
+        Q_UNUSED(state)
+        if (painter == nullptr || rect.isEmpty()) return;
+        const qreal side = qMin(rect.width(), rect.height());
+        painter->save();
+        if (mode == QIcon::Disabled) painter->setOpacity(0.55);
+        painter->translate(
+                rect.left() + (rect.width() - side) / 2.0,
+                rect.top() + (rect.height() - side) / 2.0);
+        painter->scale(side / 108.0, side / 108.0);
+        drawApplicationLogo(*painter);
+        painter->restore();
+    }
+
+    QPixmap pixmap(const QSize& size, QIcon::Mode mode, QIcon::State state) override {
+        QPixmap result(size);
+        result.fill(Qt::transparent);
+        QPainter painter(&result);
+        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+        painter.end();
+        return result;
+    }
+
+    QPixmap scaledPixmap(
+            const QSize& size,
+            QIcon::Mode mode,
+            QIcon::State state,
+            qreal scale) override {
+        const QSize physicalSize(
+                qMax(1, qRound(size.width() * scale)),
+                qMax(1, qRound(size.height() * scale)));
+        QPixmap result(physicalSize);
+        result.setDevicePixelRatio(scale);
+        result.fill(Qt::transparent);
+        QPainter painter(&result);
+        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+        painter.end();
+        return result;
+    }
+};
+
 } // namespace
+
+QIcon makeApplicationLogoIcon() {
+    return QIcon(new ApplicationLogoIconEngine());
+}
 
 QIcon makeToolIcon(ToolIcon icon, bool darkTheme) {
     return QIcon(new ToolIconEngine(icon, darkTheme));

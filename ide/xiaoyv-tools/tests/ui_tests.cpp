@@ -41,6 +41,8 @@ private slots:
     void canvasMovesInImageDirections();
     void canvasPicksOnlyByKeyboard();
     void magnifierPreservesSourceColors();
+    void magnifierShowsCursorDetails();
+    void magnifierRemainsVisibleWhileSelecting();
     void selectionClampsAndEndsMode();
     void panelsRemainUsableWithoutImage();
     void rangePanelsOnlySubmitUserInput();
@@ -131,6 +133,50 @@ void UiTests::magnifierPreservesSourceColors() {
     }
     // 原图区域外仍应出现大量原始颜色像素，证明放大镜没有灰度化或交换颜色通道。
     QVERIFY(magnifiedSourcePixels > 100);
+}
+
+void UiTests::magnifierShowsCursorDetails() {
+    QImage image(32, 24, QImage::Format_RGBA8888);
+    image.fill(QColor(QStringLiteral("#F8F999")));
+    ImageDocument document(image);
+    ImageCanvas canvas;
+    canvas.resize(300, 220);
+    canvas.setDocument(&document);
+    canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+
+    const QPoint position(12, 7);
+    QMouseEvent moveEvent(
+            QEvent::MouseMove,
+            QPointF(position),
+            QPointF(position),
+            QPointF(canvas.viewport()->mapToGlobal(position)),
+            Qt::NoButton,
+            Qt::NoButton,
+            Qt::NoModifier);
+    QApplication::sendEvent(canvas.viewport(), &moveEvent);
+    QCOMPARE(canvas.magnifierCaption(), QStringLiteral("f8f999 12,7"));
+}
+
+void UiTests::magnifierRemainsVisibleWhileSelecting() {
+    QImage image(20, 20, QImage::Format_RGBA8888);
+    image.fill(QColor(QStringLiteral("#123456")));
+    ImageDocument document(image);
+    ImageCanvas canvas;
+    canvas.resize(220, 180);
+    canvas.setDocument(&document);
+    canvas.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&canvas));
+
+    canvas.setSelectionMode(true);
+    QTest::mousePress(canvas.viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(2, 2));
+    QTest::mouseMove(canvas.viewport(), QPoint(180, 160));
+    QEvent leaveEvent(QEvent::Leave);
+    QApplication::sendEvent(canvas.viewport(), &leaveEvent);
+    QVERIFY(!canvas.magnifierCaption().isEmpty());
+    QCOMPARE(canvas.currentImagePosition(), QPoint(19, 19));
+    QTest::mouseRelease(
+            canvas.viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(180, 160));
 }
 
 void UiTests::selectionClampsAndEndsMode() {
@@ -252,10 +298,24 @@ void UiTests::scriptEditorOwnsLanguageAndExecutionState() {
     QVERIFY(copy->x() <= 2);
     QVERIFY(run->x() - copy->geometry().right() >= 3);
     QVERIFY(stop->x() - run->geometry().right() >= 3);
+
+    auto* codeEditor =
+            editor.findChild<QPlainTextEdit*>(QStringLiteral("generatedCodeEditor"));
+    QVERIFY(codeEditor != nullptr);
+    QCOMPARE(codeEditor->lineWrapMode(), QPlainTextEdit::NoWrap);
+
+    editor.setGeneratedCodeStale(true);
+    QVERIFY(editor.generatedCodeStale());
+    QVERIFY(copy->property("codeStale").toBool());
+    editor.setGeneratedCodeStale(false);
+    QVERIFY(!editor.generatedCodeStale());
+    QVERIFY(!copy->property("codeStale").toBool());
+
     run->click();
     QCOMPARE(runRequested.size(), 1);
     QCOMPARE(runRequested.front().at(0).toString(), QStringLiteral("js"));
-    QCOMPARE(runRequested.front().at(1).toString(), QStringLiteral("console.log('ok')"));
+    QCOMPARE(
+            runRequested.front().at(1).toString(), QStringLiteral("console.log('ok')"));
 
     editor.setExecutionState(true, false, false);
     QVERIFY(!run->isEnabled());
@@ -320,10 +380,12 @@ void UiTests::colorPanelUsesSelectedBaseAndDeletesOneRow() {
     QCOMPARE(generated.size(), 1);
     QVERIFY(generated.front().at(1).toString().contains(
             QStringLiteral("0|0|00FF00,-6|-6|FF0000")));
+    QVERIFY(!generate->property("codeStale").toBool());
 
     auto* table = panel.findChild<QTableView*>(QStringLiteral("colorPointTable"));
     QVERIFY(table != nullptr);
-    QAbstractItemDelegate* delegate = table->itemDelegateForColumn(ColorPointModel::BaseColumn);
+    QAbstractItemDelegate* delegate =
+            table->itemDelegateForColumn(ColorPointModel::BaseColumn);
     QVERIFY(delegate != nullptr);
     QStyleOptionViewItem option;
     option.rect = QRect(0, 0, 62, 24);
@@ -342,18 +404,29 @@ void UiTests::colorPanelUsesSelectedBaseAndDeletesOneRow() {
             document.colorPoints()->index(0, ColorPointModel::BaseColumn)));
     QCOMPARE(document.colorPoints()->rowCount(), 1);
     QCOMPARE(document.colorPoints()->points().front().position, QPoint(8, 9));
+    QVERIFY(generate->property("codeStale").toBool());
 
-    const QModelIndex coordinate = document.colorPoints()->index(0, ColorPointModel::CoordinateColumn);
+    const QModelIndex coordinate =
+            document.colorPoints()->index(0, ColorPointModel::CoordinateColumn);
     QVERIFY(document.colorPoints()->flags(coordinate) & Qt::ItemIsEditable);
-    QVERIFY(document.colorPoints()->setData(coordinate, QStringLiteral("12, 14"), Qt::EditRole));
+    QVERIFY(document.colorPoints()->setData(
+            coordinate, QStringLiteral("12, 14"), Qt::EditRole));
     QCOMPARE(document.colorPoints()->points().front().position, QPoint(12, 14));
 
-    const QModelIndex rgb = document.colorPoints()->index(0, ColorPointModel::HexColumn);
+    const QModelIndex rgb =
+            document.colorPoints()->index(0, ColorPointModel::HexColumn);
     QVERIFY(document.colorPoints()->flags(rgb) & Qt::ItemIsEditable);
     QVERIFY(document.colorPoints()->setData(rgb, QStringLiteral("123456"), Qt::EditRole));
-    QCOMPARE(document.colorPoints()->points().front().color, QColor(QStringLiteral("#123456")));
+    QCOMPARE(
+            document.colorPoints()->points().front().color,
+            QColor(QStringLiteral("#123456")));
 
-    QAbstractItemDelegate* hexDelegate = table->itemDelegateForColumn(ColorPointModel::HexColumn);
+    const QModelIndex relative =
+            document.colorPoints()->index(0, ColorPointModel::RelativeCoordinateColumn);
+    QVERIFY(!(document.colorPoints()->flags(relative) & Qt::ItemIsEditable));
+
+    QAbstractItemDelegate* hexDelegate =
+            table->itemDelegateForColumn(ColorPointModel::HexColumn);
     QVERIFY(hexDelegate != nullptr);
     QStyleOptionViewItem editorOption;
     QWidget* editor = hexDelegate->createEditor(table, editorOption, rgb);
@@ -362,8 +435,10 @@ void UiTests::colorPanelUsesSelectedBaseAndDeletesOneRow() {
     QCOMPARE(hexEdit->maxLength(), 8);
     delete editor;
 
-    const QModelIndex swatch = document.colorPoints()->index(0, ColorPointModel::SwatchColumn);
-    QAbstractItemDelegate* swatchDelegate = table->itemDelegateForColumn(ColorPointModel::SwatchColumn);
+    const QModelIndex swatch =
+            document.colorPoints()->index(0, ColorPointModel::SwatchColumn);
+    QAbstractItemDelegate* swatchDelegate =
+            table->itemDelegateForColumn(ColorPointModel::SwatchColumn);
     QVERIFY(swatchDelegate != nullptr);
     QImage rendered(24, 22, QImage::Format_RGBA8888);
     rendered.fill(Qt::transparent);
@@ -374,7 +449,8 @@ void UiTests::colorPanelUsesSelectedBaseAndDeletesOneRow() {
     swatchOption.state = QStyle::State_Enabled | QStyle::State_Selected;
     swatchDelegate->paint(&painter, swatchOption, swatch);
     painter.end();
-    QCOMPARE(rendered.pixelColor(rendered.rect().center()), QColor(QStringLiteral("#123456")));
+    QCOMPARE(
+            rendered.pixelColor(rendered.rect().center()), QColor(QStringLiteral("#123456")));
 }
 
 void UiTests::fontExtractionReplacesStalePreview() {
@@ -452,15 +528,18 @@ void UiTests::fontGridRequiresExplicitEditing() {
 
 void UiTests::analysisModeEnablesOnlyRelevantInputs() {
     AnalysisPanel panel;
-    auto* colorRules = panel.findChild<QLineEdit*>(QStringLiteral("binaryColorRulesInput"));
+    auto* colorRules =
+            panel.findChild<QLineEdit*>(QStringLiteral("binaryColorRulesInput"));
     auto* threshold = panel.findChild<QSlider*>();
     QVERIFY(colorRules != nullptr);
     QVERIFY(threshold != nullptr);
     QVERIFY(colorRules->isEnabled());
     QVERIFY(colorRules->maxLength() > 8);
     QVERIFY(!threshold->isEnabled());
-    QVERIFY(panel.findChild<QPushButton*>(QStringLiteral("analysisPreviewButton")) == nullptr);
-    QVERIFY(panel.findChild<QPushButton*>(QStringLiteral("analysisRestoreButton")) == nullptr);
+    QVERIFY(panel.findChild<QPushButton*>(QStringLiteral("analysisPreviewButton"))
+            == nullptr);
+    QVERIFY(panel.findChild<QPushButton*>(QStringLiteral("analysisRestoreButton"))
+            == nullptr);
     for (QCheckBox* check : panel.findChildren<QCheckBox*>()) {
         QVERIFY(check->text() != QString::fromUtf8("实时预览"));
     }
@@ -482,7 +561,8 @@ void UiTests::analysisUsesEnabledColorPointRules() {
     AnalysisPanel panel;
     panel.setPreviewActive(true);
     panel.setDocument(&document);
-    auto* colorRules = panel.findChild<QLineEdit*>(QStringLiteral("binaryColorRulesInput"));
+    auto* colorRules =
+            panel.findChild<QLineEdit*>(QStringLiteral("binaryColorRulesInput"));
     QVERIFY(colorRules != nullptr);
     QCOMPARE(colorRules->text(), QStringLiteral("112233-000000|AABBCC-000000"));
 
@@ -534,7 +614,8 @@ void UiTests::analysisAppliesLatestPreview() {
     for (QRadioButton* mode : panel.findChildren<QRadioButton*>()) {
         if (mode->text() == QString::fromUtf8("灰度阈值")) mode->setChecked(true);
     }
-    QPushButton* apply = panel.findChild<QPushButton*>(QStringLiteral("analysisApplyButton"));
+    QPushButton* apply =
+            panel.findChild<QPushButton*>(QStringLiteral("analysisApplyButton"));
     QVERIFY(apply != nullptr);
     QTest::mouseClick(apply, Qt::LeftButton);
     QTRY_VERIFY_WITH_TIMEOUT(document.imageRevision() > 1, 3000);
@@ -549,7 +630,8 @@ void UiTests::analysisDiscardsResultAfterImageChanges() {
     AnalysisPanel panel;
     panel.setPreviewActive(true);
     panel.setDocument(&document);
-    QPushButton* apply = panel.findChild<QPushButton*>(QStringLiteral("analysisApplyButton"));
+    QPushButton* apply =
+            panel.findChild<QPushButton*>(QStringLiteral("analysisApplyButton"));
     QVERIFY(apply != nullptr);
     QTest::mouseClick(apply, Qt::LeftButton);
     document.rotateRight();

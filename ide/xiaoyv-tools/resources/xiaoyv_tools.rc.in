@@ -1,0 +1,4 @@
+// Embeds the generated multi-size Xiaoyv icon in the Windows executable.
+#define IDI_XIAOYV_TOOLS 101
+
+IDI_XIAOYV_TOOLS ICON "@XIAOYV_WINDOWS_ICON_PATH@"

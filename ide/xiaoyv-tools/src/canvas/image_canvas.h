@@ -6,6 +6,7 @@
 #include <QAbstractScrollArea>
 #include <QMetaObject>
 #include <QPointer>
+#include <QString>
 
 namespace xiaoyv::tools {
 
@@ -22,6 +23,8 @@ public:
     double zoom() const;
     /** 当前精确指向的图片坐标；不在图片内时返回 (-1,-1)。 */
     QPoint currentImagePosition() const;
+    /** 放大镜当前显示的坐标和 RRGGBB 信息；未指向图片时返回空字符串。 */
+    QString magnifierCaption() const;
     void zoomIn();
     void zoomOut();
     void actualSize();
@@ -56,7 +59,7 @@ private:
     QPoint viewportToImageClamped(const QPoint& position) const;
     QPoint imageToViewport(const QPoint& position) const;
     QRect imageRectInViewport() const;
-    bool updateHover(const QPoint& viewportPosition);
+    bool updateHover(const QPoint& viewportPosition, bool clampToImage = false);
     void moveLogicalCursor(const QPoint& delta);
     void drawCanvasBackground(QPainter* painter) const;
     void drawImage(QPainter* painter) const;

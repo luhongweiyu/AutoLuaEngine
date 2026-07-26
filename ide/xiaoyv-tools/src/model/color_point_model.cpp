@@ -67,6 +67,12 @@ QVariant ColorPointModel::data(const QModelIndex& index, int role) const {
             return colorToHex(item.color);
         case DeltaColumn:
             return colorToHex(item.delta);
+        case RelativeCoordinateColumn: {
+            const int baseRow = effectiveBaseRow();
+            if (baseRow < 0) return {};
+            const QPoint relative = item.position - points_[baseRow].position;
+            return QStringLiteral("%1,%2").arg(relative.x()).arg(relative.y());
+        }
         default:
             return {};
     }
@@ -81,6 +87,7 @@ QVariant ColorPointModel::headerData(int section, Qt::Orientation orientation, i
         case HexColumn: return QStringLiteral("RGB");
         case DeltaColumn: return QString::fromUtf8("偏色");
         case BaseColumn: return QString::fromUtf8("基准");
+        case RelativeCoordinateColumn: return QString::fromUtf8("相对坐标");
         default: return {};
     }
 }
@@ -155,6 +162,7 @@ void ColorPointModel::addPoint(const QPoint& position, const QColor& color) {
     beginInsertRows({}, row, row);
     points_.push_back({true, position, color, Qt::black, points_.isEmpty()});
     endInsertRows();
+    emitRelativeCoordinatesChanged();
     emit pointsChanged();
 }
 
@@ -180,6 +188,7 @@ bool ColorPointModel::removePoint(int row) {
     points_.removeAt(row);
     endRemoveRows();
     ensureBasePoint();
+    emitRelativeCoordinatesChanged();
     emit pointsChanged();
     return true;
 }
@@ -196,6 +205,7 @@ bool ColorPointModel::setEnabled(int row, bool enabled) {
     if (row < 0 || row >= points_.size() || points_[row].enabled == enabled) return false;
     points_[row].enabled = enabled;
     emitRowChanged(row);
+    emitRelativeCoordinatesChanged();
     emit pointsChanged();
     return true;
 }
@@ -204,6 +214,7 @@ bool ColorPointModel::setPosition(int row, const QPoint& position) {
     if (row < 0 || row >= points_.size() || points_[row].position == position) return false;
     points_[row].position = position;
     emitRowChanged(row);
+    emitRelativeCoordinatesChanged();
     emit pointsChanged();
     return true;
 }
@@ -238,7 +249,10 @@ bool ColorPointModel::setBase(int row) {
         emitRowChanged(index);
         changed = true;
     }
-    if (changed) emit pointsChanged();
+    if (changed) {
+        emitRelativeCoordinatesChanged();
+        emit pointsChanged();
+    }
     return changed;
 }
 
@@ -285,6 +299,13 @@ int ColorPointModel::effectiveBaseRow() const {
 
 void ColorPointModel::emitRowChanged(int row) {
     emit dataChanged(index(row, 0), index(row, ColumnCount - 1));
+}
+
+void ColorPointModel::emitRelativeCoordinatesChanged() {
+    if (points_.isEmpty()) return;
+    emit dataChanged(
+            index(0, RelativeCoordinateColumn),
+            index(points_.size() - 1, RelativeCoordinateColumn));
 }
 
 void ColorPointModel::ensureBasePoint() {

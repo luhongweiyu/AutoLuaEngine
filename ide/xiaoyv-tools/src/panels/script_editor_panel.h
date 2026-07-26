@@ -17,6 +17,8 @@ public:
     explicit ScriptEditorPanel(QWidget* parent = nullptr);
 
     void setCode(const QString& language, const QString& code);
+    void setGeneratedCodeStale(bool stale);
+    bool generatedCodeStale() const;
     /** 根据设备会话状态统一刷新运行和停止按钮。 */
     void setExecutionState(bool running, bool starting, bool stopping);
 
@@ -27,9 +29,11 @@ signals:
 
 private:
     QPlainTextEdit* editor_ = nullptr;
+    QPushButton* copyButton_ = nullptr;
     QPushButton* runButton_ = nullptr;
     QPushButton* stopButton_ = nullptr;
     QString language_ = QStringLiteral("lua");
+    bool generatedCodeStale_ = false;
 };
 
 } // namespace xiaoyv::tools

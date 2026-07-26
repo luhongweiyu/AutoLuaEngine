@@ -62,6 +62,11 @@ QToolButton:checked { background:%3; color:%4; }
 QPushButton { background:%8; border:1px solid %6; padding:1px 5px; min-height:18px; }
 QPushButton:hover { background:%7; }
 QPushButton:pressed { background:%3; color:%4; }
+QPushButton[codeStale="true"] {
+    background:#9A6700; border-color:#F0B429; color:#FFFFFF; font-weight:600;
+}
+QPushButton[codeStale="true"]:hover { background:#B7791F; }
+QPushButton[codeStale="true"]:pressed { background:#7A4C00; color:#FFFFFF; }
 QLineEdit, QPlainTextEdit, QListWidget, QTableView, QTableWidget, QComboBox, QSpinBox {
     background:%9; border:1px solid %6; padding:2px; color:%1;
 }

@@ -7,6 +7,8 @@
 #include <QToolButton>
 #include <QWidget>
 
+class QMenu;
+
 namespace xiaoyv::tools {
 
 /** 可移动、可缩放、可重复抓取的透明置顶选区。 */
@@ -48,13 +50,21 @@ private:
     QRect pressGeometry_;
 };
 
-/** 单击抓取当前目标，按住拖动靶心到其他窗口后释放则更新目标。 */
+/** 单击抓取当前 HWND 客户区，按住拖动靶心到其他窗口或子控件后释放则更新目标。 */
 class WindowCaptureButton final : public QToolButton {
     Q_OBJECT
 
 public:
+    enum class CaptureMode {
+        Window,
+        Screen,
+    };
+    Q_ENUM(CaptureMode)
+
     explicit WindowCaptureButton(QWidget* parent = nullptr);
 
+    CaptureMode captureMode() const;
+    void setCaptureMode(CaptureMode mode);
     void triggerCapture();
     void setDarkTheme(bool dark);
 
@@ -69,12 +79,17 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
+    QRect menuIndicatorRect() const;
+    void captureVisibleTarget();
     quintptr windowAt(const QPoint& globalPosition) const;
     void updateDragTarget(const QPoint& globalPosition);
     void updateTargetIcon(bool active);
+    void updateModeUi();
 
     quintptr targetWindow_ = 0;
     quintptr dragTargetWindow_ = 0;
+    QMenu* captureModeMenu_ = nullptr;
+    CaptureMode captureMode_ = CaptureMode::Window;
     bool pressed_ = false;
     bool dragging_ = false;
     bool darkTheme_ = true;

@@ -76,6 +76,7 @@ QMenu* menuFor(MenuId id, QMenuBar* bar) {
 MainWindow::MainWindow(const QStringList& arguments, QWidget* parent)
         : QMainWindow(parent), deviceClient_(this), generator_(this), theme_(loadTheme()) {
     setWindowTitle(QString::fromUtf8("小鱼抓图取色器"));
+    setWindowIcon(makeApplicationLogoIcon());
     setObjectName(QStringLiteral("xiaoyvToolsMainWindow"));
     setDockNestingEnabled(true);
     resize(1320, 820);
@@ -265,6 +266,8 @@ void MainWindow::createPanels() {
     connect(analysisPanel_, &AnalysisPanel::statusMessage, this, &MainWindow::showStatus);
     connect(fontPanel_, &FontPanel::statusMessage, this, &MainWindow::showStatus);
     connect(colorPanel_, &ColorPanel::codeGenerated, this, &MainWindow::showCode);
+    connect(colorPanel_, &ColorPanel::generatedCodeStaleChanged,
+            scriptEditor_, &ScriptEditorPanel::setGeneratedCodeStale);
     connect(colorPanel_, &ColorPanel::runRequested, this,
             [this](const QString& language, const QString& code) {
                 showCode(language, code);

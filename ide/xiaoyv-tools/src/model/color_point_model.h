@@ -32,6 +32,7 @@ public:
         HexColumn,
         DeltaColumn,
         BaseColumn,
+        RelativeCoordinateColumn,
         ColumnCount,
     };
 
@@ -71,6 +72,7 @@ signals:
 
 private:
     void emitRowChanged(int row);
+    void emitRelativeCoordinatesChanged();
     void ensureBasePoint();
 
     QVector<ColorPoint> points_;

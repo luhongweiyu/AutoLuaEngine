@@ -7,11 +7,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
+option(XIAOYV_BUILD_TESTS "Build Xiaoyv automated tests" OFF)
+
 if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent Qml Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets Network Concurrent Qml)
+if(XIAOYV_BUILD_TESTS)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
+endif()
 
 set(REPOSITORY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(LUA_SOURCE_DIR ${REPOSITORY_ROOT}/engines/android/third_party/lua-5.4.8/src)
@@ -132,6 +137,41 @@ endif()
 
 qt_add_executable(xiaoyv_tools src/main.cpp)
 target_link_libraries(xiaoyv_tools PRIVATE xiaoyv_tools_lib)
+if(WIN32)
+    find_program(
+            POWERSHELL_EXECUTABLE
+            NAMES powershell.exe powershell
+            REQUIRED)
+    set(XIAOYV_WINDOWS_RESOURCE_DIR
+            ${CMAKE_CURRENT_BINARY_DIR}/generated/windows)
+    set(XIAOYV_WINDOWS_ICON_PATH
+            ${XIAOYV_WINDOWS_RESOURCE_DIR}/xiaoyv_tools.ico)
+    set(XIAOYV_WINDOWS_RESOURCE_PATH
+            ${XIAOYV_WINDOWS_RESOURCE_DIR}/xiaoyv_tools.rc)
+    file(MAKE_DIRECTORY ${XIAOYV_WINDOWS_RESOURCE_DIR})
+    configure_file(
+            resources/xiaoyv_tools.rc.in
+            ${XIAOYV_WINDOWS_RESOURCE_PATH}
+            @ONLY)
+    add_custom_command(
+            OUTPUT ${XIAOYV_WINDOWS_ICON_PATH}
+            COMMAND ${POWERSHELL_EXECUTABLE}
+                    -NoProfile
+                    -ExecutionPolicy Bypass
+                    -File ${CMAKE_CURRENT_SOURCE_DIR}/resources/generate_windows_icon.ps1
+                    -OutputPath ${XIAOYV_WINDOWS_ICON_PATH}
+            DEPENDS resources/generate_windows_icon.ps1
+            COMMENT "生成小鱼 Windows EXE 图标"
+            VERBATIM)
+    add_custom_target(
+            xiaoyv_windows_icon_resource
+            DEPENDS ${XIAOYV_WINDOWS_ICON_PATH})
+    add_dependencies(xiaoyv_tools xiaoyv_windows_icon_resource)
+    set_property(
+            SOURCE ${XIAOYV_WINDOWS_RESOURCE_PATH}
+            APPEND PROPERTY OBJECT_DEPENDS ${XIAOYV_WINDOWS_ICON_PATH})
+    target_sources(xiaoyv_tools PRIVATE ${XIAOYV_WINDOWS_RESOURCE_PATH})
+endif()
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     set_target_properties(xiaoyv_tools PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
@@ -144,35 +184,44 @@ add_custom_target(xiaoyv_copy_formats ALL
         COMMENT "复制 Lua/JavaScript 取色格式")
 add_dependencies(xiaoyv_tools xiaoyv_copy_formats)
 
-enable_testing()
-qt_add_executable(xiaoyv_model_tests tests/model_tests.cpp)
-target_link_libraries(xiaoyv_model_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
-add_dependencies(xiaoyv_model_tests xiaoyv_copy_formats)
+if(XIAOYV_BUILD_TESTS)
+    enable_testing()
+    qt_add_executable(xiaoyv_model_tests tests/model_tests.cpp)
+    target_link_libraries(xiaoyv_model_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
+    add_dependencies(xiaoyv_model_tests xiaoyv_copy_formats)
 
-qt_add_executable(xiaoyv_ui_tests tests/ui_tests.cpp)
-target_link_libraries(xiaoyv_ui_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
-add_dependencies(xiaoyv_ui_tests xiaoyv_copy_formats)
+    qt_add_executable(xiaoyv_ui_tests tests/ui_tests.cpp)
+    target_link_libraries(xiaoyv_ui_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
+    add_dependencies(xiaoyv_ui_tests xiaoyv_copy_formats)
 
-qt_add_executable(xiaoyv_app_smoke_tests tests/app_smoke_test.cpp)
-target_link_libraries(xiaoyv_app_smoke_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
-add_dependencies(xiaoyv_app_smoke_tests xiaoyv_copy_formats)
+    qt_add_executable(xiaoyv_app_smoke_tests tests/app_smoke_test.cpp)
+    target_link_libraries(xiaoyv_app_smoke_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
+    add_dependencies(xiaoyv_app_smoke_tests xiaoyv_copy_formats)
 
-qt_add_executable(xiaoyv_device_tests tests/device_client_test.cpp)
-target_link_libraries(xiaoyv_device_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
-add_dependencies(xiaoyv_device_tests xiaoyv_copy_formats)
+    qt_add_executable(xiaoyv_device_tests tests/device_client_test.cpp)
+    target_link_libraries(xiaoyv_device_tests PRIVATE xiaoyv_tools_lib Qt6::Test)
+    add_dependencies(xiaoyv_device_tests xiaoyv_copy_formats)
 
-add_test(NAME xiaoyv_model_tests COMMAND xiaoyv_model_tests)
-add_test(NAME xiaoyv_ui_tests COMMAND xiaoyv_ui_tests)
-add_test(NAME xiaoyv_app_smoke_tests COMMAND xiaoyv_app_smoke_tests)
-add_test(NAME xiaoyv_device_tests COMMAND xiaoyv_device_tests)
-add_test(
-        NAME xiaoyv_architecture_tests
-        COMMAND ${CMAKE_COMMAND}
-                -DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/architecture_rules.cmake)
+    add_test(NAME xiaoyv_model_tests COMMAND xiaoyv_model_tests)
+    add_test(NAME xiaoyv_ui_tests COMMAND xiaoyv_ui_tests)
+    add_test(NAME xiaoyv_app_smoke_tests COMMAND xiaoyv_app_smoke_tests)
+    add_test(NAME xiaoyv_device_tests COMMAND xiaoyv_device_tests)
+    add_test(
+            NAME xiaoyv_architecture_tests
+            COMMAND ${CMAKE_COMMAND}
+                    -DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/architecture_rules.cmake)
+endif()
 
 if(MSVC)
-    foreach(target xiaoyv_tools xiaoyv_model_tests xiaoyv_ui_tests xiaoyv_app_smoke_tests xiaoyv_device_tests)
-        target_compile_options(${target} PRIVATE /W4)
-    endforeach()
+    target_compile_options(xiaoyv_tools PRIVATE /W4)
+    if(XIAOYV_BUILD_TESTS)
+        foreach(target
+                xiaoyv_model_tests
+                xiaoyv_ui_tests
+                xiaoyv_app_smoke_tests
+                xiaoyv_device_tests)
+            target_compile_options(${target} PRIVATE /W4)
+        endforeach()
+    endif()
 endif()

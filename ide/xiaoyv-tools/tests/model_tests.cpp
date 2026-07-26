@@ -6,6 +6,7 @@
 #include "core/image_processing.h"
 #include "core/selection_range.h"
 #include "generator/generator_engine.h"
+#include "model/color_point_model.h"
 #include "model/font_dictionary_document.h"
 #include "model/image_document.h"
 
@@ -24,6 +25,7 @@ private slots:
     void parsesSelectionWithoutImageBounds();
     void parsesColorRulesAndFindsPattern();
     void tracksTemporaryAndFileImageState();
+    void computesRelativeColorPointCoordinates();
     void preservesColorPointsAcrossImageChanges();
     void rejectsStalePreview();
     void createsBinaryPreview();
@@ -88,6 +90,26 @@ void ModelTests::tracksTemporaryAndFileImageState() {
     QVERIFY(temporary.canUndo());
     temporary.undo();
     QVERIFY(!temporary.isModified());
+}
+
+void ModelTests::computesRelativeColorPointCoordinates() {
+    ColorPointModel model;
+    model.addPoint(QPoint(10, 20), Qt::white);
+    model.addPoint(QPoint(14, 17), Qt::red);
+
+    const QModelIndex first = model.index(0, ColorPointModel::RelativeCoordinateColumn);
+    const QModelIndex second = model.index(1, ColorPointModel::RelativeCoordinateColumn);
+    QCOMPARE(model.data(first, Qt::DisplayRole).toString(), QStringLiteral("0,0"));
+    QCOMPARE(model.data(second, Qt::DisplayRole).toString(), QStringLiteral("4,-3"));
+    QVERIFY(!(model.flags(second) & Qt::ItemIsEditable));
+    QVERIFY(!model.setData(second, QStringLiteral("1,1"), Qt::EditRole));
+
+    QVERIFY(model.setBase(1));
+    QCOMPARE(model.data(first, Qt::DisplayRole).toString(), QStringLiteral("-4,3"));
+    QCOMPARE(model.data(second, Qt::DisplayRole).toString(), QStringLiteral("0,0"));
+    QVERIFY(model.setEnabled(1, false));
+    QCOMPARE(model.data(first, Qt::DisplayRole).toString(), QStringLiteral("0,0"));
+    QCOMPARE(model.data(second, Qt::DisplayRole).toString(), QStringLiteral("4,-3"));
 }
 
 void ModelTests::preservesColorPointsAcrossImageChanges() {
@@ -231,7 +253,9 @@ void ModelTests::mergesExternalDictionaryChangesAtomically() {
     QString error;
     QVERIFY(document.load(path, &error));
     QCOMPARE(document.rowCount(), 1);
-    QVERIFY(document.data(document.index(0, 0), Qt::DisplayRole).toString().contains(QStringLiteral("A")));
+    QVERIFY(document.data(document.index(0, 0), Qt::DisplayRole)
+                    .toString()
+                    .contains(QStringLiteral("A")));
     FontDictionaryRecord second;
     QVERIFY(FontDictionaryDocument::parseRecord(QStringLiteral("B$1$1$8"), &second, &error));
     QCOMPARE(document.add(second, FontDictionaryDocument::DuplicateDecision::Skip),
@@ -276,7 +300,8 @@ void ModelTests::resolvesExternalDictionaryConflict() {
     int resolverCalls = 0;
     QString existingLabel;
     QString incomingLabel;
-    QVERIFY(document.save(path,
+    QVERIFY(document.save(
+            path,
             [&resolverCalls, &existingLabel, &incomingLabel](
                     const FontDictionaryRecord& existing,
                     const FontDictionaryRecord& incoming,
@@ -297,36 +322,44 @@ void ModelTests::generatesAllBuiltInFormats() {
     GeneratorEngine generator;
     QVERIFY2(!generator.formats().isEmpty(), qPrintable(generator.loadErrors().join('\n')));
     QVariantMap context{
-            {QStringLiteral("points"), QVariantList{
-                    QVariantMap{{"enabled", true}, {"base", true}, {"x", 10}, {"y", 20},
-                                {"dx", 0}, {"dy", 0}, {"hex", "FFFFFF"}, {"delta", "000000"}}
-            }},
-            {QStringLiteral("region"), QVariantMap{{"left", 0}, {"top", 0}, {"right", 100}, {"bottom", 200}}},
+            {QStringLiteral("points"),
+             QVariantList{
+                     QVariantMap{{"enabled", true},
+                                 {"base", true},
+                                 {"x", 10},
+                                 {"y", 20},
+                                 {"dx", 0},
+                                 {"dy", 0},
+                                 {"hex", "FFFFFF"},
+                                 {"delta", "000000"}}}},
+            {QStringLiteral("region"),
+             QVariantMap{{"left", 0}, {"top", 0}, {"right", 100}, {"bottom", 200}}},
             {QStringLiteral("direction"), 1},
             {QStringLiteral("defaultDelta"), QStringLiteral("000000")},
     };
     QString error;
-    const QString code = generator.generate(QStringLiteral("m-find-colors-lua"), context, &error);
+    const QString code =
+            generator.generate(QStringLiteral("m-find-colors-lua"), context, &error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QVERIFY(code.contains(QStringLiteral("m.findColors")));
-    const QString javaScript = generator.generate(
-            QStringLiteral("m-find-colors-js"), context, &error);
+    const QString javaScript =
+            generator.generate(QStringLiteral("m-find-colors-js"), context, &error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QVERIFY(javaScript.contains(QStringLiteral("m.findColors")));
-    const QString coordinateLua = generator.generate(
-            QStringLiteral("coordinate-list-lua"), context, &error);
+    const QString coordinateLua =
+            generator.generate(QStringLiteral("coordinate-list-lua"), context, &error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QVERIFY(coordinateLua.contains(QStringLiteral("local points")));
-    const QString coordinateJavaScript = generator.generate(
-            QStringLiteral("coordinate-list-js"), context, &error);
+    const QString coordinateJavaScript =
+            generator.generate(QStringLiteral("coordinate-list-js"), context, &error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QVERIFY(coordinateJavaScript.contains(QStringLiteral("const points")));
 }
 
 void ModelTests::usesExecutableFormatsDirectory() {
     GeneratorEngine generator;
-    const QString expected = QDir::cleanPath(
-            QCoreApplication::applicationDirPath() + QStringLiteral("/formats"));
+    const QString expected =
+            QDir::cleanPath(QCoreApplication::applicationDirPath() + QStringLiteral("/formats"));
     // 格式目录必须与当前测试程序同级，确保正式程序也不会回退到系统配置目录。
     QCOMPARE(QDir::cleanPath(generator.formatsDirectory()), expected);
     QVERIFY(QDir(expected).exists());

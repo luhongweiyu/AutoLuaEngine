@@ -168,7 +168,9 @@ ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
     auto* refreshSelectedButton = new QPushButton(QString::fromUtf8("刷新选中"), this);
     auto* refreshAllButton = new QPushButton(QString::fromUtf8("刷新全部"), this);
     auto* clearButton = new QPushButton(QString::fromUtf8("清空"), this);
-    auto* generateButton = new QPushButton(QString::fromUtf8("生成代码"), this);
+    generateButton_ = new QPushButton(QString::fromUtf8("生成代码"), this);
+    generateButton_->setObjectName(QStringLiteral("generateCodeButton"));
+    generateButton_->setProperty("codeStale", false);
     auto* runButton = new QPushButton(QString::fromUtf8("发送运行"), this);
 
     auto* form = new QFormLayout();
@@ -190,7 +192,7 @@ ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
     actions->addWidget(refreshAllButton);
     actions->addWidget(clearButton);
     actions->addStretch();
-    actions->addWidget(generateButton);
+    actions->addWidget(generateButton_);
     actions->addWidget(runButton);
 
     auto* layout = new QVBoxLayout(this);
@@ -202,6 +204,7 @@ ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
 
     connect(rangeEditor_, &RangeEditor::rangeEdited, this, [this](const QRect& range) {
         // 框选状态只由当前 ImageDocument 或主窗口的待用范围持有；面板仅提交用户输入。
+        markGeneratedCodeStale();
         emit selectionRangeEdited(range);
     });
     connect(rangeEditor_, &RangeEditor::selectionModeRequested,
@@ -212,8 +215,14 @@ ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
     connect(clearButton, &QPushButton::clicked, this, [this] {
         if (document_ != nullptr) document_->colorPoints()->clear();
     });
-    connect(generateButton, &QPushButton::clicked, this, [this] { generateCode(false); });
+    connect(generateButton_, &QPushButton::clicked, this, [this] { generateCode(false); });
     connect(runButton, &QPushButton::clicked, this, [this] { generateCode(true); });
+    connect(formatCombo_, &QComboBox::currentIndexChanged, this,
+            [this](int) { markGeneratedCodeStale(); });
+    connect(directionCombo_, &QComboBox::currentIndexChanged, this,
+            [this](int) { markGeneratedCodeStale(); });
+    connect(defaultDeltaEdit_, &QLineEdit::textChanged, this,
+            [this](const QString&) { markGeneratedCodeStale(); });
     connect(table_, &QTableView::clicked, this, [this](const QModelIndex& index) {
         if (document_ == nullptr || index.column() != ColorPointModel::SwatchColumn) return;
         const ColorPoint* point = document_->colorPoints()->point(index.row());
@@ -222,25 +231,38 @@ ColorPanel::ColorPanel(GeneratorEngine* generator, QWidget* parent)
                 point->color, this, QString::fromUtf8("选择取色点颜色"));
         if (selected.isValid()) document_->colorPoints()->setColor(index.row(), selected);
     });
-    connect(generator_, &GeneratorEngine::formatsChanged, this, &ColorPanel::rebuildFormats);
+    connect(generator_, &GeneratorEngine::formatsChanged, this, [this] {
+        markGeneratedCodeStale();
+        rebuildFormats();
+    });
     rebuildFormats();
 }
 
 void ColorPanel::setDocument(ImageDocument* document) {
     if (document_ == document) return;
     disconnect(selectionConnection_);
+    disconnect(pointsConnection_);
+    markGeneratedCodeStale();
     document_ = document;
     table_->setModel(document_ == nullptr ? nullptr : document_->colorPoints());
     if (document_ != nullptr) {
         rangeEditor_->setRange(document_->selection());
         selectionConnection_ = connect(document_, &ImageDocument::selectionChanged, this,
-                [this](const QRect& range) { rangeEditor_->setRange(range); });
+                [this](const QRect& range) {
+                    rangeEditor_->setRange(range);
+                    markGeneratedCodeStale();
+                });
+        pointsConnection_ = connect(
+                document_->colorPoints(), &ColorPointModel::pointsChanged,
+                this, &ColorPanel::markGeneratedCodeStale);
         const QFontMetrics metrics(table_->font());
         const int indicatorWidth = table_->style()->pixelMetric(QStyle::PM_IndicatorWidth);
         const int indicatorSpacing = table_->style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing);
         const int sequenceWidth = indicatorWidth + indicatorSpacing
                 + metrics.horizontalAdvance(QStringLiteral("99")) + 6;
         const int coordinateWidth = metrics.horizontalAdvance(QStringLiteral("9999,9999 ")) + 6;
+        const int relativeCoordinateWidth =
+                metrics.horizontalAdvance(QStringLiteral("-9999,-9999 ")) + 6;
         const int colorWidth = metrics.horizontalAdvance(QStringLiteral("RRGGBB ")) + 6;
         const int baseWidth = indicatorWidth + indicatorSpacing
                 + metrics.horizontalAdvance(QString::fromUtf8("基准")) + 6;
@@ -255,6 +277,8 @@ void ColorPanel::setDocument(ImageDocument* document) {
         table_->setColumnWidth(ColorPointModel::HexColumn, colorWidth);
         table_->setColumnWidth(ColorPointModel::DeltaColumn, colorWidth);
         table_->setColumnWidth(ColorPointModel::BaseColumn, baseWidth);
+        table_->setColumnWidth(
+                ColorPointModel::RelativeCoordinateColumn, relativeCoordinateWidth);
     }
 }
 
@@ -331,8 +355,27 @@ void ColorPanel::generateCode(bool runAfterGenerate) {
         return;
     }
     const QString language = currentLanguage();
+    hasGeneratedCode_ = true;
+    setGeneratedCodeStale(false);
     emit codeGenerated(language, code);
     if (runAfterGenerate) emit runRequested(language, code);
+}
+
+void ColorPanel::markGeneratedCodeStale() {
+    if (hasGeneratedCode_) setGeneratedCodeStale(true);
+}
+
+void ColorPanel::setGeneratedCodeStale(bool stale) {
+    if (generatedCodeStale_ == stale) return;
+    generatedCodeStale_ = stale;
+    generateButton_->setProperty("codeStale", stale);
+    generateButton_->setToolTip(stale
+            ? QString::fromUtf8("取色点或生成参数已变化，请重新生成代码")
+            : QString{});
+    generateButton_->style()->unpolish(generateButton_);
+    generateButton_->style()->polish(generateButton_);
+    generateButton_->update();
+    emit generatedCodeStaleChanged(stale);
 }
 
 QVariantMap ColorPanel::buildContext(QString* error) const {

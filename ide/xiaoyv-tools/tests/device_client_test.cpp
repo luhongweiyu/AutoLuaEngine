@@ -37,14 +37,17 @@ public:
                     for (QByteArray header : headers) {
                         header = header.trimmed();
                         if (header.toLower().startsWith("content-length:")) {
-                            contentLength = header.mid(header.indexOf(':') + 1).trimmed().toInt();
+                            contentLength =
+                                    header.mid(header.indexOf(':') + 1).trimmed().toInt();
                         }
                     }
                     if (buffer.size() < headerEnd + 4 + contentLength) return;
                     respond(socket, buffer.left(headerEnd + 4 + contentLength));
                     buffers_.remove(socket);
                 });
-                connect(socket, &QObject::destroyed, this, [this, socket] { buffers_.remove(socket); });
+                connect(socket, &QObject::destroyed, this, [this, socket] {
+                    buffers_.remove(socket);
+                });
             }
         });
     }
@@ -100,8 +103,14 @@ private:
             ++screenshotRequests_;
             contentType = "application/x-xiaoyv-rgba";
             body = "XYVF";
-            body.append(char(1)); body.append(char(0)); body.append(char(0)); body.append(char(0));
-            body.append(char(1)); body.append(char(0)); body.append(char(0)); body.append(char(0));
+            body.append(char(1));
+            body.append(char(0));
+            body.append(char(0));
+            body.append(char(0));
+            body.append(char(1));
+            body.append(char(0));
+            body.append(char(0));
+            body.append(char(0));
             body.append(QByteArray::fromHex("010203FF"));
         } else if (header.startsWith("PUT /tool/image ")) {
             ++projectionUploads_;
@@ -118,8 +127,10 @@ private:
             if (method == QLatin1String("viewer.openImage")) ++projectionOpens_;
             QJsonValue result = true;
             if (method == QLatin1String("log.drain")) {
-                result = QJsonObject{{QStringLiteral("entries"), QJsonArray{}},
-                                     {QStringLiteral("lastId"), 0}};
+                result = QJsonObject{
+                        {QStringLiteral("entries"), QJsonArray{}},
+                        {QStringLiteral("lastId"), 0},
+                };
             }
             body = QJsonDocument(QJsonObject{
                     {QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
@@ -136,7 +147,8 @@ private:
                     const QByteArray completed = QJsonDocument(QJsonObject{
                             {QStringLiteral("jsonrpc"), QStringLiteral("2.0")},
                             {QStringLiteral("id"), runningId},
-                            {QStringLiteral("result"), QJsonObject{{QStringLiteral("stopped"), true}}},
+                            {QStringLiteral("result"),
+                             QJsonObject{{QStringLiteral("stopped"), true}}},
                     }).toJson(QJsonDocument::Compact);
                     writeResponse(running, completed);
                 });
@@ -149,7 +161,8 @@ private:
     }
 
     QHash<QTcpSocket*, QByteArray> buffers_;
-    // server_ 必须先于 buffers_ 析构；关闭服务器销毁 socket 时，destroyed 回调仍会访问 buffers_。
+    // server_ 必须先于 buffers_ 析构；关闭服务器销毁 socket 时，destroyed 回调仍会访问
+    // buffers_。
     QTcpServer server_;
     QPointer<QTcpSocket> pendingScript_;
     int pendingScriptId_ = 0;

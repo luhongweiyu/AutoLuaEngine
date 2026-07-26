@@ -8,6 +8,7 @@
 #include <QHBoxLayout>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStyle>
 #include <QVBoxLayout>
 
 namespace xiaoyv::tools {
@@ -17,7 +18,10 @@ ScriptEditorPanel::ScriptEditorPanel(QWidget* parent)
     editor_ = new QPlainTextEdit(this);
     editor_->setObjectName(QStringLiteral("generatedCodeEditor"));
     editor_->setPlaceholderText(QString::fromUtf8("生成的 Lua 或 JavaScript 代码"));
-    auto* copyButton = new QPushButton(QString::fromUtf8("复制"), this);
+    editor_->setLineWrapMode(QPlainTextEdit::NoWrap);
+    copyButton_ = new QPushButton(QString::fromUtf8("复制"), this);
+    copyButton_->setObjectName(QStringLiteral("copyGeneratedCodeButton"));
+    copyButton_->setProperty("codeStale", false);
     runButton_ = new QPushButton(QString::fromUtf8("运行当前代码"), this);
     stopButton_ = new QPushButton(QString::fromUtf8("停止"), this);
     stopButton_->setEnabled(false);
@@ -25,7 +29,7 @@ ScriptEditorPanel::ScriptEditorPanel(QWidget* parent)
     auto* actions = new QHBoxLayout();
     actions->setContentsMargins(0, 0, 0, 0);
     actions->setSpacing(3);
-    actions->addWidget(copyButton);
+    actions->addWidget(copyButton_);
     actions->addWidget(runButton_);
     actions->addWidget(stopButton_);
     actions->addStretch();
@@ -36,9 +40,11 @@ ScriptEditorPanel::ScriptEditorPanel(QWidget* parent)
     layout->addLayout(actions);
     layout->addWidget(editor_);
 
-    connect(copyButton, &QPushButton::clicked, this, [this] {
+    connect(copyButton_, &QPushButton::clicked, this, [this] {
         QApplication::clipboard()->setText(editor_->toPlainText());
-        emit statusMessage(QString::fromUtf8("代码已复制"));
+        emit statusMessage(generatedCodeStale_
+                ? QString::fromUtf8("已复制，但当前代码不是最新生成结果")
+                : QString::fromUtf8("代码已复制"));
     });
     connect(runButton_, &QPushButton::clicked, this, [this] {
         emit runRequested(language_, editor_->toPlainText());
@@ -50,6 +56,23 @@ void ScriptEditorPanel::setCode(const QString& language, const QString& code) {
     language_ = language.trimmed().toLower();
     if (language_.isEmpty()) language_ = QStringLiteral("lua");
     editor_->setPlainText(code);
+    setGeneratedCodeStale(false);
+}
+
+void ScriptEditorPanel::setGeneratedCodeStale(bool stale) {
+    if (generatedCodeStale_ == stale) return;
+    generatedCodeStale_ = stale;
+    copyButton_->setProperty("codeStale", stale);
+    copyButton_->setToolTip(stale
+            ? QString::fromUtf8("取色点或生成参数已变化，下面的代码不是最新结果")
+            : QString{});
+    copyButton_->style()->unpolish(copyButton_);
+    copyButton_->style()->polish(copyButton_);
+    copyButton_->update();
+}
+
+bool ScriptEditorPanel::generatedCodeStale() const {
+    return generatedCodeStale_;
 }
 
 void ScriptEditorPanel::setExecutionState(bool running, bool starting, bool stopping) {

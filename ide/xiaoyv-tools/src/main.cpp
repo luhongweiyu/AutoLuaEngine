@@ -4,6 +4,7 @@
 #include "main_window.h"
 
 #include "ui/app_theme.h"
+#include "ui/tool_icons.h"
 
 #include <QApplication>
 #include <QFont>
@@ -21,6 +22,7 @@ int main(int argc, char* argv[]) {
     QCoreApplication::setOrganizationName(QStringLiteral("xiaoyv"));
     QCoreApplication::setApplicationName(QStringLiteral("xiaoyv-tools"));
     QCoreApplication::setApplicationVersion(QStringLiteral("1.0.0"));
+    application.setWindowIcon(xiaoyv::tools::makeApplicationLogoIcon());
     xiaoyv::tools::applyApplicationTheme(&application, xiaoyv::tools::loadTheme());
 
     xiaoyv::tools::MainWindow window(application.arguments());
