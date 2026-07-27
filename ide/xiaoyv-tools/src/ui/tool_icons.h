@@ -28,7 +28,7 @@ enum class ToolIcon {
     Stop,
 };
 
-/** 与 Android 端共用造型和主色的小鱼应用 Logo。 */
+/** 从内置品牌图生成小鱼精灵应用 Logo。 */
 QIcon makeApplicationLogoIcon();
 QIcon makeToolIcon(ToolIcon icon, bool darkTheme);
 

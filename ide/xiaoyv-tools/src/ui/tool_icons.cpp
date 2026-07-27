@@ -1,14 +1,20 @@
 /**
- * 文件用途：使用 QPainter 在目标 DPI 直接绘制工具图标，避免缩放位图造成轮廓发虚。
+ * 文件用途：绘制高 DPI 工具图标，并从内置品牌资源生成应用 Logo。
  */
 #include "ui/tool_icons.h"
 
 #include <QFont>
+#include <QImage>
 #include <QIconEngine>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPolygonF>
+#include <QResource>
 #include <QTransform>
+
+static void initializeXiaoyvBrandingResources() {
+    Q_INIT_RESOURCE(xiaoyv_branding);
+}
 
 namespace xiaoyv::tools {
 namespace {
@@ -180,65 +186,19 @@ void drawToolIcon(QPainter& painter, ToolIcon icon, bool darkTheme, bool disable
     }
 }
 
+const QImage& applicationLogoImage() {
+    static const QImage image = [] {
+        initializeXiaoyvBrandingResources();
+        return QImage(QStringLiteral(":/branding/xiaoyv_app_icon.png"));
+    }();
+    return image;
+}
+
 void drawApplicationLogo(QPainter& painter) {
-    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QImage& image = applicationLogoImage();
+    if (image.isNull()) return;
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(QStringLiteral("#1479D1")));
-    painter.drawRoundedRect(QRectF(2, 2, 104, 104), 23, 23);
-
-    QPainterPath tail;
-    tail.moveTo(77, 43);
-    tail.lineTo(96, 31);
-    tail.lineTo(91, 48);
-    tail.lineTo(100, 54);
-    tail.lineTo(91, 60);
-    tail.lineTo(96, 77);
-    tail.lineTo(77, 65);
-    tail.closeSubpath();
-    painter.fillPath(tail, QColor(QStringLiteral("#4FD7C8")));
-
-    QPainterPath body;
-    body.moveTo(16, 54);
-    body.cubicTo(16, 36.3, 31.3, 23, 51, 23);
-    body.cubicTo(69.8, 23, 84, 36.5, 84, 54);
-    body.cubicTo(84, 71.5, 69.8, 85, 51, 85);
-    body.cubicTo(31.3, 85, 16, 71.7, 16, 54);
-    body.closeSubpath();
-    painter.fillPath(body, Qt::white);
-
-    QPainterPath dorsalFin;
-    dorsalFin.moveTo(54, 24);
-    dorsalFin.cubicTo(64, 25, 72, 29, 77, 36);
-    dorsalFin.cubicTo(68, 35, 61, 37, 55, 42);
-    dorsalFin.closeSubpath();
-    painter.fillPath(dorsalFin, QColor(QStringLiteral("#4FD7C8")));
-
-    QPainterPath sideFin;
-    sideFin.moveTo(53, 55);
-    sideFin.cubicTo(65, 57, 71, 64, 69, 74);
-    sideFin.cubicTo(61, 70, 55, 65, 49, 59);
-    sideFin.closeSubpath();
-    painter.fillPath(sideFin, QColor(QStringLiteral("#C4F5EF")));
-
-    const QColor detailColor(QStringLiteral("#123A63"));
-    painter.setBrush(detailColor);
-    painter.drawEllipse(QRectF(33, 39, 12, 12));
-
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(detailColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    QPainterPath mouth;
-    mouth.moveTo(21, 61);
-    mouth.cubicTo(24, 63, 28, 63, 31, 61);
-    painter.drawPath(mouth);
-
-    painter.setPen(QPen(QColor(QStringLiteral("#1479D1")),
-                        3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-    QPainterPath gill;
-    gill.moveTo(48, 39);
-    gill.cubicTo(43, 46, 43, 61, 48, 68);
-    painter.drawPath(gill);
+    painter.drawImage(QRectF(0, 0, 108, 108), image);
 }
 
 /**

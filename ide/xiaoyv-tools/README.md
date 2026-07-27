@@ -23,6 +23,9 @@
 
 生成文件：`build/xiaoyv_tools.exe`。
 
+窗口图标与 Windows EXE 图标统一从 `resources/xiaoyv_app_icon.png` 派生。更新品牌图标时只替换
+这张源图；Qt 资源和 Windows 多尺寸 ICO 会在构建时自动生成。
+
 生成格式位于 exe 同级的 `formats` 目录。内置格式也放在此目录，用户可以直接修改、删除或新增格式；程序中的“打开格式目录”会打开这个目录。
 
 最终工作逻辑以

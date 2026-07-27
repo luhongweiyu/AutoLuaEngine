@@ -8,7 +8,7 @@
 | 目录 | 用途 | 是否可直接发布 |
 |---|---|---|
 | [`internal/`](internal/) | 当前计划、架构、构建方式、契约和平台实现说明 | 否 |
-| [`public/`](public/) | 面向脚本用户的 API 文档及静态网页入口 | 是 |
+| [`public/`](public/) | 面向用户的宣传首页、API 文档及静态网页入口 | 是 |
 | [`archive/`](archive/) | 历史核对与旧项目参考，只用于追溯 | 否 |
 
 只有 `public/` 是发布白名单。以后制作官网或同步到静态托管时，应以该目录为根目录，不要
@@ -34,7 +34,7 @@
 | Android 引擎、Root、截图、Java、UI、ImGui、多线程 | [`internal/platform/android/`](internal/platform/android/) 中对应说明 |
 | IDE / 抓图取色器 | [工具说明](internal/ide/PC_抓图取色工具.md)、[行为契约](internal/contracts/PC_抓图取色器_行为契约.md) |
 | 构建或运行 | [构建与运行](internal/构建与运行.md) |
-| 脚本 API 用法 | [公开脚本文档](public/脚本文档.md) 或 [交互式脚本文档](public/脚本文档.html) |
+| 官网与脚本 API 用法 | [宣传首页](public/index.html)、[公开脚本文档](public/脚本文档.md) 或 [交互式脚本文档](public/脚本文档.html) |
 | 当前需要用户配合的事项 | [用户待办事项](internal/用户待办事项.md) |
 | 历史原因 | [归档说明](archive/README.md)，只用于追溯 |
 
@@ -56,4 +56,4 @@
 - 仅排版或位置调整：不要把它描述成新的业务能力。
 - 发布文档：只发布 `public/`，并保持其内部相对路径不变。
 
-文档治理决定见 [0001：内部权威资料与公开发布边界](internal/decisions/0001-内部权威资料与公开发布边界.md)。
+长期决定见 [项目决策记录](internal/decisions/README.md)。

@@ -115,6 +115,10 @@ set(XIAOYV_TOOLS_SOURCES
         src/ui/tool_icons.h)
 
 add_library(xiaoyv_tools_lib STATIC ${XIAOYV_TOOLS_SOURCES})
+qt_add_resources(xiaoyv_tools_lib "xiaoyv_branding"
+        PREFIX "/branding"
+        BASE resources
+        FILES resources/xiaoyv_app_icon.png)
 target_include_directories(xiaoyv_tools_lib PUBLIC src)
 if(MSVC)
     target_compile_options(xiaoyv_tools_lib PRIVATE /W4)
@@ -156,8 +160,11 @@ if(WIN32)
                     -NoProfile
                     -ExecutionPolicy Bypass
                     -File ${CMAKE_CURRENT_SOURCE_DIR}/resources/generate_windows_icon.ps1
+                    -SourcePath ${CMAKE_CURRENT_SOURCE_DIR}/resources/xiaoyv_app_icon.png
                     -OutputPath ${XIAOYV_WINDOWS_ICON_PATH}
-            DEPENDS resources/generate_windows_icon.ps1
+            DEPENDS
+                    resources/generate_windows_icon.ps1
+                    resources/xiaoyv_app_icon.png
             COMMENT "生成小鱼 Windows EXE 图标"
             VERBATIM)
     add_custom_target(
