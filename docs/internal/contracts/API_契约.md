@@ -18,6 +18,16 @@ Java 后端，但使用各自对象包装。
 C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层路线。后缀沿用已确定
 脚本 API 的命名，例如 `engine_inputText`、`engine_imeSetText`，避免跨层出现不同名称。
 
+## Android 脚本 API 设计基线
+
+新增 Android 脚本能力先参考懒人精灵和触动精灵的公开文档。两者一致或可直接兼容时，Lua
+及其他语言绑定默认保持相同的函数名称、参数顺序、可选参数、默认值、返回值和失败语义。
+
+若两份文档存在实质差异，结合兼容性、清晰度和长期稳定性自行选择更优的一方。只有拟采用
+两者之外更优的名称、参数或返回结构时，才必须先向用户说明并获得确认；不能因内部实现
+方便而自行设计不兼容的公开接口。确定后再把具体接口写入本契约、公开函数页、API 总览与
+`catalog.json`。
+
 Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`，
 AndroidBridge 再通过 `:engine` 的认证 socket 请求主进程预先启动的 RootDaemon。脚本、JS、Go 和
 插件不会各自启动 `su`，也不需要感知 RootDaemon 的端口或令牌。
