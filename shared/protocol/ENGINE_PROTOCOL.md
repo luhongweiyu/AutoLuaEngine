@@ -1,6 +1,6 @@
 # 引擎通讯协议
 
-IDE、VSCode 插件和 PC 工具通过 HTTP 连接 Android `EngineHttpServer`。服务监听设备引擎
+IDE 工具链中的 VSCode 插件和 Qt 抓图取色工具通过 HTTP 连接 Android `EngineHttpServer`。服务监听设备引擎
 端口，使用线程池支持多个客户端并发连接。ADB 客户端各自建立独立端口转发，局域网客户端
 各自直连设备，不通过其他 IDE 或工具中转。Qt 工具使用动态本机端口，VSCode 使用配置端口。
 
@@ -98,5 +98,5 @@ int engine_getScreenPixels(int* width, int* height, unsigned char** pixels);
 更多细节见：
 
 ```text
-docs/ANDROID_SO_截图核心.md
+docs/internal/platform/android/ANDROID_SO_截图核心.md
 ```

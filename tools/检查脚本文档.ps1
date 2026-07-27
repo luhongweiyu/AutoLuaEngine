@@ -1,11 +1,12 @@
-<#
+﻿<#
 文件用途：校验脚本文档的目录与函数页是否保持一致。
 
-本脚本只读取仓库文件，不会修改文档。它用于在提交前发现四类常见问题：
+本脚本只读取仓库文件，不会修改文档。它用于在提交前发现以下常见问题：
 1. catalog.json 引用了不存在的 Markdown 文件；
 2. 新增函数页没有加入目录，或目录重复引用同一文件；
 3. 函数页的 params / returns 元数据不在文件开头，导致交互式文档无法解析。
 4. 带 cmd 的脚本 API 页面缺少统一的名称、语法、参数、返回值或详细说明区块。
+5. 公开文档存在断链、链接逃出发布目录，或包含内部源码路径。
 #>
 
 [CmdletBinding()]
@@ -15,7 +16,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $仓库根目录 = Split-Path -Parent $PSScriptRoot
-$文档根目录 = Join-Path $仓库根目录 'docs\脚本文档'
+$公开文档根目录 = Join-Path $仓库根目录 'docs\public'
+$文档根目录 = Join-Path $仓库根目录 'docs\public\脚本文档'
 $目录文件 = Join-Path $文档根目录 'catalog.json'
 $Markdown根目录 = Join-Path $文档根目录 'md'
 $错误列表 = [System.Collections.Generic.List[string]]::new()
@@ -150,6 +152,45 @@ $实际相对路径 = $全部函数页 | ForEach-Object {
 foreach ($相对路径 in $实际相对路径) {
     if ($相对路径 -notin $目录文档路径) {
         添加错误 "函数页未加入 catalog.json：$相对路径"
+    }
+}
+
+# 公开目录是发布白名单。普通本地链接必须存在且仍位于该目录，内部源码路径也不能混入。
+$公开根路径 = [System.IO.Path]::GetFullPath($公开文档根目录).TrimEnd('\') + '\'
+$本地链接模式 = [regex]'\[[^\]]+\]\(([^)]+)\)'
+$内部路径模式 = [regex]'(?i)(docs[/\\]internal|engines[/\\]android[/\\]app[/\\]src|core[/\\]api|runtime[/\\]lua|system_c_api)'
+
+if (-not (Test-Path -LiteralPath $公开文档根目录 -PathType Container)) {
+    添加错误 "缺少公开文档目录：$公开文档根目录"
+} else {
+    $公开Markdown = Get-ChildItem -LiteralPath $公开文档根目录 -Recurse -File -Filter '*.md'
+    foreach ($文件 in $公开Markdown) {
+        $正文 = Get-Content -LiteralPath $文件.FullName -Raw -Encoding UTF8
+        $公开相对路径 = $文件.FullName.Substring($公开文档根目录.Length + 1).Replace('\', '/')
+
+        if ($内部路径模式.IsMatch($正文)) {
+            添加错误 "公开文档包含内部源码路径：$公开相对路径"
+        }
+
+        foreach ($匹配 in $本地链接模式.Matches($正文)) {
+            $链接 = $匹配.Groups[1].Value.Trim()
+            if ($链接 -match '^(https?://|mailto:|#)') {
+                continue
+            }
+            $链接 = ($链接 -split '#', 2)[0]
+            if ([string]::IsNullOrWhiteSpace($链接)) {
+                continue
+            }
+
+            $解析路径 = [System.IO.Path]::GetFullPath(
+                (Join-Path $文件.DirectoryName ([System.Uri]::UnescapeDataString($链接)))
+            )
+            if (-not $解析路径.StartsWith($公开根路径, [System.StringComparison]::OrdinalIgnoreCase)) {
+                添加错误 "公开文档链接逃出发布目录：$公开相对路径 -> $链接"
+            } elseif (-not (Test-Path -LiteralPath $解析路径)) {
+                添加错误 "公开文档链接目标不存在：$公开相对路径 -> $链接"
+            }
+        }
     }
 }
 
