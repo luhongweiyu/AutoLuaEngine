@@ -4,6 +4,8 @@
 package com.xiaoyv.engine;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.util.DisplayMetrics;
 import android.view.Surface;
 
 import java.io.ByteArrayOutputStream;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 public final class NativeEngine {
     private static final String[] LUA_RUNTIME_ASSETS = {
             "runtime/api_m.lua",
+            "runtime/compat_extended.lua",
             "runtime/compat_lr.lua",
             "runtime/compat_cd.lua",
             "runtime/bootstrap.lua"
@@ -68,6 +71,23 @@ public final class NativeEngine {
      */
     public static byte[] getScreenFrame() {
         return nativeGetScreenFrame();
+    }
+
+    /**
+     * 把 Java Bitmap 复制为脚本任务的固定截图；传 null 恢复物理屏幕。
+     *
+     * 该入口只供兼容 LuaEngine.setSnapCacheBitmap 使用。native 会立即复制像素，
+     * 不会持有 Java Bitmap，也不会接管其回收。
+     */
+    public static boolean setScreenBitmap(Bitmap bitmap) {
+        if (bitmap == null) {
+            return nativeSetScreenBitmap(null, 0, 0);
+        }
+        if (appContext == null) {
+            return false;
+        }
+        DisplayMetrics metrics = appContext.getResources().getDisplayMetrics();
+        return nativeSetScreenBitmap(bitmap, metrics.widthPixels, metrics.heightPixels);
     }
 
     /** 把 ScriptImGuiService 创建的 Surface 附着到 native EGL 渲染线程。 */
@@ -143,6 +163,12 @@ public final class NativeEngine {
     );
 
     private static native byte[] nativeGetScreenFrame();
+
+    private static native boolean nativeSetScreenBitmap(
+            Bitmap bitmap,
+            int screenWidth,
+            int screenHeight
+    );
 
     private static native boolean nativeAttachImGuiSurface(Surface surface);
 

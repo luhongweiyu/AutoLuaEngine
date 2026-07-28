@@ -28,6 +28,10 @@ C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层
 方便而自行设计不兼容的公开接口。确定后再把具体接口写入本契约、公开函数页、API 总览与
 `catalog.json`。
 
+选择 Android 系统接口时遵守[0004：Android 系统接口历史参考顺序](../decisions/0004-Android系统接口历史参考顺序.md)：
+只先参考 `T:\老项目` 中较新的项目实现，只有它不足以判断时才查看旧项目；历史代码不改变
+本项目的当前分层或权限边界。
+
 Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`，
 AndroidBridge 再通过 `:engine` 的认证 socket 请求主进程预先启动的 RootDaemon。脚本、JS、Go 和
 插件不会各自启动 `su`，也不需要感知 RootDaemon 的端口或令牌。
@@ -351,6 +355,13 @@ int engine_findPic(
         double sim,
         EnginePoint* point
 );
+const char* engine_findPicAll(
+        int x1, int y1, int x2, int y2,
+        const char* picName,
+        const char* deltaColor,
+        int dir,
+        double sim
+);
 void engine_clearImageCache(const char* picName);
 int engine_setImageCacheMaxBytes(size_t maxBytes);
 const char* engine_imageLastError();
@@ -362,6 +373,8 @@ const char* engine_imageLastError();
 - `engine_capture` 是主动将当前 RGBA 截图编码并写入文件的统一接口；Lua 的 `snapShot` 直接
   指向同一个 `capture` 绑定，不重复增加 C ABI。
 - `engine_findPic` 直接复用截图缓存；模板仅在首次使用、普通文件修改、LRU 淘汰或显式清理后解码。
+- `engine_findPicAll` 使用相同模板、透明像素、容差和扫描方向规则，成功返回非重叠命中的
+  JSON 数组（没有命中时为 `[]`），失败返回 `nullptr` 并写入 `engine_imageLastError()`。
 - 模板缓存默认上限为 `5 MiB`，按预处理容器实际分配容量计算，超限时按 LRU 淘汰；
   `engine_setImageCacheMaxBytes(0)` 可关闭缓存。脚本结束后全部释放并恢复默认上限。
 - 模板路径支持脚本目录相对路径、普通绝对路径和当前 `.alpkg` 的资源路径。
@@ -501,17 +514,35 @@ const char* engine_getDisplayInfoJson();
 const char* engine_getInstalledAppsJson();
 const char* engine_exec(const char* command, int isRet);
 int engine_exitScript();
+const char* engine_readPasteboard();
+int engine_writePasteboard(const char* text);
+const char* engine_deviceCallJson(const char* operation, const char* argumentsJson);
 const char* engine_deviceLastError();
 ```
 
 规则：
 
-- `EngineApi` 和 `EngineDeviceApi` 都有自己的 `abiVersion`。函数表只能尾部追加字段；
-  插件先检查所需版本再访问新增字段，旧插件继续使用已有字段时保持可用。
+- `EngineApi` 和 `EngineDeviceApi` 当前 `abiVersion` 都为 `20`。版本 19 在
+  `EngineDeviceApi` 的 `lastError` 之后追加 `readPasteboard`、`writePasteboard`；版本 20
+  在设备子表尾部追加 `callJson`，并在顶层 `EngineApi` 尾部追加 `findPicAll`。既有字段位置
+  没有变化。函数表只能尾部追加字段；插件先检查所需版本再访问新增字段，旧插件继续使用
+  已有字段时保持可用。
 - 结构化结果一律以 JSON 文本从 C ABI 返回；Lua HostApi 才转换为 table。
 - 设备字符串、JSON 和错误文本由调用线程持有，下一次设备调用可能覆盖内容。
 - `engine_exec` 只返回 shell 合并输出，不根据命令退出码改变成功状态；调用方自行判断。
 - Root 控制命令只请求常驻 RootDaemon，不重复申请 `su`，也没有无障碍回退。
+- 文本剪贴板只使用 Application Context 的 Android `ClipboardManager`：读取第一条
+  `ClipData` 文本，空剪贴板或非文本内容返回空字符串；写入用
+  `ClipData.newPlainText(...)` 覆盖当前内容。它不走 Root 或无障碍后备路线。
+- `engine_readPasteboard()` 的平台调用失败时返回 `nullptr`，错误由
+  `engine_deviceLastError()` 提供；Lua 的 `readPasteboard()` 将平台失败返回为
+  `nil, errorMessage`，不会与“剪贴板当前没有文本”的空字符串混淆。Lua
+  `writePasteboard(text[, kind])` 成功时不返回值，平台失败抛出 Lua 错误；`kind` 省略时
+  为 `0`，Android 仅接受 `0`。
+- Android 12 及以上会限制后台访问系统剪贴板；系统不允许读取时，Lua 层可能得到空字符串。
+- `engine_deviceCallJson(operation, argumentsJson)` 只接受 JSON 对象参数。成功返回 JSON 值
+  文本，失败返回 `nullptr` 并写入 `engine_deviceLastError()`；它仍通过统一设备核心与 Android
+  平台路由，不能成为绕过权限、生命周期或函数表版本的任意 JNI 通道。
 
 ## 脚本 UI C ABI
 
@@ -564,8 +595,9 @@ const char* engine_imguiLastError();
 
 规则：
 
-- `EngineApi::abiVersion` 当前为 `18`，版本 18 只在顶层函数表尾部追加 `getImGuiApi`；
-  版本 17 及以前字段位置不变。
+- `EngineApi::abiVersion` 当前为 `20`。版本 18 在顶层函数表尾部追加 `getImGuiApi`，
+  版本 20 再在它后面追加 `findPicAll`；ImGui 子表本身仍要求调用方检查顶层版本不低于
+  `18`，版本 18 及以前字段位置不变。
 - `EngineImGuiApi::abiVersion` 当前为 `1`。ImGui 子函数表同样只能在尾部追加字段；调用方
   必须先检查版本，再访问自己需要的字段。
 - `engine_getImGuiApi()` 与 `engine_getApi()->getImGuiApi()` 返回同一张进程级只读函数表，
@@ -603,6 +635,10 @@ keyDown(keycode)
 keyUp(keycode)
 keyPress(keycode)
 inputText(text)
+readPasteboard()
+writePasteboard(text[, kind])
+getScriptVersion()
+setStopCallBack(callback)
 imeLib.lock()
 imeLib.setText(text)
 imeLib.unlock()
@@ -620,6 +656,7 @@ m.findColors(x1, y1, x2, y2, dir, sim, colors)
 m.capture(path[, left, top, right, bottom])
 m.snapShot(path[, left, top, right, bottom])
 m.findPic(x1, y1, x2, y2, picName, deltaColor, dir, sim)
+m.findPicAll(x1, y1, x2, y2, picName, deltaColor, dir, sim)
 m.clearImageCache([picName])
 m.setImageCacheMaxBytes(maxBytes)
 m.ocr.loadBuiltin([name[, threads]])
@@ -660,6 +697,26 @@ imgui.*
 
 `imgui.*` 的每个固定方法都通过 `runtime/lua/imgui_lua_api` 转换参数，再调用同名语义的
 `engine_imgui*` 直接 C ABI；回调函数只保存在 Lua 绑定层，不进入跨语言函数表。
+
+## Android Lua 兼容契约
+
+兼容层的加载、平台调用、截图坐标、节点生命周期和明确排除项见
+[`ANDROID_Lua_兼容层.md`](../platform/android/ANDROID_Lua_兼容层.md)。以下家族已经成为
+可维护的当前契约，不再属于“暂未定义”：
+
+| 家族 | 公开入口 | 核心约束 |
+|---|---|---|
+| 加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 二进制 Lua 字符串；平台 JSON 边界仅内部 Base64 |
+| 网络 | `httpGet`、`httpPost`、文件传输、WebSocket、`socket.http.request` | 阻塞调用释放 VM Gate；异步回调回到 Lua 任务 |
+| 标准库 / FFI | Lua 5.4 `io`、`os`；`ffi.cdef/load` | 不复制标准库；FFI 只支持声明的整数/指针 C ABI |
+| 触控 | `setScreenScale`、`tap`、`longTap`、`touchMoveEx`、`swipe` | 虚拟坐标在 Lua 层换算；原生输入 API 不变 |
+| 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
+| 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |
+| OpenCV | `cv.*` | `cv.snapShot` 返回真实 Mat；`cv.new*` 返回首地址为实际值的 native userdata |
+| 节点 | 选择器、节点对象、`nodeLib.*` | Android 无障碍短期句柄；界面变化后重新查询 |
+
+`lr`、`cd` 先保留专属入口，再复用语义相同的 `m` 成员。`lr.findPic` 使用懒人多模板和
+`0..4` 方向；`m.findPic` 继续使用小鱼单模板和 `1..8` 方向。
 
 ## 暂未定义契约
 

@@ -28,6 +28,7 @@ namespace {
 constexpr int kRgbaPixelBytes = 4;
 constexpr int kMaxTemplatePixels = 16 * 1024 * 1024;
 constexpr int kMaxAnchorCount = 64;
+constexpr std::size_t kMaxFindAllMatches = 100000;
 // 模板缓存只服务当前脚本任务。长时间脚本按已分配点阵容量限制为 5 MiB，超限时淘汰
 // 最久未使用模板；单个模板超过上限时仍可完成当前找图，但不会进入缓存。
 constexpr size_t kDefaultTemplateCacheBytes = 5u * 1024u * 1024u;
@@ -660,6 +661,119 @@ bool 在屏幕中找图(
     if (!found) {
         gImageLastError.clear();
         return false;
+    }
+    gImageLastError.clear();
+    return true;
+}
+
+bool 在屏幕中找全部图片(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* picName,
+        const char* deltaColor,
+        int direction,
+        double similarity,
+        std::vector<找图坐标>* points
+) {
+    if (points == nullptr) {
+        return 设置图片错误("全部找图输出数组不能为空");
+    }
+    points->clear();
+    if (direction < 1 || direction > 8) {
+        return 设置图片错误("找图方向必须在 1 到 8 之间");
+    }
+    if (!std::isfinite(similarity) || similarity <= 0.0 || similarity > 1.0) {
+        return 设置图片错误("图片相似度必须大于 0 且不超过 1");
+    }
+
+    int redDelta = 0;
+    int greenDelta = 0;
+    int blueDelta = 0;
+    if (!解析色差(deltaColor, &redDelta, &greenDelta, &blueDelta)) {
+        return 设置图片错误("图片色差格式无效，应为 6 位十六进制 RGB，例如 101010");
+    }
+
+    std::shared_ptr<const 模板图片> templateImage;
+    if (!获取模板(picName == nullptr ? "" : picName, &templateImage)) {
+        return false;
+    }
+
+    ScreenFrame frame;
+    if (!captureScreen(&frame)) {
+        return 设置图片错误(screenLastError());
+    }
+    if (frame.pixels == nullptr || frame.width <= 0 || frame.height <= 0) {
+        return 设置图片错误("当前截图点阵无效");
+    }
+
+    int left = std::max(0, std::min(x1, x2));
+    int top = std::max(0, std::min(y1, y2));
+    int right = std::min(
+            frame.width - templateImage->width,
+            std::max(x1, x2) - templateImage->width + 1
+    );
+    int bottom = std::min(
+            frame.height - templateImage->height,
+            std::max(y1, y2) - templateImage->height + 1
+    );
+    if (left > right || top > bottom) {
+        return 设置图片错误("找图区域不足以容纳模板图片");
+    }
+
+    const int candidateWidth = right - left + 1;
+    const int candidateHeight = bottom - top + 1;
+    std::vector<unsigned char> blocked(
+            static_cast<std::size_t>(candidateWidth)
+                    * static_cast<std::size_t>(candidateHeight),
+            0
+    );
+    bool tooMany = false;
+    按方向扫描(left, top, right, bottom, direction, [&](int x, int y) {
+        std::size_t candidateIndex =
+                static_cast<std::size_t>(y - top) * static_cast<std::size_t>(candidateWidth)
+                        + static_cast<std::size_t>(x - left);
+        if (blocked[candidateIndex] != 0) {
+            return false;
+        }
+        if (!匹配候选位置(
+                frame.pixels,
+                frame.width,
+                x,
+                y,
+                *templateImage,
+                redDelta,
+                greenDelta,
+                blueDelta,
+                similarity
+        )) {
+            return false;
+        }
+        if (points->size() >= kMaxFindAllMatches) {
+            tooMany = true;
+            return true;
+        }
+        points->push_back({x, y});
+
+        int blockLeft = std::max(left, x - templateImage->width + 1);
+        int blockTop = std::max(top, y - templateImage->height + 1);
+        int blockRight = std::min(right, x + templateImage->width - 1);
+        int blockBottom = std::min(bottom, y + templateImage->height - 1);
+        for (int blockY = blockTop; blockY <= blockBottom; ++blockY) {
+            std::size_t rowOffset =
+                    static_cast<std::size_t>(blockY - top)
+                            * static_cast<std::size_t>(candidateWidth);
+            for (int blockX = blockLeft; blockX <= blockRight; ++blockX) {
+                blocked[rowOffset + static_cast<std::size_t>(blockX - left)] = 1;
+            }
+        }
+        return false;
+    });
+
+    if (tooMany) {
+        points->clear();
+        return 设置图片错误("全部找图命中过多，单次最多返回 100000 个坐标");
     }
     gImageLastError.clear();
     return true;

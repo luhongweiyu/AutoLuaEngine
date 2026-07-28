@@ -78,6 +78,27 @@ public final class EngineImeBridge {
         return EngineInputMethodService.commitText(text);
     }
 
+    public static boolean deleteChar() {
+        Context context = AndroidHostBridge.applicationContext();
+        return context != null
+                && preferences(context).getBoolean(KEY_LOCKED, false)
+                && EngineInputMethodService.deleteChar();
+    }
+
+    public static boolean finishInput() {
+        Context context = AndroidHostBridge.applicationContext();
+        return context != null
+                && preferences(context).getBoolean(KEY_LOCKED, false)
+                && EngineInputMethodService.finishInput();
+    }
+
+    public static boolean keyEvent(int action, int keyCode) {
+        Context context = AndroidHostBridge.applicationContext();
+        return context != null
+                && preferences(context).getBoolean(KEY_LOCKED, false)
+                && EngineInputMethodService.keyEvent(action, keyCode);
+    }
+
     /**
      * 恢复 lock 前保存的默认输入法，并禁用 小鱼精灵 输入法。
      */

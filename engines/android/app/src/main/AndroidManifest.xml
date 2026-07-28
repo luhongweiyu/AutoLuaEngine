@@ -123,6 +123,12 @@
             android:authorities="com.xiaoyv.engine.package"
             android:exported="false"
             android:grantUriPermissions="false" />
+
+        <!-- 无障碍服务在主进程，脚本引擎通过仅限本应用的 Provider 调用节点能力。 -->
+        <provider
+            android:name=".AccessibilityNodeProvider"
+            android:authorities="${applicationId}.accessibility"
+            android:exported="false" />
     </application>
 
 </manifest>

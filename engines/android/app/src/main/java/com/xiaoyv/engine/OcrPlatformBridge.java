@@ -13,6 +13,8 @@ import ai.onnxruntime.ValueInfo;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
 
 import org.json.JSONArray;
@@ -56,6 +58,7 @@ public final class OcrPlatformBridge {
     private static final long BUILTIN_CLS_BYTES = 585_532L;
     private static final long BUILTIN_KEYS_BYTES = 26_249L;
     private static final int ASSET_COPY_BUFFER_BYTES = 64 * 1024;
+    private static final String PADDLE_COMPAT_MODEL_NAME = "__paddle_ocr_compat__";
     private static OrtEnvironment environment;
 
     private OcrPlatformBridge() {
@@ -95,6 +98,142 @@ public final class OcrPlatformBridge {
             return failure("OCR 参数 JSON 无效：" + safeMessage(exception));
         } catch (RuntimeException exception) {
             return failure("OCR 平台调用失败：" + safeMessage(exception));
+        }
+    }
+
+    /** 为 com.nx.assist.lua.PaddleOcr 加载 APK 内置 PP-OCRv4 ONNX 模型。 */
+    public static boolean loadPaddleCompatBuiltin(boolean useOnnxModel) {
+        if (!useOnnxModel) {
+            // 当前 APK 没有 NCNN 运行时，不能把 ONNX 模型伪装成 NCNN 成功。
+            return false;
+        }
+        synchronized (MODEL_LOCK) {
+            try {
+                JSONObject arguments = new JSONObject();
+                arguments.put("name", PADDLE_COMPAT_MODEL_NAME);
+                arguments.put("threads", 2);
+                String result = loadBuiltin(arguments);
+                if (isSuccessful(result)) {
+                    return true;
+                }
+                if (!hasErrorContaining(result, "模型名称已加载不同配置")) {
+                    return false;
+                }
+                // 同名兼容槽之前可能装载了自定义模型。释放后只重试一次，避免每次调用
+                // loadModel 都关闭并重建已经复用的 OrtSession。
+                release(arguments);
+                return isSuccessful(loadBuiltin(arguments));
+            } catch (JSONException exception) {
+                return false;
+            }
+        }
+    }
+
+    /** 为 PaddleOcr.loadOnnxModel 加载自定义 det/cls/rec/keys 文件。 */
+    public static boolean loadPaddleCompatOnnx(
+            String detPath,
+            String clsPath,
+            String recPath,
+            String keysPath
+    ) {
+        synchronized (MODEL_LOCK) {
+            try {
+                JSONObject arguments = new JSONObject();
+                arguments.put("name", PADDLE_COMPAT_MODEL_NAME);
+                arguments.put("det", safe(detPath));
+                arguments.put("cls", safe(clsPath));
+                arguments.put("rec", safe(recPath));
+                arguments.put("keys", safe(keysPath));
+                arguments.put("threads", 2);
+                String result = load(arguments);
+                if (isSuccessful(result)) {
+                    return true;
+                }
+                if (!hasErrorContaining(result, "模型名称已加载不同配置")) {
+                    return false;
+                }
+                release(arguments);
+                return isSuccessful(load(arguments));
+            } catch (JSONException exception) {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * 识别 Java Bitmap，并按懒人 PaddleOcr 返回字段输出 JSON 数组。
+     *
+     * padding 为 0 时不复制 Bitmap；大于 0 时只回收内部创建的带边框副本，调用方仍负责
+     * 释放原 Bitmap。返回坐标会扣除边框并限制在原图范围。
+     */
+    public static String detectPaddleCompat(
+            Bitmap source,
+            int padding,
+            int red,
+            int green,
+            int blue
+    ) {
+        if (source == null || source.isRecycled() || padding < 0 || padding > 4096) {
+            return null;
+        }
+        synchronized (MODEL_LOCK) {
+            OcrModel model = MODELS_BY_NAME.get(PADDLE_COMPAT_MODEL_NAME);
+            if (model == null) {
+                return null;
+            }
+
+            Bitmap input = source;
+            try {
+                if (padding > 0) {
+                    long width = (long) source.getWidth() + padding * 2L;
+                    long height = (long) source.getHeight() + padding * 2L;
+                    if (width <= 0 || height <= 0
+                            || width > Integer.MAX_VALUE || height > Integer.MAX_VALUE
+                            || width * height > 64L * 1024L * 1024L) {
+                        return null;
+                    }
+                    input = Bitmap.createBitmap(
+                            (int) width,
+                            (int) height,
+                            Bitmap.Config.ARGB_8888
+                    );
+                    Canvas canvas = new Canvas(input);
+                    canvas.drawColor(Color.rgb(clampByte(red), clampByte(green), clampByte(blue)));
+                    canvas.drawBitmap(source, padding, padding, null);
+                }
+
+                List<OcrBox> boxes = recognize(model, input, new JSONObject());
+                JSONArray result = new JSONArray();
+                for (OcrBox box : boxes) {
+                    JSONObject item = new JSONObject();
+                    int x = clamp(box.x - padding, 0, Math.max(0, source.getWidth() - 1));
+                    int y = clamp(box.y - padding, 0, Math.max(0, source.getHeight() - 1));
+                    int right = clamp(
+                            box.x + box.width - padding,
+                            x,
+                            source.getWidth()
+                    );
+                    int bottom = clamp(
+                            box.y + box.height - padding,
+                            y,
+                            source.getHeight()
+                    );
+                    item.put("label", box.text);
+                    item.put("confidence", box.score);
+                    item.put("x", x);
+                    item.put("y", y);
+                    item.put("w", right - x);
+                    item.put("h", bottom - y);
+                    result.put(item);
+                }
+                return result.toString();
+            } catch (Exception exception) {
+                return null;
+            } finally {
+                if (input != source) {
+                    input.recycle();
+                }
+            }
         }
     }
 
@@ -983,6 +1122,32 @@ public final class OcrPlatformBridge {
 
     private static int clamp(int value, int minimum, int maximum) {
         return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    private static int clampByte(int value) {
+        return clamp(value, 0, 255);
+    }
+
+    private static boolean isSuccessful(String response) {
+        if (response == null || response.isEmpty()) {
+            return false;
+        }
+        try {
+            return new JSONObject(response).optBoolean("ok", false);
+        } catch (JSONException exception) {
+            return false;
+        }
+    }
+
+    private static boolean hasErrorContaining(String response, String expected) {
+        if (response == null || response.isEmpty()) {
+            return false;
+        }
+        try {
+            return new JSONObject(response).optString("error", "").contains(expected);
+        } catch (JSONException exception) {
+            return false;
+        }
     }
 
     private static float clampFloat(float value, float minimum, float maximum) {

@@ -7,6 +7,9 @@ local host = assert(_G._host, "native host api is not registered")
 local m = {
     print = host.print,
     sleep = host.sleep,
+    setMainThreadPause = host.setMainThreadPause,
+    setMainThreadResume = host.setMainThreadResume,
+    setStopCallBack = host.setStopCallBack,
     systemTime = host.systemTime,
     tickCount = host.tickCount,
     read_alpkg_file = host.read_alpkg_file,
@@ -71,6 +74,8 @@ local m = {
     setWifiEnable = host.setWifiEnable,
     phoneCall = host.phoneCall,
     sendSms = host.sendSms,
+    readPasteboard = host.readPasteboard,
+    writePasteboard = host.writePasteboard,
     vibrate = host.vibrate,
     log = host.log,
     screen = host.screen,
@@ -82,6 +87,7 @@ local m = {
     -- imeLib 是历史脚本使用的全局名称。它同样挂在 m 下，让默认导出和兼容 API
     -- 都由同一套切换逻辑管理。
     imeLib = host.ime,
+    ffi = host.ffi,
     thread = host.thread,
     ui = host.ui,
 }
@@ -96,6 +102,7 @@ m.capture = host.screen.capture
 m.snapShot = host.screen.capture
 m.findColors = host.color.findColors
 m.findPic = host.image.findPic
+m.findPicAll = host.image.findPicAll
 m.clearImageCache = host.image.clearCache
 m.setImageCacheMaxBytes = host.image.setCacheMaxBytes
 

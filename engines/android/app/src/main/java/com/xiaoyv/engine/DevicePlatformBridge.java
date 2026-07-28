@@ -5,6 +5,8 @@ package com.xiaoyv.engine;
 
 import android.Manifest;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -30,6 +32,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -99,7 +105,42 @@ final class DevicePlatformBridge {
      */
     private static Object dispatch(Context context, String operation, JSONObject arguments)
             throws Exception {
+        if (operation.startsWith("crypto.")) {
+            return CryptoPlatformBridge.call(operation, arguments);
+        }
+        if (operation.equals("runtime.dispatchExitCallback")) {
+            return com.nx.assist.lua.LuaEngine.dispatchExitCallback(
+                    arguments.optBoolean("error", false),
+                    arguments.optInt("exitCode", 0)
+            );
+        }
+        if (operation.startsWith("network.")) {
+            return NetworkPlatformBridge.call(operation, arguments);
+        }
+        if (operation.startsWith("image.")) {
+            return OpenCvPlatformBridge.call(operation, arguments);
+        }
+        if (operation.startsWith("node.")) {
+            return AccessibilityNodePlatformBridge.callThroughProvider(
+                    context,
+                    operation,
+                    arguments
+            );
+        }
+        if (operation.startsWith("file.") || operation.startsWith("media.")
+                || operation.equals("device.isDebug")
+                || operation.equals("device.setDisplayDensity")
+                || operation.equals("device.resetDisplayDensity")
+                || operation.equals("device.showControlBar")
+                || operation.equals("device.setControlBarPosition")
+                || operation.equals("device.restartScript")) {
+            return PlatformUtilityBridge.call(context, operation, arguments);
+        }
         switch (operation) {
+            case "environment.root":
+                return AndroidHostBridge.setRootModeEnabled(
+                        arguments.optBoolean("enabled", true)
+                );
             case "app.isFront":
                 return isAppFront(requireString(arguments, "packageName"));
             case "app.isRunning":
@@ -111,7 +152,7 @@ final class DevicePlatformBridge {
             case "app.packageName":
                 return context.getPackageName();
             case "app.run":
-                runApp(arguments);
+                runApp(context, arguments);
                 return JSONObject.NULL;
             case "app.stop":
                 stopApp(requireString(arguments, "packageName"));
@@ -130,6 +171,11 @@ final class DevicePlatformBridge {
             case "app.versionCode":
                 return appVersionCode(context);
 
+            case "system.readPasteboard":
+                return readPasteboard(context);
+            case "system.writePasteboard":
+                writePasteboard(context, requireText(arguments, "text"));
+                return JSONObject.NULL;
             case "system.exec":
                 return executeRootCommand(requireString(arguments, "command"));
             case "system.keepAwake":
@@ -162,6 +208,15 @@ final class DevicePlatformBridge {
             case "system.vibrate":
                 vibrate(context, requireNonNegativeInt(arguments, "durationMs"));
                 return JSONObject.NULL;
+            case "ime.deleteChar":
+                return EngineImeBridge.deleteChar();
+            case "ime.finishInput":
+                return EngineImeBridge.finishInput();
+            case "ime.keyEvent":
+                return EngineImeBridge.keyEvent(
+                        arguments.optInt("action", -1),
+                        arguments.optInt("keyCode", -1)
+                );
 
             case "device.batteryLevel":
                 return batteryLevel(context);
@@ -203,8 +258,7 @@ final class DevicePlatformBridge {
             case "device.model":
                 return Build.MODEL;
             case "device.networkTime":
-                return new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
-                        .format(new Date());
+                return networkTime();
             case "device.oaid":
                 // OAID 不是 Android Framework 标准字段，不能把 ANDROID_ID 伪装成 OAID。
                 return JSONObject.NULL;
@@ -236,12 +290,12 @@ final class DevicePlatformBridge {
      * 前台状态，因此这里不使用不稳定的 ActivityManager 回退路线。
      */
     private static String currentComponentPackage() {
-        ComponentName component = currentFrontComponent();
+        FrontComponent component = currentFrontComponent();
         return component == null ? null : component.packageName;
     }
 
     private static String currentComponentActivity() {
-        ComponentName component = currentFrontComponent();
+        FrontComponent component = currentFrontComponent();
         return component == null ? null : component.activityName;
     }
 
@@ -255,7 +309,7 @@ final class DevicePlatformBridge {
         return !output.trim().isEmpty();
     }
 
-    private static ComponentName currentFrontComponent() {
+    private static FrontComponent currentFrontComponent() {
         String output = executeRootCommand(
                 "dumpsys window windows | grep -m 1 -E 'mCurrentFocus|mFocusedApp'"
         );
@@ -269,17 +323,18 @@ final class DevicePlatformBridge {
         if (activityName.startsWith(".")) {
             activityName = packageName + activityName;
         }
-        return new ComponentName(packageName, activityName);
+        return new FrontComponent(packageName, activityName);
     }
 
     /**
-     * 打开应用统一使用 RootDaemon。没有组件名时由 monkey 查找启动入口；传入组件名时由
-     * am 精确打开组件。isOpenBySuper 保留为兼容参数，当前 Root 引擎始终在最高权限执行。
+     * 打开应用。普通模式走 Android 启动 Intent，适用于无障碍环境；isOpenBySuper=true
+     * 时才通过 RootDaemon 执行 monkey/am，保留懒人接口中“最高权限打开”的实际区别。
      */
-    private static void runApp(JSONObject arguments) {
+    private static void runApp(Context context, JSONObject arguments) {
         String packageName = requireString(arguments, "packageName");
         String componentName = nullableString(arguments, "componentName");
-        if (componentName == null) {
+        boolean openBySuper = arguments.optBoolean("isOpenBySuper", false);
+        if (openBySuper && componentName == null) {
             executeRootCommand(
                     "monkey -p " + shellQuote(packageName)
                             + " -c android.intent.category.LAUNCHER 1"
@@ -287,10 +342,33 @@ final class DevicePlatformBridge {
             return;
         }
 
-        String component = componentName.contains("/")
-                ? componentName
-                : packageName + "/" + componentName;
-        executeRootCommand("am start -n " + shellQuote(component));
+        if (openBySuper) {
+            String component = componentName.contains("/")
+                    ? componentName
+                    : packageName + "/" + componentName;
+            executeRootCommand("am start -n " + shellQuote(component));
+            return;
+        }
+
+        Intent intent;
+        if (componentName == null) {
+            intent = context.getPackageManager().getLaunchIntentForPackage(packageName);
+            if (intent == null) {
+                throw new IllegalArgumentException("应用没有可启动入口：" + packageName);
+            }
+        } else {
+            String component = componentName.contains("/")
+                    ? componentName
+                    : packageName + "/" + componentName;
+            android.content.ComponentName parsed =
+                    android.content.ComponentName.unflattenFromString(component);
+            if (parsed == null) {
+                throw new IllegalArgumentException("应用组件格式无效：" + componentName);
+            }
+            intent = new Intent().setComponent(parsed);
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
     }
 
     private static void stopApp(String packageName) {
@@ -484,11 +562,14 @@ final class DevicePlatformBridge {
     private static void phoneCall(String number, int state) {
         if (state == 0) {
             executeRootCommand(
-                    "am start -a android.intent.action.CALL -d "
+                    "am start -a android.intent.action.DIAL -d "
                             + shellQuote("tel:" + Uri.encode(number))
             );
         } else {
-            executeRootCommand("input keyevent 6");
+            executeRootCommand(
+                    "am start -a android.intent.action.CALL -d "
+                            + shellQuote("tel:" + Uri.encode(number))
+            );
         }
     }
 
@@ -498,6 +579,33 @@ final class DevicePlatformBridge {
             throw new IllegalArgumentException("未授予发送短信权限");
         }
         SmsManager.getDefault().sendTextMessage(number, null, content, null, null);
+    }
+
+    /**
+     * 读写系统文本剪贴板。实现保持与较新的历史宿主一致：只使用 Application Context 的
+     * ClipboardManager 和第一条 ClipData 文本，不走 Root、无障碍或其他替代通道。
+     */
+    private static ClipboardManager clipboardManager(Context context) {
+        ClipboardManager manager = (ClipboardManager) context.getSystemService(
+                Context.CLIPBOARD_SERVICE
+        );
+        if (manager == null) {
+            throw new IllegalArgumentException("系统剪贴板服务不可用");
+        }
+        return manager;
+    }
+
+    private static String readPasteboard(Context context) {
+        ClipData primaryClip = clipboardManager(context).getPrimaryClip();
+        if (primaryClip == null || primaryClip.getItemCount() == 0) {
+            return "";
+        }
+        CharSequence text = primaryClip.getItemAt(0).getText();
+        return text == null ? "" : text.toString();
+    }
+
+    private static void writePasteboard(Context context, String text) {
+        clipboardManager(context).setPrimaryClip(ClipData.newPlainText(null, text));
     }
 
     private static void vibrate(Context context, int durationMs) {
@@ -534,6 +642,45 @@ final class DevicePlatformBridge {
         return level < 0 || scale <= 0 ? -1 : Math.round(level * 100f / scale);
     }
 
+    /**
+     * 通过 NTP 读取真实网络时间，不用设备本地时钟伪装“网络时间”。
+     */
+    private static String networkTime() throws IOException {
+        final int packetBytes = 48;
+        final long secondsFrom1900To1970 = 2_208_988_800L;
+        byte[] request = new byte[packetBytes];
+        // LI=0、VN=3、Mode=3（client）。
+        request[0] = 0x1b;
+        InetAddress address = InetAddress.getByName("time.android.com");
+        DatagramPacket outgoing = new DatagramPacket(request, request.length, address, 123);
+        DatagramPacket incoming = new DatagramPacket(new byte[packetBytes], packetBytes);
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.setSoTimeout(3_000);
+            socket.send(outgoing);
+            socket.receive(incoming);
+        }
+        if (incoming.getLength() < packetBytes) {
+            throw new IOException("NTP 响应长度无效");
+        }
+        byte[] response = incoming.getData();
+        long seconds = unsignedInt(response, 40);
+        long fraction = unsignedInt(response, 44);
+        if (seconds <= secondsFrom1900To1970) {
+            throw new IOException("NTP 响应时间无效");
+        }
+        long millis = (seconds - secondsFrom1900To1970) * 1_000L
+                + ((fraction * 1_000L) >>> 32);
+        return new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
+                .format(new Date(millis));
+    }
+
+    private static long unsignedInt(byte[] value, int offset) {
+        return ((long) value[offset] & 0xffL) << 24
+                | ((long) value[offset + 1] & 0xffL) << 16
+                | ((long) value[offset + 2] & 0xffL) << 8
+                | ((long) value[offset + 3] & 0xffL);
+    }
+
     private static String cpuAbi(int index) {
         String[] supportedAbis = Build.SUPPORTED_ABIS;
         return supportedAbis != null && index >= 0 && index < supportedAbis.length
@@ -543,7 +690,13 @@ final class DevicePlatformBridge {
 
     private static int cpuArch() {
         String abi = cpuAbi(0).toLowerCase(Locale.ROOT);
-        return abi.contains("x86") ? 0 : 1;
+        if (abi.contains("x86")) {
+            return 0;
+        }
+        if (abi.contains("arm64") || abi.contains("aarch64")) {
+            return 2;
+        }
+        return 1;
     }
 
     private static DisplayMetrics displayMetrics(Context context) {
@@ -678,6 +831,15 @@ final class DevicePlatformBridge {
         return value;
     }
 
+    /** 文本剪贴板允许空字符串（用于清空内容），但不接受缺失或 null 参数。 */
+    private static String requireText(JSONObject arguments, String name) {
+        String value = nullableString(arguments, name);
+        if (value == null) {
+            throw new IllegalArgumentException(name + " 参数不能为 null");
+        }
+        return value;
+    }
+
     private static String nullableString(JSONObject arguments, String name) {
         Object value = arguments.opt(name);
         if (value == null || value == JSONObject.NULL) {
@@ -727,11 +889,11 @@ final class DevicePlatformBridge {
         }
     }
 
-    private static final class ComponentName {
+    private static final class FrontComponent {
         private final String packageName;
         private final String activityName;
 
-        private ComponentName(String packageName, String activityName) {
+        private FrontComponent(String packageName, String activityName) {
             this.packageName = packageName;
             this.activityName = activityName;
         }

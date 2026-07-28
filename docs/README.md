@@ -31,7 +31,7 @@
 | 全局架构、能力规划 | [项目总计划](internal/项目总计划.md)、[架构设计](internal/架构设计.md)、[AI 执行指南](internal/AI_执行指南.md) |
 | C ABI、脚本 API 分层 | [统一 API 契约](internal/contracts/API_契约.md) |
 | 插件 SO | [插件 SO API](internal/contracts/插件_SO_API.md) |
-| Android 引擎、Root、截图、Java、UI、ImGui、多线程 | [`internal/platform/android/`](internal/platform/android/) 中对应说明 |
+| Android 引擎、Root、截图、Java、UI、ImGui、多线程、Lua 兼容层 | [`internal/platform/android/`](internal/platform/android/) 中对应说明 |
 | IDE / 抓图取色器 | [工具说明](internal/ide/PC_抓图取色工具.md)、[行为契约](internal/contracts/PC_抓图取色器_行为契约.md) |
 | 构建或运行 | [构建与运行](internal/构建与运行.md) |
 | 官网与脚本 API 用法 | [宣传首页](public/index.html)、[公开脚本文档](public/脚本文档.md) 或 [交互式脚本文档](public/脚本文档.html) |

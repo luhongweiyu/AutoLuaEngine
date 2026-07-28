@@ -6,6 +6,8 @@ package com.xiaoyv.engine;
 import android.inputmethodservice.InputMethodService;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
 import java.util.concurrent.CountDownLatch;
@@ -77,6 +79,72 @@ public final class EngineInputMethodService extends InputMethodService {
         return service.commitTextOnMainThread(text == null ? "" : text);
     }
 
+    public static boolean deleteChar() {
+        return runOnActiveConnection(connection -> connection.deleteSurroundingText(1, 0));
+    }
+
+    public static boolean finishInput() {
+        return runOnActiveConnection(connection -> {
+            boolean composingFinished = connection.finishComposingText();
+            boolean actionSent = connection.performEditorAction(EditorInfo.IME_ACTION_DONE);
+            return composingFinished || actionSent;
+        });
+    }
+
+    public static boolean keyEvent(int action, int keyCode) {
+        if (action != KeyEvent.ACTION_DOWN && action != KeyEvent.ACTION_UP) {
+            return false;
+        }
+        return runOnActiveConnection(connection ->
+                connection.sendKeyEvent(new KeyEvent(action, keyCode))
+        );
+    }
+
+    private static boolean runOnActiveConnection(ConnectionAction action) {
+        EngineInputMethodService service;
+        synchronized (INSTANCE_LOCK) {
+            service = instance;
+        }
+        if (service == null || service.mainHandler == null) {
+            return false;
+        }
+        return service.runConnectionActionOnMainThread(action);
+    }
+
+    private boolean runConnectionActionOnMainThread(ConnectionAction action) {
+        if (Looper.myLooper() == mainHandler.getLooper()) {
+            return runConnectionAction(action);
+        }
+
+        AtomicBoolean result = new AtomicBoolean(false);
+        CountDownLatch completed = new CountDownLatch(1);
+        boolean posted = mainHandler.post(() -> {
+            try {
+                result.set(runConnectionAction(action));
+            } finally {
+                completed.countDown();
+            }
+        });
+        if (!posted) {
+            return false;
+        }
+        try {
+            return completed.await(COMMIT_TIMEOUT_MS, TimeUnit.MILLISECONDS) && result.get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private boolean runConnectionAction(ConnectionAction action) {
+        try {
+            InputConnection connection = getCurrentInputConnection();
+            return connection != null && action.run(connection);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
     /**
      * 将 commitText 切换到输入法主线程并等待实际结果。
      */
@@ -116,5 +184,9 @@ public final class EngineInputMethodService extends InputMethodService {
         } catch (RuntimeException exception) {
             return false;
         }
+    }
+
+    private interface ConnectionAction {
+        boolean run(InputConnection connection);
     }
 }

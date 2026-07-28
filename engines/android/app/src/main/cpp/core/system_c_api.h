@@ -108,6 +108,9 @@ typedef struct EngineDeviceApi {
     int (*vibrate)(int durationMs);
 
     const char* (*lastError)();
+    const char* (*readPasteboard)();
+    int (*writePasteboard)(const char* text);
+    const char* (*callJson)(const char* operation, const char* argumentsJson);
 } EngineDeviceApi;
 
 /**
@@ -267,6 +270,16 @@ typedef struct EngineApi {
             double sim
     );
     const EngineImGuiApi* (*getImGuiApi)();
+    const char* (*findPicAll)(
+            int x1,
+            int y1,
+            int x2,
+            int y2,
+            const char* picName,
+            const char* deltaColor,
+            int dir,
+            double sim
+    );
 } EngineApi;
 
 /**
@@ -419,6 +432,20 @@ int engine_phoneCall(const char* number, int state);
 int engine_sendSms(const char* number, const char* content);
 int engine_vibrate(int durationMs);
 
+/** 读取系统剪贴板第一项文本；无文本时返回空字符串，失败时返回 nullptr。 */
+const char* engine_readPasteboard();
+
+/** 写入系统纯文本剪贴板；空字符串会覆盖并清空当前文本内容。 */
+int engine_writePasteboard(const char* text);
+
+/**
+ * 调用函数表声明的 Android 平台扩展能力。
+ *
+ * argumentsJson 必须是 JSON 对象。成功时返回 JSON 值文本，失败时返回 nullptr，
+ * 错误由 engine_deviceLastError() 提供。返回指针由当前线程持有。
+ */
+const char* engine_deviceCallJson(const char* operation, const char* argumentsJson);
+
 /** 返回当前线程最近一次设备 API 失败原因。 */
 const char* engine_deviceLastError();
 
@@ -550,6 +577,22 @@ int engine_findPic(
         int dir,
         double sim,
         EnginePoint* point
+);
+
+/**
+ * 查找模板图片的全部非重叠命中，返回 JSON 数组；失败返回 nullptr。
+ *
+ * 返回指针由当前线程持有，调用方必须在下一次图片 API 调用前复制。
+ */
+const char* engine_findPicAll(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* picName,
+        const char* deltaColor,
+        int dir,
+        double sim
 );
 
 /** 清理全部模板缓存，picName 非空时只清理对应图片缓存。 */

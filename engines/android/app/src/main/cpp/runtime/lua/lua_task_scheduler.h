@@ -80,6 +80,12 @@ public:
     /** 返回指定 Lua 子状态是否收到局部停止请求。 */
     bool isTaskStopRequested(lua_State* state) const;
 
+    /** 暂停或恢复主脚本任务；子线程继续运行，可用于稍后恢复主任务。 */
+    void setMainTaskPaused(bool paused);
+
+    /** 当前任务是主任务且已请求暂停时，释放 VM Gate 并等待恢复。 */
+    void waitIfMainTaskPaused(lua_State* state);
+
     /** 标记全部子线程停止，但不等待；用于 App 全局停止时立即唤醒等待任务。 */
     void requestStopAll();
 
@@ -166,6 +172,9 @@ private:
     LuaVmGate vmGate_;
     std::atomic_llong nextTaskId_{1};
     std::atomic_int activeUserChildCount_{0};
+    std::atomic_bool mainTaskPaused_{false};
+    std::mutex mainPauseMutex_;
+    std::condition_variable mainPauseCondition_;
     mutable std::mutex tasksMutex_;
     std::unordered_map<long long, std::shared_ptr<LuaTask>> tasks_;
 

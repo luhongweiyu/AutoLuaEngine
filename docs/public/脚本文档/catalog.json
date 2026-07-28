@@ -122,6 +122,11 @@
             "cmd": "m.getApkVerInt"
           },
           {
+            "name": "脚本版本号",
+            "md": "md/02-设备/应用与脚本/getScriptVersion.md",
+            "cmd": "m.getScriptVersion"
+          },
+          {
             "name": "执行 Root 命令",
             "md": "md/02-设备/应用与脚本/exec.md",
             "cmd": "m.exec"
@@ -342,6 +347,16 @@
             "cmd": "m.sendSms"
           },
           {
+            "name": "读取剪贴板",
+            "md": "md/02-设备/系统控制/readPasteboard.md",
+            "cmd": "m.readPasteboard"
+          },
+          {
+            "name": "写入剪贴板",
+            "md": "md/02-设备/系统控制/writePasteboard.md",
+            "cmd": "m.writePasteboard"
+          },
+          {
             "name": "震动",
             "md": "md/02-设备/系统控制/vibrate.md",
             "cmd": "m.vibrate"
@@ -387,6 +402,21 @@
         "name": "加载插件",
         "md": "md/03-Java/LuaEngine.loadApk.md",
         "cmd": "LuaEngine.loadApk"
+      },
+      {
+        "name": "发送邮件",
+        "md": "md/03-Java/LuaEngine.sendMail.md",
+        "cmd": "LuaEngine.sendMail / sendMailWithFile / sendMailWithMultiFile"
+      },
+      {
+        "name": "PaddleOCR 兼容",
+        "md": "md/03-Java/PaddleOcr.md",
+        "cmd": "PaddleOcr.loadModel / detect"
+      },
+      {
+        "name": "脚本结束回调",
+        "md": "md/03-Java/LuaEngine.registerExitCallback.md",
+        "cmd": "LuaEngine.registerExitCallback"
       }
     ]
   },
@@ -411,6 +441,16 @@
         "name": "停止子线程",
         "md": "md/04-多线程/stopThread.md",
         "cmd": "thread:stopThread"
+      },
+      {
+        "name": "暂停与恢复主线程",
+        "md": "md/04-多线程/主线程暂停恢复.md",
+        "cmd": "setMainThreadPause / setMainThreadResume"
+      },
+      {
+        "name": "脚本结束回调",
+        "md": "md/04-多线程/脚本结束回调.md",
+        "cmd": "setStopCallBack"
       }
     ]
   },
@@ -1165,6 +1205,11 @@
         "cmd": "m.findPic"
       },
       {
+        "name": "查找全部图片",
+        "md": "md/10-图像/找图全部.md",
+        "cmd": "m.findPicAll"
+      },
+      {
         "name": "清理模板缓存",
         "md": "md/10-图像/清理图片缓存.md",
         "cmd": "m.clearImageCache"
@@ -1303,6 +1348,55 @@
         "name": "快速找字全部",
         "md": "md/15-点阵字库/快速找字全部.md",
         "cmd": "m.font.findStrFastEx"
+      }
+    ]
+  },
+  {
+    "name": "兼容接口",
+    "items": [
+      {
+        "name": "概述与边界",
+        "md": "md/16-兼容接口/概述.md"
+      },
+      {
+        "name": "加密",
+        "md": "md/16-兼容接口/加密.md",
+        "cmd": "cryptLib.*"
+      },
+      {
+        "name": "网络与 LuaSocket",
+        "md": "md/16-兼容接口/网络.md",
+        "cmd": "httpGet / httpPost / socket.http.request / WebSocket"
+      },
+      {
+        "name": "触控与输入法",
+        "md": "md/16-兼容接口/触控与输入法.md",
+        "cmd": "setScreenScale / tap / swipe / ime.*"
+      },
+      {
+        "name": "图色与识字",
+        "md": "md/16-兼容接口/图色与识字.md",
+        "cmd": "getPixelColor / findMultiColor / findCircle / findPicEx"
+      },
+      {
+        "name": "设备与文件",
+        "md": "md/16-兼容接口/设备与文件.md",
+        "cmd": "zip / unZip / playAudio / setTimer / restartScript"
+      },
+      {
+        "name": "Lua 标准库与 FFI",
+        "md": "md/16-兼容接口/Lua标准库与FFI.md",
+        "cmd": "io.* / os.* / ffi.cdef / ffi.load"
+      },
+      {
+        "name": "OpenCV",
+        "md": "md/16-兼容接口/OpenCV.md",
+        "cmd": "cv.*"
+      },
+      {
+        "name": "无障碍节点",
+        "md": "md/16-兼容接口/无障碍节点.md",
+        "cmd": "selector / node / nodeLib.*"
       }
     ]
   }

@@ -26,12 +26,28 @@ android {
             version "3.22.1"
         }
     }
+
+    packaging {
+        resources {
+            // JavaMail 与 Activation 都携带同名许可证元数据；运行时不读取这些文件。
+            excludes += ["META-INF/LICENSE.md", "META-INF/NOTICE.md"]
+        }
+    }
 }
 
 dependencies {
     implementation "androidx.core:core:1.13.1"
     // 让 WebView 在 HTML 的首段脚本执行前注入 xiaoyv，页面可直接在初始化阶段调用 UI 桥。
     implementation "androidx.webkit:webkit:1.11.0"
+    // HTTP、HTTPS 与 WebSocket 共用一套连接池；接口形状在 Lua 兼容层固定。
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    // 懒人精灵兼容 LuaEngine 邮件接口沿用 JavaMail；activation 提供附件 MIME 数据源。
+    implementation "com.sun.mail:android-mail:1.6.7"
+    implementation "com.sun.mail:android-activation:1.6.7"
+    // 兼容 unZip 的密码与 charset 参数；普通 APK assets 解包仍使用系统流式 ZIP。
+    implementation "net.lingala.zip4j:zip4j:2.11.5"
+    // 懒人兼容 findCircle 直接使用官方 Android AAR 的霍夫圆检测。
+    implementation "org.opencv:opencv:4.9.0"
     // RapidOCR 的内置与自定义 ONNX 模型都由 Android ONNX Runtime 执行。
     implementation "com.microsoft.onnxruntime:onnxruntime-android:1.18.0"
 }

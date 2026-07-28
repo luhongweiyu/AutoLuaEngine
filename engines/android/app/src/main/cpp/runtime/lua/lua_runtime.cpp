@@ -7,10 +7,12 @@
 #include "package/alpkg_crypto.h"
 
 #include <algorithm>
+#include <android/log.h>
 #include <cstring>
 #include <string>
 #include <vector>
 
+#include "../../core/system_c_api.h"
 #include "../../core/api/runtime_api.h"
 #include "host_api.h"
 #include "java_bridge.h"
@@ -26,7 +28,8 @@ LuaRuntime::LuaRuntime()
         : state_(luaL_newstate()),
           shouldInterrupt_(nullptr),
           controlContext_(nullptr),
-          package_(nullptr) {
+          package_(nullptr),
+          stopCallbackReference_(LUA_NOREF) {
     if (state_ == nullptr) {
         return;
     }
@@ -321,10 +324,21 @@ void LuaRuntime::registerHostApi() {
 }
 
 bool LuaRuntime::shouldInterruptNow(lua_State* state) const {
+    if (scheduler_ != nullptr) {
+        scheduler_->waitIfMainTaskPaused(state);
+    }
     if (scheduler_ != nullptr && scheduler_->isTaskStopRequested(state)) {
         return true;
     }
     return shouldInterrupt_ != nullptr && shouldInterrupt_(controlContext_);
+}
+
+bool LuaRuntime::setMainTaskPaused(bool paused) {
+    if (scheduler_ == nullptr) {
+        return false;
+    }
+    scheduler_->setMainTaskPaused(paused);
+    return true;
 }
 
 LuaRuntime* LuaRuntime::fromState(lua_State* state) {
@@ -423,6 +437,83 @@ std::shared_ptr<AlpkgPackage> LuaRuntime::package() const {
 
 std::string LuaRuntime::packagePath() const {
     return package_ == nullptr ? "" : package_->packagePath();
+}
+
+bool LuaRuntime::setStopCallback(
+        lua_State* state,
+        int callbackIndex,
+        std::string* error
+) {
+    if (state_ == nullptr || state == nullptr) {
+        if (error != nullptr) {
+            *error = "LuaRuntime 不可用";
+        }
+        return false;
+    }
+    if (!lua_isfunction(state, callbackIndex)) {
+        if (error != nullptr) {
+            *error = "setStopCallBack callback 必须是函数";
+        }
+        return false;
+    }
+
+    lua_pushvalue(state, callbackIndex);
+    int reference = luaL_ref(state, LUA_REGISTRYINDEX);
+    if (stopCallbackReference_ != LUA_NOREF && stopCallbackReference_ != LUA_REFNIL) {
+        luaL_unref(state, LUA_REGISTRYINDEX, stopCallbackReference_);
+    }
+    stopCallbackReference_ = reference;
+    if (error != nullptr) {
+        error->clear();
+    }
+    return true;
+}
+
+void LuaRuntime::invokeStopCallbacks(bool abnormal, int exitCode) {
+    if (state_ == nullptr) {
+        return;
+    }
+
+    // Java 兼容回调最终会通过 LuaCallback.nativeInvoke 回到这个 LuaRuntime。保持 Gate
+    // 归当前线程持有，使 Java 桥走同步直调路线；主任务已经结束，不能把回调排入无人再
+    // 消费的异步队列。
+    int vmToken = enterVmFromCallback();
+    int reference = stopCallbackReference_;
+    stopCallbackReference_ = LUA_NOREF;
+    if (reference != LUA_NOREF && reference != LUA_REFNIL) {
+        lua_rawgeti(state_, LUA_REGISTRYINDEX, reference);
+        lua_pushboolean(state_, abnormal ? 1 : 0);
+        lua_pushinteger(state_, static_cast<lua_Integer>(exitCode));
+        if (lua_pcall(state_, 2, 0, 0) != LUA_OK) {
+            const char* error = lua_tostring(state_, -1);
+            __android_log_print(
+                    ANDROID_LOG_ERROR,
+                    "小鱼精灵",
+                    "setStopCallBack 执行失败：%s",
+                    error == nullptr ? "未知错误" : error
+            );
+            lua_pop(state_, 1);
+        }
+        luaL_unref(state_, LUA_REGISTRYINDEX, reference);
+    }
+
+    // Java 兼容入口持有的是当前 LuaRuntime 的接口代理，因此必须在 unregisterLuaJavaBridge
+    // 和 lua_close 之前触发。平台调用失败只记录日志，不覆盖主脚本原始结束状态。
+    std::string arguments = std::string("{\"error\":")
+            + (abnormal ? "true" : "false")
+            + ",\"exitCode\":" + std::to_string(exitCode) + "}";
+    if (engine_deviceCallJson("runtime.dispatchExitCallback", arguments.c_str()) == nullptr) {
+        const char* error = engine_deviceLastError();
+        if (error != nullptr && error[0] != '\0') {
+            __android_log_print(
+                    ANDROID_LOG_WARN,
+                    "小鱼精灵",
+                    "LuaEngine.registerExitCallback 分发失败：%s",
+                    error
+            );
+        }
+    }
+    leaveVmFromCallback(vmToken);
 }
 
 void LuaRuntime::controlHook(lua_State* state, lua_Debug* debug) {

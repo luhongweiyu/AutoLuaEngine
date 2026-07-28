@@ -2,12 +2,15 @@
  * 文件用途：实现 Java NativeEngine 到 libengine.so 的 JNI 调用入口。
  */
 #include <jni.h>
+#include <android/bitmap.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
 
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <new>
+#include <utility>
 #include <vector>
 
 #include "core/api/screen_api.h"
@@ -119,6 +122,66 @@ Java_com_xiaoyv_engine_NativeEngine_nativeGetScreenFrame(JNIEnv* env, jclass cla
             reinterpret_cast<const jbyte*>(payload.data())
     );
     return result;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeSetScreenBitmap(
+        JNIEnv* env,
+        jclass clazz,
+        jobject bitmap,
+        jint screenWidth,
+        jint screenHeight
+) {
+    (void) clazz;
+    if (bitmap == nullptr) {
+        xiaoyv::api::restoreScreenPixelOverride();
+        return JNI_TRUE;
+    }
+
+    AndroidBitmapInfo info{};
+    if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS
+            || info.width == 0
+            || info.height == 0
+            || info.format != ANDROID_BITMAP_FORMAT_RGBA_8888
+            || info.stride < info.width * 4U) {
+        return JNI_FALSE;
+    }
+
+    std::size_t rowBytes = static_cast<std::size_t>(info.width) * 4U;
+    std::size_t pixelBytes = rowBytes * static_cast<std::size_t>(info.height);
+    if (pixelBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        return JNI_FALSE;
+    }
+
+    std::vector<unsigned char> pixels;
+    try {
+        pixels.resize(pixelBytes);
+    } catch (const std::bad_alloc&) {
+        return JNI_FALSE;
+    }
+    void* sourcePixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap, &sourcePixels) != ANDROID_BITMAP_RESULT_SUCCESS
+            || sourcePixels == nullptr) {
+        return JNI_FALSE;
+    }
+
+    const auto* source = static_cast<const unsigned char*>(sourcePixels);
+    for (std::size_t row = 0; row < static_cast<std::size_t>(info.height); ++row) {
+        std::memcpy(
+                pixels.data() + row * rowBytes,
+                source + row * static_cast<std::size_t>(info.stride),
+                rowBytes
+        );
+    }
+    AndroidBitmap_unlockPixels(env, bitmap);
+
+    return xiaoyv::api::setScreenPixelOverride(
+            std::move(pixels),
+            static_cast<int>(info.width),
+            static_cast<int>(info.height),
+            static_cast<int>(screenWidth),
+            static_cast<int>(screenHeight)
+    ) ? JNI_TRUE : JNI_FALSE;
 }
 
 /**

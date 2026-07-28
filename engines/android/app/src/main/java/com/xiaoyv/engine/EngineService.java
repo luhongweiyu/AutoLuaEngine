@@ -33,6 +33,8 @@ public final class EngineService extends Service {
             "com.xiaoyv.engine.action.PAUSE_SCRIPT";
     public static final String ACTION_RESUME_SCRIPT =
             "com.xiaoyv.engine.action.RESUME_SCRIPT";
+    public static final String ACTION_RESTART_SCRIPT =
+            "com.xiaoyv.engine.action.RESTART_SCRIPT";
     public static final String ACTION_FORCE_STOP_ENGINE_PROCESS =
             "com.xiaoyv.engine.action.FORCE_STOP_ENGINE_PROCESS";
     public static final String ACTION_STATUS =
@@ -50,6 +52,9 @@ public final class EngineService extends Service {
     public static final String STATE_FAILED = "failed";
 
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean restartRequested = new AtomicBoolean(false);
+    private volatile String activeScriptPath;
+    private volatile String restartScriptPath;
 
     public static void ensureStarted(Context context) {
         Intent intent = new Intent(context, EngineService.class);
@@ -89,6 +94,12 @@ public final class EngineService extends Service {
     public static void resumeScript(Context context) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_RESUME_SCRIPT);
+        context.startService(intent);
+    }
+
+    public static void restartScript(Context context) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_RESTART_SCRIPT);
         context.startService(intent);
     }
 
@@ -134,6 +145,11 @@ public final class EngineService extends Service {
             return START_STICKY;
         }
 
+        if (ACTION_RESTART_SCRIPT.equals(intent.getAction())) {
+            requestScriptRestart();
+            return START_STICKY;
+        }
+
         return START_STICKY;
     }
 
@@ -149,6 +165,8 @@ public final class EngineService extends Service {
     }
 
     private void shutdownRuntime() {
+        NetworkPlatformBridge.closeAllWebSockets();
+        AccessibilityNodePlatformBridge.releaseScriptState(getApplicationContext());
         AndroidHostBridge.closeAllScriptUi();
         EngineHttpServer.stop();
         RootHelperBridge.shutdown();
@@ -176,6 +194,7 @@ public final class EngineService extends Service {
         }
 
         ScriptCatalog.setSelectedScript(this, item);
+        activeScriptPath = item.filePath;
         broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.fileName);
 
         Thread worker = new Thread(() -> {
@@ -213,12 +232,41 @@ public final class EngineService extends Service {
                 state = STATE_FAILED;
                 message = "脚本运行失败：" + exception.getMessage();
             } finally {
+                NetworkPlatformBridge.closeAllWebSockets();
+                AccessibilityNodePlatformBridge.releaseScriptState(getApplicationContext());
+                activeScriptPath = null;
                 running.set(false);
             }
 
             broadcastStatus(state, message);
+            if (restartRequested.compareAndSet(true, false)) {
+                String path = restartScriptPath;
+                restartScriptPath = null;
+                runScriptFileInternal(path);
+            }
         }, "EngineServiceLuaWorker");
         worker.start();
+    }
+
+    private void requestScriptRestart() {
+        if (running.get()) {
+            String currentPath = activeScriptPath;
+            if (currentPath == null || currentPath.isEmpty()) {
+                broadcastStatus(STATE_FAILED, "当前脚本路径不可用");
+                return;
+            }
+            restartScriptPath = currentPath;
+            restartRequested.set(true);
+            requestScriptStop();
+            return;
+        }
+
+        ScriptCatalog.ScriptItem selected = ScriptCatalog.getSelectedScript(this);
+        if (selected == null || !selected.runnable) {
+            broadcastStatus(STATE_FAILED, "没有可重启的当前脚本");
+            return;
+        }
+        runScriptFileInternal(selected.filePath);
     }
 
     private void requestScriptStop() {

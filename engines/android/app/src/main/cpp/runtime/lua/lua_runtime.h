@@ -82,6 +82,9 @@ public:
     /** App 全局停止时通知全部 Lua 子线程退出等待。 */
     void requestStopAllThreads();
 
+    /** 暂停或恢复主脚本任务，不阻塞负责恢复它的 Lua 子线程。 */
+    bool setMainTaskPaused(bool paused);
+
     /** 阻塞 API 在不访问 Lua 栈期间临时释放 VM Gate。 */
     bool releaseVmForBlocking();
 
@@ -103,12 +106,24 @@ public:
     /** 返回当前正在执行的 ALPKG 文件路径；普通 .lua 脚本返回空字符串。 */
     std::string packagePath() const;
 
+    /** 保存兼容 setStopCallBack 注册的 Lua 函数；重复注册时替换上一项。 */
+    bool setStopCallback(struct lua_State* state, int callbackIndex, std::string* error);
+
+    /**
+     * 在主任务和全部子任务结束后执行兼容退出回调。
+     *
+     * abnormal 表示脚本未正常返回；exitCode 固定为 0 正常、1 主动停止、2 运行错误。
+     * Lua 回调和 LuaEngine.registerExitCallback 都在 LuaRuntime 销毁前执行。
+     */
+    void invokeStopCallbacks(bool abnormal, int exitCode);
+
 private:
     struct lua_State* state_;
     bool (*shouldInterrupt_)(void*);
     void* controlContext_;
     std::shared_ptr<AlpkgPackage> package_;
     std::unique_ptr<LuaTaskScheduler> scheduler_;
+    int stopCallbackReference_;
 
     /** 注册当前 Lua HostApi，包括固定 C ABI 绑定、UI 和 Lua native 多线程入口。 */
     void registerHostApi();

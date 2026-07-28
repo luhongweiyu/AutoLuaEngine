@@ -57,7 +57,8 @@ Lua imgui.*
 
 ## C ABI 边界
 
-- 顶层 `EngineApi::abiVersion` 为 `18`，仅在函数表尾部新增 `getImGuiApi`。
+- 顶层 `EngineApi::abiVersion` 当前为 `20`；版本 18 在函数表尾部新增 `getImGuiApi`，
+  版本 20 在它后面追加 `findPicAll`。这不改变 ImGui 子表入口或任何既有字段位置。
 - `EngineImGuiApi::abiVersion` 为 `1`，结构体字段只能在尾部追加。
 - `engine_getImGuiApi()` 与 `engine_getApi()->getImGuiApi()` 返回同一张进程级只读子函数表。
 - 每个子函数表成员都有对应的 `engine_imgui*` 直接导出；两种入口调用同一份核心实现。

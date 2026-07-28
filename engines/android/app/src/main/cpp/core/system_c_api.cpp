@@ -22,14 +22,15 @@
 
 namespace {
 
-// 18 在函数表尾部加入 Dear ImGui 子函数表；既有字段位置保持不变。
-constexpr int kEngineAbiVersion = 18;
+// 20 在 EngineDeviceApi 尾部加入受控平台 JSON 调用，并在 EngineApi 尾部加入全部找图；
+// 既有字段位置保持不变。
+constexpr int kEngineAbiVersion = 20;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.18\","
+        "\"abiVersion\":\"0.20\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -38,14 +39,14 @@ constexpr const char* kCapabilitiesJson =
         "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
         "\"screenCapture\":[\"engine_getScreenPixels\",\"engine_setScreenPixels\",\"engine_restoreScreenPixels\",\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
-        "\"imageApi\":[\"engine_findPic\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
+        "\"imageApi\":[\"engine_findPic\",\"engine_findPicAll\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
         "\"ocrApi\":[\"engine_ocrLoadBuiltinModel\",\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
         "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontAddDict\",\"engine_fontUseDict\",\"engine_fontGetPixel\",\"engine_fontOcr\",\"engine_fontFindStr\",\"engine_fontFindStrEx\",\"engine_fontFindStrFast\",\"engine_fontFindStrFastEx\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
         "\"uiApi\":[\"engine_uiOpen\",\"engine_uiUpdate\",\"engine_uiPostMessage\",\"engine_uiClose\",\"engine_uiWaitEvent\"],"
         "\"imguiApi\":[\"engine_getImGuiApi\",\"engine_imguiShow\",\"engine_imguiCreateWindow\",\"engine_imguiWaitEvent\"],"
-        "\"deviceApi\":[\"engine_getDeviceApi\",\"engine_appIsFront\",\"engine_exec\",\"engine_getDisplayInfoJson\"],"
+        "\"deviceApi\":[\"engine_getDeviceApi\",\"engine_appIsFront\",\"engine_exec\",\"engine_getDisplayInfoJson\",\"engine_readPasteboard\",\"engine_writePasteboard\",\"engine_deviceCallJson\"],"
         "\"alpkgApi\":[\"engine_readAlpkgFile\"],"
         "\"imageFormat\":\"rgba8888\""
         "}";
@@ -54,6 +55,7 @@ thread_local std::string gRuntimeLastError;
 thread_local std::string gScreenLastError;
 thread_local std::string gColorLastError;
 thread_local std::string gImageLastError;
+thread_local std::string gImageResult;
 thread_local std::string gInputLastError;
 thread_local std::string gImeLastError;
 thread_local std::string gOcrLastError;
@@ -232,7 +234,10 @@ const EngineDeviceApi kEngineDeviceApi = {
         engine_phoneCall,
         engine_sendSms,
         engine_vibrate,
-        engine_deviceLastError
+        engine_deviceLastError,
+        engine_readPasteboard,
+        engine_writePasteboard,
+        engine_deviceCallJson
 };
 
 const EngineApi kEngineApi = {
@@ -300,7 +305,8 @@ const EngineApi kEngineApi = {
         engine_ocrLoadBuiltinModel,
         engine_fontFindStrFast,
         engine_fontFindStrFastEx,
-        engine_getImGuiApi
+        engine_getImGuiApi,
+        engine_findPicAll
 };
 
 } // namespace
@@ -490,10 +496,10 @@ extern "C" const char* engine_getCurrentActivity() {
 }
 
 /**
- * Root 启动应用。
+ * 启动应用。
  *
- * componentName 为空时自动打开启动入口；isOpenBySuper 为兼容参数，当前 Root 引擎始终
- * 通过 RootDaemon 启动应用。
+ * componentName 为空时自动打开启动入口；isOpenBySuper 非 0 时通过 RootDaemon，
+ * 否则使用 Android 普通启动 Intent。
  */
 extern "C" int engine_runApp(
         const char* packageName,
@@ -835,6 +841,42 @@ extern "C" int engine_vibrate(int durationMs) {
     );
 }
 
+/** 读取系统剪贴板第一项纯文本；空剪贴板或非文本内容按脚本契约返回空字符串。 */
+extern "C" const char* engine_readPasteboard() {
+    return deviceStringResult("system.readPasteboard", deviceArguments());
+}
+
+/** 写入系统纯文本剪贴板；空字符串用于覆盖并清空当前文本内容。 */
+extern "C" int engine_writePasteboard(const char* text) {
+    return deviceActionResult(
+            "system.writePasteboard",
+            deviceArguments({{"text", JsonValue::makeString(text == nullptr ? "" : text)}})
+    );
+}
+
+extern "C" const char* engine_deviceCallJson(
+        const char* operation,
+        const char* argumentsJson
+) {
+    if (operation == nullptr || operation[0] == '\0') {
+        gDeviceLastError = "平台能力名称不能为空";
+        gDeviceResult.clear();
+        return nullptr;
+    }
+
+    JsonValue arguments;
+    std::string parseError;
+    const char* source = argumentsJson == nullptr || argumentsJson[0] == '\0'
+            ? "{}"
+            : argumentsJson;
+    if (!parseJsonText(source, &arguments, &parseError) || !arguments.isObject()) {
+        gDeviceLastError = "平台能力参数必须是 JSON 对象";
+        gDeviceResult.clear();
+        return nullptr;
+    }
+    return deviceJsonResult(operation, arguments);
+}
+
 /** 返回当前线程最近一次设备 API 失败原因。 */
 extern "C" const char* engine_deviceLastError() {
     return gDeviceLastError.c_str();
@@ -1048,6 +1090,47 @@ extern "C" int engine_findPic(
     }
     gImageLastError.clear();
     return 1;
+}
+
+extern "C" const char* engine_findPicAll(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* picName,
+        const char* deltaColor,
+        int dir,
+        double sim
+) {
+    std::vector<xiaoyv::api::找图坐标> points;
+    if (!xiaoyv::api::在屏幕中找全部图片(
+            x1,
+            y1,
+            x2,
+            y2,
+            picName,
+            deltaColor,
+            dir,
+            sim,
+            &points
+    )) {
+        gImageLastError = xiaoyv::api::取图片错误();
+        gImageResult.clear();
+        return nullptr;
+    }
+
+    std::string result = "[";
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        if (index != 0) {
+            result.push_back(',');
+        }
+        result += "{\"x\":" + std::to_string(points[index].x)
+                + ",\"y\":" + std::to_string(points[index].y) + "}";
+    }
+    result.push_back(']');
+    gImageResult = std::move(result);
+    gImageLastError.clear();
+    return gImageResult.c_str();
 }
 
 /** 清理缓存模板，供脚本替换图片文件后立即重新加载。 */

@@ -58,6 +58,24 @@ bool 在屏幕中找图(
 );
 
 /**
+ * 在当前截图缓存中查找模板的全部非重叠命中。
+ *
+ * 参数语义与在屏幕中找图一致；未命中属于成功，返回空数组。为避免单色小模板耗尽内存，
+ * 单次最多返回十万个命中，超过时明确失败。
+ */
+bool 在屏幕中找全部图片(
+        int x1,
+        int y1,
+        int x2,
+        int y2,
+        const char* picName,
+        const char* deltaColor,
+        int direction,
+        double similarity,
+        std::vector<找图坐标>* points
+);
+
+/**
  * 把当前截图缓存的指定区域保存为图片文件。
  *
  * region 为 nullptr 时保存完整屏幕；非空时必须完全位于屏幕内且宽高大于 0。

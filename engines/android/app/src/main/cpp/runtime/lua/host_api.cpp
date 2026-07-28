@@ -18,6 +18,9 @@
 #include "../../core/system_c_api.h"
 #include "../../engine/json_value.h"
 #include "java_bridge.h"
+#include "color_compat_lua_api.h"
+#include "cv_compat_lua_api.h"
+#include "ffi_lua_api.h"
 #include "imgui_lua_api.h"
 #include "lua_runtime.h"
 #include "lua_thread_api.h"
@@ -355,6 +358,35 @@ int luaSleep(lua_State* state) {
 
     lua_pushboolean(state, 1);
     return 1;
+}
+
+int luaSetMainThreadPause(lua_State* state) {
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    lua_pushboolean(state, runtime != nullptr && runtime->setMainTaskPaused(true));
+    return 1;
+}
+
+int luaSetMainThreadResume(lua_State* state) {
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    lua_pushboolean(state, runtime != nullptr && runtime->setMainTaskPaused(false));
+    return 1;
+}
+
+int luaSetStopCallback(lua_State* state) {
+    luaL_checktype(state, 1, LUA_TFUNCTION);
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    if (runtime == nullptr) {
+        return luaL_error(state, "LuaRuntime 不可用");
+    }
+    std::string error;
+    if (!runtime->setStopCallback(state, 1, &error)) {
+        return luaL_error(
+                state,
+                "%s",
+                error.empty() ? "注册脚本结束回调失败" : error.c_str()
+        );
+    }
+    return 0;
 }
 
 int luaLogPrint(lua_State* state) {
@@ -812,6 +844,35 @@ int luaSendSms(lua_State* state) {
     return 0;
 }
 
+/** 触动精灵兼容的系统文本剪贴板读取。 */
+int luaReadPasteboard(lua_State* state) {
+    const char* text = engine_readPasteboard();
+    if (text == nullptr) {
+        lua_pushnil(state);
+        lua_pushstring(state, engine_deviceLastError());
+        return 2;
+    }
+    lua_pushstring(state, text);
+    return 1;
+}
+
+/**
+ * 触动精灵兼容的系统文本剪贴板写入。
+ *
+ * kind=1 是 iOS 图片剪贴板约定；Android 只实现文本，因此省略或传 0。
+ */
+int luaWritePasteboard(lua_State* state) {
+    const char* text = luaL_checkstring(state, 1);
+    int kind = lua_isnoneornil(state, 2) ? 0 : luaCheckInt(state, 2, "kind");
+    if (kind != 0) {
+        return luaL_argerror(state, 2, "Android 仅支持文本剪贴板，kind 必须为 0");
+    }
+    if (!engine_writePasteboard(text)) {
+        return luaL_error(state, "%s", engine_deviceLastError());
+    }
+    return 0;
+}
+
 int luaVibrate(lua_State* state) {
     engine_vibrate(luaCheckInt(state, 1, "durationMs"));
     return 0;
@@ -929,6 +990,43 @@ int pushCAbiJsonOrError(lua_State* state, const char* jsonText, const char* erro
     return 1;
 }
 
+/**
+ * 受控 Android 平台扩展调用。
+ *
+ * Lua 只能调用 DevicePlatformBridge 明确列出的 operation；该入口负责 table/JSON
+ * 转换与阻塞期 VM Gate 释放，不向脚本开放任意 JNI 或任意 shell。
+ */
+int luaPlatformCall(lua_State* state) {
+    std::string operation = luaL_checkstring(state, 1);
+    std::string argumentsJson;
+    std::string serializationError;
+    if (lua_isnoneornil(state, 2)) {
+        argumentsJson = "{}";
+    } else if (!lua_istable(state, 2)
+            || !luaArgumentToJson(state, 2, &argumentsJson, &serializationError)) {
+        return luaL_argerror(
+                state,
+                2,
+                serializationError.empty()
+                        ? "平台能力参数必须是 table"
+                        : serializationError.c_str()
+        );
+    }
+
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    const char* nativeResult = engine_deviceCallJson(
+            operation.c_str(),
+            argumentsJson.c_str()
+    );
+    std::string result = nativeResult == nullptr ? "" : nativeResult;
+    std::string error = engine_deviceLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    return pushCAbiJsonOrError(state, result.c_str(), error.c_str());
+}
+
 /** 把可选 Lua table OCR 配置转换为 C ABI JSON 对象。 */
 bool luaOptionalOptionsJson(lua_State* state, int index, std::string* output, std::string* error) {
     if (output == nullptr || error == nullptr) {
@@ -996,6 +1094,29 @@ int luaFindPic(lua_State* state) {
     lua_pushinteger(state, point.x);
     lua_pushinteger(state, point.y);
     return 2;
+}
+
+/** 返回模板在当前截图中的全部非重叠命中。 */
+int luaFindPicAll(lua_State* state) {
+    int x1 = luaCheckInt(state, 1, "x1");
+    int y1 = luaCheckInt(state, 2, "y1");
+    int x2 = luaCheckInt(state, 3, "x2");
+    int y2 = luaCheckInt(state, 4, "y2");
+    const char* picName = luaL_checkstring(state, 5);
+    const char* deltaColor = luaL_checkstring(state, 6);
+    int direction = luaCheckInt(state, 7, "dir");
+    double similarity = luaL_checknumber(state, 8);
+    const char* result = engine_findPicAll(
+            x1,
+            y1,
+            x2,
+            y2,
+            picName,
+            deltaColor,
+            direction,
+            similarity
+    );
+    return pushCAbiJsonOrError(state, result, engine_imageLastError());
 }
 
 /** 清理找图模板缓存，picName 省略时清理所有模板。 */
@@ -1476,6 +1597,9 @@ void registerHostApi(lua_State* state) {
 
     setFunctionField(state, hostTableIndex, "print", luaPrint);
     setFunctionField(state, hostTableIndex, "sleep", luaSleep);
+    setFunctionField(state, hostTableIndex, "setMainThreadPause", luaSetMainThreadPause);
+    setFunctionField(state, hostTableIndex, "setMainThreadResume", luaSetMainThreadResume);
+    setFunctionField(state, hostTableIndex, "setStopCallBack", luaSetStopCallback);
     setFunctionField(state, hostTableIndex, "systemTime", luaSystemTime);
     setFunctionField(state, hostTableIndex, "tickCount", luaTickCount);
     setFunctionField(state, hostTableIndex, "read_alpkg_file", luaReadAlpkgFile);
@@ -1543,11 +1667,17 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, hostTableIndex, "setWifiEnable", luaSetWifiEnable);
     setFunctionField(state, hostTableIndex, "phoneCall", luaPhoneCall);
     setFunctionField(state, hostTableIndex, "sendSms", luaSendSms);
+    setFunctionField(state, hostTableIndex, "readPasteboard", luaReadPasteboard);
+    setFunctionField(state, hostTableIndex, "writePasteboard", luaWritePasteboard);
+    setFunctionField(state, hostTableIndex, "platformCall", luaPlatformCall);
     setFunctionField(state, hostTableIndex, "vibrate", luaVibrate);
 
     // Lua 多线程属于语言运行时能力，直接实现于 libengine.so/runtime/lua，不经过
     // 语言无关 C ABI；JS 和 Go 后续分别使用自己的任务模型。
     registerLuaThreadApi(state, hostTableIndex);
+    registerColorCompatLuaApi(state, hostTableIndex);
+    registerCvCompatLuaApi(state, hostTableIndex);
+    registerFfiLuaApi(state, hostTableIndex);
 
     lua_newtable(state);
     int logTableIndex = lua_gettop(state);
@@ -1573,6 +1703,7 @@ void registerHostApi(lua_State* state) {
     lua_newtable(state);
     int imageTableIndex = lua_gettop(state);
     setFunctionField(state, imageTableIndex, "findPic", luaFindPic);
+    setFunctionField(state, imageTableIndex, "findPicAll", luaFindPicAll);
     setFunctionField(state, imageTableIndex, "clearCache", luaClearImageCache);
     setFunctionField(state, imageTableIndex, "setCacheMaxBytes", luaSetImageCacheMaxBytes);
     lua_setfield(state, hostTableIndex, "image");

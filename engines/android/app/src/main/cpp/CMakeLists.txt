@@ -29,6 +29,9 @@ add_library(engine SHARED
         platform/imgui_renderer.cpp
         runtime/common/log_buffer.cpp
         runtime/lua/alpkg_package.cpp
+        runtime/lua/color_compat_lua_api.cpp
+        runtime/lua/cv_compat_lua_api.cpp
+        runtime/lua/ffi_lua_api.cpp
         runtime/lua/host_api.cpp
         runtime/lua/imgui_lua_api.cpp
         runtime/lua/java_bridge.cpp
@@ -89,10 +92,12 @@ find_library(android-lib android)
 find_library(egl-lib EGL)
 find_library(glesv3-lib GLESv3)
 find_library(jnigraphics-lib jnigraphics)
+find_library(dl-lib dl)
 
 target_link_libraries(engine
         ${log-lib}
         ${android-lib}
         ${egl-lib}
         ${glesv3-lib}
-        ${jnigraphics-lib})
+        ${jnigraphics-lib}
+        ${dl-lib})

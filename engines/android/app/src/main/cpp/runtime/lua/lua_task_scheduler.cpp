@@ -82,6 +82,11 @@ std::string LuaTaskScheduler::runMain(lua_State* mainState, int registryReferenc
     // 主任务结束就代表整个脚本生命周期结束。先释放主任务持有的 Gate，再通知并等待
     // 子线程退出，否则子线程无法进入 hook 处理停止请求。
     stopAndJoinAll();
+    TaskState finalState = task->status.load();
+    int exitCode = finalState == TaskState::Finished
+            ? 0
+            : (finalState == TaskState::Stopped ? 1 : 2);
+    runtime_->invokeStopCallbacks(finalState != TaskState::Finished, exitCode);
     return result;
 }
 
@@ -246,7 +251,33 @@ bool LuaTaskScheduler::isTaskStopRequested(lua_State* state) const {
     return task != nullptr && task->stopRequested.load();
 }
 
+void LuaTaskScheduler::setMainTaskPaused(bool paused) {
+    mainTaskPaused_.store(paused);
+    if (!paused) {
+        mainPauseCondition_.notify_all();
+    }
+}
+
+void LuaTaskScheduler::waitIfMainTaskPaused(lua_State* state) {
+    LuaTask* task = state == nullptr
+            ? static_cast<LuaTask*>(gCurrentTask)
+            : taskFromState(state);
+    if (task == nullptr || !task->mainTask || !mainTaskPaused_.load()) {
+        return;
+    }
+
+    bool released = releaseForBlocking();
+    {
+        std::unique_lock<std::mutex> lock(mainPauseMutex_);
+        mainPauseCondition_.wait(lock, [this]() {
+            return !mainTaskPaused_.load();
+        });
+    }
+    reacquireAfterBlocking(released);
+}
+
 void LuaTaskScheduler::requestStopAll() {
+    setMainTaskPaused(false);
     std::vector<std::shared_ptr<LuaTask>> tasks;
     {
         std::lock_guard<std::mutex> lock(tasksMutex_);

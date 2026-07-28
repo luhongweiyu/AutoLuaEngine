@@ -56,7 +56,7 @@ function 检查目录节点 {
         if ($null -ne $相对路径) {
             $相对路径 = ([string]$相对路径).Replace('\', '/')
             if ($相对路径 -notmatch '^md/.+\.md$') {
-                添加错误 "目录项“$名称”的 md 路径无效：$相对路径"
+                添加错误 ('目录项“{0}”的 md 路径无效：{1}' -f $名称, $相对路径)
             } else {
                 $目录文档路径.Add($相对路径)
                 if (-not [string]::IsNullOrWhiteSpace([string]$命令)) {
@@ -64,7 +64,7 @@ function 检查目录节点 {
                 }
                 $实际路径 = Join-Path $文档根目录 ($相对路径.Replace('/', '\'))
                 if (-not (Test-Path -LiteralPath $实际路径 -PathType Leaf)) {
-                    添加错误 "目录项“$名称”引用的文件不存在：$相对路径"
+                    添加错误 ('目录项“{0}”引用的文件不存在：{1}' -f $名称, $相对路径)
                 }
             }
         }
@@ -128,11 +128,11 @@ if (Test-Path -LiteralPath $Markdown根目录 -PathType Container) {
             $正文 = [string]::Join([Environment]::NewLine, $行[($结束行 + 1)..($行.Count - 1)])
             foreach ($字段 in @('**方法名称：**', '**语法：**', '**参数说明：**', '**详细说明：**')) {
                 if (-not $正文.Contains($字段)) {
-                    添加错误 "函数页缺少“$字段”字段：$相对路径"
+                    添加错误 ('函数页缺少“{0}”字段：{1}' -f $字段, $相对路径)
                 }
             }
             if ($正文 -notmatch '(?m)^\| 返回值 \| 说明 \|\s*$') {
-                添加错误 "函数页缺少“返回值 | 说明”表格：$相对路径"
+                添加错误 ('函数页缺少“返回值 | 说明”表格：{0}' -f $相对路径)
             }
             if ($正文 -notmatch '(?m)^```lua\s*$') {
                 添加错误 "函数页缺少 Lua 使用示例：$相对路径"

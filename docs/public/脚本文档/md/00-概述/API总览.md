@@ -18,6 +18,9 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 全局 | `tickCount()` | 无 | `integer` | 当前脚本运行时间，单位毫秒 |
 | 全局 | `getRunEnvType()` | 无 | `integer` | `0` 为 Root，`1` 为无障碍，`-1` 为未就绪 |
 | 设备 | `m.appIsFront()`、`m.getBrand()`、`m.exec()` 等 | 见左侧「设备」分类 | 见设备文档 | 应用管理、硬件信息、系统控制和 Root 命令 |
+| 设备 | `m.readPasteboard()` | 无 | `string` 或 `nil, string` | 读取系统文本剪贴板；没有文本为空字符串，平台失败附带原因 |
+| 设备 | `m.writePasteboard(text[, kind])` | `text: string, kind: integer?` | 无 | 写入系统文本剪贴板；Android 的 `kind` 只能省略或为 `0` |
+| 设备 | `m.getScriptVersion()` | 无 | `integer` | 读取脚本工作目录的 `version` 整数 |
 | 全局 | `useApi(name)` / `switchApi(name)` | `name: string` | `boolean` 或 `nil, string` | 切换全局 API 命名空间 |
 | Java | `import(className)` | `className: string` | 无 | 导入 Java 类或包 |
 | Java | `LuaEngine.getContext()` | 无 | `userdata` | 返回 Android Application Context |
@@ -25,9 +28,14 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | Java | `LuaEngine.httpPost(url, params, headers[, timeout])` | `url: string, params: table, headers: table, timeout: integer?` | `string?` | 表单 HTTP POST |
 | Java | `LuaEngine.httpPostData(url, data, contentType, timeout)` | `url: string, data: string, contentType: string, timeout: integer` | `string?` | 文本数据 HTTP POST |
 | Java | `LuaEngine.loadApk(nameOrPath)` | `nameOrPath: string` | `userdata?` | 加载 APK/JAR/DEX 插件 |
+| Java | `LuaEngine.sendMail*` | SMTP、正文、可选附件与回调 | 无 | 异步发送邮件或附件 |
+| Java | `PaddleOcr.loadModel/loadOnnxModel/detect*` | 模型路径或 Bitmap | `boolean` / `string?` | 复用当前 PP-OCRv4 ONNX 推理核心 |
+| Java | `LuaEngine.registerExitCallback(callback)` | `callback: function` | 无 | 注册当前 Lua 运行时的结束回调 |
 | 多线程 | `m.thread.beginThread(callback, ...)` | `callback: function, ...: any` | 无 | 启动 native 子线程 |
 | 多线程 | `m.thread.newThread(callback, ...)` | `callback: function, ...: any` | `userdata` | 启动并返回线程对象 |
 | 多线程 | `thread:stopThread()` | 无 | 无 | 停止并等待指定子线程退出 |
+| 多线程 | `setMainThreadPause()` / `setMainThreadResume()` | 无 | `boolean` | 暂停或恢复主脚本任务，子线程继续运行 |
+| 多线程 | `setStopCallBack(callback)` | `callback: function` | 无 | 主任务和子线程结束后的生命周期回调 |
 | 原生界面 | `m.dialog.alert(title, message[, buttonText])` | `title: string, message: string, buttonText: string?` | `boolean \| nil, string?` | 原生提示框 |
 | 原生界面 | `m.dialog.confirm(title, message[, positiveText[, negativeText]])` | `title: string, message: string, positiveText: string?, negativeText: string?` | `boolean \| nil, string?` | 原生确认框 |
 | 原生界面 | `m.dialog.input(title, hint[, defaultText[, options]])` | `title: string, hint: string, defaultText: string?, options: table?` | `string?` 或 `nil, string` | 原生输入框 |
@@ -51,7 +59,7 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 日志 | `m.log.print(text)` | `text: string` | `boolean` | 输出日志文本 |
 | 输入 | `touchDown(id, x, y)` | `id: integer, x: integer, y: integer` | 无 | 按住不放，仅 Root 模式 |
 | 输入 | `touchMove(id, x, y)` | `id: integer, x: integer, y: integer` | `boolean` | 移动手指，仅 Root 模式 |
-| 输入 | `touchUp(id)` | `id: integer` | 无 | 弹起手指，仅 Root 模式 |
+| 输入 | `touchUp(id)` | `id: integer` | `boolean` | 弹起手指，仅 Root 模式 |
 | 输入 | `keyDown(keycode)` | `keycode: string \| integer` | `boolean` | 按下按键不弹起，仅 Root 模式 |
 | 输入 | `keyUp(keycode)` | `keycode: string \| integer` | `boolean` | 弹起按键，仅 Root 模式 |
 | 输入 | `keyPress(keycode)` | `keycode: string \| integer` | `boolean` | 按一下按键并弹起，仅 Root 模式 |
@@ -69,6 +77,7 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 图像 | `m.setCaptureCacheMs(ms)` | `ms: integer` | `integer \| nil, string?` | 设置并返回截图缓存时间 |
 | 找色 | `m.findColors(x1, y1, x2, y2, dir, sim, colors)` | `x1..y2: integer, dir: integer, sim: integer, colors: string` | `integer, integer` 或 `nil, string` | 在当前截图缓存上多点找色 |
 | 图像 | `m.findPic(x1, y1, x2, y2, picName, deltaColor, dir, sim)` | `x1..y2: integer, picName: string, deltaColor: string, dir: integer, sim: number` | `integer, integer` 或 `nil, string` | 在当前截图缓存中查找模板图片 |
+| 图像 | `m.findPicAll(x1, y1, x2, y2, picName, deltaColor, dir, sim)` | 同 `m.findPic` | `table` 或 `nil, string` | 返回全部非重叠模板命中 |
 | 图像 | `m.clearImageCache([picName])` | `picName: string?` | `boolean` | 清理一个或全部模板图片缓存 |
 | 图像 | `m.setImageCacheMaxBytes(maxBytes)` | `maxBytes: integer` | `integer` 或 `nil, string` | 设置当前脚本的模板缓存字节上限 |
 | OCR | `m.ocr.loadBuiltin([name[, threads]])` | `name: string?, threads: integer?` | `boolean` 或 `nil, string` | 加载 APK 内置中文/英文 PP-OCRv4 mobile 模型 |
@@ -88,10 +97,17 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 点阵字库 | `m.font.findStrEx(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `string` 或 `nil, string` | 返回所有目标文字坐标 |
 | 点阵字库 | `m.font.findStrFast(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `integer, integer` 或 `nil, string` | 只搜索目标字形并返回第一处坐标 |
 | 点阵字库 | `m.font.findStrFastEx(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `string` 或 `nil, string` | 只搜索目标字形并返回全部坐标 |
+| 兼容加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 见「兼容接口 / 加密」 | 二进制字符串或 PEM | AES、RSA 和安全随机密钥 |
+| 兼容网络 | `httpGet`、`httpPost`、WebSocket、`socket.http.request` | 见「兼容接口 / 网络」 | 正文、状态或句柄 | HTTP、文件传输和 WebSocket |
+| 兼容触控 | `setScreenScale`、`tap`、`longTap`、`swipe` | 见「兼容接口 / 触控与输入法」 | 无或 `boolean` | 虚拟坐标与常用手势 |
+| 兼容图色 | `getPixelColor`、`findMultiColor`、`findCircle`、`findPicEx` 等 | 见「兼容接口 / 图色与识字」 | 坐标、table 或字符串 | 取色、多点找色、找圆、识字和多模板 |
+| FFI / OpenCV | `ffi.cdef`、`ffi.load`、`cv.*` | 见「兼容接口」 | userdata、table 或标量 | 受限 C ABI 与 OpenCV `Mat` 截图 |
+| 无障碍节点 | 选择器、节点对象、`nodeLib.*` | 见「兼容接口 / 无障碍节点」 | selector、node、table 或状态 | 查询和操作 Android 无障碍节点 |
 
 `m.sleep`、`m.systemTime`、`m.tickCount`、`m.touchDown` 等同名成员与默认全局函数的参数、
 返回值一致；`m.ime` 与 `imeLib` 是同一组输入法函数。`m.html` 是 `m.web` 的别名。设备和
 应用能力的实现统一归属 `m`，完整清单见左侧「设备」分类。
 
-`lr` / `cd` 当前保留已有的最小兼容映射。后续新增功能默认只进入 `m`，`lr` 和 `cd` 兼容层
-单独集中完善，不随每个新功能同步增加。完整的切换规则见「命名空间与别名」。
+`lr` / `cd` 复用已经落地且语义相同的 `m` 能力；存在历史差异时由兼容层单独覆盖。例如
+`lr.findPic` 使用多模板和 `0..4` 方向约定，`m.findPic` 保持小鱼精灵原生契约。完整的切换
+规则见「命名空间与别名」，兼容范围见左侧「兼容接口」分类。

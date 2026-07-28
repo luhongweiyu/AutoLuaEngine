@@ -22,6 +22,10 @@ public final class AutomationAccessibilityService extends AccessibilityService {
         return instance != null;
     }
 
+    static AutomationAccessibilityService current() {
+        return instance;
+    }
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
@@ -63,6 +67,7 @@ public final class AutomationAccessibilityService extends AccessibilityService {
 
     @Override
     public boolean onUnbind(android.content.Intent intent) {
+        AccessibilityNodePlatformBridge.onServiceDisconnected();
         instance = null;
         return super.onUnbind(intent);
     }

@@ -11,10 +11,15 @@ const EngineApi* engine_getApi();
 插件通过 `dlsym` 找到 `engine_getApi`，取得 `EngineApi` 函数表。函数表由
 `libengine.so` 持有，插件只读，不释放。
 
-当前 `EngineApi::abiVersion` 为 `18`。版本 18 只在函数表尾部追加 `getImGuiApi`；版本 17
-及以前的字段位置不变。新插件必须使用当前头文件编译，使用 ImGui 子表前检查版本不低于
-18，使用快速找字字段前检查版本不低于 17；内置 OCR 模型字段要求版本不低于 16，图片屏幕
-字段要求版本不低于 15。
+当前 `EngineApi::abiVersion` 为 `20`。版本 18 在顶层函数表尾部追加 `getImGuiApi`；版本 19
+在 `EngineDeviceApi` 尾部追加文本剪贴板字段；版本 20 在设备子表追加 `callJson`，并在顶层
+表尾追加 `findPicAll`。既有字段位置不变。新插件必须使用当前头文件编译：使用剪贴板字段前检查
+`api->abiVersion >= 19` 且 `device->abiVersion >= 19`，使用 `callJson` 前检查两个版本均不低于
+20；使用 ImGui 子表前检查版本不低于 18，使用快速找字字段前检查版本不低于 17；内置 OCR
+模型字段要求版本不低于 16，图片屏幕字段要求版本不低于 15。
+
+`api->findPicAll` 同样要求 `api->abiVersion >= 20`；没有命中返回 `[]`，失败返回
+`nullptr` 并通过 `api->imageLastError()` 取错误。
 
 ## 当前函数表能力
 
@@ -144,6 +149,24 @@ const char* output = device->exec("id", 1);
 const char* displayJson = device->getDisplayInfoJson();
 ```
 
+文本剪贴板字段从 `EngineDeviceApi` ABI 19 起位于 `lastError` 之后。插件只有在两个版本检查
+都通过后才能读取它们：
+
+```c
+if (api->abiVersion >= 19 && device->abiVersion >= 19) {
+    const char* text = device->readPasteboard();
+    device->writePasteboard(text == NULL ? "" : text);
+}
+```
+
+通用平台 JSON 字段从 ABI 20 起位于文本剪贴板字段之后：
+
+```c
+if (api->abiVersion >= 20 && device->abiVersion >= 20) {
+    const char* result_json = device->callJson("device.isDebug", "{}");
+}
+```
+
 ImGui 子表通过 `api->getImGuiApi()` 获取。插件必须先确认 `api->abiVersion >= 18`，再检查
 `imgui->abiVersion`。当前 `EngineImGuiApi::abiVersion` 为 `1`，包含框架、窗口、布局、控件、
 表格、图片、样式、图形和事件等待能力：
@@ -194,4 +217,9 @@ if (imgui != NULL && imgui->abiVersion >= 1 && imgui->isSupport()) {
   `resource` 条目；返回字节由 SO 当前线程持有，插件只读、不释放，并应在下次调用前复制。
 - `getDeviceApi` 返回的字符串、JSON 和 `lastError` 指针由调用线程持有，下一次设备 API
   调用可能覆盖内容；结构化信息统一为 JSON，不暴露 Lua table 或 Java 对象。
+- `readPasteboard` / `writePasteboard` 只通过 Android Application Context 的系统文本
+  `ClipboardManager` 读写第一项文本，不走 Root 或无障碍后备路线。无文本返回空字符串；
+  `readPasteboard` 失败返回 `nullptr` 并通过 `lastError` 说明原因。
+- `callJson` 的参数必须是 JSON 对象文本；返回指针同样由当前线程持有。平台能力仍由引擎
+  核心和 Android 分发层逐项实现，不允许插件把它当成任意 Java/JNI 调用入口。
 - 新能力先进入 `core/api`，再挂到 `system_c_api` 和 `EngineApi`。
