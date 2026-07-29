@@ -1,10 +1,52 @@
+import java.util.Properties
+
 plugins {
     id "com.android.application"
+}
+
+def projectSigningPropertiesFile = rootProject.file("signing.properties")
+if (!projectSigningPropertiesFile.isFile()) {
+    throw new GradleException(
+        "缺少项目固定签名配置：" + projectSigningPropertiesFile
+                + "。请复制 signing.properties.example 为 signing.properties，并放入对应 keystore。"
+    )
+}
+
+def projectSigningProperties = new Properties()
+projectSigningPropertiesFile.withInputStream { stream ->
+    projectSigningProperties.load(stream)
+}
+
+def requiredProjectSigningProperty = { name ->
+    def value = projectSigningProperties.getProperty(name)
+    if (value == null || value.trim().isEmpty()) {
+        throw new GradleException(
+            "项目固定签名配置缺少 " + name + "：" + projectSigningPropertiesFile
+        )
+    }
+    return value.trim()
+}
+
+def projectSigningStoreFile = rootProject.file(
+        requiredProjectSigningProperty("storeFile")
+)
+if (!projectSigningStoreFile.isFile()) {
+    throw new GradleException("项目固定签名文件不存在：" + projectSigningStoreFile)
 }
 
 android {
     namespace "com.xiaoyv.engine"
     compileSdk 34
+
+    signingConfigs {
+        xiaoyv {
+            storeFile projectSigningStoreFile
+            storePassword requiredProjectSigningProperty("storePassword")
+            keyAlias requiredProjectSigningProperty("keyAlias")
+            keyPassword requiredProjectSigningProperty("keyPassword")
+            storeType projectSigningProperties.getProperty("storeType", "PKCS12")
+        }
+    }
 
     defaultConfig {
         applicationId "com.xiaoyv.engine"
@@ -31,6 +73,15 @@ android {
         resources {
             // JavaMail 与 Activation 都携带同名许可证元数据；运行时不读取这些文件。
             excludes += ["META-INF/LICENSE.md", "META-INF/NOTICE.md"]
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.xiaoyv
+        }
+        release {
+            signingConfig signingConfigs.xiaoyv
         }
     }
 }
