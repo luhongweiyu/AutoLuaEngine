@@ -62,6 +62,12 @@ final class DevicePlatformBridge {
     private static final Pattern COMPONENT_PATTERN = Pattern.compile(
             "([A-Za-z][A-Za-z0-9_.$]*)/(\\.?[A-Za-z][A-Za-z0-9_.$]*)"
     );
+    private static final String[] NETWORK_TIME_SERVERS = {
+            "time.android.com",
+            "ntp.aliyun.com",
+            "time1.cloud.tencent.com"
+    };
+    private static final int NETWORK_TIME_SERVER_TIMEOUT_MS = 1_000;
     private static final Object WAKE_LOCK_LOCK = new Object();
     private static PowerManager.WakeLock screenWakeLock;
 
@@ -646,16 +652,28 @@ final class DevicePlatformBridge {
      * 通过 NTP 读取真实网络时间，不用设备本地时钟伪装“网络时间”。
      */
     private static String networkTime() throws IOException {
+        IOException lastFailure = null;
+        for (String server : NETWORK_TIME_SERVERS) {
+            try {
+                return networkTime(server);
+            } catch (IOException exception) {
+                lastFailure = exception;
+            }
+        }
+        throw new IOException("NTP 服务器均不可用", lastFailure);
+    }
+
+    private static String networkTime(String server) throws IOException {
         final int packetBytes = 48;
         final long secondsFrom1900To1970 = 2_208_988_800L;
         byte[] request = new byte[packetBytes];
         // LI=0、VN=3、Mode=3（client）。
         request[0] = 0x1b;
-        InetAddress address = InetAddress.getByName("time.android.com");
+        InetAddress address = InetAddress.getByName(server);
         DatagramPacket outgoing = new DatagramPacket(request, request.length, address, 123);
         DatagramPacket incoming = new DatagramPacket(new byte[packetBytes], packetBytes);
         try (DatagramSocket socket = new DatagramSocket()) {
-            socket.setSoTimeout(3_000);
+            socket.setSoTimeout(NETWORK_TIME_SERVER_TIMEOUT_MS);
             socket.send(outgoing);
             socket.receive(incoming);
         }

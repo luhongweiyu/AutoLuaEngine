@@ -412,7 +412,10 @@ final class NetworkPlatformBridge {
 
         @Override
         public void onClosing(WebSocket webSocket, int code, String reason) {
-            webSocket.close(code, reason);
+            // RFC 6455 允许对端发送不带状态码的关闭帧；OkHttp 用仅供本地表示的
+            // 保留码 1005 回调这种情况，但 1005 不能出现在实际关闭帧中。
+            int responseCode = code == 1005 ? 1000 : code;
+            webSocket.close(responseCode, code == 1005 ? "" : reason);
         }
 
         @Override

@@ -460,8 +460,8 @@ int luaTouchDown(lua_State* state) {
     int id = luaCheckInt(state, 1, "id");
     int x = luaCheckInt(state, 2, "x");
     int y = luaCheckInt(state, 3, "y");
-    engine_touchDown(id, x, y);
-    return 0;
+    lua_pushboolean(state, engine_touchDown(id, x, y));
+    return 1;
 }
 
 int luaTouchMove(lua_State* state) {
@@ -474,8 +474,8 @@ int luaTouchMove(lua_State* state) {
 
 int luaTouchUp(lua_State* state) {
     int id = luaCheckInt(state, 1, "id");
-    engine_touchUp(id);
-    return 0;
+    lua_pushboolean(state, engine_touchUp(id));
+    return 1;
 }
 
 int luaKeyDown(lua_State* state) {

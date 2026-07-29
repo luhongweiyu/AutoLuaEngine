@@ -1,6 +1,16 @@
 -- 文件用途：定义小鱼精灵自己的 m 命名空间脚本 API。
 local host = assert(_G._host, "native host api is not registered")
 
+-- HostApi 保留按下/抬起的真实状态，供 swipe 等组合手势判断；小鱼公开 Lua 契约
+-- 仍与兼容接口一致，不向脚本返回这两个内部状态。
+local function touchDown(id, x, y)
+    host.touchDown(id, x, y)
+end
+
+local function touchUp(id)
+    host.touchUp(id)
+end
+
 -- 固定设备能力通过 C ABI 进入 core/api；Lua 多线程直接进入 libengine.so/runtime/lua。
 -- bootstrap.lua 会把 m 的一级成员统一导出为默认全局 API；本文件不能再自行写入
 -- _G，否则切换 m/lr/cd API 时会出现两套不一致的全局函数来源。
@@ -13,9 +23,9 @@ local m = {
     systemTime = host.systemTime,
     tickCount = host.tickCount,
     read_alpkg_file = host.read_alpkg_file,
-    touchDown = host.touchDown,
+    touchDown = touchDown,
     touchMove = host.touchMove,
-    touchUp = host.touchUp,
+    touchUp = touchUp,
     keyDown = host.keyDown,
     keyUp = host.keyUp,
     keyPress = host.keyPress,

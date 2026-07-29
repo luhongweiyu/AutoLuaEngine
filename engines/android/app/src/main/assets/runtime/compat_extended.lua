@@ -382,9 +382,11 @@ local scale = {
     realHeight = 0,
 }
 local touchPositions = {}
-local rawTouchDown = m.touchDown
-local rawTouchMove = m.touchMove
-local rawTouchUp = m.touchUp
+-- HostApi 的按下/抬起返回值只供组合手势内部判断；公开 m.touchDown/m.touchUp
+-- 继续保持无返回契约。
+local rawTouchDown = host.touchDown
+local rawTouchMove = host.touchMove
+local rawTouchUp = host.touchUp
 
 local function round(value)
     if value < 0 then
@@ -471,13 +473,21 @@ function m.setScreenScale(kind, width, height)
 end
 
 local function performTouchDown(id, x, y)
-    touchPositions[id] = { x = x, y = y }
-    return rawTouchDown(id, physicalX(x), physicalY(y))
+    local succeeded = rawTouchDown(id, physicalX(x), physicalY(y))
+    if succeeded then
+        touchPositions[id] = { x = x, y = y }
+    else
+        touchPositions[id] = nil
+    end
+    return succeeded
 end
 
 local function performTouchMove(id, x, y)
-    touchPositions[id] = { x = x, y = y }
-    return rawTouchMove(id, physicalX(x), physicalY(y))
+    local succeeded = rawTouchMove(id, physicalX(x), physicalY(y))
+    if succeeded then
+        touchPositions[id] = { x = x, y = y }
+    end
+    return succeeded
 end
 
 local function performTouchUp(id)
@@ -494,7 +504,7 @@ function m.touchMove(id, x, y)
 end
 
 function m.touchUp(id)
-    return performTouchUp(id)
+    performTouchUp(id)
 end
 
 function m.tap(x, y)

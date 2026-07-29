@@ -477,7 +477,8 @@ const char* engine_inputLastError();
 规则：
 
 - 输入注入只走 RootDaemon 常驻特权进程，不走无障碍。
-- `touchDown` / `touchUp` 在 Lua 层不返回值；C ABI 返回值只用于内部判断和其他语言绑定。
+- `touchDown` / `touchUp` 在公开 Lua 层不返回值；C ABI 与内部 HostApi 返回值只用于组合手势
+  判断和其他语言绑定。
 - `touchMove`、`keyDown`、`keyUp`、`keyPress`、`inputText` 返回布尔语义。
 - `keyCode` 支持数字字符串和 `Home`、`Back`、`VolUp` 等常用标识符。
 - `inputText` 当前通过按键事件输入文本，适合英文、数字和常见符号。

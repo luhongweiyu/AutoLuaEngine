@@ -64,7 +64,7 @@ compat_extended.lua
 |---|---|---|
 | cipher | `CryptoPlatformBridge` | AES 二进制、PEM RSA；JSON 边界 Base64 |
 | network / luasocket | `NetworkPlatformBridge`、`LuaEngine` | OkHttp HTTP/WebSocket；LuaSocket 只实现文档所需请求形状 |
-| io / time | Lua 5.4 标准库、runtime/device API | 已有标准函数不重复包装；网络时间使用真实 NTP |
+| io / time | Lua 5.4 标准库、runtime/device API | 已有标准函数不重复包装；网络时间在总接收等待约 3 秒内依次尝试 3 个真实 NTP 服务 |
 | ffi | `ffi_lua_api` | 仅整数、指针、`char*`、最多 6 参数；显式 64 位整数仅限 64 位进程；不是完整 LuaJIT FFI |
 | touch | 现有 InputApi + Lua 坐标换算 | 缩放只改变兼容入口坐标，底层始终使用真实画面 |
 | color | `color_compat_lua_api` + 现有截图缓存 + `PaddleOcr` | `0,0,0,0` 为全屏；Java Bitmap OCR 复用现有 ONNX 模型缓存 |

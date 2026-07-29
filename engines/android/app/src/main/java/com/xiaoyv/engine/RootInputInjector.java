@@ -53,7 +53,14 @@ final class RootInputInjector {
                 ? MotionEvent.ACTION_DOWN
                 : MotionEvent.ACTION_POINTER_DOWN
                 | (actionIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
-        return injectMotion(action, now);
+        boolean ok = injectMotion(action, now);
+        if (!ok) {
+            pointerActive[id] = false;
+            if (activeCountBefore == 0) {
+                gestureDownTime = 0L;
+            }
+        }
+        return ok;
     }
 
     boolean touchMove(int id, int x, int y) {
@@ -61,9 +68,16 @@ final class RootInputInjector {
             return false;
         }
 
+        float previousX = pointerX[id];
+        float previousY = pointerY[id];
         pointerX[id] = x;
         pointerY[id] = y;
-        return injectMotion(MotionEvent.ACTION_MOVE, SystemClock.uptimeMillis());
+        boolean ok = injectMotion(MotionEvent.ACTION_MOVE, SystemClock.uptimeMillis());
+        if (!ok) {
+            pointerX[id] = previousX;
+            pointerY[id] = previousY;
+        }
+        return ok;
     }
 
     boolean touchUp(int id) {
@@ -78,11 +92,11 @@ final class RootInputInjector {
                 : MotionEvent.ACTION_POINTER_UP
                 | (actionIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
         boolean ok = injectMotion(action, SystemClock.uptimeMillis());
-        if (ok) {
-            pointerActive[id] = false;
-            if (activeCount == 1) {
-                gestureDownTime = 0L;
-            }
+        // 脚本已经结束这根手指，即使系统拒绝注入也必须释放内部槽位；否则一次失败会让
+        // 后续所有同 ID 手势永久停留在“已按下”状态。
+        pointerActive[id] = false;
+        if (activeCount == 1) {
+            gestureDownTime = 0L;
         }
         return ok;
     }
