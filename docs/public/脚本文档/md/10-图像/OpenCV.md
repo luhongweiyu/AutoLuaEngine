@@ -3,7 +3,7 @@ params: "见方法表"
 returns: "见方法表"
 ---
 
-**方法名称：** OpenCV 截图与基础值指针兼容接口。
+**方法名称：** OpenCV 截图与基础值指针接口。
 
 **语法：** `cv.snapShot(...)`、`cv.newPoint(...)`、`cv.getPoint(...)` 等。
 

@@ -17,6 +17,10 @@
       {
         "name": "API 总览",
         "md": "md/00-概述/API总览.md"
+      },
+      {
+        "name": "扩展 API 与迁移",
+        "md": "md/00-概述/扩展与迁移.md"
       }
     ]
   },
@@ -362,6 +366,11 @@
             "cmd": "m.vibrate"
           }
         ]
+      },
+      {
+        "name": "系统与文件扩展",
+        "md": "md/02-设备/系统与文件扩展.md",
+        "cmd": "zip / unZip / playAudio / setTimer"
       }
     ],
     "md": "md/02-设备/概述.md"
@@ -1088,6 +1097,11 @@
         "md": "md/08-输入/概述.md"
       },
       {
+        "name": "坐标缩放与手势",
+        "md": "md/08-输入/坐标缩放与手势.md",
+        "cmd": "setScreenScale / touchDown / touchMove / touchUp / tap / longTap / touchMoveEx / swipe"
+      },
+      {
         "name": "按下触摸",
         "md": "md/08-输入/touchDown.md",
         "cmd": "touchDown"
@@ -1134,17 +1148,22 @@
       {
         "name": "锁定输入法",
         "md": "md/09-输入法/lock.md",
-        "cmd": "imeLib.lock"
+        "cmd": "m.ime.lock"
       },
       {
         "name": "提交文本",
         "md": "md/09-输入法/setText.md",
-        "cmd": "imeLib.setText"
+        "cmd": "m.ime.setText"
       },
       {
         "name": "解锁输入法",
         "md": "md/09-输入法/unlock.md",
-        "cmd": "imeLib.unlock"
+        "cmd": "m.ime.unlock"
+      },
+      {
+        "name": "输入控制补充",
+        "md": "md/09-输入法/兼容控制.md",
+        "cmd": "m.ime.deleteChar / m.ime.finishInput / m.ime.keyEvent"
       }
     ]
   },
@@ -1218,6 +1237,11 @@
         "name": "模板缓存上限",
         "md": "md/10-图像/setImageCacheMaxBytes.md",
         "cmd": "m.setImageCacheMaxBytes"
+      },
+      {
+        "name": "OpenCV",
+        "md": "md/10-图像/OpenCV.md",
+        "cmd": "cv.*"
       }
     ]
   },
@@ -1228,11 +1252,16 @@
         "name": "多点找色",
         "md": "md/11-找色/findColors.md",
         "cmd": "m.findColors"
+      },
+      {
+        "name": "扩展图色与找图",
+        "md": "md/11-找色/扩展图色与找图.md",
+        "cmd": "getPixelColor / findMultiColor / findCircle / findPicEx"
       }
     ]
   },
   {
-    "name": "C-ABI",
+    "name": "扩展开发",
     "items": [
       {
         "name": "对应关系",
@@ -1352,50 +1381,41 @@
     ]
   },
   {
-    "name": "兼容接口",
+    "name": "网络与通信",
     "items": [
       {
-        "name": "概述与边界",
-        "md": "md/16-兼容接口/概述.md"
-      },
+        "name": "HTTP、WebSocket 与 LuaSocket",
+        "md": "md/16-网络与通信/HTTP与LuaSocket.md",
+        "cmd": "httpGet / httpPost / socket.http.request / WebSocket"
+      }
+    ]
+  },
+  {
+    "name": "安全与数据",
+    "items": [
       {
         "name": "加密",
-        "md": "md/16-兼容接口/加密.md",
+        "md": "md/17-安全与数据/加密.md",
         "cmd": "cryptLib.*"
-      },
+      }
+    ]
+  },
+  {
+    "name": "运行时扩展",
+    "items": [
       {
-        "name": "网络与 LuaSocket",
-        "md": "md/16-兼容接口/网络.md",
-        "cmd": "httpGet / httpPost / socket.http.request / WebSocket"
-      },
-      {
-        "name": "触控与输入法",
-        "md": "md/16-兼容接口/触控与输入法.md",
-        "cmd": "setScreenScale / tap / swipe / ime.*"
-      },
-      {
-        "name": "图色与识字",
-        "md": "md/16-兼容接口/图色与识字.md",
-        "cmd": "getPixelColor / findMultiColor / findCircle / findPicEx"
-      },
-      {
-        "name": "设备与文件",
-        "md": "md/16-兼容接口/设备与文件.md",
-        "cmd": "zip / unZip / playAudio / setTimer / restartScript"
-      },
-      {
-        "name": "Lua 标准库与 FFI",
-        "md": "md/16-兼容接口/Lua标准库与FFI.md",
+        "name": "Lua 标准库与 FFI（实验性）",
+        "md": "md/18-运行时扩展/Lua标准库与FFI.md",
         "cmd": "io.* / os.* / ffi.cdef / ffi.load"
-      },
+      }
+    ]
+  },
+  {
+    "name": "无障碍",
+    "items": [
       {
-        "name": "OpenCV",
-        "md": "md/16-兼容接口/OpenCV.md",
-        "cmd": "cv.*"
-      },
-      {
-        "name": "无障碍节点",
-        "md": "md/16-兼容接口/无障碍节点.md",
+        "name": "节点自动化",
+        "md": "md/19-无障碍/节点自动化.md",
         "cmd": "selector / node / nodeLib.*"
       }
     ]

@@ -3,7 +3,7 @@ params: "见方法表"
 returns: "见方法表"
 ---
 
-**方法名称：** HTTP、文件传输、WebSocket 与 LuaSocket 请求兼容接口。
+**方法名称：** HTTP、文件传输、WebSocket 与 LuaSocket 请求。
 
 **语法：** `httpGet(...)`、`httpPost(...)`、`require("socket.http").request(...)`
 
@@ -35,6 +35,8 @@ returns: "见方法表"
 `ltn12.sink.table`、`ltn12.source.string`、`ltn12.pump.all`、`socket.gettime` 和
 `socket.sleep`。`ltn12.sink.table([target])` 与标准用法一致，返回 `sink, target`。
 这是文档所需的请求兼容层，不等同于完整 LuaSocket TCP/UDP 实现。
+
+LuaSocket 请求统一通过 `require("socket.http")` 或 `require("ssl.https")` 取得模块。
 
 WebSocket 回调分别为：
 

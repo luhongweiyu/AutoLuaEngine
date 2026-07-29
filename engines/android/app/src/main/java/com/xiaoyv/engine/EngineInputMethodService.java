@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 小鱼精灵 的无界面输入法。
  *
- * 该服务不绘制键盘，只在 imeLib.lock() 将它设为默认输入法后，使用当前
+ * 该服务不绘制键盘，只在 m.ime.lock() 将它设为默认输入法后，使用当前
  * InputConnection.commitText 提交文本。因此中文、Emoji 和组合文本不再依赖 Root
  * 按键注入。脚本运行在同一个 :engine 进程，但仍统一切到主线程访问输入法对象。
  */

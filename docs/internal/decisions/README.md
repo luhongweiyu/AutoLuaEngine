@@ -14,3 +14,4 @@
 - [0003：Android 脚本 API 兼容性设计基线](0003-Android脚本API兼容性设计基线.md)
 - [0004：Android 系统接口历史参考顺序](0004-Android系统接口历史参考顺序.md)
 - [0005：Android 项目固定签名](0005-Android项目固定签名.md)
+- [0006：Android Lua 公开层与内部实现边界](0006-Android Lua公开层与内部实现边界.md)

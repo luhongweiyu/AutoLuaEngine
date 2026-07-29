@@ -371,7 +371,9 @@ if package and package.preload then
     package.preload["ssl.https"] = function() return socketHttp end
     package.preload["ffi"] = function() return m.ffi end
 end
-m.http = socketHttp
+
+-- LuaSocket 的公开入口始终是 require("socket.http") / require("ssl.https")。
+-- 不再额外导出 m.http：它只是本文件的内部局部变量，不是懒人或触动的脚本 API。
 
 -- 屏幕缩放与触控
 local scale = {
@@ -454,12 +456,14 @@ local function physicalRegion(x1, y1, x2, y2)
     return physicalX(x1), physicalY(y1), physicalX(x2), physicalY(y2)
 end
 
-function m.setScreenScale(kind, width, height)
-    if kind == 0 then
+function m.setScreenScale(enabled, width, height)
+    -- 小鱼默认 API 采用布尔开关；兼容命名空间各自处理历史参数形式。
+    -- 公开操作型接口不返回内部状态。
+    assert(type(enabled) == "boolean", "setScreenScale 开关只能是 true 或 false")
+    if not enabled then
         scale.enabled = false
-        return true
+        return
     end
-    assert(kind == 1, "setScreenScale kind 只能是 0 或 1")
     assert(type(width) == "number" and width > 0, "虚拟屏幕宽度必须大于 0")
     assert(type(height) == "number" and height > 0, "虚拟屏幕高度必须大于 0")
     local realWidth, realHeight = m.getDisplaySize()
@@ -469,7 +473,6 @@ function m.setScreenScale(kind, width, height)
     scale.virtualHeight = height
     scale.realWidth = realWidth
     scale.realHeight = realHeight
-    return true
 end
 
 local function performTouchDown(id, x, y)
@@ -495,28 +498,42 @@ local function performTouchUp(id)
     return rawTouchUp(id)
 end
 
-function m.touchDown(id, x, y)
-    performTouchDown(id, x, y)
+local function normalizeTouchPoint(idOrX, xOrY, y)
+    -- 小鱼默认触控采用 Touch 风格：手指 ID 可省略，省略时使用 1。
+    if y == nil then
+        return 1, idOrX, xOrY
+    end
+    return idOrX, xOrY, y
 end
 
-function m.touchMove(id, x, y)
-    return performTouchMove(id, x, y)
+function m.touchDown(idOrX, xOrY, y)
+    local id, x, pointY = normalizeTouchPoint(idOrX, xOrY, y)
+    performTouchDown(id, x, pointY)
 end
 
-function m.touchUp(id)
+function m.touchMove(idOrX, xOrY, y)
+    local id, x, pointY = normalizeTouchPoint(idOrX, xOrY, y)
+    performTouchMove(id, x, pointY)
+end
+
+function m.touchUp(idOrX, xOrY, y)
+    local id, x, pointY = normalizeTouchPoint(idOrX, xOrY, y)
+    performTouchMove(id, x, pointY)
     performTouchUp(id)
 end
 
-function m.tap(x, y)
-    m.touchDown(1, x, y)
-    host.sleep(30)
-    m.touchUp(1)
+function m.tap(x, y, duration)
+    -- 省略按住时长时使用常用的 30ms。
+    performTouchDown(1, x, y)
+    host.sleep(math.max(0, math.floor(duration == nil and 30 or duration)))
+    performTouchUp(1)
 end
 
-function m.longTap(x, y)
-    m.touchDown(1, x, y)
-    host.sleep(500)
-    m.touchUp(1)
+function m.longTap(x, y, duration)
+    -- longTap 同样接受时长，默认 500ms。
+    performTouchDown(1, x, y)
+    host.sleep(math.max(0, math.floor(duration == nil and 500 or duration)))
+    performTouchUp(1)
 end
 
 local function moveTouchOverDuration(id, x, y, duration)
@@ -543,21 +560,24 @@ function m.touchMoveEx(id, x, y, duration)
 end
 
 function m.swipe(x1, y1, x2, y2, duration)
-    local pressed = performTouchDown(1, x1, y1)
-    local moved = moveTouchOverDuration(1, x2, y2, duration or 300)
-    local released = performTouchUp(1)
-    return pressed and moved and released
+    performTouchDown(1, x1, y1)
+    moveTouchOverDuration(1, x2, y2, duration or 300)
+    performTouchUp(1)
 end
 
-function m.ime.deleteChar()
+-- m.ime 是小鱼默认 API 的正式输入法模块。兼容层可复用同一张 HostApi 表，
+-- 但不在默认命名空间额外导出其历史模块名。
+local ime = assert(m.ime, "ime is unavailable")
+
+function ime.deleteChar()
     return platformCallOrError("ime.deleteChar")
 end
 
-function m.ime.finishInput()
+function ime.finishInput()
     return platformCallOrError("ime.finishInput")
 end
 
-function m.ime.keyEvent(action, keyCode)
+function ime.keyEvent(action, keyCode)
     return platformCallOrError("ime.keyEvent", {
         action = action,
         keyCode = keyCode,

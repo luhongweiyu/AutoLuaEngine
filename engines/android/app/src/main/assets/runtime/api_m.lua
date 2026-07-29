@@ -93,10 +93,9 @@ local m = {
     image = host.image,
     ocr = host.ocr,
     font = host.font,
+    -- ime 是小鱼精灵的正式输入法模块。兼容命名空间可按各自约定引用同一 HostApi
+    -- 表；compat_extended.lua 再把公开补充函数安装到 ime。
     ime = host.ime,
-    -- imeLib 是历史脚本使用的全局名称。它同样挂在 m 下，让默认导出和兼容 API
-    -- 都由同一套切换逻辑管理。
-    imeLib = host.ime,
     ffi = host.ffi,
     thread = host.thread,
     ui = host.ui,

@@ -228,8 +228,8 @@ RootDaemon 只监听回环地址，客户端必须先提交随机令牌。令牌
 daemon 或执行 `su`。
 
 截图仍使用“文本头 + 原始 RGBA 帧”协议；触摸、按键和输入法切换使用短文本命令。RootDaemon
-由截图和 Root 输入注入共同复用，`imeLib.lock()` / `imeLib.unlock()` 才按系统要求执行输入法
-切换命令，`imeLib.setText()` 不创建外部进程。
+由截图和 Root 输入注入共同复用，`m.ime.lock()` / `m.ime.unlock()` 才按系统要求执行输入法
+切换命令，`m.ime.setText()` 不创建外部进程。
 
 在 RootDaemon 已就绪后，强停 `:engine` 只会断开该进程的 socket。下次运行脚本会重连同一个
 RootDaemon，不会再次触发 `su` 授权。

@@ -81,4 +81,4 @@ int engine_imeUnlock();
 ```
 
 `engine_inputText` 适合英文、数字和常见符号。需要完整 Unicode 文本时，Lua 使用
-`imeLib.lock()`、`imeLib.setText(text)`、`imeLib.unlock()`。
+`m.ime.lock()`、`m.ime.setText(text)`、`m.ime.unlock()`。

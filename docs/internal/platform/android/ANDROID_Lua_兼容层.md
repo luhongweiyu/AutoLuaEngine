@@ -1,8 +1,8 @@
 # Android Lua 兼容层
 
 本文记录懒人精灵、触动精灵常用 Android Lua 接口在小鱼精灵中的真实分层，供后续实现和
-AI 接手使用。公开参数和示例以 `docs/public/脚本文档/md/16-兼容接口/` 为准；本页说明内部
-边界，不属于发布目录。
+AI 接手使用。公开参数和示例以 `docs/public/脚本文档/catalog.json` 及其链接的函数页为准；
+本页说明内部边界，不属于发布目录。
 
 ## 加载顺序
 
@@ -25,6 +25,22 @@ bootstrap.lua
 
 不要在各兼容文件直接散落 `_G.xxx = ...`。全局切换只能由 bootstrap 的 `useApi` /
 `switchApi` 管理。
+
+`m` 是默认的正式 Lua 脚本层：函数名、参数、返回值和文档分类按懒人精灵或触动精灵的公开
+契约确定。`lr`、`cd` 是独立维护的旧脚本迁移层，不能反向扩展 `m` 的签名。`_host`、Lua 桥接、
+Java 和平台路由是私有实现，可用更适合本项目的分组和命名；C ABI 则是独立文档化的扩展开发
+契约。不得为了内部对齐而迫使 `m` 改名，也不得让 `m` 反向束缚内部重构。
+
+## 公开适配要点
+
+| 功能 | 新脚本的公开形状 | 兼容与内部边界 |
+|---|---|---|
+| LuaSocket | `require("socket.http").request(...)` | 不导出内部便利别名 `m.http`；网络桥接可继续使用任意内部操作名。 |
+| 触控缩放 | `setScreenScale(true, width, height)` / `setScreenScale(false)` | 默认 `m` 使用布尔开关和无返回；历史参数只在后续各兼容命名空间中单独处理。 |
+| 基础触控 | `touchDown([id,] x, y)`、`touchMove([id,] x, y)`、`touchUp([id,] x, y)` | 默认 `m` 三者均无返回，且抬起时必须给出坐标。HostApi 的注入状态只供组合手势内部判断。 |
+| 常用手势 | `tap(x, y[, duration])`、`longTap(x, y[, duration])`、`swipe(...)` | 时长和返回值按公开兼容契约整理，不能因底层布尔结果泄漏而改变脚本语义。 |
+| 输入法 | `m.ime.*`；默认全局为 `ime.*` | `m.ime` 是正式模块；兼容命名空间的历史模块名以后单独整理。HostApi 可自行调整输入法模块划分。 |
+| 其他扩展 | `cryptLib.*`、图色/找图、`cv.*`、`nodeLib.*` | 公开页按用户任务分类，不再以“兼容接口”作为总目录。 |
 
 ## 平台调用路径
 
@@ -85,11 +101,14 @@ compat_extended.lua
 取色、点阵识字、模板匹配、找圆和 `cv.snapShot` 必须共享当前引擎截图缓存。这样
 `keepCapture`、缓存时长和 `LuaEngine.setSnapCacheBitmap` 对所有图像入口一致生效。
 
-`setScreenScale(1, virtualWidth, virtualHeight)` 的状态位于当前 Lua 状态。兼容层在进入 native
-前把区域、点和半径换算为物理坐标，返回前再换回虚拟坐标。`m.findPic` 保持原生 `1..8`
+`setScreenScale(true, virtualWidth, virtualHeight)` 的状态位于当前 Lua 状态。只有
+`compat_extended.lua` 中明确经过坐标换算的触控、扩展图色、兼容找图和兼容点阵字库入口会在
+进入 native 前把区域、点和半径换算为物理坐标，并在返回前换回虚拟坐标；小鱼原生 `m.findColors`、
+`m.findPic` 和 `m.font.*` 保持各自的原生坐标契约。`m.findPic` 保持原生 `1..8`
 方向；懒人多模板入口使用 `0..4`，只能在最靠近底层调用的位置转换一次。多点找色的
 偏移量按尺寸比例缩放，不使用端点坐标比例；`findPicFast` 返回第一个命中模板的
-0 起始索引和该模板的全部非重叠坐标。
+0 起始索引和该模板的全部非重叠坐标。默认 `m` 只接受 `true` / `false`；历史 `1` / `0`
+若需要支持，必须在对应兼容命名空间中另行实现，不能再扩展默认 API。
 
 ## 无障碍节点生命周期
 

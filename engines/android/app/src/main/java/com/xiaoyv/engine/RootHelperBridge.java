@@ -177,7 +177,7 @@ public final class RootHelperBridge {
      * 保存当前默认输入法并切换到 小鱼精灵 输入法。
      *
      * 返回值是 Base64 协议解码后的原输入法组件名；失败时返回 null。该操作只在
-     * imeLib.lock 调用时执行一次系统切换，不参与高频文本提交。
+     * m.ime.lock 调用时执行一次系统切换，不参与高频文本提交。
      */
     public static String lockInputMethod(String engineInputMethod) {
         if (!EngineImeBridge.inputMethodComponent().equals(engineInputMethod)) {

@@ -477,9 +477,9 @@ const char* engine_inputLastError();
 规则：
 
 - 输入注入只走 RootDaemon 常驻特权进程，不走无障碍。
-- `touchDown` / `touchUp` 在公开 Lua 层不返回值；C ABI 与内部 HostApi 返回值只用于组合手势
-  判断和其他语言绑定。
-- `touchMove`、`keyDown`、`keyUp`、`keyPress`、`inputText` 返回布尔语义。
+- `touchDown`、`touchMove`、`touchUp` 在公开 Lua 层均不返回值；C ABI 与内部 HostApi 的
+  布尔结果只用于组合手势判断和其他语言绑定。
+- `keyDown`、`keyUp`、`keyPress`、`inputText` 返回布尔语义。
 - `keyCode` 支持数字字符串和 `Home`、`Back`、`VolUp` 等常用标识符。
 - `inputText` 当前通过按键事件输入文本，适合英文、数字和常见符号。
 
@@ -629,9 +629,9 @@ sleep(ms)
 systemTime()
 tickCount()
 getRunEnvType()
-touchDown(id, x, y)
-touchMove(id, x, y)
-touchUp(id)
+touchDown([id,] x, y)
+touchMove([id,] x, y)
+touchUp([id,] x, y)
 keyDown(keycode)
 keyUp(keycode)
 keyPress(keycode)
@@ -640,9 +640,12 @@ readPasteboard()
 writePasteboard(text[, kind])
 getScriptVersion()
 setStopCallBack(callback)
-imeLib.lock()
-imeLib.setText(text)
-imeLib.unlock()
+ime.lock()
+ime.setText(text)
+ime.unlock()
+ime.deleteChar()
+ime.finishInput()
+ime.keyEvent(action, keyCode)
 m.sleep(ms)
 m.systemTime()
 m.tickCount()
@@ -677,9 +680,13 @@ m.font.findStr(x1, y1, x2, y2, text, color, sim)
 m.font.findStrEx(x1, y1, x2, y2, text, color, sim)
 m.font.findStrFast(x1, y1, x2, y2, text, color, sim)
 m.font.findStrFastEx(x1, y1, x2, y2, text, color, sim)
+-- m.ime.* 是小鱼默认输入法模块；默认全局 ime 指向同一张表。
 m.ime.lock()
 m.ime.setText(text)
 m.ime.unlock()
+m.ime.deleteChar()
+m.ime.finishInput()
+m.ime.keyEvent(action, keyCode)
 m.dialog.alert(...)
 m.dialog.confirm(...)
 m.dialog.input(...)
@@ -705,19 +712,23 @@ imgui.*
 [`ANDROID_Lua_兼容层.md`](../platform/android/ANDROID_Lua_兼容层.md)。以下家族已经成为
 可维护的当前契约，不再属于“暂未定义”：
 
+`m` 是脚本和公开文档遵守的默认 Lua 公开层。它优先采用懒人精灵或触动精灵中更清晰、可实现
+的名称、参数和返回值；`_host`、Lua 桥接、Java 与 Android 平台路由是内部实现，允许独立命名
+和重构，不能反向决定 `m` 的公开形状。C ABI 是独立的扩展开发契约，其命名也不约束 `m`。
+
 | 家族 | 公开入口 | 核心约束 |
 |---|---|---|
 | 加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 二进制 Lua 字符串；平台 JSON 边界仅内部 Base64 |
-| 网络 | `httpGet`、`httpPost`、文件传输、WebSocket、`socket.http.request` | 阻塞调用释放 VM Gate；异步回调回到 Lua 任务 |
+| 网络 | `httpGet`、`httpPost`、文件传输、WebSocket、`require("socket.http").request` | 阻塞调用释放 VM Gate；异步回调回到 Lua 任务；不导出 `m.http` |
 | 标准库 / FFI | Lua 5.4 `io`、`os`；`ffi.cdef/load` | 不复制标准库；FFI 只支持声明的整数/指针 C ABI |
-| 触控 | `setScreenScale`、`tap`、`longTap`、`touchMoveEx`、`swipe` | 虚拟坐标在 Lua 层换算；原生输入 API 不变 |
+| 触控 / 输入法 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`touchMoveEx`、`swipe`、`m.ime.*` | `m` 使用布尔缩放开关和 `touchUp([id,] x, y)`；缩放和三类基础触控均无返回；`m.ime` 是正式输入法模块 |
 | 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
 | 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |
 | OpenCV | `cv.*` | `cv.snapShot` 返回真实 Mat；`cv.new*` 返回首地址为实际值的 native userdata |
 | 节点 | 选择器、节点对象、`nodeLib.*` | Android 无障碍短期句柄；界面变化后重新查询 |
 
-`lr`、`cd` 先保留专属入口，再复用语义相同的 `m` 成员。`lr.findPic` 使用懒人多模板和
-`0..4` 方向；`m.findPic` 继续使用小鱼单模板和 `1..8` 方向。
+`lr`、`cd` 是独立的旧脚本迁移命名空间。本轮不扩展或重定义它们的成员；后续兼容映射必须
+单独维护，且不得改变 `m` 的正式语义。
 
 ## 暂未定义契约
 

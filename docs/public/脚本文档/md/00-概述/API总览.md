@@ -57,16 +57,19 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 脚本包 | `m.read_alpkg_file(path)` | `path: string` | `string \| nil, string?` | 读取当前 `.alpkg` 的原始资源 |
 | 提示 | `m.toast(text[, durationMs])` | `text: any, durationMs: integer?` | `integer \| nil, string?` | 显示自动关闭的 HUD 提示 |
 | 日志 | `m.log.print(text)` | `text: string` | `boolean` | 输出日志文本 |
-| 输入 | `touchDown(id, x, y)` | `id: integer, x: integer, y: integer` | 无 | 按住不放，仅 Root 模式 |
-| 输入 | `touchMove(id, x, y)` | `id: integer, x: integer, y: integer` | `boolean` | 移动手指，仅 Root 模式 |
-| 输入 | `touchUp(id)` | `id: integer` | `boolean` | 弹起手指，仅 Root 模式 |
+| 输入 | `touchDown([id,] x, y)` | `id: integer?, x: integer, y: integer` | 无 | 按住不放，仅 Root 模式 |
+| 输入 | `touchMove([id,] x, y)` | `id: integer?, x: integer, y: integer` | 无 | 移动手指，仅 Root 模式 |
+| 输入 | `touchUp([id,] x, y)` | `id: integer?, x: integer, y: integer` | 无 | 在给定坐标抬起手指，仅 Root 模式 |
 | 输入 | `keyDown(keycode)` | `keycode: string \| integer` | `boolean` | 按下按键不弹起，仅 Root 模式 |
 | 输入 | `keyUp(keycode)` | `keycode: string \| integer` | `boolean` | 弹起按键，仅 Root 模式 |
 | 输入 | `keyPress(keycode)` | `keycode: string \| integer` | `boolean` | 按一下按键并弹起，仅 Root 模式 |
 | 输入 | `inputText(text)` | `text: string` | `boolean` | 模拟输入文字，仅 Root 模式 |
-| 输入法 | `imeLib.lock()` | 无 | `boolean` | 锁定 小鱼精灵 输入法，仅 Root 模式 |
-| 输入法 | `imeLib.setText(text)` | `text: string` | `boolean` | 通过已锁定输入法提交 Unicode 文本 |
-| 输入法 | `imeLib.unlock()` | 无 | `boolean` | 恢复锁定前的默认输入法，仅 Root 模式 |
+| 输入法 | `m.ime.lock()` | 无 | `boolean` | 锁定 小鱼精灵 输入法，仅 Root 模式 |
+| 输入法 | `m.ime.setText(text)` | `text: string` | `boolean` | 通过已锁定输入法提交 Unicode 文本 |
+| 输入法 | `m.ime.unlock()` | 无 | `boolean` | 恢复锁定前的默认输入法，仅 Root 模式 |
+| 输入法 | `m.ime.deleteChar()` | 无 | `boolean` | 删除当前输入法中的一个字符 |
+| 输入法 | `m.ime.finishInput()` | 无 | `boolean` | 完成当前输入法提交 |
+| 输入法 | `m.ime.keyEvent(action, keyCode)` | `action, keyCode: integer` | `boolean` | 向当前输入法发送 Android 按键事件 |
 | 图像 | `m.getScreenPixels()` | 无 | `integer, integer, integer` 或 `nil, string` | 返回宽、高和点阵地址 |
 | 图像 | `m.setScreenPixels(imagePath)` | `imagePath: string` | `boolean` 或 `nil, string` | 把图片设置为固定屏幕点阵 |
 | 图像 | `m.restoreScreenPixels()` | 无 | `boolean` | 还原物理屏幕点阵 |
@@ -97,17 +100,16 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 点阵字库 | `m.font.findStrEx(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `string` 或 `nil, string` | 返回所有目标文字坐标 |
 | 点阵字库 | `m.font.findStrFast(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `integer, integer` 或 `nil, string` | 只搜索目标字形并返回第一处坐标 |
 | 点阵字库 | `m.font.findStrFastEx(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `string` 或 `nil, string` | 只搜索目标字形并返回全部坐标 |
-| 兼容加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 见「兼容接口 / 加密」 | 二进制字符串或 PEM | AES、RSA 和安全随机密钥 |
-| 兼容网络 | `httpGet`、`httpPost`、WebSocket、`socket.http.request` | 见「兼容接口 / 网络」 | 正文、状态或句柄 | HTTP、文件传输和 WebSocket |
-| 兼容触控 | `setScreenScale`、`tap`、`longTap`、`swipe` | 见「兼容接口 / 触控与输入法」 | 无或 `boolean` | 虚拟坐标与常用手势 |
-| 兼容图色 | `getPixelColor`、`findMultiColor`、`findCircle`、`findPicEx` 等 | 见「兼容接口 / 图色与识字」 | 坐标、table 或字符串 | 取色、多点找色、找圆、识字和多模板 |
-| FFI / OpenCV | `ffi.cdef`、`ffi.load`、`cv.*` | 见「兼容接口」 | userdata、table 或标量 | 受限 C ABI 与 OpenCV `Mat` 截图 |
-| 无障碍节点 | 选择器、节点对象、`nodeLib.*` | 见「兼容接口 / 无障碍节点」 | selector、node、table 或状态 | 查询和操作 Android 无障碍节点 |
+| 安全与数据 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 见「安全与数据 / 加密」 | 二进制字符串或 PEM | AES、RSA 和安全随机密钥 |
+| 网络与通信 | `httpGet`、`httpPost`、WebSocket、`require("socket.http").request` | 见「网络与通信」 | 正文、状态或句柄 | HTTP、文件传输和 WebSocket |
+| 输入 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`swipe` | 见「输入 / 坐标缩放与手势」 | 无 | 虚拟坐标与常用手势 |
+| 找色 | `getPixelColor`、`findMultiColor`、`findCircle`、`findPicEx` 等 | 见「找色 / 扩展图色与找图」 | 坐标、table 或字符串 | 取色、多点找色、找圆、识字和多模板 |
+| 图像 / 运行时 | `cv.*`、实验性 `ffi.cdef`、`ffi.load` | 见「图像 / OpenCV」和「运行时扩展」 | userdata、table 或标量 | OpenCV `Mat` 截图与受限 FFI |
+| 无障碍 | 选择器、节点对象、`nodeLib.*` | 见「无障碍 / 节点自动化」 | selector、node、table 或状态 | 查询和操作 Android 无障碍节点 |
 
 `m.sleep`、`m.systemTime`、`m.tickCount`、`m.touchDown` 等同名成员与默认全局函数的参数、
-返回值一致；`m.ime` 与 `imeLib` 是同一组输入法函数。`m.html` 是 `m.web` 的别名。设备和
-应用能力的实现统一归属 `m`，完整清单见左侧「设备」分类。
+返回值一致；`m.ime` 是正式输入法模块，默认全局 `ime` 指向同一张表。`m.html` 是 `m.web`
+的别名。设备和应用能力统一归属 `m`，完整清单见左侧「设备」分类。
 
-`lr` / `cd` 复用已经落地且语义相同的 `m` 能力；存在历史差异时由兼容层单独覆盖。例如
-`lr.findPic` 使用多模板和 `0..4` 方向约定，`m.findPic` 保持小鱼精灵原生契约。完整的切换
-规则见「命名空间与别名」，兼容范围见左侧「兼容接口」分类。
+`lr` / `cd` 是迁移既有脚本的独立命名空间，后续兼容映射不改变 `m` 的正式契约。完整的切换
+规则见「命名空间与别名」，扩展能力按左侧对应功能分类查看。
