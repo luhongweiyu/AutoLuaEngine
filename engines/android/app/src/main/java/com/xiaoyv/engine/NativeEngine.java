@@ -26,6 +26,17 @@ public final class NativeEngine {
             "runtime/compat_cd.lua",
             "runtime/bootstrap.lua"
     };
+    private static final String[][] LUA_RUNTIME_MODULE_ASSETS = {
+            {"ltn12", "runtime/luasocket/ltn12.lua"},
+            {"mime", "runtime/luasocket/mime.lua"},
+            {"socket", "runtime/luasocket/socket.lua"},
+            {"socket.ftp", "runtime/luasocket/socket/ftp.lua"},
+            {"socket.headers", "runtime/luasocket/socket/headers.lua"},
+            {"socket.http", "runtime/luasocket/socket/http.lua"},
+            {"socket.smtp", "runtime/luasocket/socket/smtp.lua"},
+            {"socket.tp", "runtime/luasocket/socket/tp.lua"},
+            {"socket.url", "runtime/luasocket/socket/url.lua"}
+    };
 
     private static boolean initialized;
     private static Context appContext;
@@ -134,10 +145,24 @@ public final class NativeEngine {
     private static String loadLuaRuntimeBootstrap(Context context) {
         StringBuilder builder = new StringBuilder();
         for (String assetPath : LUA_RUNTIME_ASSETS) {
+            // compat_extended.lua 会为现有 HTTPS 入口包一层适配；必须先保留上游 loader。
+            if ("runtime/compat_extended.lua".equals(assetPath)) {
+                appendLuaRuntimeModules(context, builder);
+            }
             builder.append("\n-- ").append(assetPath).append("\n");
             builder.append(readAssetText(context, assetPath)).append('\n');
         }
         return builder.toString();
+    }
+
+    private static void appendLuaRuntimeModules(Context context, StringBuilder builder) {
+        for (String[] module : LUA_RUNTIME_MODULE_ASSETS) {
+            builder.append("\n-- ").append(module[1]).append("\n");
+            builder.append("package.preload[\"").append(module[0])
+                    .append("\"] = function(...)\n");
+            builder.append(readAssetText(context, module[1]));
+            builder.append("\nend\n");
+        }
     }
 
     private static String readAssetText(Context context, String assetPath) {

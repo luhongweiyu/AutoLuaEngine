@@ -4,6 +4,9 @@ project(XiaoyvEngine)
 
 set(LUA_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/lua-5.4.8/src)
 set(IMGUI_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/imgui)
+set(LUASOCKET_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/luasocket-3.1.0/src)
+set(CFFI_LUA_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/cffi-lua-0.2.4/src)
+set(LIBFFI_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/libffi-3.7.1)
 
 add_library(engine SHARED
         engine_jni.cpp
@@ -35,6 +38,7 @@ add_library(engine SHARED
         runtime/lua/host_api.cpp
         runtime/lua/imgui_lua_api.cpp
         runtime/lua/java_bridge.cpp
+        runtime/lua/luasocket_lua_api.cpp
         runtime/lua/lua_runtime.cpp
         runtime/lua/lua_task_scheduler.cpp
         runtime/lua/lua_thread_api.cpp
@@ -47,6 +51,20 @@ add_library(engine SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/native/image_core/image_core.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/package/alpkg_crypto.c
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared/third_party/monocypher/monocypher.c
+        ${LUASOCKET_SRC_DIR}/auxiliar.c
+        ${LUASOCKET_SRC_DIR}/buffer.c
+        ${LUASOCKET_SRC_DIR}/compat.c
+        ${LUASOCKET_SRC_DIR}/except.c
+        ${LUASOCKET_SRC_DIR}/inet.c
+        ${LUASOCKET_SRC_DIR}/io.c
+        ${LUASOCKET_SRC_DIR}/luasocket.c
+        ${LUASOCKET_SRC_DIR}/mime.c
+        ${LUASOCKET_SRC_DIR}/options.c
+        ${LUASOCKET_SRC_DIR}/select.c
+        ${LUASOCKET_SRC_DIR}/tcp.c
+        ${LUASOCKET_SRC_DIR}/timeout.c
+        ${LUASOCKET_SRC_DIR}/udp.c
+        ${LUASOCKET_SRC_DIR}/usocket.c
         ${LUA_SRC_DIR}/lapi.c
         ${LUA_SRC_DIR}/lauxlib.c
         ${LUA_SRC_DIR}/lbaselib.c
@@ -85,6 +103,7 @@ target_include_directories(engine PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../shared
         ${IMGUI_SRC_DIR}
         ${IMGUI_SRC_DIR}/backends
+        ${LUASOCKET_SRC_DIR}
         ${LUA_SRC_DIR})
 
 find_library(log-lib log)
@@ -94,10 +113,13 @@ find_library(glesv3-lib GLESv3)
 find_library(jnigraphics-lib jnigraphics)
 find_library(dl-lib dl)
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cffi_lua.cmake)
+
 target_link_libraries(engine
         ${log-lib}
         ${android-lib}
         ${egl-lib}
         ${glesv3-lib}
         ${jnigraphics-lib}
-        ${dl-lib})
+        ${dl-lib}
+        xiaoyv_cffi_lua)

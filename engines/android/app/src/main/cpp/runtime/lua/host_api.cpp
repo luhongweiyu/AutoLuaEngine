@@ -22,6 +22,7 @@
 #include "cv_compat_lua_api.h"
 #include "ffi_lua_api.h"
 #include "imgui_lua_api.h"
+#include "luasocket_lua_api.h"
 #include "lua_runtime.h"
 #include "lua_thread_api.h"
 
@@ -1592,6 +1593,10 @@ int luaUiCloseAll(lua_State* state) {
 } // namespace
 
 void registerHostApi(lua_State* state) {
+    // LuaSocket 的 socket.core / mime.core 是上游 C 模块；其余 Lua 模块由运行时资源预加载。
+    // 它们不属于 _host 或 m 的固定 API，只通过标准 require(...) 访问。
+    registerLuaSocketNativeModules(state);
+
     lua_newtable(state);
     int hostTableIndex = lua_gettop(state);
 

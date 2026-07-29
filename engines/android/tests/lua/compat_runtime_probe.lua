@@ -102,6 +102,49 @@ test("lua-file-io", function()
     return value
 end)
 
+test("cffi-native-abi", function()
+    local ffi = require("ffi")
+    assert(ffi == m.ffi, "require(ffi) did not return m.ffi")
+    assert(type(ffi.cdef) == "function")
+    assert(type(ffi.load) == "function")
+    assert(ffi.abi("le"))
+
+    ffi.cdef[[
+        typedef struct {
+            int sequence;
+            double score;
+        } xiaoyv_ffi_probe_pair;
+
+        int getpid(void);
+        size_t strlen(const char *text);
+        double strtod(const char *text, char **end);
+        int snprintf(char *buffer, size_t size, const char *format, ...);
+    ]]
+
+    local pair = ffi.new("xiaoyv_ffi_probe_pair")
+    pair.sequence = 7
+    pair.score = 3.5
+    assert(pair.sequence == 7 and pair.score == 3.5)
+    assert(ffi.sizeof(pair) >= 16)
+
+    assert(ffi.tonumber(ffi.C.getpid()) > 0)
+    local libc = ffi.load("c")
+    assert(ffi.tonumber(libc.getpid()) > 0)
+    assert(ffi.tonumber(libc.strlen("xiaoyv")) == 6)
+    assert(math.abs(ffi.tonumber(libc.strtod("3.25", nil)) - 3.25) < 0.000001)
+
+    local buffer = ffi.new("char[32]")
+    assert(libc.snprintf(buffer, ffi.sizeof(buffer), "%d", ffi.new("int", 42)) == 2)
+    assert(ffi.string(buffer) == "42")
+
+    local callback = ffi.cast("int (*)(int)", function(value)
+        return value + 1
+    end)
+    assert(ffi.tonumber(callback(41)) == 42)
+    callback:free()
+    return "struct+float+vararg+callback"
+end)
+
 test("aes-round-trip", function()
     local key = cryptLib.aes_keygen(32)
     local iv = cryptLib.aes_ivgen()
@@ -160,6 +203,47 @@ test("http-get", function()
     return message
 end)
 
+test("luasocket-core-tcp-and-udp", function()
+    local socket = require("socket")
+    assert(type(socket.tcp) == "function")
+    assert(type(socket.udp) == "function")
+    assert(type(socket.select) == "function")
+    assert(type(socket.dns) == "table")
+
+    local tcp = assert(socket.tcp())
+    assert(tcp:settimeout(5))
+    assert(tcp:connect("127.0.0.1", 18380))
+    assert(tcp:send("GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"))
+    local response = {}
+    while true do
+        local chunk, receiveError, partial = tcp:receive(1024)
+        if chunk and #chunk > 0 then
+            response[#response + 1] = chunk
+        end
+        if partial and #partial > 0 then
+            response[#response + 1] = partial
+        end
+        if receiveError == "closed" then
+            break
+        end
+        assert(receiveError == nil, receiveError)
+    end
+    tcp:close()
+    assert(table.concat(response):find('"ok":true', 1, true))
+
+    local receiver = assert(socket.udp())
+    assert(receiver:setsockname("127.0.0.1", 0))
+    local _, receiverPort = assert(receiver:getsockname())
+    assert(receiver:settimeout(2))
+    local sender = assert(socket.udp())
+    assert(sender:sendto("xiaoyv-luasocket-udp", "127.0.0.1", receiverPort))
+    local payload = assert(receiver:receivefrom())
+    sender:close()
+    receiver:close()
+    assert(payload == "xiaoyv-luasocket-udp")
+    return "tcp+udp"
+end)
+
 test("luasocket-http-request", function()
     local http = require("socket.http")
     local body, code = http.request(healthUrl)
@@ -167,6 +251,14 @@ test("luasocket-http-request", function()
     assert(code == 200, "HTTP " .. tostring(code))
     assert(body:find('"ok":true', 1, true), body)
     return "HTTP " .. code
+end)
+
+test("luasocket-mime-and-https-compat", function()
+    local mime = require("mime")
+    local https = require("ssl.https")
+    assert(mime.b64("xiaoyv") == "eGlhb3l2")
+    assert(type(https.request) == "function")
+    return "mime+https"
 end)
 
 test("ltn12-pump", function()

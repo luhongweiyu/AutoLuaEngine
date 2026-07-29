@@ -83,6 +83,8 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 图像 | `m.findPicAll(x1, y1, x2, y2, picName, deltaColor, dir, sim)` | 同 `m.findPic` | `table` 或 `nil, string` | 返回全部非重叠模板命中 |
 | 图像 | `m.clearImageCache([picName])` | `picName: string?` | `boolean` | 清理一个或全部模板图片缓存 |
 | 图像 | `m.setImageCacheMaxBytes(maxBytes)` | `maxBytes: integer` | `integer` 或 `nil, string` | 设置当前脚本的模板缓存字节上限 |
+| 图像 | `m.findPicEx` / `m.findImage` | 区域、模板列表、相似度 | `name, x, y` 或 `nil, -1, -1` | 兼容多模板找图 |
+| 图像 | `m.findPicAllPoint` / `m.findPicFast` | 区域、模板或模板列表 | 坐标 table 或索引与坐标 table | 兼容的全部和快速多模板找图 |
 | OCR | `m.ocr.loadBuiltin([name[, threads]])` | `name: string?, threads: integer?` | `boolean` 或 `nil, string` | 加载 APK 内置中文/英文 PP-OCRv4 mobile 模型 |
 | OCR | `m.ocr.load(name, detPath, recPath, clsPath, keysPath[, threads])` | `name, detPath, recPath, keysPath: string, clsPath: string?, threads: integer?` | `boolean` 或 `nil, string` | 显式加载或复用 RapidOCR ONNX 模型 |
 | OCR | `m.ocr.release(name)` | `name: string` | `boolean` 或 `nil, string` | 释放一个模型名称持有的引用 |
@@ -100,11 +102,18 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 点阵字库 | `m.font.findStrEx(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `string` 或 `nil, string` | 返回所有目标文字坐标 |
 | 点阵字库 | `m.font.findStrFast(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `integer, integer` 或 `nil, string` | 只搜索目标字形并返回第一处坐标 |
 | 点阵字库 | `m.font.findStrFastEx(x1, y1, x2, y2, text, color, sim)` | `x1..y2: integer, text, color: string, sim: number` | `string` 或 `nil, string` | 只搜索目标字形并返回全部坐标 |
+| 点阵字库 | `m.setDict` / `m.useDict` / `m.ocr` / `m.ocrj` / `m.findStr*` | 见「点阵字库 / 兼容入口」 | `1`、`0`、文字或 JSON | 迁移旧脚本的点阵字库兼容入口 |
 | 安全与数据 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 见「安全与数据 / 加密」 | 二进制字符串或 PEM | AES、RSA 和安全随机密钥 |
-| 网络与通信 | `httpGet`、`httpPost`、WebSocket、`require("socket.http").request` | 见「网络与通信」 | 正文、状态或句柄 | HTTP、文件传输和 WebSocket |
+| 网络与通信 | `m.httpGet` / `m.httpPost` / `m.asynHttpGet` / `m.asynHttpPost` | URL、正文、超时、请求头 | 正文、状态或线程对象 | 项目 HTTP 同步和异步请求 |
+| 网络与通信 | `m.downloadFile` / `m.uploadFile` | URL、本地路径与可选超时 | 状态或响应正文 | 文件下载和 multipart 上传 |
+| 网络与通信 | `m.startWebSocket` / `m.sendWebSocket` / `m.closeWebSocket` | URL、句柄、文本与回调 | 句柄或 boolean | WebSocket 事件连接 |
+| 网络与通信 | `require("socket")`、`require("socket.http")`、`require("ssl.https")` | 见「网络与通信 / LuaSocket」 | module、socket 或响应 | 固定 LuaSocket 3.1.0 模块与 HTTPS 请求兼容入口 |
 | 输入 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`swipe` | 见「输入 / 坐标缩放与手势」 | 无 | 虚拟坐标与常用手势 |
-| 找色 | `getPixelColor`、`findMultiColor`、`findCircle`、`findPicEx` 等 | 见「找色 / 扩展图色与找图」 | 坐标、table 或字符串 | 取色、多点找色、找圆、识字和多模板 |
-| 图像 / 运行时 | `cv.*`、实验性 `ffi.cdef`、`ffi.load` | 见「图像 / OpenCV」和「运行时扩展」 | userdata、table 或标量 | OpenCV `Mat` 截图与受限 FFI |
+| 找色 | `m.getPixelColor` / `m.getScreenPixel` / `m.colorToRGB` / `m.colorDiff` | 坐标或颜色 | 颜色、通道或像素 table | 取色与颜色转换 |
+| 找色 | `m.cmpColor` / `m.cmpColorEx` / `m.getColorNum` | 坐标、颜色、相似度 | `1`、`0` 或数量 | 单点、多点比色与统计 |
+| 找色 | `m.findColors` / `m.findColor` / `m.findMultiColor` / `m.findMultiColorAll` | 区域、颜色规则与方向 | 坐标、颜色或 table | 原生和兼容找色 |
+| 找色 | `m.isDisplayDead` / `m.findCircle` | 区域、等待时间或霍夫圆参数 | boolean 或圆形 table | 画面静止检测与圆形分析 |
+| 图像 / 运行时 | `cv.snapShot`、`cv.new/get/set*`、`cv.deletePtr`、`import("org.opencv.*")`、实验性 `ffi.cdef`、`ffi.load` | 见「图像 / OpenCV」和「运行时扩展」 | userdata、table 或标量 | OpenCV `Mat`、兼容值指针、Java API 与实验性 CFFI（声明、结构体、数组、浮点、回调和可变参数） |
 | 无障碍 | 选择器、节点对象、`nodeLib.*` | 见「无障碍 / 节点自动化」 | selector、node、table 或状态 | 查询和操作 Android 无障碍节点 |
 
 `m.sleep`、`m.systemTime`、`m.tickCount`、`m.touchDown` 等同名成员与默认全局函数的参数、

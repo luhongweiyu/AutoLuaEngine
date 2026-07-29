@@ -1175,73 +1175,155 @@
         "md": "md/10-图像/概述.md"
       },
       {
-        "name": "获取屏幕像素",
-        "md": "md/10-图像/getScreenPixels.md",
-        "cmd": "m.getScreenPixels"
-      },
-      {
-        "name": "设置屏幕像素",
-        "md": "md/10-图像/setScreenPixels.md",
-        "cmd": "m.setScreenPixels"
-      },
-      {
-        "name": "还原屏幕像素",
-        "md": "md/10-图像/restoreScreenPixels.md",
-        "cmd": "m.restoreScreenPixels"
+        "name": "截图来源与缓存",
+        "items": [
+          {
+            "name": "获取屏幕像素",
+            "md": "md/10-图像/截图与缓存/获取屏幕像素.md",
+            "cmd": "m.getScreenPixels"
+          },
+          {
+            "name": "设置图片屏幕",
+            "md": "md/10-图像/截图与缓存/设置图片屏幕.md",
+            "cmd": "m.setScreenPixels"
+          },
+          {
+            "name": "还原物理屏幕",
+            "md": "md/10-图像/截图与缓存/还原物理屏幕.md",
+            "cmd": "m.restoreScreenPixels"
+          },
+          {
+            "name": "锁住截图帧",
+            "md": "md/10-图像/截图与缓存/锁住截图帧.md",
+            "cmd": "m.keepCapture"
+          },
+          {
+            "name": "解锁截图帧",
+            "md": "md/10-图像/截图与缓存/解锁截图帧.md",
+            "cmd": "m.releaseCapture"
+          },
+          {
+            "name": "设置截图缓存时间",
+            "md": "md/10-图像/截图与缓存/设置截图缓存时间.md",
+            "cmd": "m.setCaptureCacheMs"
+          },
+          {
+            "name": "缓存规则",
+            "md": "md/10-图像/截图与缓存/缓存规则.md"
+          }
+        ]
       },
       {
         "name": "保存截图",
-        "md": "md/10-图像/capture.md",
-        "cmd": "m.capture"
+        "items": [
+          {
+            "name": "保存截图",
+            "md": "md/10-图像/截图输出/保存截图.md",
+            "cmd": "m.capture"
+          },
+          {
+            "name": "保存截图别名",
+            "md": "md/10-图像/截图输出/保存截图别名.md",
+            "cmd": "m.snapShot"
+          }
+        ]
       },
       {
-        "name": "保存截图别名",
-        "md": "md/10-图像/snapShot.md",
-        "cmd": "m.snapShot"
+        "name": "模板找图",
+        "items": [
+          {
+            "name": "查找模板",
+            "md": "md/10-图像/模板找图/查找模板.md",
+            "cmd": "m.findPic"
+          },
+          {
+            "name": "查找全部模板",
+            "md": "md/10-图像/模板找图/查找全部模板.md",
+            "cmd": "m.findPicAll"
+          },
+          {
+            "name": "清理模板缓存",
+            "md": "md/10-图像/模板找图/清理模板缓存.md",
+            "cmd": "m.clearImageCache"
+          },
+          {
+            "name": "设置模板缓存上限",
+            "md": "md/10-图像/模板找图/设置模板缓存上限.md",
+            "cmd": "m.setImageCacheMaxBytes"
+          }
+        ]
       },
       {
-        "name": "锁住截图帧",
-        "md": "md/10-图像/keepCapture.md",
-        "cmd": "m.keepCapture"
-      },
-      {
-        "name": "解锁截图帧",
-        "md": "md/10-图像/releaseCapture.md",
-        "cmd": "m.releaseCapture"
-      },
-      {
-        "name": "截图缓存时间",
-        "md": "md/10-图像/setCaptureCacheMs.md",
-        "cmd": "m.setCaptureCacheMs"
-      },
-      {
-        "name": "缓存规则",
-        "md": "md/10-图像/缓存规则.md"
-      },
-      {
-        "name": "区域找图",
-        "md": "md/10-图像/找图.md",
-        "cmd": "m.findPic"
-      },
-      {
-        "name": "查找全部图片",
-        "md": "md/10-图像/找图全部.md",
-        "cmd": "m.findPicAll"
-      },
-      {
-        "name": "清理模板缓存",
-        "md": "md/10-图像/清理图片缓存.md",
-        "cmd": "m.clearImageCache"
-      },
-      {
-        "name": "模板缓存上限",
-        "md": "md/10-图像/setImageCacheMaxBytes.md",
-        "cmd": "m.setImageCacheMaxBytes"
+        "name": "兼容找图",
+        "md": "md/10-图像/兼容找图/概述.md",
+        "items": [
+          {
+            "name": "多模板找图",
+            "md": "md/10-图像/兼容找图/多模板找图.md",
+            "cmd": "m.findPicEx / m.findImage"
+          },
+          {
+            "name": "查找全部模板坐标",
+            "md": "md/10-图像/兼容找图/查找全部模板坐标.md",
+            "cmd": "m.findPicAllPoint"
+          },
+          {
+            "name": "快速多模板找图",
+            "md": "md/10-图像/兼容找图/快速多模板找图.md",
+            "cmd": "m.findPicFast"
+          }
+        ]
       },
       {
         "name": "OpenCV",
-        "md": "md/10-图像/OpenCV.md",
-        "cmd": "cv.*"
+        "md": "md/10-图像/OpenCV/概述.md",
+        "items": [
+          {
+            "name": "OpenCV 截图 Mat",
+            "md": "md/10-图像/OpenCV/snapShot.md",
+            "cmd": "cv.snapShot"
+          },
+          {
+            "name": "整型点值指针",
+            "md": "md/10-图像/OpenCV/Point.md",
+            "cmd": "cv.newPoint / cv.getPoint / cv.setPoint"
+          },
+          {
+            "name": "浮点点值指针",
+            "md": "md/10-图像/OpenCV/Point2f.md",
+            "cmd": "cv.newPoint2f / cv.getPoint2f / cv.setPoint2f"
+          },
+          {
+            "name": "Int 值指针",
+            "md": "md/10-图像/OpenCV/Int.md",
+            "cmd": "cv.newInt / cv.getInt / cv.setInt"
+          },
+          {
+            "name": "Double 值指针",
+            "md": "md/10-图像/OpenCV/Double.md",
+            "cmd": "cv.newDouble / cv.getDouble / cv.setDouble"
+          },
+          {
+            "name": "Float 值指针",
+            "md": "md/10-图像/OpenCV/Float.md",
+            "cmd": "cv.newFloat / cv.getFloat / cv.setFloat"
+          },
+          {
+            "name": "Long 值指针",
+            "md": "md/10-图像/OpenCV/Long.md",
+            "cmd": "cv.newLong / cv.getLong / cv.setLong"
+          },
+          {
+            "name": "Byte 值指针",
+            "md": "md/10-图像/OpenCV/Byte.md",
+            "cmd": "cv.newByte / cv.getByte / cv.setByte"
+          },
+          {
+            "name": "使值指针失效",
+            "md": "md/10-图像/OpenCV/deletePtr.md",
+            "cmd": "cv.deletePtr"
+          }
+        ]
       }
     ]
   },
@@ -1249,14 +1331,88 @@
     "name": "找色",
     "items": [
       {
-        "name": "多点找色",
-        "md": "md/11-找色/findColors.md",
-        "cmd": "m.findColors"
+        "name": "概述",
+        "md": "md/11-找色/概述.md"
       },
       {
-        "name": "扩展图色与找图",
-        "md": "md/11-找色/扩展图色与找图.md",
-        "cmd": "getPixelColor / findMultiColor / findCircle / findPicEx"
+        "name": "取色与转换",
+        "items": [
+          {
+            "name": "获取单点颜色",
+            "md": "md/11-找色/取色与转换/获取单点颜色.md",
+            "cmd": "m.getPixelColor"
+          },
+          {
+            "name": "获取区域像素",
+            "md": "md/11-找色/取色与转换/获取区域像素.md",
+            "cmd": "m.getScreenPixel"
+          },
+          {
+            "name": "拆分颜色通道",
+            "md": "md/11-找色/取色与转换/拆分颜色通道.md",
+            "cmd": "m.colorToRGB"
+          },
+          {
+            "name": "颜色差值",
+            "md": "md/11-找色/取色与转换/颜色差值.md",
+            "cmd": "m.colorDiff"
+          }
+        ]
+      },
+      {
+        "name": "比色与统计",
+        "items": [
+          {
+            "name": "单点比色",
+            "md": "md/11-找色/比色与统计/单点比色.md",
+            "cmd": "m.cmpColor"
+          },
+          {
+            "name": "多点比色",
+            "md": "md/11-找色/比色与统计/多点比色.md",
+            "cmd": "m.cmpColorEx / m.cmpColorExT"
+          },
+          {
+            "name": "统计颜色数量",
+            "md": "md/11-找色/比色与统计/统计颜色数量.md",
+            "cmd": "m.getColorNum"
+          }
+        ]
+      },
+      {
+        "name": "查找与分析",
+        "items": [
+          {
+            "name": "原生多点找色",
+            "md": "md/11-找色/查找与分析/原生多点找色.md",
+            "cmd": "m.findColors"
+          },
+          {
+            "name": "查找指定颜色",
+            "md": "md/11-找色/查找与分析/查找指定颜色.md",
+            "cmd": "m.findColor / m.findColorT"
+          },
+          {
+            "name": "查找多点颜色",
+            "md": "md/11-找色/查找与分析/查找多点颜色.md",
+            "cmd": "m.findMultiColor / m.findMultiColorT"
+          },
+          {
+            "name": "查找全部多点颜色",
+            "md": "md/11-找色/查找与分析/查找全部多点颜色.md",
+            "cmd": "m.findMultiColorAll / m.findMultiColorAllT"
+          },
+          {
+            "name": "检测画面静止",
+            "md": "md/11-找色/查找与分析/检测画面静止.md",
+            "cmd": "m.isDisplayDead"
+          },
+          {
+            "name": "查找圆形",
+            "md": "md/11-找色/查找与分析/查找圆形.md",
+            "cmd": "m.findCircle"
+          }
+        ]
       }
     ]
   },
@@ -1377,6 +1533,51 @@
         "name": "快速找字全部",
         "md": "md/15-点阵字库/快速找字全部.md",
         "cmd": "m.font.findStrFastEx"
+      },
+      {
+        "name": "兼容入口",
+        "items": [
+          {
+            "name": "设置兼容字库",
+            "md": "md/15-点阵字库/兼容入口/设置兼容字库.md",
+            "cmd": "m.setDict"
+          },
+          {
+            "name": "选择兼容字库",
+            "md": "md/15-点阵字库/兼容入口/选择兼容字库.md",
+            "cmd": "m.useDict"
+          },
+          {
+            "name": "兼容识字",
+            "md": "md/15-点阵字库/兼容入口/兼容识字.md",
+            "cmd": "m.ocr"
+          },
+          {
+            "name": "兼容识字详情",
+            "md": "md/15-点阵字库/兼容入口/兼容识字详情.md",
+            "cmd": "m.ocrj"
+          },
+          {
+            "name": "兼容找字",
+            "md": "md/15-点阵字库/兼容入口/兼容找字.md",
+            "cmd": "m.findStr"
+          },
+          {
+            "name": "兼容找字全部",
+            "md": "md/15-点阵字库/兼容入口/兼容找字全部.md",
+            "cmd": "m.findStrEx"
+          },
+          {
+            "name": "按字库兼容识字",
+            "md": "md/15-点阵字库/兼容入口/按字库兼容识字.md",
+            "cmd": "m.ocrNew / m.ocrjNew"
+          },
+          {
+            "name": "按字库兼容找字全部",
+            "md": "md/15-点阵字库/兼容入口/按字库兼容找字全部.md",
+            "cmd": "m.findStrExNew"
+          }
+        ]
       }
     ]
   },
@@ -1384,9 +1585,119 @@
     "name": "网络与通信",
     "items": [
       {
-        "name": "HTTP、WebSocket 与 LuaSocket",
-        "md": "md/16-网络与通信/HTTP与LuaSocket.md",
-        "cmd": "httpGet / httpPost / socket.http.request / WebSocket"
+        "name": "概述",
+        "md": "md/16-网络与通信/概述.md"
+      },
+      {
+        "name": "项目 HTTP",
+        "items": [
+          {
+            "name": "HTTP GET",
+            "md": "md/16-网络与通信/项目HTTP/HTTP GET.md",
+            "cmd": "m.httpGet"
+          },
+          {
+            "name": "HTTP POST",
+            "md": "md/16-网络与通信/项目HTTP/HTTP POST.md",
+            "cmd": "m.httpPost"
+          },
+          {
+            "name": "异步 HTTP GET",
+            "md": "md/16-网络与通信/项目HTTP/异步 HTTP GET.md",
+            "cmd": "m.asynHttpGet"
+          },
+          {
+            "name": "异步 HTTP POST",
+            "md": "md/16-网络与通信/项目HTTP/异步 HTTP POST.md",
+            "cmd": "m.asynHttpPost"
+          },
+          {
+            "name": "下载文件",
+            "md": "md/16-网络与通信/项目HTTP/下载文件.md",
+            "cmd": "m.downloadFile"
+          },
+          {
+            "name": "上传文件",
+            "md": "md/16-网络与通信/项目HTTP/上传文件.md",
+            "cmd": "m.uploadFile"
+          }
+        ]
+      },
+      {
+        "name": "WebSocket",
+        "items": [
+          {
+            "name": "创建 WebSocket",
+            "md": "md/16-网络与通信/WebSocket/创建 WebSocket.md",
+            "cmd": "m.startWebSocket"
+          },
+          {
+            "name": "发送 WebSocket 数据",
+            "md": "md/16-网络与通信/WebSocket/发送 WebSocket 数据.md",
+            "cmd": "m.sendWebSocket"
+          },
+          {
+            "name": "关闭 WebSocket",
+            "md": "md/16-网络与通信/WebSocket/关闭 WebSocket.md",
+            "cmd": "m.closeWebSocket"
+          }
+        ]
+      },
+      {
+        "name": "LuaSocket",
+        "md": "md/16-网络与通信/LuaSocket/概述.md",
+        "items": [
+          {
+            "name": "核心模块",
+            "md": "md/16-网络与通信/LuaSocket/核心模块.md",
+            "cmd": "require(\"socket\")"
+          },
+          {
+            "name": "TCP",
+            "md": "md/16-网络与通信/LuaSocket/TCP.md",
+            "cmd": "socket.tcp"
+          },
+          {
+            "name": "UDP",
+            "md": "md/16-网络与通信/LuaSocket/UDP.md",
+            "cmd": "socket.udp"
+          },
+          {
+            "name": "HTTP 请求",
+            "md": "md/16-网络与通信/LuaSocket/HTTP 请求.md",
+            "cmd": "socket.http.request"
+          },
+          {
+            "name": "HTTPS 请求",
+            "md": "md/16-网络与通信/LuaSocket/HTTPS 请求.md",
+            "cmd": "ssl.https.request"
+          },
+          {
+            "name": "LTN12",
+            "md": "md/16-网络与通信/LuaSocket/LTN12.md",
+            "cmd": "require(\"ltn12\")"
+          },
+          {
+            "name": "MIME",
+            "md": "md/16-网络与通信/LuaSocket/MIME.md",
+            "cmd": "require(\"mime\")"
+          },
+          {
+            "name": "URL",
+            "md": "md/16-网络与通信/LuaSocket/URL.md",
+            "cmd": "require(\"socket.url\")"
+          },
+          {
+            "name": "FTP",
+            "md": "md/16-网络与通信/LuaSocket/FTP.md",
+            "cmd": "require(\"socket.ftp\")"
+          },
+          {
+            "name": "SMTP",
+            "md": "md/16-网络与通信/LuaSocket/SMTP.md",
+            "cmd": "require(\"socket.smtp\")"
+          }
+        ]
       }
     ]
   },
@@ -1404,9 +1715,29 @@
     "name": "运行时扩展",
     "items": [
       {
-        "name": "Lua 标准库与 FFI（实验性）",
-        "md": "md/18-运行时扩展/Lua标准库与FFI.md",
-        "cmd": "io.* / os.* / ffi.cdef / ffi.load"
+        "name": "Lua 标准库",
+        "md": "md/18-运行时扩展/Lua标准库.md"
+      },
+      {
+        "name": "FFI（实验性）",
+        "md": "md/18-运行时扩展/FFI/概述.md",
+        "items": [
+          {
+            "name": "声明与库加载",
+            "md": "md/18-运行时扩展/FFI/声明与库加载.md",
+            "cmd": "ffi.cdef / ffi.C / ffi.load"
+          },
+          {
+            "name": "C 数据与类型",
+            "md": "md/18-运行时扩展/FFI/C数据与类型.md",
+            "cmd": "ffi.new / ffi.cast / ffi.typeof / ffi.sizeof"
+          },
+          {
+            "name": "生命周期与回调",
+            "md": "md/18-运行时扩展/FFI/生命周期与回调.md",
+            "cmd": "ffi.gc / ffi.metatype / ffi.errno / ffi.cast(callback)"
+          }
+        ]
       }
     ]
   },

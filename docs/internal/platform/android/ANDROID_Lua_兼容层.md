@@ -35,7 +35,7 @@ Java 和平台路由是私有实现，可用更适合本项目的分组和命名
 
 | 功能 | 新脚本的公开形状 | 兼容与内部边界 |
 |---|---|---|
-| LuaSocket | `require("socket.http").request(...)` | 不导出内部便利别名 `m.http`；网络桥接可继续使用任意内部操作名。 |
+| LuaSocket | `require("socket")`、`require("socket.http")`、`require("ssl.https")` | TCP/UDP/DNS/HTTP 使用上游 LuaSocket；TLS 不属于 LuaSocket，HTTPS request 保留 Android 网络层适配；不导出 `m.http`。 |
 | 触控缩放 | `setScreenScale(true, width, height)` / `setScreenScale(false)` | 默认 `m` 使用布尔开关和无返回；历史参数只在后续各兼容命名空间中单独处理。 |
 | 基础触控 | `touchDown([id,] x, y)`、`touchMove([id,] x, y)`、`touchUp([id,] x, y)` | 默认 `m` 三者均无返回，且抬起时必须给出坐标。HostApi 的注入状态只供组合手势内部判断。 |
 | 常用手势 | `tap(x, y[, duration])`、`longTap(x, y[, duration])`、`swipe(...)` | 时长和返回值按公开兼容契约整理，不能因底层布尔结果泄漏而改变脚本语义。 |
@@ -79,9 +79,9 @@ compat_extended.lua
 | 模块 | 主要实现 | 约束 |
 |---|---|---|
 | cipher | `CryptoPlatformBridge` | AES 二进制、PEM RSA；JSON 边界 Base64 |
-| network / luasocket | `NetworkPlatformBridge`、`LuaEngine` | OkHttp HTTP/WebSocket；LuaSocket 只实现文档所需请求形状 |
+| network / luasocket | `NetworkPlatformBridge`、LuaSocket C core、运行时 Lua modules | 项目 HTTP/WebSocket 使用 OkHttp；LuaSocket 提供 TCP/UDP/DNS/HTTP/MIME，HTTPS request 经平台适配；原始 socket 遵循上游同步超时语义 |
 | io / time | Lua 5.4 标准库、runtime/device API | 已有标准函数不重复包装；网络时间在总接收等待约 3 秒内依次尝试 3 个真实 NTP 服务 |
-| ffi | `ffi_lua_api` | 仅整数、指针、`char*`、最多 6 参数；显式 64 位整数仅限 64 位进程；不是完整 LuaJIT FFI |
+| ffi | `ffi_lua_api` + 静态 cffi-lua / libffi | 公开入口为 `m.ffi`、全局 `ffi` 和 `require("ffi")`；支持声明、cdata、结构体、数组、浮点、回调和可变参数。Android 按当前 ABI 静态编入调用与回调 trampoline；不是 LuaJIT FFI，且在各 ABI 运行时验证完成前标为实验性 |
 | touch | 现有 InputApi + Lua 坐标换算 | 缩放只改变兼容入口坐标，底层始终使用真实画面 |
 | color | `color_compat_lua_api` + 现有截图缓存 + `PaddleOcr` | `0,0,0,0` 为全屏；Java Bitmap OCR 复用现有 ONNX 模型缓存 |
 | image / cv | 现有模板核心、`cv_compat_lua_api`、`OpenCvPlatformBridge`、`LuaEngine.snapShotMat` | 找图热路径不迁入 OpenCV；值指针用 native userdata，霍夫找圆和 Mat 使用官方 AAR |

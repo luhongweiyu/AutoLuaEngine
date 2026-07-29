@@ -282,98 +282,112 @@ function m.sendWebSocket(handle, text)
     })
 end
 
-local ltn12 = { sink = {}, source = {}, pump = {} }
-
-function ltn12.sink.table(target)
-    target = target or {}
-    local sink = function(chunk, errorMessage)
-        if chunk ~= nil then
-            target[#target + 1] = chunk
-        end
-        return 1, errorMessage
+-- LuaSocket 的 TCP、UDP、DNS、LTN12、MIME 和 HTTP 由上游运行时模块提供。LuaSocket 本身
+-- 不含 TLS；为保持既有 HTTPS 调用可用，ssl.https 和 socket.http 的 HTTPS 请求仍委托 Android
+-- 网络层。HTTP 请求仍使用上游 socket.http 的完整实现。
+local function isHttpsRequest(argument)
+    if type(argument) == "table" and tostring(argument.scheme or ""):lower() == "https" then
+        return true
     end
-    return sink, target
+    local url = type(argument) == "string" and argument
+            or (type(argument) == "table" and argument.url or nil)
+    return type(url) == "string" and url:match("^[Hh][Tt][Tt][Pp][Ss]:") ~= nil
 end
 
-function ltn12.source.string(value)
-    value = tostring(value or "")
-    local emitted = false
-    return function()
-        if emitted then
-            return nil
-        end
-        emitted = true
-        return value
-    end
-end
-
-function ltn12.pump.all(source, sink)
-    while true do
-        local chunk, sourceError = source()
-        if chunk == nil then
-            sink(nil, sourceError)
-            return sourceError == nil, sourceError
-        end
-        local ok, sinkError = sink(chunk)
-        if not ok then
-            return nil, sinkError
-        end
-    end
-end
-
-local socketHttp = {}
-
-function socketHttp.request(argument)
-    if type(argument) == "string" then
-        return networkRequest(argument, "GET")
-    end
-    assert(type(argument) == "table", "http.request 参数必须是 URL 或 table")
+local function collectHttpsRequestBody(argument)
     local requestBody = argument.body
-    if requestBody == nil and type(argument.source) == "function" then
-        local chunks = {}
-        while true do
-            local chunk = argument.source()
-            if chunk == nil then
-                break
-            end
-            chunks[#chunks + 1] = chunk
-        end
-        requestBody = table.concat(chunks)
+    if requestBody ~= nil or type(argument.source) ~= "function" then
+        return requestBody
     end
+
+    local chunks = {}
+    while true do
+        local chunk, sourceError = argument.source()
+        if chunk == nil then
+            if sourceError ~= nil then
+                return nil, sourceError
+            end
+            break
+        end
+        if type(chunk) ~= "string" then
+            return nil, "HTTPS request source 必须返回字符串"
+        end
+        chunks[#chunks + 1] = chunk
+    end
+    return table.concat(chunks)
+end
+
+local httpsCompat = {}
+
+function httpsCompat.request(argument, bodyArgument)
+    if type(argument) == "string" then
+        if bodyArgument == nil then
+            return networkRequest(argument, "GET")
+        end
+        argument = {
+            url = argument,
+            body = bodyArgument,
+            method = "POST",
+            headers = {
+                ["content-length"] = tostring(#bodyArgument),
+                ["content-type"] = "application/x-www-form-urlencoded",
+            },
+        }
+    end
+
+    assert(type(argument) == "table", "https.request 参数必须是 URL 或 table")
+    local requestBody, requestBodyError = collectHttpsRequestBody(argument)
+    if requestBodyError ~= nil then
+        return nil, requestBodyError
+    end
+    local requestHeaders = normalizeHeaders(argument.headers)
     local body, code, headers, status = networkRequest(
-        assert(argument.url, "http.request 缺少 url"),
-        argument.method or (requestBody and "POST" or "GET"),
+        assert(argument.url, "https.request 缺少 url"),
+        argument.method or (requestBody ~= nil and "POST" or "GET"),
         requestBody,
         argument.timeout,
-        argument.headers,
-        argument.headers and (argument.headers["content-type"] or argument.headers["Content-Type"])
+        requestHeaders,
+        requestHeaders["content-type"] or requestHeaders["Content-Type"]
     )
     if body == nil then
         return nil, code
     end
     if type(argument.sink) == "function" then
-        argument.sink(body)
-        argument.sink(nil)
+        local accepted, sinkError = argument.sink(body)
+        if not accepted then
+            return nil, sinkError
+        end
+        accepted, sinkError = argument.sink(nil)
+        if not accepted then
+            return nil, sinkError
+        end
         return 1, code, headers, status
     end
     return body, code, headers, status
 end
 
-local socketModule = {
-    gettime = function() return host.systemTime() / 1000 end,
-    sleep = function(seconds) return host.sleep(math.floor((seconds or 0) * 1000)) end,
-}
-
 if package and package.preload then
-    package.preload["ltn12"] = function() return ltn12 end
-    package.preload["socket"] = function() return socketModule end
-    package.preload["socket.http"] = function() return socketHttp end
-    package.preload["ssl.https"] = function() return socketHttp end
+    local upstreamSocketHttpLoader = assert(
+        package.preload["socket.http"],
+        "LuaSocket socket.http 运行时模块未注册"
+    )
+    package.preload["ssl.https"] = function() return httpsCompat end
+    package.preload["socket.http"] = function(...)
+        local socketHttp = upstreamSocketHttpLoader(...)
+        local upstreamRequest = assert(socketHttp.request, "LuaSocket socket.http.request 不可用")
+        socketHttp.request = function(argument, bodyArgument)
+            if isHttpsRequest(argument) then
+                return httpsCompat.request(argument, bodyArgument)
+            end
+            return upstreamRequest(argument, bodyArgument)
+        end
+        return socketHttp
+    end
     package.preload["ffi"] = function() return m.ffi end
 end
 
--- LuaSocket 的公开入口始终是 require("socket.http") / require("ssl.https")。
--- 不再额外导出 m.http：它只是本文件的内部局部变量，不是懒人或触动的脚本 API。
+-- LuaSocket 的公开入口始终是 require("socket") / require("socket.http") / require("ssl.https")。
+-- 不额外导出 m.http：它只是本文件的内部实现，不是懒人或触动的脚本 API。
 
 -- 屏幕缩放与触控
 local scale = {
@@ -1242,7 +1256,7 @@ function m.setAccessibilityEnvMode()
 end
 
 -- cv 页面明确列出的 Mat 截图和指针辅助。new* 返回 native userdata，其首地址保存
--- 对应 Point 或标量值，因此除本组 get/set/delete 外也可作为受限 FFI 的指针参数。
+-- 对应 Point 或标量值，因此除本组 get/set/delete 外也可作为 ffi 的指针参数。
 local cv = assert(host.cvCompat, "cv compatibility host is unavailable")
 
 function cv.snapShot(left, top, right, bottom)
