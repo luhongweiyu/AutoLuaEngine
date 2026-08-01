@@ -96,6 +96,7 @@ struct JavaInteropCache {
     std::string error;
 
     jclass bridgeClass = nullptr;
+    jclass openCvRuntimeBridgeClass = nullptr;
     jclass memberResultClass = nullptr;
     jclass invocationResultClass = nullptr;
     jclass luaTableClass = nullptr;
@@ -115,6 +116,7 @@ struct JavaInteropCache {
     jclass throwableClass = nullptr;
 
     jmethodID resolveClassMethod = nullptr;
+    jmethodID ensureOpenCvRuntimeMethod = nullptr;
     jmethodID getMemberMethod = nullptr;
     jmethodID invokeMethod = nullptr;
     jmethodID constructMethod = nullptr;
@@ -332,6 +334,7 @@ void initializeJavaCache(JNIEnv* env) {
 
     bool classesReady =
             cacheClass(env, "com/xiaoyv/engine/interop/JavaInteropBridge", &gJavaCache.bridgeClass)
+            && cacheClass(env, "com/xiaoyv/engine/OpenCvPlatformBridge", &gJavaCache.openCvRuntimeBridgeClass)
             && cacheClass(env, "com/xiaoyv/engine/interop/JavaMemberResult", &gJavaCache.memberResultClass)
             && cacheClass(env, "com/xiaoyv/engine/interop/JavaInvocationResult", &gJavaCache.invocationResultClass)
             && cacheClass(env, "com/xiaoyv/engine/interop/LuaTableValue", &gJavaCache.luaTableClass)
@@ -361,6 +364,11 @@ void initializeJavaCache(JNIEnv* env) {
             gJavaCache.bridgeClass,
             "resolveClass",
             "(Ljava/lang/String;)Ljava/lang/Class;"
+    );
+    gJavaCache.ensureOpenCvRuntimeMethod = env->GetStaticMethodID(
+            gJavaCache.openCvRuntimeBridgeClass,
+            "ensureRuntimeLoaded",
+            "()V"
     );
     gJavaCache.getMemberMethod = env->GetStaticMethodID(
             gJavaCache.bridgeClass,
@@ -502,6 +510,7 @@ void initializeJavaCache(JNIEnv* env) {
     }
 
     bool methodsReady = gJavaCache.resolveClassMethod != nullptr
+            && gJavaCache.ensureOpenCvRuntimeMethod != nullptr
             && gJavaCache.getMemberMethod != nullptr
             && gJavaCache.invokeMethod != nullptr
             && gJavaCache.constructMethod != nullptr
@@ -1153,6 +1162,31 @@ jobject resolveJavaClass(
     return javaError.empty() ? result : nullptr;
 }
 
+/** 在 Lua 直接导入 org.opencv.* 前，按需准备已导入的 OpenCV native 运行时。 */
+bool ensureOpenCvRuntime(
+        JNIEnv* env,
+        const std::shared_ptr<LuaJavaContext>& context,
+        std::string* error
+) {
+    beginJavaCall(context);
+    env->CallStaticVoidMethod(
+            gJavaCache.openCvRuntimeBridgeClass,
+            gJavaCache.ensureOpenCvRuntimeMethod
+    );
+    std::string javaError = takeJavaException(env);
+    endJavaCall(context);
+    if (!javaError.empty()) {
+        *error = javaError;
+        return false;
+    }
+    return true;
+}
+
+bool isOpenCvClassName(const std::string& className) {
+    constexpr const char* kOpenCvPackagePrefix = "org.opencv.";
+    return className.compare(0, std::strlen(kOpenCvPackagePrefix), kOpenCvPackagePrefix) == 0;
+}
+
 /**
  * Lua 全局 import(className) 实现。
  */
@@ -1166,6 +1200,17 @@ int luaJavaImport(lua_State* state) {
     }
     if (!gJavaCache.ready) {
         return raiseLuaError(state, gJavaCache.error);
+    }
+
+    JNIEnv* env = currentEnv();
+    if (env == nullptr) {
+        return raiseLuaError(state, "当前线程无法访问 JavaVM");
+    }
+    if (isOpenCvClassName(className)) {
+        std::string runtimeError;
+        if (!ensureOpenCvRuntime(env, context, &runtimeError)) {
+            return raiseLuaError(state, runtimeError);
+        }
     }
 
     if (className.size() >= 2
@@ -1182,11 +1227,6 @@ int luaJavaImport(lua_State* state) {
             context->importedPackages.push_back(packageName);
         }
         return 0;
-    }
-
-    JNIEnv* env = currentEnv();
-    if (env == nullptr) {
-        return raiseLuaError(state, "当前线程无法访问 JavaVM");
     }
 
     std::string error;

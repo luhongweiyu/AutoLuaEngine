@@ -17,3 +17,6 @@
 - [0006：Android Lua 公开层与内部实现边界](0006-Android Lua公开层与内部实现边界.md)
 - [0007：Android LuaSocket 上游接入](0007-Android LuaSocket上游接入.md)
 - [0008：Android Lua CFFI 上游接入](0008-Android Lua CFFI上游接入.md)
+- [0009：ALPKG 小资源范围与 YOLO 模型分离](0009-ALPKG小资源范围与YOLO模型分离.md)
+- [0010：Android 可选 YOLO 运行时与多语言 C ABI](0010-Android可选YOLO运行时与多语言C-ABI.md)
+- [0011：Android 本地扩展文件导入与按需加载](0011-Android本地扩展文件导入与按需加载.md)

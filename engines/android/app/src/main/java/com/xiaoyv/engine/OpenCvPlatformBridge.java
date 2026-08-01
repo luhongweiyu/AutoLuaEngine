@@ -6,7 +6,6 @@ package com.xiaoyv.engine;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.opencv.android.OpenCVLoader;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Rect;
@@ -21,11 +20,23 @@ import java.util.Arrays;
  * 实现混在一起。输入图像来自当前引擎截图缓存，因此 keepCapture 和自定义 Bitmap 缓存
  * 对 findCircle 同样生效。
  */
-final class OpenCvPlatformBridge {
+public final class OpenCvPlatformBridge {
+    private static final String CPP_RUNTIME_FILE_NAME = "libc++_shared.so";
+    private static final String OPENCV_RUNTIME_FILE_NAME = "libopencv_java4.so";
     private static final Object INITIALIZE_LOCK = new Object();
     private static volatile boolean initialized;
 
     private OpenCvPlatformBridge() {
+    }
+
+    /**
+     * 供已有 Java 互操作入口和 LuaEngine 兼容层在真正使用 OpenCV 前调用。
+     *
+     * 这不是新的脚本 API；它保证现有 `import("org.opencv.*")` 与 `cv.snapShot` 在
+     * OpenCV native 库已从基础 APK 拆出后仍保持原来的可用方式。
+     */
+    public static void ensureRuntimeLoaded() {
+        ensureInitialized();
     }
 
     static Object call(String operation, JSONObject arguments) throws JSONException {
@@ -108,9 +119,17 @@ final class OpenCvPlatformBridge {
             if (initialized) {
                 return;
             }
-            if (!OpenCVLoader.initLocal()) {
-                throw new IllegalStateException("OpenCV 初始化失败");
+            OptionalNativeRuntimeLoader.LoadResult result = OptionalNativeRuntimeLoader.loadImported(
+                    AndroidHostBridge.applicationContext(),
+                    CPP_RUNTIME_FILE_NAME,
+                    OPENCV_RUNTIME_FILE_NAME
+            );
+            if (!result.loaded) {
+                throw new IllegalStateException(result.error);
             }
+            // OpenCVLoader.initLocal() 会再次用 System.loadLibrary 从 APK 的 native 目录查找
+            // libopencv_java4.so。可选运行时已由上面的绝对路径按需加载，直接使用其 Java API
+            // 即可；再次调用反而会把 APK 内不存在该库误报为初始化失败。
             initialized = true;
         }
     }

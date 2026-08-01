@@ -1,5 +1,5 @@
 /**
- * 文件用途：App 主界面，负责脚本列表、状态展示、市场占位和设置入口。
+ * 文件用途：App 主界面，负责脚本列表、状态展示、本地扩展导入和设置入口。
  */
 package com.xiaoyv.engine;
 
@@ -62,7 +62,7 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_SCRIPT_STORAGE_PERMISSION = 1003;
     private static final int TAB_SCRIPT = 0;
     private static final int TAB_STATUS = 1;
-    private static final int TAB_MARKET = 2;
+    private static final int TAB_EXTENSION = 2;
     private static final int TAB_SETTINGS = 3;
     private static final int PAGE_PADDING = 16;
     private static final int MAX_LOG_LINES = 30;
@@ -167,7 +167,7 @@ public final class MainActivity extends Activity {
         navItems = new TextView[] {
                 createNavItem("脚本", R.drawable.ic_script_file, TAB_SCRIPT),
                 createNavItem("状态", R.drawable.ic_nav_status, TAB_STATUS),
-                createNavItem("市场", R.drawable.ic_nav_market, TAB_MARKET),
+                createNavItem("扩展", R.drawable.ic_nav_market, TAB_EXTENSION),
                 createNavItem("设置", R.drawable.ic_nav_settings, TAB_SETTINGS)
         };
 
@@ -222,8 +222,8 @@ public final class MainActivity extends Activity {
         if (tabIndex == TAB_STATUS) {
             return createStatusPage();
         }
-        if (tabIndex == TAB_MARKET) {
-            return createMarketPage();
+        if (tabIndex == TAB_EXTENSION) {
+            return createExtensionPage();
         }
         if (tabIndex == TAB_SETTINGS) {
             return createSettingsPage();
@@ -355,19 +355,102 @@ public final class MainActivity extends Activity {
         return scrollView;
     }
 
-    private View createMarketPage() {
-        FrameLayout page = new FrameLayout(this);
-        page.setBackgroundColor(COLOR_BACKGROUND);
-        TextView emptyView = createEmptyText("市场暂未开放");
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER
+    /**
+     * 本地扩展页只管理文件导入，不在浏览或点击“导入”时执行其中的 native 代码。
+     */
+    private View createExtensionPage() {
+        ScrollView scrollView = createPageScrollView();
+        LinearLayout page = createPageContent();
+        scrollView.addView(page);
+
+        page.addView(createSectionLabel("本地扩展"), matchWidthWrapContent());
+        TextView hint = createSmallText(
+                "将任意文件直接复制到 " + ExtensionCatalog.getExtensionDirectoryDisplayPath()
+                        + "。列表不判断文件类型、名称或 CPU；点击导入只复制文件，脚本实际使用时才加载。"
         );
-        params.leftMargin = dp(PAGE_PADDING);
-        params.rightMargin = dp(PAGE_PADDING);
-        page.addView(emptyView, params);
-        return page;
+        hint.setPadding(dp(2), dp(6), dp(2), 0);
+        page.addView(hint, matchWidthWrapContent());
+
+        LinearLayout actions = createHorizontalRow();
+        actions.addView(createSecondaryButton(
+                View.generateViewId(),
+                "打开目录",
+                this::openExtensionDirectory
+        ), weightedButtonParams(1f, false));
+        actions.addView(createSecondaryButton(
+                View.generateViewId(),
+                "刷新",
+                () -> showTab(TAB_EXTENSION)
+        ), weightedButtonParams(1f, true));
+        page.addView(actions, topMarginParams(12));
+
+        if (!ScriptCatalog.isScriptStorageAccessible(this)) {
+            page.addView(createEmptyText("扩展目录未授权"), topMarginParams(36));
+            page.addView(createSecondaryButton(
+                    View.generateViewId(),
+                    "授权扩展目录",
+                    this::ensureScriptStorageAccess
+            ), topMarginParams(12));
+            return scrollView;
+        }
+
+        ExtensionCatalog.ExtensionItem[] items = ExtensionCatalog.listExtensions(this);
+        if (items.length == 0) {
+            page.addView(createEmptyText("扩展目录没有文件"), topMarginParams(36));
+            return scrollView;
+        }
+
+        LinearLayout list = createSettingsGroup();
+        for (int index = 0; index < items.length; index++) {
+            list.addView(createExtensionRow(items[index]), matchWidthWrapContent());
+            if (index + 1 < items.length) {
+                list.addView(createSettingsDivider());
+            }
+        }
+        page.addView(list, topMarginParams(14));
+        return scrollView;
+    }
+
+    private View createExtensionRow(ExtensionCatalog.ExtensionItem item) {
+        LinearLayout row = createHorizontalRow();
+        row.setPadding(dp(14), dp(9), dp(10), dp(9));
+        row.setMinimumHeight(dp(66));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        TextView nameView = createText(item.fileName, 15, COLOR_TEXT, false);
+        nameView.setSingleLine(true);
+        nameView.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+        TextView detailView = createTinyText(
+                (item.imported ? "已导入  ·  " : "未导入  ·  ")
+                        + formatFileSize(item.sizeBytes)
+                        + "  ·  "
+                        + formatTime(item.modifiedAt)
+        );
+        detailView.setPadding(0, dp(3), 0, 0);
+        detailView.setSingleLine(true);
+        detailView.setEllipsize(TextUtils.TruncateAt.END);
+        textColumn.addView(nameView, matchWidthWrapContent());
+        textColumn.addView(detailView, matchWidthWrapContent());
+        row.addView(textColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+
+        Button importButton = createSecondaryButton(
+                View.generateViewId(),
+                item.imported ? "重新导入" : "导入",
+                () -> importExtension(item)
+        );
+        row.addView(importButton, new LinearLayout.LayoutParams(dp(88), dp(44)));
+        return row;
+    }
+
+    private void importExtension(ExtensionCatalog.ExtensionItem item) {
+        ExtensionCatalog.ImportResult result = ExtensionCatalog.importExtension(this, item);
+        setMessage(result.message);
+        showTab(TAB_EXTENSION);
     }
 
     private View createSettingsPage() {
@@ -465,6 +548,9 @@ public final class MainActivity extends Activity {
         if (currentTab == TAB_SCRIPT) {
             // 从外部编辑器返回后重建列表，立即读取磁盘上的真实文件状态。
             showTab(TAB_SCRIPT);
+        } else if (currentTab == TAB_EXTENSION) {
+            // 用户从文件管理器返回后重建扩展列表，显示共享目录中的真实文件状态。
+            showTab(TAB_EXTENSION);
         } else if (currentTab == TAB_STATUS) {
             queryStatusSummary();
         } else if (currentTab == TAB_SETTINGS) {
@@ -1155,8 +1241,30 @@ public final class MainActivity extends Activity {
      */
     private void openScriptDirectory() {
         File directory = ScriptCatalog.getScriptDirectory(this);
+        openSharedDirectory(
+                directory,
+                ScriptCatalog.getScriptDirectoryDisplayPath(this),
+                "脚本目录"
+        );
+    }
+
+    /** 打开固定的共享扩展目录，方便用户直接复制自己的扩展文件。 */
+    private void openExtensionDirectory() {
+        if (!ExtensionCatalog.ensureExtensionDirectory(this)) {
+            setMessage("扩展目录未授权或无法创建：" + ExtensionCatalog.getExtensionDirectoryDisplayPath());
+            return;
+        }
+        openSharedDirectory(
+                ExtensionCatalog.getExtensionDirectory(),
+                ExtensionCatalog.getExtensionDirectoryDisplayPath(),
+                "扩展目录"
+        );
+    }
+
+    /** 使用 FileProvider 把共享目录交给外部文件管理器浏览。 */
+    private void openSharedDirectory(File directory, String displayPath, String label) {
         if (!directory.isDirectory()) {
-            setMessage("脚本目录不存在：" + ScriptCatalog.getScriptDirectoryDisplayPath(this));
+            setMessage(label + "不存在：" + displayPath);
             return;
         }
 
@@ -1169,7 +1277,7 @@ public final class MainActivity extends Activity {
                 | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.setDataAndType(uri, "resource/folder");
-        intent.setClipData(ClipData.newRawUri("脚本目录", uri));
+        intent.setClipData(ClipData.newRawUri(label, uri));
         intent.addFlags(grantFlags);
 
         try {
@@ -1178,7 +1286,7 @@ public final class MainActivity extends Activity {
             startActivity(chooser);
             setMessage("已交给外部文件管理器");
         } catch (ActivityNotFoundException exception) {
-            setMessage("没有可打开脚本目录的文件管理器");
+            setMessage("没有可打开" + label + "的文件管理器");
         }
     }
 

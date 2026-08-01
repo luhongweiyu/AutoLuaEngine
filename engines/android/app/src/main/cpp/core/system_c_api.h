@@ -114,6 +114,41 @@ typedef struct EngineDeviceApi {
 } EngineDeviceApi;
 
 /**
+ * 可选 YOLO 运行时函数表。
+ *
+ * 模型文件始终是普通文件系统路径；当 APK 未打包 libxiaoyv_yolo.so 时 isAvailable 返回 0，
+ * runtimeInfoJson 仍会返回 {"available":false,...}，不会影响其他引擎能力。
+ */
+typedef struct EngineYoloApi {
+    int abiVersion;
+    int (*isAvailable)();
+    const char* (*runtimeInfoJson)();
+    int (*loadModel)(
+            const char* name,
+            const char* labelsPath,
+            const char* paramPath,
+            const char* binPath,
+            const char* optionsJson
+    );
+    int (*releaseModel)(const char* name);
+    int (*isModelLoaded)(const char* name);
+    const char* (*detectScreen)(
+            const char* name,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            const char* optionsJson
+    );
+    const char* (*detectFile)(
+            const char* name,
+            const char* imagePath,
+            const char* optionsJson
+    );
+    const char* (*lastError)();
+} EngineYoloApi;
+
+/**
  * 给外部插件 so 使用的函数表。
  *
  * 插件可以通过 engine_getApi() 取得这张表，然后调用同一套引擎能力，不需要
@@ -280,6 +315,7 @@ typedef struct EngineApi {
             int dir,
             double sim
     );
+    const EngineYoloApi* (*getYoloApi)();
 } EngineApi;
 
 /**
@@ -306,6 +342,9 @@ const EngineApi* engine_getApi();
 
 /** 返回设备能力函数表，供插件、JS 和 Go 取得与 Lua 相同的设备 API。 */
 const EngineDeviceApi* engine_getDeviceApi();
+
+/** 返回可选 YOLO 函数表。无论 APK 是否携带 YOLO SO，函数表本身都存在。 */
+const EngineYoloApi* engine_getYoloApi();
 
 /**
  * 输出普通脚本日志。
@@ -650,6 +689,51 @@ const char* engine_ocrFindText(
 
 /** 返回最近一次 RapidOCR C ABI 失败原因。 */
 const char* engine_ocrLastError();
+
+/** 查询当前 APK 是否包含并可加载可选 YOLO SO；未打包时返回 0 但不设置错误。 */
+int engine_yoloIsAvailable();
+
+/** 返回当前线程持有的 YOLO 运行时 JSON，例如 {"available":false} 或 NCNN 版本信息。 */
+const char* engine_yoloRuntimeInfoJson();
+
+/** 加载普通文件系统路径中的 NCNN YOLOv5 labels、param 和 bin。 */
+int engine_yoloLoadModel(
+        const char* name,
+        const char* labelsPath,
+        const char* paramPath,
+        const char* binPath,
+        const char* optionsJson
+);
+
+/** 释放指定 YOLO 模型；模型不存在时返回 0，但不设置错误。 */
+int engine_yoloReleaseModel(const char* name);
+
+/** 查询指定 YOLO 模型是否已加载。 */
+int engine_yoloIsModelLoaded(const char* name);
+
+/**
+ * 对当前屏幕副本执行 YOLO 检测。
+ *
+ * left/top/right/bottom 全为 0 时检测整屏。成功返回当前线程持有的 items JSON，失败返回 nullptr。
+ */
+const char* engine_yoloDetectScreen(
+        const char* name,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        const char* optionsJson
+);
+
+/** 对一张普通图片文件执行 YOLO 检测，成功返回 items JSON，失败返回 nullptr。 */
+const char* engine_yoloDetectFile(
+        const char* name,
+        const char* imagePath,
+        const char* optionsJson
+);
+
+/** 返回最近一次 YOLO C ABI 调用失败原因。 */
+const char* engine_yoloLastError();
 
 /** 替换指定索引的自定义点阵字库。 */
 int engine_fontSetDict(int index, const char* dictionary);

@@ -20,17 +20,21 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QDockWidget>
 #include <QFontMetrics>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenuBar>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QSettings>
+#include <QShortcut>
 #include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTextEdit>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -199,6 +203,27 @@ void MainWindow::createToolBar() {
 void MainWindow::createWorkspace() {
     workspace_ = new ImageWorkspace(this);
     setCentralWidget(workspace_);
+    createSelectionShortcuts();
+}
+
+void MainWindow::createSelectionShortcuts() {
+    const auto addShortcut = [this](const QKeySequence& sequence,
+                                    void (ImageWorkspace::*handler)()) {
+        auto* shortcut = new QShortcut(sequence, this);
+        shortcut->setContext(Qt::WindowShortcut);
+        shortcut->setAutoRepeat(false);
+        connect(shortcut, &QShortcut::activated, workspace_, handler);
+        return shortcut;
+    };
+    selectionShortcuts_[0] = addShortcut(QKeySequence(Qt::Key_A),
+                                         &ImageWorkspace::setSelectionStartAtCursor);
+    selectionShortcuts_[1] = addShortcut(QKeySequence(Qt::Key_S),
+                                         &ImageWorkspace::setSelectionEndAtCursor);
+    selectionShortcuts_[2] = addShortcut(QKeySequence(Qt::CTRL | Qt::Key_R),
+                                         &ImageWorkspace::toggleSelectionMode);
+    connect(qApp, &QApplication::focusChanged, this,
+            [this](QWidget*, QWidget*) { updateSelectionShortcutState(); });
+    updateSelectionShortcutState();
 }
 
 void MainWindow::createPanels() {
@@ -551,6 +576,17 @@ void MainWindow::refreshIcons() {
     }
     if (windowCaptureButton_ != nullptr) {
         windowCaptureButton_->setDarkTheme(isDarkTheme(theme_));
+    }
+}
+
+void MainWindow::updateSelectionShortcutState() {
+    QWidget* focus = QApplication::focusWidget();
+    const bool editingText = qobject_cast<QLineEdit*>(focus) != nullptr
+            || qobject_cast<QTextEdit*>(focus) != nullptr
+            || qobject_cast<QPlainTextEdit*>(focus) != nullptr
+            || qobject_cast<QComboBox*>(focus) != nullptr;
+    for (QShortcut* shortcut : selectionShortcuts_) {
+        if (shortcut != nullptr) shortcut->setEnabled(!editingText);
     }
 }
 

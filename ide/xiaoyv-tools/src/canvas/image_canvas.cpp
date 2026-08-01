@@ -386,6 +386,7 @@ void ImageCanvas::drawSelection(QPainter* painter) const {
     QRect selection = selecting_ ? transientSelection_
             : (confirmedSelectionVisible_ && document_ != nullptr ? document_->selection() : QRect{});
     if (selection.isNull()) return;
+    selection = selection.normalized();
     const QRect viewRect(
             QPoint(qRound(selection.left() * zoom_) - horizontalScrollBar()->value(),
                    qRound(selection.top() * zoom_) - verticalScrollBar()->value()),

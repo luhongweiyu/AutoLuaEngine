@@ -70,6 +70,17 @@ android {
     }
 
     packaging {
+        jniLibs {
+            // OpenCV 与 ONNX Runtime 的 Java API 仍随基础包保留；大体积 native 本体改由
+            // /sdcard/xiaoyv/extensions 中用户导入的文件在脚本实际使用时按需加载。
+            // onnxruntime4j_jni 是约数十 KB 的 Java 绑定 JNI 壳，保留在 APK 内以便官方
+            // Java 绑定稳定找到它，再链接已导入的 libonnxruntime.so。
+            excludes += [
+                    "**/libc++_shared.so",
+                    "**/libopencv_java4.so",
+                    "**/libonnxruntime.so"
+            ]
+        }
         resources {
             // JavaMail 与 Activation 都携带同名许可证元数据；运行时不读取这些文件。
             excludes += ["META-INF/LICENSE.md", "META-INF/NOTICE.md"]

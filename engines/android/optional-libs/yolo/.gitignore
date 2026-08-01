@@ -1,0 +1,3 @@
+# 预编译可选 SO 是可复用的本地构建缓存，不作为源码提交。
+*/libxiaoyv_yolo.so
+.build/

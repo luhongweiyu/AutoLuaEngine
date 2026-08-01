@@ -15,7 +15,7 @@ const EngineApi* engine_getApi();
 在 `EngineDeviceApi` 尾部追加文本剪贴板字段；版本 20 在设备子表追加 `callJson`，并在顶层
 表尾追加 `findPicAll`。既有字段位置不变。新插件必须使用当前头文件编译：使用剪贴板字段前检查
 `api->abiVersion >= 19` 且 `device->abiVersion >= 19`，使用 `callJson` 前检查两个版本均不低于
-20；使用 ImGui 子表前检查版本不低于 18，使用快速找字字段前检查版本不低于 17；内置 OCR
+20；使用 ImGui 子表前检查版本不低于 18，使用快速找字字段前检查版本不低于 17；预设 OCR
 模型字段要求版本不低于 16，图片屏幕字段要求版本不低于 15。
 
 `api->findPicAll` 同样要求 `api->abiVersion >= 20`；没有命中返回 `[]`，失败返回
@@ -194,9 +194,9 @@ if (imgui != NULL && imgui->abiVersion >= 1 && imgui->isSupport()) {
   只是 `capture` 的直接别名，不占用额外函数表字段。`findPic` 同样直接复用当前点阵，
   模板默认按 `5 MiB` 字节上限执行 LRU，脚本结束后全部释放；`setImageCacheMaxBytes(0)` 可
   关闭当前脚本的模板缓存。
-- `ocrLoadBuiltinModel` 可直接加载 APK 内置中文/英文 PP-OCRv4 mobile 模型；`ocrLoadModel`
-  继续加载自定义模型。两种模型都由 `ocrReleaseModel` 显式释放，重复加载同名同配置会复用；
-  `ocrRead` 和 `ocrFindText` 返回当前调用线程持有的 JSON 文本。
+- `ocrLoadBuiltinModel` 加载已导入的中文/英文 PP-OCRv4 mobile 预设模型；`ocrLoadModel`
+  继续加载自定义模型。两种入口都要求已导入 `libonnxruntime.so`，并由 `ocrReleaseModel` 显式
+  释放；重复加载同名同配置会复用；`ocrRead` 和 `ocrFindText` 返回当前调用线程持有的 JSON 文本。
 - `fontSetDict` 支持 `文字$宽$高$十六进制点阵` 手机可变尺寸字库，也兼容简化 11 行格式、
   懒人顺序和大漠顺序的带真实字高旧字库。字形完整点阵按 64 位行块保存，11 位特征只用于
   候选索引，不是字高限制。

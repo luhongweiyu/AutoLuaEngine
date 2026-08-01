@@ -216,6 +216,8 @@ import("完整.Java.类名")
 - Java `void` 对应 Lua 无返回值；Java `null` 对应一个 `nil`。
 - Java 异常转换为 Lua 错误。
 - 对象由 JNI GlobalRef 保活，Lua userdata 回收或运行时结束时释放。
+- `import("org.opencv.*")` 在解析类前会按需加载已导入的 `libc++_shared.so` 与
+  `libopencv_java4.so`；文件缺失或 linker 失败时，`import` 直接返回 Lua 错误。
 
 该能力没有“每个 Java 方法一条 C ABI”的函数表。实现和线程规则见
 `docs/internal/platform/android/ANDROID_Java互操作.md`。
@@ -407,14 +409,68 @@ const char* engine_ocrLastError();
 
 规则：
 
-- `engine_ocrLoadBuiltinModel` 加载 APK 内置 PP-OCRv4 mobile 中文/英文检测、识别、方向分类
-  模型和字典。首次使用从 assets 准备到应用私有目录，不联网、不需要脚本传路径。
+- `engine_ocrLoadBuiltinModel` 按固定文件名加载用户已导入的 PP-OCRv4 mobile 中文/英文检测、识别、
+  方向分类模型和字典，并在首次实际创建模型时按需加载已导入的 `libonnxruntime.so`。基础 APK 不携带
+  这些大文件；导入只复制文件，不校验内容、ABI 或依赖。
 - `engine_ocrLoadModel` 加载脚本指定的 RapidOCR 兼容 PP-OCR ONNX 模型；两种入口最终共享
-  相同的 session 缓存和释放规则。
+  相同的 session 缓存和释放规则，且同样要求已导入 `libonnxruntime.so`。
 - 相同名称、相同配置的重复加载直接复用，不增加引用次数；不同名称的相同配置共享底层 ONNX session。
 - `engine_ocrRead` 返回 `{ "items": [...] }` JSON；`engine_ocrFindText` 返回
   `{ "found": boolean, ... }` JSON。失败返回 `nullptr`，错误通过 `engine_ocrLastError()` 获取。
 - 图片必须是 Android 能直接读取的普通文件。当前截图可先用 `engine_capture` 保存后再识别。
+
+## YOLO C ABI
+
+```c
+const EngineYoloApi* engine_getYoloApi();
+int engine_yoloIsAvailable();
+const char* engine_yoloRuntimeInfoJson();
+int engine_yoloLoadModel(
+        const char* name,
+        const char* labelsPath,
+        const char* paramPath,
+        const char* binPath,
+        const char* optionsJson
+);
+int engine_yoloReleaseModel(const char* name);
+int engine_yoloIsModelLoaded(const char* name);
+const char* engine_yoloDetectScreen(
+        const char* name,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        const char* optionsJson
+);
+const char* engine_yoloDetectFile(
+        const char* name,
+        const char* imagePath,
+        const char* optionsJson
+);
+const char* engine_yoloLastError();
+```
+
+规则：
+
+- `EngineYoloApi` 是始终存在的语言中立子函数表；它由 `engine_getYoloApi()` 和
+  `engine_getApi()->getYoloApi()` 返回同一张只读表。顶层 `EngineApi` 需不低于 `21`，
+  `EngineYoloApi::abiVersion` 当前为 `1`；两张表以后各自只在尾部追加字段。
+- `libxiaoyv_yolo.so` 是可选的独立 NCNN CPU 运行时，基础 APK 永不打包它。用户把同名文件放到
+  `/sdcard/xiaoyv/extensions/` 后在 App 扩展页点击导入；导入只复制为私有只读副本，不校验签名、
+  哈希、版本、ABI、文件名或依赖，也不加载代码。`engine_yoloRuntimeInfoJson()` 只查询状态：
+  `available` 表示该同名文件已导入、可尝试，`loaded` 表示当前引擎进程已经实际加载；模型加载或检测
+  才触发加载，失败通过 `engine_yoloLastError()` 说明原因。
+- `labelsPath`、`paramPath`、`binPath` 和 `imagePath` 必须是 Android 可读的普通文件路径，不能来自
+  ALPKG。相同名称及相同模型配置的重复加载复用已加载模型；同名不同配置会明确失败，调用方先
+  `engine_yoloReleaseModel()` 后才能按新配置加载。
+- `optionsJson` 必须是 JSON 对象。内部当前支持 `input`、三个 `outputs` blob 名、`targetSize`、
+  `threads`、`probThreshold`、`nmsThreshold` 与 `useGpu`；第一阶段仅 CPU，`useGpu:true` 会明确失败。
+- `engine_yoloDetectScreen()` 的区域采用左闭右开坐标，四个坐标均为 `0` 时检测完整截图；其结果和
+  `engine_yoloDetectFile()` 一样是 `{ "items": [{ "x": number, "y": number, "w": number,
+  "h": number, "label": string, "prob": number }] }` JSON。
+  截图检测先取得一份原子 RGBA 副本，结果坐标相对完整截图；文件检测坐标相对该图片。
+- 所有 YOLO JSON 和错误字符串由当前线程持有，下一次同类调用可能覆盖内容。当前没有公开 Lua/JS/Go
+  映射；它们确定后才进入公开函数目录和 `catalog.json`。
 
 ## 点阵字库 C ABI
 
@@ -523,11 +579,11 @@ const char* engine_deviceLastError();
 
 规则：
 
-- `EngineApi` 和 `EngineDeviceApi` 当前 `abiVersion` 都为 `20`。版本 19 在
+- `EngineApi` 和 `EngineDeviceApi` 当前 `abiVersion` 都为 `21`。版本 19 在
   `EngineDeviceApi` 的 `lastError` 之后追加 `readPasteboard`、`writePasteboard`；版本 20
-  在设备子表尾部追加 `callJson`，并在顶层 `EngineApi` 尾部追加 `findPicAll`。既有字段位置
-  没有变化。函数表只能尾部追加字段；插件先检查所需版本再访问新增字段，旧插件继续使用
-  已有字段时保持可用。
+  在设备子表尾部追加 `callJson`，并在顶层 `EngineApi` 尾部追加 `findPicAll`；版本 21 再在
+  顶层尾部追加 `getYoloApi`。既有字段位置没有变化。函数表只能尾部追加字段；插件先检查所需
+  版本再访问新增字段，旧插件继续使用已有字段时保持可用。
 - 结构化结果一律以 JSON 文本从 C ABI 返回；Lua HostApi 才转换为 table。
 - 设备字符串、JSON 和错误文本由调用线程持有，下一次设备调用可能覆盖内容。
 - `engine_exec` 只返回 shell 合并输出，不根据命令退出码改变成功状态；调用方自行判断。
@@ -596,8 +652,8 @@ const char* engine_imguiLastError();
 
 规则：
 
-- `EngineApi::abiVersion` 当前为 `20`。版本 18 在顶层函数表尾部追加 `getImGuiApi`，
-  版本 20 再在它后面追加 `findPicAll`；ImGui 子表本身仍要求调用方检查顶层版本不低于
+- `EngineApi::abiVersion` 当前为 `21`。版本 18 在顶层函数表尾部追加 `getImGuiApi`，
+  版本 20 再在它后面追加 `findPicAll`，版本 21 再追加 `getYoloApi`；ImGui 子表本身仍要求调用方检查顶层版本不低于
   `18`，版本 18 及以前字段位置不变。
 - `EngineImGuiApi::abiVersion` 当前为 `1`。ImGui 子函数表同样只能在尾部追加字段；调用方
   必须先检查版本，再访问自己需要的字段。
@@ -618,8 +674,9 @@ const EngineApi* engine_getApi();
 ```
 
 外部插件 so 可以通过 `engine_getApi()` 取得函数表，再使用 `getDeviceApi()` 访问设备能力，
-使用 `getImGuiApi()` 访问 ImGui 能力；运行时、截图、找色、图像、OCR、点阵字库、输入、
-输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放稳定 C 类型，不暴露 C++ 对象。
+使用 `getImGuiApi()` 访问 ImGui 能力，使用 `getYoloApi()` 查询或调用可选 YOLO 能力；运行时、
+截图、找色、图像、OCR、点阵字库、输入、输入法和脚本 UI 仍位于顶层 `EngineApi`。函数表只放稳定
+C 类型，不暴露 C++ 对象。
 
 ## Lua 映射
 
@@ -724,7 +781,7 @@ imgui.*
 | 触控 / 输入法 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`touchMoveEx`、`swipe`、`m.ime.*` | `m` 使用布尔缩放开关和 `touchUp([id,] x, y)`；缩放和三类基础触控均无返回；`m.ime` 是正式输入法模块 |
 | 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
 | 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |
-| OpenCV | `cv.snapShot`、`cv.new/get/set{Point,Point2f,Int,Double,Float,Long,Byte}`、`cv.deletePtr`、`import("org.opencv.*")` | `cv.snapShot` 返回真实 Mat；Android AAR 的 Java OpenCV API 通过通用 import 访问；`cv.new*` 返回首地址为实际值的 native userdata，`deletePtr` 令其立即失效 |
+| OpenCV | `cv.snapShot`、`cv.new/get/set{Point,Point2f,Int,Double,Float,Long,Byte}`、`cv.deletePtr`、`import("org.opencv.*")` | `cv.snapShot` 返回真实 Mat；Android AAR 的 Java OpenCV API 通过通用 import 访问，首次使用会按需加载已导入的 `libc++_shared.so` 与 `libopencv_java4.so`；`cv.new*` 返回首地址为实际值的 native userdata，`deletePtr` 令其立即失效 |
 | 节点 | 选择器、节点对象、`nodeLib.*` | Android 无障碍短期句柄；界面变化后重新查询 |
 
 `lr`、`cd` 是独立的旧脚本迁移命名空间。本轮不扩展或重定义它们的成员；后续兼容映射必须

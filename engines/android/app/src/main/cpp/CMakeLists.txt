@@ -22,6 +22,7 @@ add_library(engine SHARED
         core/api/runtime_api.cpp
         core/api/screen_api.cpp
         core/api/ui_api.cpp
+        core/api/yolo_api.cpp
         core/imgui_c_api.cpp
         core/system_c_api.cpp
         engine/engine.cpp

@@ -9,8 +9,8 @@ import android.util.Log;
 
 import com.xiaoyv.engine.AndroidHostBridge;
 import com.xiaoyv.engine.NativeEngine;
+import com.xiaoyv.engine.OpenCvPlatformBridge;
 
-import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 
@@ -57,9 +57,7 @@ public final class LuaEngine {
     private static final int DEFAULT_TIMEOUT_SECONDS = 30;
     private static final int COPY_BUFFER_BYTES = 16 * 1024;
     private static final ExecutorService MAIL_EXECUTOR = Executors.newFixedThreadPool(2);
-    private static final Object OPEN_CV_LOCK = new Object();
     private static final Object EXIT_CALLBACK_LOCK = new Object();
-    private static volatile boolean openCvInitialized;
     private static IOnExitCallback exitCallback;
 
     private LuaEngine() {
@@ -741,18 +739,12 @@ public final class LuaEngine {
     }
 
     private static boolean ensureOpenCvInitialized() {
-        if (openCvInitialized) {
+        try {
+            OpenCvPlatformBridge.ensureRuntimeLoaded();
             return true;
-        }
-        synchronized (OPEN_CV_LOCK) {
-            if (openCvInitialized) {
-                return true;
-            }
-            openCvInitialized = OpenCVLoader.initLocal();
-            if (!openCvInitialized) {
-                Log.e(TAG, "OpenCV 初始化失败");
-            }
-            return openCvInitialized;
+        } catch (RuntimeException error) {
+            Log.e(TAG, "OpenCV 初始化失败：" + error.getMessage(), error);
+            return false;
         }
     }
 }

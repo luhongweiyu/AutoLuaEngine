@@ -85,7 +85,7 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 图像 | `m.setImageCacheMaxBytes(maxBytes)` | `maxBytes: integer` | `integer` 或 `nil, string` | 设置当前脚本的模板缓存字节上限 |
 | 图像 | `m.findPicEx` / `m.findImage` | 区域、模板列表、相似度 | `name, x, y` 或 `nil, -1, -1` | 兼容多模板找图 |
 | 图像 | `m.findPicAllPoint` / `m.findPicFast` | 区域、模板或模板列表 | 坐标 table 或索引与坐标 table | 兼容的全部和快速多模板找图 |
-| OCR | `m.ocr.loadBuiltin([name[, threads]])` | `name: string?, threads: integer?` | `boolean` 或 `nil, string` | 加载 APK 内置中文/英文 PP-OCRv4 mobile 模型 |
+| OCR | `m.ocr.loadBuiltin([name[, threads]])` | `name: string?, threads: integer?` | `boolean` 或 `nil, string` | 加载预设中文/英文 PP-OCRv4 mobile 模型（需先导入运行时和模型文件） |
 | OCR | `m.ocr.load(name, detPath, recPath, clsPath, keysPath[, threads])` | `name, detPath, recPath, keysPath: string, clsPath: string?, threads: integer?` | `boolean` 或 `nil, string` | 显式加载或复用 RapidOCR ONNX 模型 |
 | OCR | `m.ocr.release(name)` | `name: string` | `boolean` 或 `nil, string` | 释放一个模型名称持有的引用 |
 | OCR | `m.ocr.isLoaded(name)` | `name: string` | `boolean` 或 `nil, string` | 查询模型名称是否已加载 |

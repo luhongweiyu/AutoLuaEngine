@@ -191,7 +191,7 @@ void ImageWorkspace::flipVertical() {
 void ImageWorkspace::cropSelection() {
     ImageDocument* document = currentDocument();
     if (document == nullptr) return;
-    const QRect range = document->selection().intersected(document->image().rect());
+    const QRect range = document->selection().normalized().intersected(document->image().rect());
     if (range.isEmpty()) {
         emit statusMessage(QString::fromUtf8("请先框选裁剪范围"));
         return;
@@ -225,6 +225,47 @@ void ImageWorkspace::applySelectionRange(const QRect& range) {
     pendingSelection_ = range;
     emit selectionRangeChanged(range);
     emit stateChanged();
+}
+
+void ImageWorkspace::setSelectionStartAtCursor() {
+    ImageCanvas* canvas = currentCanvas();
+    if (canvas == nullptr) {
+        emit statusMessage(QString::fromUtf8("请先打开图片"));
+        return;
+    }
+    const QPoint point = canvas->currentImagePosition();
+    if (point.x() < 0 || point.y() < 0) {
+        emit statusMessage(QString::fromUtf8("请将鼠标移到图片内后再按 A"));
+        return;
+    }
+    const QRect current = selectionRange();
+    const QPoint end = current.isNull() ? QPoint{} : current.bottomRight();
+    applySelectionRange(QRect(point, end));
+}
+
+void ImageWorkspace::setSelectionEndAtCursor() {
+    ImageCanvas* canvas = currentCanvas();
+    if (canvas == nullptr) {
+        emit statusMessage(QString::fromUtf8("请先打开图片"));
+        return;
+    }
+    const QPoint point = canvas->currentImagePosition();
+    if (point.x() < 0 || point.y() < 0) {
+        emit statusMessage(QString::fromUtf8("请将鼠标移到图片内后再按 B"));
+        return;
+    }
+    const QRect current = selectionRange();
+    const QPoint start = current.isNull() ? QPoint{} : current.topLeft();
+    applySelectionRange(QRect(start, point));
+}
+
+void ImageWorkspace::toggleSelectionMode() {
+    ImageCanvas* canvas = currentCanvas();
+    if (canvas == nullptr) {
+        setSelectionMode(true);
+        return;
+    }
+    setSelectionMode(!canvas->selectionMode());
 }
 
 void ImageWorkspace::setSelectionMode(bool enabled) {

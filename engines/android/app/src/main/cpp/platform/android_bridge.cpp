@@ -542,6 +542,137 @@ AndroidOcrCallResult callOcrJson(
     return result;
 }
 
+/** 调用签名为 (String, String) -> String 的可选 YOLO Java 平台入口。 */
+AndroidYoloCallResult callYoloJson(
+        const std::string& operation,
+        const std::string& argumentsJson
+) {
+    AndroidYoloCallResult result;
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "yoloCall",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        result.error = "Android YOLO 桥方法不可用";
+        return result;
+    }
+
+    jstring operationText = env->NewStringUTF(operation.c_str());
+    jstring argumentsText = env->NewStringUTF(argumentsJson.c_str());
+    if (clearExceptionIfNeeded(env) || operationText == nullptr || argumentsText == nullptr) {
+        if (operationText != nullptr) {
+            env->DeleteLocalRef(operationText);
+        }
+        if (argumentsText != nullptr) {
+            env->DeleteLocalRef(argumentsText);
+        }
+        result.error = "创建 YOLO 调用参数失败";
+        return result;
+    }
+
+    jstring response = static_cast<jstring>(env->CallStaticObjectMethod(
+            gBridgeClass,
+            methodId,
+            operationText,
+            argumentsText
+    ));
+    env->DeleteLocalRef(operationText);
+    env->DeleteLocalRef(argumentsText);
+    if (clearExceptionIfNeeded(env)) {
+        result.error = "Android YOLO 桥调用异常";
+        return result;
+    }
+
+    result.responseJson = jStringToString(env, response);
+    if (response != nullptr) {
+        env->DeleteLocalRef(response);
+    }
+    if (result.responseJson.empty()) {
+        result.error = "Android YOLO 桥未返回结果";
+        return result;
+    }
+    result.invoked = true;
+    return result;
+}
+
+/** 调用签名为 (String, String, ByteBuffer, int, int) -> String 的 YOLO RGBA 入口。 */
+AndroidYoloCallResult callYoloRgbaJson(
+        const std::string& operation,
+        const std::string& argumentsJson,
+        const unsigned char* pixels,
+        size_t pixelBytes,
+        int width,
+        int height
+) {
+    AndroidYoloCallResult result;
+    if (pixels == nullptr || pixelBytes == 0 || width <= 0 || height <= 0
+            || pixelBytes > static_cast<size_t>(std::numeric_limits<jlong>::max())) {
+        result.error = "YOLO RGBA 桥输入无效";
+        return result;
+    }
+
+    JNIEnv* env = getEnv();
+    jmethodID methodId = staticMethod(
+            env,
+            "yoloDetectRgba",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/nio/ByteBuffer;II)Ljava/lang/String;"
+    );
+    if (env == nullptr || methodId == nullptr) {
+        result.error = "Android YOLO RGBA 桥方法不可用";
+        return result;
+    }
+
+    jstring operationText = env->NewStringUTF(operation.c_str());
+    jstring argumentsText = env->NewStringUTF(argumentsJson.c_str());
+    jobject buffer = env->NewDirectByteBuffer(
+            const_cast<unsigned char*>(pixels),
+            static_cast<jlong>(pixelBytes)
+    );
+    if (clearExceptionIfNeeded(env) || operationText == nullptr || argumentsText == nullptr || buffer == nullptr) {
+        if (operationText != nullptr) {
+            env->DeleteLocalRef(operationText);
+        }
+        if (argumentsText != nullptr) {
+            env->DeleteLocalRef(argumentsText);
+        }
+        if (buffer != nullptr) {
+            env->DeleteLocalRef(buffer);
+        }
+        result.error = "创建 YOLO RGBA 调用参数失败";
+        return result;
+    }
+
+    jstring response = static_cast<jstring>(env->CallStaticObjectMethod(
+            gBridgeClass,
+            methodId,
+            operationText,
+            argumentsText,
+            buffer,
+            static_cast<jint>(width),
+            static_cast<jint>(height)
+    ));
+    env->DeleteLocalRef(operationText);
+    env->DeleteLocalRef(argumentsText);
+    env->DeleteLocalRef(buffer);
+    if (clearExceptionIfNeeded(env)) {
+        result.error = "Android YOLO RGBA 桥调用异常";
+        return result;
+    }
+
+    result.responseJson = jStringToString(env, response);
+    if (response != nullptr) {
+        env->DeleteLocalRef(response);
+    }
+    if (result.responseJson.empty()) {
+        result.error = "Android YOLO RGBA 桥未返回结果";
+        return result;
+    }
+    result.invoked = true;
+    return result;
+}
+
 ScreenCaptureResult captureFailure(const std::string& error) {
     ScreenCaptureResult result;
     result.success = false;
@@ -1108,6 +1239,24 @@ AndroidOcrCallResult AndroidBridge::callOcrApi(
         const std::string& argumentsJson
 ) {
     return callOcrJson(operation, argumentsJson);
+}
+
+AndroidYoloCallResult AndroidBridge::callYoloApi(
+        const std::string& operation,
+        const std::string& argumentsJson
+) {
+    return callYoloJson(operation, argumentsJson);
+}
+
+AndroidYoloCallResult AndroidBridge::callYoloRgba(
+        const std::string& operation,
+        const std::string& argumentsJson,
+        const unsigned char* pixels,
+        size_t pixelBytes,
+        int width,
+        int height
+) {
+    return callYoloRgbaJson(operation, argumentsJson, pixels, pixelBytes, width, height);
 }
 
 bool AndroidBridge::touchDown(int id, int x, int y) {

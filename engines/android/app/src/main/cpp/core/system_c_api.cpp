@@ -18,19 +18,21 @@
 #include "api/runtime_api.h"
 #include "api/screen_api.h"
 #include "api/ui_api.h"
+#include "api/yolo_api.h"
 #include "../engine/engine_config.h"
 
 namespace {
 
-// 20 在 EngineDeviceApi 尾部加入受控平台 JSON 调用，并在 EngineApi 尾部加入全部找图；
-// 既有字段位置保持不变。
-constexpr int kEngineAbiVersion = 20;
+// 21 在 EngineApi 尾部加入独立 EngineYoloApi 函数表；既有字段位置保持不变。
+constexpr int kEngineAbiVersion = 21;
+// YOLO 子函数表独立演进；插件先检查 EngineApi >= 21，再检查它自己的版本。
+constexpr int kEngineYoloAbiVersion = 1;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.20\","
+        "\"abiVersion\":\"0.21\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
@@ -41,6 +43,7 @@ constexpr const char* kCapabilitiesJson =
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageApi\":[\"engine_findPic\",\"engine_findPicAll\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
         "\"ocrApi\":[\"engine_ocrLoadBuiltinModel\",\"engine_ocrLoadModel\",\"engine_ocrRead\",\"engine_ocrFindText\"],"
+        "\"yoloApi\":[\"engine_getYoloApi\",\"engine_yoloRuntimeInfoJson\",\"engine_yoloLoadModel\",\"engine_yoloDetectScreen\",\"engine_yoloDetectFile\"],"
         "\"fontApi\":[\"engine_fontSetDict\",\"engine_fontAddDict\",\"engine_fontUseDict\",\"engine_fontGetPixel\",\"engine_fontOcr\",\"engine_fontFindStr\",\"engine_fontFindStrEx\",\"engine_fontFindStrFast\",\"engine_fontFindStrFastEx\"],"
         "\"inputApi\":[\"engine_touchDown\",\"engine_touchMove\",\"engine_touchUp\",\"engine_keyDown\",\"engine_keyUp\",\"engine_keyPress\",\"engine_inputText\"],"
         "\"imeApi\":[\"engine_imeLock\",\"engine_imeSetText\",\"engine_imeUnlock\"],"
@@ -60,6 +63,8 @@ thread_local std::string gInputLastError;
 thread_local std::string gImeLastError;
 thread_local std::string gOcrLastError;
 thread_local std::string gOcrResult;
+thread_local std::string gYoloLastError;
+thread_local std::string gYoloResult;
 thread_local std::string gFontLastError;
 thread_local std::string gFontResult;
 thread_local std::string gFontPixel;
@@ -240,6 +245,18 @@ const EngineDeviceApi kEngineDeviceApi = {
         engine_deviceCallJson
 };
 
+const EngineYoloApi kEngineYoloApi = {
+        kEngineYoloAbiVersion,
+        engine_yoloIsAvailable,
+        engine_yoloRuntimeInfoJson,
+        engine_yoloLoadModel,
+        engine_yoloReleaseModel,
+        engine_yoloIsModelLoaded,
+        engine_yoloDetectScreen,
+        engine_yoloDetectFile,
+        engine_yoloLastError
+};
+
 const EngineApi kEngineApi = {
         kEngineAbiVersion,
         engine_getVersion,
@@ -306,7 +323,8 @@ const EngineApi kEngineApi = {
         engine_fontFindStrFast,
         engine_fontFindStrFastEx,
         engine_getImGuiApi,
-        engine_findPicAll
+        engine_findPicAll,
+        engine_getYoloApi
 };
 
 } // namespace
@@ -346,6 +364,11 @@ extern "C" const EngineApi* engine_getApi() {
  */
 extern "C" const EngineDeviceApi* engine_getDeviceApi() {
     return &kEngineDeviceApi;
+}
+
+/** 返回可选 YOLO 函数表；实际可用状态由 engine_yoloIsAvailable 查询。 */
+extern "C" const EngineYoloApi* engine_getYoloApi() {
+    return &kEngineYoloApi;
 }
 
 /**
@@ -1235,6 +1258,114 @@ extern "C" const char* engine_ocrFindText(
 /** 返回最近一次 RapidOCR API 失败原因。 */
 extern "C" const char* engine_ocrLastError() {
     return gOcrLastError.c_str();
+}
+
+/** 查询可选 YOLO SO 是否已随当前 APK 打包；未打包是正常的 false 结果。 */
+extern "C" int engine_yoloIsAvailable() {
+    bool available = false;
+    if (!xiaoyv::api::YOLO运行时可用(&available)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        return 0;
+    }
+    gYoloLastError.clear();
+    return available ? 1 : 0;
+}
+
+/** 返回可选 YOLO 运行时能力 JSON，即使 SO 未打包也会返回 available=false。 */
+extern "C" const char* engine_yoloRuntimeInfoJson() {
+    gYoloResult.clear();
+    if (!xiaoyv::api::获取YOLO运行时信息(&gYoloResult)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        gYoloResult.clear();
+        return nullptr;
+    }
+    gYoloLastError.clear();
+    return gYoloResult.c_str();
+}
+
+/** 加载普通文件路径上的 NCNN YOLO 模型。 */
+extern "C" int engine_yoloLoadModel(
+        const char* name,
+        const char* labelsPath,
+        const char* paramPath,
+        const char* binPath,
+        const char* optionsJson
+) {
+    if (!xiaoyv::api::加载YOLO模型(name, labelsPath, paramPath, binPath, optionsJson)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        return 0;
+    }
+    gYoloLastError.clear();
+    return 1;
+}
+
+/** 释放指定 YOLO 模型名称。 */
+extern "C" int engine_yoloReleaseModel(const char* name) {
+    bool released = false;
+    if (!xiaoyv::api::释放YOLO模型(name, &released)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        return 0;
+    }
+    gYoloLastError.clear();
+    return released ? 1 : 0;
+}
+
+/** 查询指定 YOLO 模型是否仍在可选 SO 中加载。 */
+extern "C" int engine_yoloIsModelLoaded(const char* name) {
+    bool loaded = false;
+    if (!xiaoyv::api::YOLO模型已加载(name, &loaded)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        return 0;
+    }
+    gYoloLastError.clear();
+    return loaded ? 1 : 0;
+}
+
+/** 使用稳定截图副本执行 YOLO 检测。 */
+extern "C" const char* engine_yoloDetectScreen(
+        const char* name,
+        int left,
+        int top,
+        int right,
+        int bottom,
+        const char* optionsJson
+) {
+    gYoloResult.clear();
+    if (!xiaoyv::api::检测当前屏幕YOLO(
+                name,
+                left,
+                top,
+                right,
+                bottom,
+                optionsJson,
+                &gYoloResult)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        gYoloResult.clear();
+        return nullptr;
+    }
+    gYoloLastError.clear();
+    return gYoloResult.c_str();
+}
+
+/** 解码普通图片后执行 YOLO 检测。 */
+extern "C" const char* engine_yoloDetectFile(
+        const char* name,
+        const char* imagePath,
+        const char* optionsJson
+) {
+    gYoloResult.clear();
+    if (!xiaoyv::api::检测图片YOLO(name, imagePath, optionsJson, &gYoloResult)) {
+        gYoloLastError = xiaoyv::api::取YOLO错误();
+        gYoloResult.clear();
+        return nullptr;
+    }
+    gYoloLastError.clear();
+    return gYoloResult.c_str();
+}
+
+/** 返回最近一次 YOLO C ABI 错误。 */
+extern "C" const char* engine_yoloLastError() {
+    return gYoloLastError.c_str();
 }
 
 /** 替换指定自定义点阵字库。 */

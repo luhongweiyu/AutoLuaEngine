@@ -83,8 +83,8 @@ compat_extended.lua
 | io / time | Lua 5.4 标准库、runtime/device API | 已有标准函数不重复包装；网络时间在总接收等待约 3 秒内依次尝试 3 个真实 NTP 服务 |
 | ffi | `ffi_lua_api` + 静态 cffi-lua / libffi | 公开入口为 `m.ffi`、全局 `ffi` 和 `require("ffi")`；支持声明、cdata、结构体、数组、浮点、回调和可变参数。Android 按当前 ABI 静态编入调用与回调 trampoline；不是 LuaJIT FFI，且在各 ABI 运行时验证完成前标为实验性 |
 | touch | 现有 InputApi + Lua 坐标换算 | 缩放只改变兼容入口坐标，底层始终使用真实画面 |
-| color | `color_compat_lua_api` + 现有截图缓存 + `PaddleOcr` | `0,0,0,0` 为全屏；Java Bitmap OCR 复用现有 ONNX 模型缓存 |
-| image / cv | 现有模板核心、`cv_compat_lua_api`、`OpenCvPlatformBridge`、`LuaEngine.snapShotMat` | 找图热路径不迁入 OpenCV；值指针用 native userdata，霍夫找圆和 Mat 使用官方 AAR |
+| color | `color_compat_lua_api` + 现有截图缓存 + `PaddleOcr` | `0,0,0,0` 为全屏；Java Bitmap OCR 复用 ONNX 模型缓存，并在实际加载模型时按需加载已导入运行时 |
+| image / cv | 现有模板核心、`cv_compat_lua_api`、`OpenCvPlatformBridge`、`LuaEngine.snapShotMat` | 找图热路径不迁入 OpenCV；值指针用 native userdata，霍夫找圆和 Mat 使用官方 AAR，并在实际使用时按需加载已导入库 |
 | device / file | `PlatformUtilityBridge`、现有 DeviceApi | 操作型旧接口保持无返回；相对路径基于脚本工作目录；`getScriptVersion` 读取 `version` 文件 |
 | node | `AccessibilityNodePlatformBridge` | 节点用短期句柄；查询和动作都回到当前无障碍树 |
 
@@ -93,8 +93,9 @@ compat_extended.lua
 - OkHttp：HTTP、文件传输和 WebSocket。
 - Android JavaMail / Activation：兼容邮件方法。
 - Zip4j：带密码和字符集的 ZIP 解压。
-- OpenCV Android AAR：真实 `Mat` 和霍夫圆检测。
-- ONNX Runtime：原生 OCR 与 `PaddleOcr` Java 兼容入口共用 PP-OCRv4 推理会话。
+- OpenCV Android AAR：真实 `Mat` 和霍夫圆检测；native 库由扩展页导入后按需加载。
+- ONNX Runtime：原生 OCR 与 `PaddleOcr` Java 兼容入口共用 PP-OCRv4 推理会话；核心库和预设模型由
+  扩展页导入后按需加载。
 
 ## 截图与坐标
 
@@ -130,7 +131,8 @@ Java 侧为查询结果分配数值句柄，Lua 节点对象只保存句柄和�
 或固定成功值伪装。`setStopCallBack` 和 `LuaEngine.registerExitCallback` 属于通用脚本
 生命周期，已由当前 `LuaRuntime` 真实执行，不在排除范围。
 
-旧 `YoloV5` 依赖未纳入项目的 NCNN YOLO 模型后端；`createOcr/ocrText*` 是 Tesseract
+旧 `YoloV5` 与 `m.yolo` 尚未导出；但内部已具备可选 NCNN YOLO 运行时和语言中立 C ABI。公开层
+的已核对事实和待定边界见 [Android YOLO 可选运行时调研](ANDROID_YOLO_可选运行时调研.md)，它不构成当前公开能力。`createOcr/ocrText*` 是 Tesseract
 句柄体系，当前 RapidOCR 没有同构句柄和白名单语义。因此两组暂不导出。`PaddleOcr` 的
 ONNX 路线已有真实等价实现；NCNN 加载入口为保持 Java 调用兼容而存在，但明确返回
 `false`，公开文档不得写成已支持 NCNN。

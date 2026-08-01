@@ -45,7 +45,8 @@ void ModelTests::parsesSelectionWithoutImageBounds() {
     QCOMPARE(range, QRect(QPoint(-20, 3), QPoint(9000, 10000)));
     QVERIFY(parseSelectionRange(QString::fromUtf8("全图"), &range, &error));
     QVERIFY(range.isNull());
-    QVERIFY(!parseSelectionRange(QStringLiteral("10,10,1,1"), &range, &error));
+    QVERIFY(parseSelectionRange(QStringLiteral("10,10,1,1"), &range, &error));
+    QCOMPARE(range, QRect(QPoint(10, 10), QPoint(1, 1)));
 }
 
 void ModelTests::parsesColorRulesAndFindsPattern() {

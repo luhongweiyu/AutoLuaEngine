@@ -29,6 +29,14 @@ struct ScreenFrame {
 bool captureScreen(ScreenFrame* frame);
 
 /**
+ * 获取一帧当前屏幕的独立 RGBA 副本。
+ *
+ * 与 captureScreen 使用相同缓存和刷新策略，但在截图互斥锁内复制，适合 YOLO 等需要在后续
+ * 推理期间持有稳定点阵的异步/耗时消费者。调用方拥有 vector 内容。
+ */
+bool copyScreenPixels(std::vector<unsigned char>* pixels, int* width, int* height);
+
+/**
  * 锁定当前截图帧。
  */
 void keepScreenCapture();

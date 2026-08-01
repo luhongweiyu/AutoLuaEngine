@@ -29,11 +29,12 @@ signals:
 
 private:
     void commitText();
+    void updateEndpointOrderWarning(const QString& text);
 
     QPushButton* selectButton_ = nullptr;
     QLineEdit* rangeEdit_ = nullptr;
     QToolButton* clearButton_ = nullptr;
-    QRect range_;
+    QRect range_{0, 0, 1, 1};
 };
 
 } // namespace xiaoyv::tools

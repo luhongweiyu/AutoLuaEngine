@@ -1,0 +1,3 @@
+# 可选运行时是本地提取缓存，不提交 Git。
+*/libc++_shared.so
+*/libopencv_java4.so

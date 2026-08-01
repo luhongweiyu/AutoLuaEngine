@@ -58,6 +58,12 @@ public slots:
     void fitToViewport();
     void actualSize();
     void applySelectionRange(const QRect& range);
+    /** 将当前鼠标所在的图片坐标设为框选左上角。 */
+    void setSelectionStartAtCursor();
+    /** 将当前鼠标所在的图片坐标设为框选右下角。 */
+    void setSelectionEndAtCursor();
+    /** 与取色面板“框选”按钮相同，切换画布框选模式。 */
+    void toggleSelectionMode();
     void setSelectionMode(bool enabled);
     void setConfirmedSelectionVisible(bool visible);
 
@@ -90,7 +96,8 @@ private:
     QRect carriedSelection_;
     bool hasCarriedToolState_ = false;
     /** 没有图片时唯一保存的待用范围，下一张图片采用后立即清空。 */
-    QRect pendingSelection_;
+    /** 新会话的框选坐标从原点开始，显示为 0,0,0,0。 */
+    QRect pendingSelection_{0, 0, 1, 1};
 };
 
 } // namespace xiaoyv::tools

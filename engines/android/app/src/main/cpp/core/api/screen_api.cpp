@@ -196,6 +196,54 @@ bool captureScreen(ScreenFrame* frame) {
     return true;
 }
 
+bool copyScreenPixels(std::vector<unsigned char>* pixels, int* width, int* height) {
+    std::lock_guard<std::mutex> lock(gCaptureMutex);
+    if (pixels == nullptr || width == nullptr || height == nullptr) {
+        setErrorLocked("截图副本输出参数不能为空");
+        return false;
+    }
+    pixels->clear();
+    *width = 0;
+    *height = 0;
+
+    if (!gOverrideActive && !isCacheUsableLocked() && !refreshPhysicalScreenLocked()) {
+        return false;
+    }
+    if (!hasCachedFrameLocked()) {
+        setErrorLocked("当前截图缓存为空");
+        return false;
+    }
+
+    const int frameWidth = gOverrideActive ? gOverrideWidth : gCaptureWidth;
+    const int frameHeight = gOverrideActive ? gOverrideHeight : gCaptureHeight;
+    if (frameWidth <= 0 || frameHeight <= 0) {
+        setErrorLocked("当前截图副本尺寸无效");
+        return false;
+    }
+    const size_t nativeWidth = static_cast<size_t>(frameWidth);
+    const size_t nativeHeight = static_cast<size_t>(frameHeight);
+    if (nativeWidth > std::numeric_limits<size_t>::max() / nativeHeight) {
+        setErrorLocked("当前截图副本尺寸无效");
+        return false;
+    }
+    const size_t pixelCount = nativeWidth * nativeHeight;
+    if (pixelCount > std::numeric_limits<size_t>::max() / static_cast<size_t>(kPixelBytes)) {
+        setErrorLocked("当前截图副本尺寸无效");
+        return false;
+    }
+    const size_t requiredSize = pixelCount * static_cast<size_t>(kPixelBytes);
+    if (requiredSize == 0 || requiredSize > gCaptureSize) {
+        setErrorLocked("当前截图副本尺寸无效");
+        return false;
+    }
+
+    pixels->assign(gCapturePixels, gCapturePixels + requiredSize);
+    *width = frameWidth;
+    *height = frameHeight;
+    gLastError.clear();
+    return true;
+}
+
 void keepScreenCapture() {
     std::lock_guard<std::mutex> lock(gCaptureMutex);
     gKeepCapture = true;

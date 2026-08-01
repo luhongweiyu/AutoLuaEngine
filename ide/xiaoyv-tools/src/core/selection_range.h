@@ -9,7 +9,7 @@
 
 namespace xiaoyv::tools {
 
-/** 把空矩形显示为“全图”，其他矩形显示为 left,top,right,bottom。 */
+/** 把空矩形显示为“全图”，其他矩形按左、上、右、下顺序显示。 */
 inline QString formatSelectionRange(const QRect& range) {
     if (range.isNull()) return QString::fromUtf8("全图");
     return QStringLiteral("%1,%2,%3,%4")
@@ -22,7 +22,7 @@ inline QString formatSelectionRange(const QRect& range) {
 /**
  * 解析用户输入的闭区间。
  *
- * 这里仅检查语法和坐标顺序，不依据当前图片尺寸修改输入；真正读取图片时再与图片边界求交集。
+ * 这里仅检查语法，不依据当前图片尺寸或端点顺序修改输入；真正读取图片时再把端点规范化并与图片边界求交集。
  */
 inline bool parseSelectionRange(const QString& text, QRect* range, QString* error = nullptr) {
     if (range == nullptr) {
@@ -38,7 +38,7 @@ inline bool parseSelectionRange(const QString& text, QRect* range, QString* erro
 
     const QStringList parts = value.split(QLatin1Char(','));
     if (parts.size() != 4) {
-        if (error != nullptr) *error = QString::fromUtf8("范围格式应为 left,top,right,bottom");
+        if (error != nullptr) *error = QString::fromUtf8("范围格式应为 左,上,右,下");
         return false;
     }
     int values[4]{};
@@ -50,10 +50,6 @@ inline bool parseSelectionRange(const QString& text, QRect* range, QString* erro
             return false;
         }
     }
-    if (values[0] > values[2] || values[1] > values[3]) {
-        if (error != nullptr) *error = QString::fromUtf8("范围左上角不能位于右下角之外");
-        return false;
-    }
     *range = QRect(QPoint(values[0], values[1]), QPoint(values[2], values[3]));
     if (error != nullptr) error->clear();
     return true;
@@ -61,7 +57,7 @@ inline bool parseSelectionRange(const QString& text, QRect* range, QString* erro
 
 /** 返回实际读取图片时使用的范围；空范围代表整张图片。 */
 inline QRect effectiveSelectionRange(const QRect& requested, const QRect& imageRect) {
-    return requested.isNull() ? imageRect : requested.intersected(imageRect);
+    return requested.isNull() ? imageRect : requested.normalized().intersected(imageRect);
 }
 
 } // namespace xiaoyv::tools

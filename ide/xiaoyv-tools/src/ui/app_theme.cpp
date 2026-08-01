@@ -73,6 +73,9 @@ QLineEdit, QPlainTextEdit, QListWidget, QTableView, QTableWidget, QComboBox, QSp
 QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled, QSlider:disabled {
     color:%10; background:%11; border-color:%10;
 }
+QLineEdit[reversedEndpoints="true"] {
+    background:#FFE08A; border-color:#D97706; color:#432400; font-weight:600;
+}
 QHeaderView::section { background:%8; border:0; border-right:1px solid %6; border-bottom:1px solid %6; padding:2px 4px; }
 QTableView::item, QTableWidget::item { padding:1px 3px; }
 QTabBar::tab { background:%8; border:1px solid %6; height:16px; padding:2px 7px; }

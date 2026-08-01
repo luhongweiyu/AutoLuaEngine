@@ -23,10 +23,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -47,19 +45,15 @@ import java.util.Map;
 public final class OcrPlatformBridge {
     private static final Object MODEL_LOCK = new Object();
     private static final Map<String, OcrModel> MODELS_BY_NAME = new HashMap<>();
-    private static final String BUILTIN_MODEL_ASSET_DIRECTORY = "ocr/ppocr_v4_mobile";
-    private static final String BUILTIN_MODEL_STORAGE_DIRECTORY = "ocr/ppocr_v4_mobile_v3_9_1";
+    private static final String ONNX_RUNTIME_FILE_NAME = "libonnxruntime.so";
     private static final String BUILTIN_DET_FILE = "ch_PP-OCRv4_det_mobile.onnx";
     private static final String BUILTIN_REC_FILE = "ch_PP-OCRv4_rec_mobile.onnx";
     private static final String BUILTIN_CLS_FILE = "ch_ppocr_mobile_v2.0_cls_mobile.onnx";
     private static final String BUILTIN_KEYS_FILE = "ppocr_keys_v1.txt";
-    private static final long BUILTIN_DET_BYTES = 4_745_517L;
-    private static final long BUILTIN_REC_BYTES = 10_857_958L;
-    private static final long BUILTIN_CLS_BYTES = 585_532L;
-    private static final long BUILTIN_KEYS_BYTES = 26_249L;
-    private static final int ASSET_COPY_BUFFER_BYTES = 64 * 1024;
     private static final String PADDLE_COMPAT_MODEL_NAME = "__paddle_ocr_compat__";
     private static OrtEnvironment environment;
+    private static boolean onnxRuntimeLoaded;
+    private static String onnxRuntimeLoadError = "";
 
     private OcrPlatformBridge() {
     }
@@ -101,7 +95,7 @@ public final class OcrPlatformBridge {
         }
     }
 
-    /** 为 com.nx.assist.lua.PaddleOcr 加载 APK 内置 PP-OCRv4 ONNX 模型。 */
+    /** 为 com.nx.assist.lua.PaddleOcr 加载已导入的 PP-OCRv4 ONNX 预设模型。 */
     public static boolean loadPaddleCompatBuiltin(boolean useOnnxModel) {
         if (!useOnnxModel) {
             // 当前 APK 没有 NCNN 运行时，不能把 ONNX 模型伪装成 NCNN 成功。
@@ -238,10 +232,11 @@ public final class OcrPlatformBridge {
     }
 
     /**
-     * 把 APK 内置 PP-OCRv4 mobile 模型准备到应用私有目录，再进入与自定义模型相同的加载路径。
+     * 使用扩展页已经导入的 PP-OCRv4 mobile 文件，再进入与自定义模型相同的加载路径。
      *
-     * ONNX Runtime 的路径接口不能直接读取压缩 assets。模型只在首次使用时复制；后续加载通过
-     * 固定版本目录和文件长度确认已有副本，不重复产生磁盘 IO。
+     * “内置”在脚本 API 中表示这组固定的 PP-OCRv4 mobile 文件名，并不表示它们被塞进基础
+     * APK。文件须由用户放入共享扩展目录并逐个导入；这里不检查文件内容、长度或 ABI，读取和
+     * 运行失败时直接返回底层错误。
      */
     private static String loadBuiltin(JSONObject arguments) {
         String name = required(arguments, "name");
@@ -255,39 +250,19 @@ public final class OcrPlatformBridge {
             return failure("Android 应用上下文尚未初始化");
         }
 
-        File modelDirectory = new File(
-                context.getNoBackupFilesDir(),
-                BUILTIN_MODEL_STORAGE_DIRECTORY
-        );
-        if (!modelDirectory.isDirectory() && !modelDirectory.mkdirs()) {
-            return failure("无法创建内置 OCR 模型目录：" + modelDirectory.getAbsolutePath());
-        }
-
         try {
-            File det = prepareBuiltinAsset(
-                    context,
-                    modelDirectory,
-                    BUILTIN_DET_FILE,
-                    BUILTIN_DET_BYTES
-            );
-            File rec = prepareBuiltinAsset(
-                    context,
-                    modelDirectory,
-                    BUILTIN_REC_FILE,
-                    BUILTIN_REC_BYTES
-            );
-            File cls = prepareBuiltinAsset(
-                    context,
-                    modelDirectory,
-                    BUILTIN_CLS_FILE,
-                    BUILTIN_CLS_BYTES
-            );
-            File keys = prepareBuiltinAsset(
-                    context,
-                    modelDirectory,
-                    BUILTIN_KEYS_FILE,
-                    BUILTIN_KEYS_BYTES
-            );
+            File det = ExtensionCatalog.getImportedExtension(context, BUILTIN_DET_FILE);
+            File rec = ExtensionCatalog.getImportedExtension(context, BUILTIN_REC_FILE);
+            File cls = ExtensionCatalog.getImportedExtension(context, BUILTIN_CLS_FILE);
+            File keys = ExtensionCatalog.getImportedExtension(context, BUILTIN_KEYS_FILE);
+            String missing = missingBuiltinFiles(det, rec, cls, keys);
+            if (!missing.isEmpty()) {
+                return failure(
+                        "未导入内置 OCR 文件：" + missing
+                                + "；请先从 " + ExtensionCatalog.getExtensionDirectoryDisplayPath()
+                                + " 在扩展页逐个导入"
+                );
+            }
 
             JSONObject loadArguments = new JSONObject();
             loadArguments.put("name", name);
@@ -297,66 +272,28 @@ public final class OcrPlatformBridge {
             loadArguments.put("keys", keys.getAbsolutePath());
             loadArguments.put("threads", threads);
             return load(loadArguments);
-        } catch (IOException | JSONException exception) {
-            return failure("准备内置 OCR 模型失败：" + safeMessage(exception));
+        } catch (JSONException exception) {
+            return failure("准备内置 OCR 模型参数失败：" + safeMessage(exception));
         }
     }
 
-    /**
-     * 取得一个内置模型的应用私有文件。
-     *
-     * 写入先落到同目录临时文件，长度完整后再原子改名；进程在复制中途退出不会留下被下一次
-     * 加载误用的半个 ONNX 文件。asset 文件名和目标文件名保持一致，便于设备侧排查。
-     */
-    private static File prepareBuiltinAsset(
-            Context context,
-            File modelDirectory,
-            String fileName,
-            long expectedBytes
-    ) throws IOException {
-        File target = new File(modelDirectory, fileName);
-        if (target.isFile() && target.canRead() && target.length() == expectedBytes) {
-            return target;
-        }
+    private static String missingBuiltinFiles(File det, File rec, File cls, File keys) {
+        StringBuilder missing = new StringBuilder();
+        appendMissingFile(missing, det, BUILTIN_DET_FILE);
+        appendMissingFile(missing, rec, BUILTIN_REC_FILE);
+        appendMissingFile(missing, cls, BUILTIN_CLS_FILE);
+        appendMissingFile(missing, keys, BUILTIN_KEYS_FILE);
+        return missing.toString();
+    }
 
-        File temporary = new File(modelDirectory, fileName + ".tmp");
-        if (temporary.exists() && !temporary.delete()) {
-            throw new IOException("无法清理模型临时文件：" + temporary.getAbsolutePath());
+    private static void appendMissingFile(StringBuilder missing, File file, String fileName) {
+        if (file != null) {
+            return;
         }
-
-        String assetPath = BUILTIN_MODEL_ASSET_DIRECTORY + "/" + fileName;
-        try (InputStream input = context.getAssets().open(assetPath);
-             FileOutputStream output = new FileOutputStream(temporary, false)) {
-            byte[] buffer = new byte[ASSET_COPY_BUFFER_BYTES];
-            int readCount;
-            while ((readCount = input.read(buffer)) != -1) {
-                if (readCount > 0) {
-                    output.write(buffer, 0, readCount);
-                }
-            }
-            output.getFD().sync();
-        } catch (IOException exception) {
-            temporary.delete();
-            throw exception;
+        if (missing.length() > 0) {
+            missing.append('、');
         }
-
-        if (temporary.length() != expectedBytes) {
-            long actualBytes = temporary.length();
-            temporary.delete();
-            throw new IOException(
-                    "内置模型长度不正确：" + fileName
-                            + "，期望 " + expectedBytes + "，实际 " + actualBytes
-            );
-        }
-        if (target.exists() && !target.delete()) {
-            temporary.delete();
-            throw new IOException("无法替换旧模型文件：" + target.getAbsolutePath());
-        }
-        if (!temporary.renameTo(target)) {
-            temporary.delete();
-            throw new IOException("无法保存内置模型文件：" + target.getAbsolutePath());
-        }
-        return target;
+        missing.append(fileName);
     }
 
     /** 加载或复用一组 RapidOCR ONNX 检测、识别和可选方向分类模型。 */
@@ -400,6 +337,10 @@ public final class OcrPlatformBridge {
             }
         }
 
+        String runtimeError = ensureOnnxRuntimeLoaded();
+        if (!runtimeError.isEmpty()) {
+            return failure(runtimeError);
+        }
         try {
             OcrModel model = createModel(
                     fingerprint,
@@ -553,6 +494,43 @@ public final class OcrPlatformBridge {
             throw exception;
         } finally {
             sessionOptions.close();
+        }
+    }
+
+    /**
+     * 首次实际创建 OCR 模型时加载已导入的 ONNX Runtime 核心库。
+     *
+     * onnxruntime-android 的 Java 绑定 JNI 壳仍随基础 APK 保留，体积极小；它会在这里创建
+     * OrtEnvironment 时从 APK 自己的 native 目录加载，再链接先前按绝对路径加载的核心库。
+     * 因此真正占体积的 libonnxruntime.so 和 OCR 模型可以脱离基础包，同时不需要反射修改
+     * Android 的类加载器搜索路径。
+     */
+    private static String ensureOnnxRuntimeLoaded() {
+        if (onnxRuntimeLoaded) {
+            return "";
+        }
+
+        Context context = AndroidHostBridge.appContext();
+        if (context == null) {
+            return "Android 应用上下文尚未初始化";
+        }
+        OptionalNativeRuntimeLoader.LoadResult result = OptionalNativeRuntimeLoader.loadImported(
+                context,
+                ONNX_RUNTIME_FILE_NAME
+        );
+        if (!result.loaded) {
+            onnxRuntimeLoadError = result.error;
+            return onnxRuntimeLoadError;
+        }
+
+        try {
+            environment = OrtEnvironment.getEnvironment("XiaoyvRapidOCR");
+            onnxRuntimeLoaded = true;
+            onnxRuntimeLoadError = "";
+            return "";
+        } catch (Exception | LinkageError error) {
+            onnxRuntimeLoadError = "初始化 ONNX Runtime 失败：" + safeMessage(error);
+            return onnxRuntimeLoadError;
         }
     }
 
@@ -1250,7 +1228,7 @@ public final class OcrPlatformBridge {
         return value == null ? "" : value;
     }
 
-    private static String safeMessage(Exception exception) {
+    private static String safeMessage(Throwable exception) {
         String message = exception.getMessage();
         return message == null || message.isEmpty() ? exception.getClass().getSimpleName() : message;
     }

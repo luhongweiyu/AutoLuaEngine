@@ -426,7 +426,7 @@ QVariantMap ColorPanel::buildContext(QString* error) const {
 
     const QRect range = document_->selection().isNull()
             ? document_->image().rect()
-            : document_->selection();
+            : document_->selection().normalized();
     if (error != nullptr) error->clear();
     return {
             {QStringLiteral("points"), points},

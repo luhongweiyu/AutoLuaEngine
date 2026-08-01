@@ -6,6 +6,7 @@
 
 #include "canvas/image_canvas.h"
 #include "generator/generator_engine.h"
+#include "main_window.h"
 #include "model/image_document.h"
 #include "panels/analysis_panel.h"
 #include "panels/color_panel.h"
@@ -47,6 +48,7 @@ private slots:
     void panelsRemainUsableWithoutImage();
     void rangePanelsOnlySubmitUserInput();
     void workspaceCarriesToolStateAcrossImages();
+    void selectionShortcutsUpdateSharedRange();
     void scriptEditorOwnsLanguageAndExecutionState();
     void dictionaryEditorOwnsRecordTransactions();
     void colorPanelUsesSelectedBaseAndDeletesOneRow();
@@ -273,6 +275,41 @@ void UiTests::workspaceCarriesToolStateAcrossImages() {
     QCOMPARE(workspace.currentDocument()->selection(), pending);
     QCOMPARE(workspace.currentDocument()->colorPoints()->points().front().delta,
              QColor(QStringLiteral("#010203")));
+}
+
+void UiTests::selectionShortcutsUpdateSharedRange() {
+    MainWindow window;
+    window.resize(900, 600);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    auto* workspace = window.findChild<ImageWorkspace*>();
+    QVERIFY(workspace != nullptr);
+    QImage image(32, 24, QImage::Format_RGBA8888);
+    image.fill(Qt::white);
+    QVERIFY(workspace->addImage(image, {}, QString::fromUtf8("快捷键")));
+    ImageCanvas* canvas = workspace->currentCanvas();
+    QVERIFY(canvas != nullptr);
+    QVERIFY(QTest::qWaitForWindowExposed(canvas));
+    QCOMPARE(workspace->selectionRange(), QRect(0, 0, 1, 1));
+
+    const QPoint start(5, 4);
+    QTest::mouseClick(canvas->viewport(), Qt::LeftButton, Qt::NoModifier, start);
+    QTRY_COMPARE(canvas->currentImagePosition(), start);
+    QTest::keyClick(canvas, Qt::Key_A);
+    QTRY_COMPARE(workspace->selectionRange(), QRect(start, QPoint(0, 0)));
+
+    const QPoint end(20, 18);
+    QTest::mouseMove(canvas->viewport(), end);
+    QTRY_COMPARE(canvas->currentImagePosition(), end);
+    QTest::keyClick(canvas, Qt::Key_S);
+    QTRY_COMPARE(workspace->selectionRange(), QRect(start, end));
+
+    QVERIFY(!canvas->selectionMode());
+    QTest::keyClick(canvas, Qt::Key_R, Qt::ControlModifier);
+    QTRY_VERIFY(canvas->selectionMode());
+    QTest::keyClick(canvas, Qt::Key_R, Qt::ControlModifier);
+    QTRY_VERIFY(!canvas->selectionMode());
 }
 
 void UiTests::scriptEditorOwnsLanguageAndExecutionState() {

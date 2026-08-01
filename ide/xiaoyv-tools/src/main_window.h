@@ -16,6 +16,7 @@ class QAction;
 class QActionGroup;
 class QLabel;
 class QPlainTextEdit;
+class QShortcut;
 class QTabWidget;
 
 namespace xiaoyv::tools {
@@ -43,6 +44,7 @@ private:
     void createMenus();
     void createToolBar();
     void createWorkspace();
+    void createSelectionShortcuts();
     void createPanels();
     void createStatusBarWidgets();
     void connectWorkspaceSignals();
@@ -60,10 +62,12 @@ private:
     void showStatus(const QString& message);
     void setTheme(AppTheme theme);
     void refreshIcons();
+    void updateSelectionShortcutState();
     void restoreWindowState();
     void saveWindowState() const;
 
     std::array<QAction*, static_cast<int>(ActionId::Count)> actions_{};
+    std::array<QShortcut*, 3> selectionShortcuts_{};
     QActionGroup* themeGroup_ = nullptr;
     DeviceClient deviceClient_;
     GeneratorEngine generator_;

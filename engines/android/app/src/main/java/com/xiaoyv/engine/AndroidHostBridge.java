@@ -213,6 +213,25 @@ public final class AndroidHostBridge {
     }
 
     /**
+     * 调用可选 NCNN YOLO 平台实现。未打包 libxiaoyv_yolo.so 时返回可读的失败信封，
+     * 不影响普通引擎启动或其他功能。
+     */
+    public static String yoloCall(String operation, String argumentsJson) {
+        return YoloPlatformBridge.call(operation, argumentsJson);
+    }
+
+    /** 将 native 持有的紧凑 RGBA 直接缓冲交给可选 YOLO SO。 */
+    public static String yoloDetectRgba(
+            String operation,
+            String argumentsJson,
+            ByteBuffer pixels,
+            int width,
+            int height
+    ) {
+        return YoloPlatformBridge.detectRgba(operation, argumentsJson, pixels, width, height);
+    }
+
+    /**
      * 设备 API 的唯一 Java 平台入口。
      *
      * operation 由 libengine.so/core/api 固定生成，argumentsJson 由 native 完成结构化

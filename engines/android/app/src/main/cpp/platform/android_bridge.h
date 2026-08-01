@@ -93,6 +93,18 @@ struct AndroidOcrCallResult {
 };
 
 /**
+ * 可选 YOLO 平台调用结果。
+ *
+ * 结构保持与 OCR 桥一致，但 YOLO 由单独的 libxiaoyv_yolo.so 承担；未打包该 SO 时 Java 会
+ * 返回正常 JSON 失败信封，而非让 libengine.so 直接链接或加载 NCNN。
+ */
+struct AndroidYoloCallResult {
+    bool invoked = false;
+    std::string responseJson;
+    std::string error;
+};
+
+/**
  * Android 平台能力桥。
  *
  * 这里是 libengine.so 到 Java 的唯一 JNI 边界。Java 只承接 Android 必须由
@@ -132,6 +144,18 @@ public:
     static AndroidOcrCallResult callOcrApi(
             const std::string& operation,
             const std::string& argumentsJson
+    );
+    static AndroidYoloCallResult callYoloApi(
+            const std::string& operation,
+            const std::string& argumentsJson
+    );
+    static AndroidYoloCallResult callYoloRgba(
+            const std::string& operation,
+            const std::string& argumentsJson,
+            const unsigned char* pixels,
+            size_t pixelBytes,
+            int width,
+            int height
     );
     static bool touchDown(int id, int x, int y);
     static bool touchMove(int id, int x, int y);
