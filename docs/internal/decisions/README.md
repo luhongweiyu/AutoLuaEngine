@@ -20,3 +20,4 @@
 - [0009：ALPKG 小资源范围与 YOLO 模型分离](0009-ALPKG小资源范围与YOLO模型分离.md)
 - [0010：Android 可选 YOLO 运行时与多语言 C ABI](0010-Android可选YOLO运行时与多语言C-ABI.md)
 - [0011：Android 本地扩展文件导入与按需加载](0011-Android本地扩展文件导入与按需加载.md)
+- [0012：Android 扩展目录包与相对路径](0012-Android扩展目录包与相对路径.md)

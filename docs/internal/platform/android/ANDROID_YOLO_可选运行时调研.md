@@ -15,7 +15,7 @@
    使用普通文件路径，不作为 ALPKG 输入，也不增加临时解包、复制或清理流程。现有 ALPKG 运行时
    不解压，且本来也不能直接作为 Android native linker 的库目录。
 3. 推理后端已单独为 `libxiaoyv_yolo.so`，静态链接官方 NCNN 的 CPU 运行时；基础 APK 永不打包
-   该库。用户把文件放到 `/sdcard/xiaoyv/extensions/` 并在扩展页点击“导入”后，只有模型加载或
+   该库。用户把文件放到 `/sdcard/xiaoyv/extensions/yolo/` 并在扩展页导入 `yolo` 目录后，只有模型加载或
    检测真正发生时才按需加载它；查询运行时状态不执行 native 代码。
 4. `tools/build_android_yolo.ps1` 负责单独编译并复用 SO。Gradle 不会下载、编译或打包 NCNN/YOLO；
    App 不校验导入文件的签名、哈希、版本、ABI、文件名或依赖，加载错误由用户自行处理。
@@ -68,8 +68,8 @@ YoloV5.detect(bmp, false)
 ## 当前内部装配方式
 
 ```text
-用户文件 /sdcard/xiaoyv/extensions/libxiaoyv_yolo.so
-  -> App 扩展页点击“导入”（复制为私有只读副本，不加载）
+用户文件 /sdcard/xiaoyv/extensions/yolo/libxiaoyv_yolo.so
+  -> App 扩展页导入 yolo 目录（复制为私有只读副本，不加载）
   -> 脚本中的 YOLO 模型加载 / 检测请求
   -> libengine.so 的版本化 EngineYoloApi
   -> 私有 YoloRuntimeBridge
@@ -80,9 +80,9 @@ YoloV5.detect(bmp, false)
 - `libxiaoyv_yolo.so` 静态链接 NCNN，使用户可选项只需一份功能库，而不是旧实现那样要求
   `libyolo.so + libncnn.so` 成对存在。
 - 由独立 PowerShell 构建脚本产出 SO；它是本地可复用构建缓存，Gradle 从不参与其编译或打包。
-- 扩展页接受平铺目录中的任意普通文件并保留原文件名。YOLO 运行时固定请求
-  `libxiaoyv_yolo.so`；改名、放错 ABI 或缺依赖时，按需加载直接返回错误，不在导入阶段拦截。
-- `EngineYoloApi` 保留可用性查询：`available` 表示同名文件已导入、可以尝试，`loaded` 表示当前
+- 扩展页接受最外层的任意普通文件或目录并保留目录内部相对路径。YOLO 运行时固定请求
+  `yolo/libxiaoyv_yolo.so`；改名、放错 ABI 或缺依赖时，按需加载直接返回错误，不在导入阶段拦截。
+- `EngineYoloApi` 保留可用性查询：`available` 表示该相对路径文件已导入、可以尝试，`loaded` 表示当前
   引擎进程已实际加载。load/detect 失败通过同一 C ABI 错误文本返回，各语言绑定不各自处理 linker。
 - GPU 参数应保留为可选能力：先实现并验收 CPU，再在设备支持时启用 NCNN Vulkan；不支持或初始化
   失败时必须明确回退或报错，不能把 `useGpu=true` 静默当作 GPU 成功。

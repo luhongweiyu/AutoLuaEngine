@@ -45,11 +45,11 @@ import java.util.Map;
 public final class OcrPlatformBridge {
     private static final Object MODEL_LOCK = new Object();
     private static final Map<String, OcrModel> MODELS_BY_NAME = new HashMap<>();
-    private static final String ONNX_RUNTIME_FILE_NAME = "libonnxruntime.so";
-    private static final String BUILTIN_DET_FILE = "ch_PP-OCRv4_det_mobile.onnx";
-    private static final String BUILTIN_REC_FILE = "ch_PP-OCRv4_rec_mobile.onnx";
-    private static final String BUILTIN_CLS_FILE = "ch_ppocr_mobile_v2.0_cls_mobile.onnx";
-    private static final String BUILTIN_KEYS_FILE = "ppocr_keys_v1.txt";
+    private static final String ONNX_RUNTIME_FILE_NAME = "rapidocr/libonnxruntime.so";
+    private static final String BUILTIN_DET_FILE = "rapidocr/ch_PP-OCRv4_det_mobile.onnx";
+    private static final String BUILTIN_REC_FILE = "rapidocr/ch_PP-OCRv4_rec_mobile.onnx";
+    private static final String BUILTIN_CLS_FILE = "rapidocr/ch_ppocr_mobile_v2.0_cls_mobile.onnx";
+    private static final String BUILTIN_KEYS_FILE = "rapidocr/ppocr_keys_v1.txt";
     private static final String PADDLE_COMPAT_MODEL_NAME = "__paddle_ocr_compat__";
     private static OrtEnvironment environment;
     private static boolean onnxRuntimeLoaded;
@@ -260,7 +260,7 @@ public final class OcrPlatformBridge {
                 return failure(
                         "未导入内置 OCR 文件：" + missing
                                 + "；请先从 " + ExtensionCatalog.getExtensionDirectoryDisplayPath()
-                                + " 在扩展页逐个导入"
+                                + " 在扩展页导入 rapidocr 目录"
                 );
             }
 

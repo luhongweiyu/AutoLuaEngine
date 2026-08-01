@@ -14,13 +14,13 @@ import java.nio.ByteBuffer;
 /**
  * YOLO 可选运行时平台桥。
  *
- * App 基础包不包含该 SO；用户在扩展页导入名为 libxiaoyv_yolo.so 的文件后，脚本实际加载或
+ * App 基础包不包含该 SO；用户在扩展页导入 yolo/libxiaoyv_yolo.so 后，脚本实际加载或
  * 检测模型时才按需加载它。文件名、CPU ABI、依赖和内容均由用户自己负责；导入或查询状态不执行
  * native 代码。模型、标签和图片都只接收普通可读文件或由 native 临时交付的紧凑 RGBA 直接缓冲，
  * 不读取 ALPKG。
  */
 public final class YoloPlatformBridge {
-    private static final String RUNTIME_FILE_NAME = "libxiaoyv_yolo.so";
+    private static final String RUNTIME_FILE_NAME = "yolo/libxiaoyv_yolo.so";
     private static final Object LOAD_LOCK = new Object();
     private static boolean nativeLoaded;
     private static String nativeLoadError = "";

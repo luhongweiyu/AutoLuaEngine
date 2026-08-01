@@ -21,8 +21,8 @@ import java.util.Arrays;
  * 对 findCircle 同样生效。
  */
 public final class OpenCvPlatformBridge {
-    private static final String CPP_RUNTIME_FILE_NAME = "libc++_shared.so";
-    private static final String OPENCV_RUNTIME_FILE_NAME = "libopencv_java4.so";
+    private static final String CPP_RUNTIME_FILE_NAME = "opencv/libc++_shared.so";
+    private static final String OPENCV_RUNTIME_FILE_NAME = "opencv/libopencv_java4.so";
     private static final Object INITIALIZE_LOCK = new Object();
     private static volatile boolean initialized;
 

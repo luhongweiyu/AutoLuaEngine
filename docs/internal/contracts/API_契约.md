@@ -216,8 +216,8 @@ import("完整.Java.类名")
 - Java `void` 对应 Lua 无返回值；Java `null` 对应一个 `nil`。
 - Java 异常转换为 Lua 错误。
 - 对象由 JNI GlobalRef 保活，Lua userdata 回收或运行时结束时释放。
-- `import("org.opencv.*")` 在解析类前会按需加载已导入的 `libc++_shared.so` 与
-  `libopencv_java4.so`；文件缺失或 linker 失败时，`import` 直接返回 Lua 错误。
+- `import("org.opencv.*")` 在解析类前会按需加载已导入的 `opencv/libc++_shared.so` 与
+  `opencv/libopencv_java4.so`；文件缺失或 linker 失败时，`import` 直接返回 Lua 错误。
 
 该能力没有“每个 Java 方法一条 C ABI”的函数表。实现和线程规则见
 `docs/internal/platform/android/ANDROID_Java互操作.md`。
@@ -409,11 +409,11 @@ const char* engine_ocrLastError();
 
 规则：
 
-- `engine_ocrLoadBuiltinModel` 按固定文件名加载用户已导入的 PP-OCRv4 mobile 中文/英文检测、识别、
-  方向分类模型和字典，并在首次实际创建模型时按需加载已导入的 `libonnxruntime.so`。基础 APK 不携带
-  这些大文件；导入只复制文件，不校验内容、ABI 或依赖。
+- `engine_ocrLoadBuiltinModel` 从已导入的 `rapidocr/` 目录按固定相对路径加载 PP-OCRv4 mobile 中文/英文
+  检测、识别、方向分类模型和字典，并在首次实际创建模型时按需加载
+  `rapidocr/libonnxruntime.so`。基础 APK 不携带这些大文件；导入只复制目录，不校验内容、ABI 或依赖。
 - `engine_ocrLoadModel` 加载脚本指定的 RapidOCR 兼容 PP-OCR ONNX 模型；两种入口最终共享
-  相同的 session 缓存和释放规则，且同样要求已导入 `libonnxruntime.so`。
+  相同的 session 缓存和释放规则，且同样要求已导入 `rapidocr/libonnxruntime.so`。
 - 相同名称、相同配置的重复加载直接复用，不增加引用次数；不同名称的相同配置共享底层 ONNX session。
 - `engine_ocrRead` 返回 `{ "items": [...] }` JSON；`engine_ocrFindText` 返回
   `{ "found": boolean, ... }` JSON。失败返回 `nullptr`，错误通过 `engine_ocrLastError()` 获取。
@@ -455,10 +455,10 @@ const char* engine_yoloLastError();
 - `EngineYoloApi` 是始终存在的语言中立子函数表；它由 `engine_getYoloApi()` 和
   `engine_getApi()->getYoloApi()` 返回同一张只读表。顶层 `EngineApi` 需不低于 `21`，
   `EngineYoloApi::abiVersion` 当前为 `1`；两张表以后各自只在尾部追加字段。
-- `libxiaoyv_yolo.so` 是可选的独立 NCNN CPU 运行时，基础 APK 永不打包它。用户把同名文件放到
-  `/sdcard/xiaoyv/extensions/` 后在 App 扩展页点击导入；导入只复制为私有只读副本，不校验签名、
-  哈希、版本、ABI、文件名或依赖，也不加载代码。`engine_yoloRuntimeInfoJson()` 只查询状态：
-  `available` 表示该同名文件已导入、可尝试，`loaded` 表示当前引擎进程已经实际加载；模型加载或检测
+- `libxiaoyv_yolo.so` 是可选的独立 NCNN CPU 运行时，基础 APK 永不打包它。用户把它放到
+  `/sdcard/xiaoyv/extensions/yolo/` 后在 App 扩展页导入 `yolo` 目录；导入只复制为私有只读副本，
+  不校验签名、哈希、版本、ABI、文件名或依赖，也不加载代码。`engine_yoloRuntimeInfoJson()` 只查询状态：
+  `available` 表示 `yolo/libxiaoyv_yolo.so` 已导入、可尝试，`loaded` 表示当前引擎进程已经实际加载；模型加载或检测
   才触发加载，失败通过 `engine_yoloLastError()` 说明原因。
 - `labelsPath`、`paramPath`、`binPath` 和 `imagePath` 必须是 Android 可读的普通文件路径，不能来自
   ALPKG。相同名称及相同模型配置的重复加载复用已加载模型；同名不同配置会明确失败，调用方先

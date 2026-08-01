@@ -61,9 +61,10 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
     private static final int REQUEST_SCRIPT_STORAGE_PERMISSION = 1003;
     private static final int TAB_SCRIPT = 0;
-    private static final int TAB_STATUS = 1;
+    private static final int TAB_MARKET = 1;
     private static final int TAB_EXTENSION = 2;
-    private static final int TAB_SETTINGS = 3;
+    private static final int TAB_STATUS = 3;
+    private static final int TAB_SETTINGS = 4;
     private static final int PAGE_PADDING = 16;
     private static final int MAX_LOG_LINES = 30;
     private static final int COLOR_BACKGROUND = Color.rgb(243, 245, 247);
@@ -166,8 +167,9 @@ public final class MainActivity extends Activity {
 
         navItems = new TextView[] {
                 createNavItem("脚本", R.drawable.ic_script_file, TAB_SCRIPT),
+                createNavItem("市场", R.drawable.ic_nav_market, TAB_MARKET),
+                createNavItem("扩展", R.drawable.ic_nav_extension, TAB_EXTENSION),
                 createNavItem("状态", R.drawable.ic_nav_status, TAB_STATUS),
-                createNavItem("扩展", R.drawable.ic_nav_market, TAB_EXTENSION),
                 createNavItem("设置", R.drawable.ic_nav_settings, TAB_SETTINGS)
         };
 
@@ -219,6 +221,9 @@ public final class MainActivity extends Activity {
     }
 
     private View createPageForTab(int tabIndex) {
+        if (tabIndex == TAB_MARKET) {
+            return createMarketPage();
+        }
         if (tabIndex == TAB_STATUS) {
             return createStatusPage();
         }
@@ -229,6 +234,21 @@ public final class MainActivity extends Activity {
             return createSettingsPage();
         }
         return createScriptPage();
+    }
+
+    private View createMarketPage() {
+        FrameLayout page = new FrameLayout(this);
+        page.setBackgroundColor(COLOR_BACKGROUND);
+        TextView emptyView = createEmptyText("市场暂未开放");
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+        );
+        params.leftMargin = dp(PAGE_PADDING);
+        params.rightMargin = dp(PAGE_PADDING);
+        page.addView(emptyView, params);
+        return page;
     }
 
     private View createScriptPage() {
@@ -365,8 +385,8 @@ public final class MainActivity extends Activity {
 
         page.addView(createSectionLabel("本地扩展"), matchWidthWrapContent());
         TextView hint = createSmallText(
-                "将任意文件直接复制到 " + ExtensionCatalog.getExtensionDirectoryDisplayPath()
-                        + "。列表不判断文件类型、名称或 CPU；点击导入只复制文件，脚本实际使用时才加载。"
+                "将文件或文件夹直接复制到 " + ExtensionCatalog.getExtensionDirectoryDisplayPath()
+                        + "。列表只显示最外层条目；导入文件夹会保留内部相对路径，脚本实际使用时才加载。"
         );
         hint.setPadding(dp(2), dp(6), dp(2), 0);
         page.addView(hint, matchWidthWrapContent());
@@ -396,7 +416,7 @@ public final class MainActivity extends Activity {
 
         ExtensionCatalog.ExtensionItem[] items = ExtensionCatalog.listExtensions(this);
         if (items.length == 0) {
-            page.addView(createEmptyText("扩展目录没有文件"), topMarginParams(36));
+            page.addView(createEmptyText("扩展目录没有文件或文件夹"), topMarginParams(36));
             return scrollView;
         }
 
@@ -423,7 +443,7 @@ public final class MainActivity extends Activity {
         nameView.setEllipsize(TextUtils.TruncateAt.MIDDLE);
         TextView detailView = createTinyText(
                 (item.imported ? "已导入  ·  " : "未导入  ·  ")
-                        + formatFileSize(item.sizeBytes)
+                        + (item.directory ? "文件夹" : formatFileSize(item.sizeBytes))
                         + "  ·  "
                         + formatTime(item.modifiedAt)
         );
@@ -440,7 +460,9 @@ public final class MainActivity extends Activity {
 
         Button importButton = createSecondaryButton(
                 View.generateViewId(),
-                item.imported ? "重新导入" : "导入",
+                item.imported
+                        ? (item.directory ? "重新导入目录" : "重新导入")
+                        : (item.directory ? "导入目录" : "导入"),
                 () -> importExtension(item)
         );
         row.addView(importButton, new LinearLayout.LayoutParams(dp(88), dp(44)));
@@ -1275,16 +1297,31 @@ public final class MainActivity extends Activity {
         );
         int grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setDataAndType(uri, "resource/folder");
-        intent.setClipData(ClipData.newRawUri(label, uri));
-        intent.addFlags(grantFlags);
+        Intent mtIntent = new Intent(Intent.ACTION_VIEW);
+        mtIntent.setDataAndType(uri, "application/octet-stream");
+        mtIntent.putExtra("org.openintents.extra.ABSOLUTE_PATH", directory.getAbsolutePath());
+        mtIntent.setClipData(ClipData.newRawUri(label, uri));
+        mtIntent.addFlags(grantFlags);
+        mtIntent.setPackage("bin.mt.plus");
 
         try {
-            Intent chooser = Intent.createChooser(intent, "选择文件管理器");
+            startActivity(mtIntent);
+            setMessage("已在 MT 管理器中打开" + label);
+            return;
+        } catch (ActivityNotFoundException exception) {
+            // MT 未安装时，保留 ES 等旧式文件管理器可识别的目录 Intent。
+        }
+
+        Intent folderIntent = new Intent(Intent.ACTION_VIEW);
+        folderIntent.setDataAndType(uri, "resource/folder");
+        folderIntent.putExtra("org.openintents.extra.ABSOLUTE_PATH", directory.getAbsolutePath());
+        folderIntent.setClipData(ClipData.newRawUri(label, uri));
+        folderIntent.addFlags(grantFlags);
+        try {
+            Intent chooser = Intent.createChooser(folderIntent, "选择文件管理器");
             chooser.addFlags(grantFlags);
             startActivity(chooser);
-            setMessage("已交给外部文件管理器");
+            setMessage("已交给外部文件管理器打开" + label);
         } catch (ActivityNotFoundException exception) {
             setMessage("没有可打开" + label + "的文件管理器");
         }
