@@ -393,6 +393,11 @@
         "cmd": "LuaEngine.getContext"
       },
       {
+        "name": "已导入扩展路径",
+        "md": "md/03-Java/LuaEngine.getExtensionPath.md",
+        "cmd": "LuaEngine.getExtensionPath"
+      },
+      {
         "name": "HTTP GET",
         "md": "md/03-Java/LuaEngine.httpGet.md",
         "cmd": "LuaEngine.httpGet"
@@ -1719,7 +1724,7 @@
         "md": "md/18-运行时扩展/Lua标准库.md"
       },
       {
-        "name": "FFI（实验性）",
+        "name": "FFI",
         "md": "md/18-运行时扩展/FFI/概述.md",
         "items": [
           {

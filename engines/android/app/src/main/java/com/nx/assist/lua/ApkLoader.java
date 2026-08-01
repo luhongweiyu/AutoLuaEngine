@@ -4,6 +4,7 @@
 package com.nx.assist.lua;
 
 import android.content.Context;
+import android.os.Build;
 
 import com.xiaoyv.engine.AndroidHostBridge;
 
@@ -32,11 +33,12 @@ public final class ApkLoader {
             throw new IllegalStateException("无法创建插件优化目录：" + optimizedDirectory);
         }
 
-        this.apkPath = apkPath;
+        File packageFile = new File(apkPath);
+        this.apkPath = packageFile.getAbsolutePath();
         this.classLoader = new DexClassLoader(
-                apkPath,
+                this.apkPath,
                 optimizedDirectory.getAbsolutePath(),
-                new File(apkPath).getParent(),
+                resolveNativeLibraryDirectory(packageFile),
                 context.getClassLoader()
         );
     }
@@ -59,5 +61,20 @@ public final class ApkLoader {
      */
     public String getApkPath() {
         return apkPath;
+    }
+
+    private static String resolveNativeLibraryDirectory(File packageFile) {
+        File packageDirectory = packageFile.getParentFile();
+        if (packageDirectory == null) {
+            return null;
+        }
+        File librariesRoot = new File(packageDirectory, "lib");
+        for (String abi : Build.SUPPORTED_ABIS) {
+            File abiDirectory = new File(librariesRoot, abi);
+            if (abiDirectory.isDirectory()) {
+                return abiDirectory.getAbsolutePath();
+            }
+        }
+        return packageDirectory.getAbsolutePath();
     }
 }

@@ -81,7 +81,7 @@ compat_extended.lua
 | cipher | `CryptoPlatformBridge` | AES 二进制、PEM RSA；JSON 边界 Base64 |
 | network / luasocket | `NetworkPlatformBridge`、LuaSocket C core、运行时 Lua modules | 项目 HTTP/WebSocket 使用 OkHttp；LuaSocket 提供 TCP/UDP/DNS/HTTP/MIME，HTTPS request 经平台适配；原始 socket 遵循上游同步超时语义 |
 | io / time | Lua 5.4 标准库、runtime/device API | 已有标准函数不重复包装；网络时间在总接收等待约 3 秒内依次尝试 3 个真实 NTP 服务 |
-| ffi | `ffi_lua_api` + 静态 cffi-lua / libffi | 公开入口为 `m.ffi`、全局 `ffi` 和 `require("ffi")`；支持声明、cdata、结构体、数组、浮点、回调和可变参数。Android 按当前 ABI 静态编入调用与回调 trampoline；不是 LuaJIT FFI，且在各 ABI 运行时验证完成前标为实验性 |
+| ffi | `ffi_lua_api` + 静态 cffi-lua / libffi | 公开入口为 `m.ffi`、全局 `ffi` 和 `require("ffi")`；支持声明、cdata、结构体、数组、浮点、回调和可变参数。Android 按当前 ABI 静态编入调用与回调 trampoline；ARM64 已完成真实运行时验证，项目不要求逐 ABI 重复验收；不是 LuaJIT FFI |
 | touch | 现有 InputApi + Lua 坐标换算 | 缩放只改变兼容入口坐标，底层始终使用真实画面 |
 | color | `color_compat_lua_api` + 现有截图缓存 + `PaddleOcr` | `0,0,0,0` 为全屏；Java Bitmap OCR 复用 ONNX 模型缓存，并在实际加载模型时按需加载已导入运行时 |
 | image / cv | 现有模板核心、`cv_compat_lua_api`、`OpenCvPlatformBridge`、`LuaEngine.snapShotMat` | 找图热路径不迁入 OpenCV；值指针用 native userdata，霍夫找圆和 Mat 使用官方 AAR，并在实际使用时按需加载已导入库 |

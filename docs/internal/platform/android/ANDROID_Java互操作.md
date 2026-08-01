@@ -24,7 +24,8 @@ Lua import / Java userdata / Lua interface callback
 - `interop/LuaTableValue.java`：保留 Lua table 键值，等确定 Java 目标类型后再转换
 - `interop/LuaCallback.java`：保存 Lua registry 引用并从 Java 接口回调 native
 - `com/nx/assist/lua/LuaEngine.java`：懒人精灵包名兼容类
-- `com/nx/assist/lua/ApkLoader.java`：`LuaEngine.loadApk` 的插件类加载对象
+- `com/nx/assist/lua/ApkLoader.java`：`LuaEngine.loadApk` 的插件类加载对象；APK 会暂存为私有
+  `base.apk`，其中 `lib/<abi>/*.so` 同时解出供类加载器和 FFI 使用
 
 ## 回调线程（实现）
 
@@ -39,3 +40,6 @@ Java 回调不会并发访问 `lua_State`：
 
 Java 反射、重载和类型转换集中在 `JavaInteropBridge`。JS 和 Go 接入时复用该后端，
 分别提供符合各自语言习惯的对象包装；Lua 的 userdata 和元方法不强加给其他语言。
+
+已在扩展页导入的文件或目录可通过 `LuaEngine.getExtensionPath(relativePath)` 取得私有绝对路径。
+该方法只解析安全相对路径，不猜测文件类型、ABI 或 native 依赖顺序；FFI 调用方自行决定加载次序。

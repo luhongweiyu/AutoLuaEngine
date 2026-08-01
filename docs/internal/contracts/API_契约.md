@@ -777,7 +777,7 @@ imgui.*
 |---|---|---|
 | 加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 二进制 Lua 字符串；平台 JSON 边界仅内部 Base64 |
 | 网络 | `httpGet`、`httpPost`、文件传输、WebSocket、`require("socket")`、`require("socket.http")` | 项目 HTTP/WebSocket 阻塞调用释放 VM Gate；LuaSocket TCP/UDP 按上游同步超时语义执行；不导出 `m.http` |
-| 标准库 / FFI | Lua 5.4 `io`、`os`；`m.ffi`、全局 `ffi`、`require("ffi")` | 不复制标准库；FFI 由静态内置的 cffi-lua + libffi 提供声明、结构体、数组、浮点、回调和可变参数 C ABI；在完成各 ABI 运行时验证前为实验性接口 |
+| 标准库 / FFI | Lua 5.4 `io`、`os`；`m.ffi`、全局 `ffi`、`require("ffi")` | 不复制标准库；FFI 由静态内置的 cffi-lua + libffi 提供声明、结构体、数组、浮点、回调和可变参数 C ABI；ARM64 已完成真实运行时验证，项目不要求逐 ABI 重复验收；外部库的 ABI、依赖与声明仍由调用方负责 |
 | 触控 / 输入法 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`touchMoveEx`、`swipe`、`m.ime.*` | `m` 使用布尔缩放开关和 `touchUp([id,] x, y)`；缩放和三类基础触控均无返回；`m.ime` 是正式输入法模块 |
 | 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
 | 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |

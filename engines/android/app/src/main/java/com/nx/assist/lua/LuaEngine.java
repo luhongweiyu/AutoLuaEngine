@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.util.Log;
 
 import com.xiaoyv.engine.AndroidHostBridge;
+import com.xiaoyv.engine.ExtensionCatalog;
 import com.xiaoyv.engine.NativeEngine;
 import com.xiaoyv.engine.OpenCvPlatformBridge;
 
@@ -16,6 +17,7 @@ import org.opencv.core.Mat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,12 +27,18 @@ import java.net.URLEncoder;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.Date;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipException;
 
 import javax.activation.DataHandler;
 import javax.activation.FileDataSource;
@@ -58,6 +66,7 @@ public final class LuaEngine {
     private static final int COPY_BUFFER_BYTES = 16 * 1024;
     private static final ExecutorService MAIL_EXECUTOR = Executors.newFixedThreadPool(2);
     private static final Object EXIT_CALLBACK_LOCK = new Object();
+    private static final Object APK_PLUGIN_LOCK = new Object();
     private static IOnExitCallback exitCallback;
 
     private LuaEngine() {
@@ -180,11 +189,21 @@ public final class LuaEngine {
     public static ApkLoader loadApk(String nameOrPath) {
         try {
             File pluginFile = resolvePluginFile(nameOrPath);
-            return pluginFile == null ? null : new ApkLoader(pluginFile.getAbsolutePath());
+            File stagedPackage = stagePluginPackage(pluginFile);
+            return stagedPackage == null ? null : new ApkLoader(stagedPackage.getAbsolutePath());
         } catch (Exception exception) {
             Log.e(TAG, "APK 插件加载失败：" + exception.getMessage(), exception);
             return null;
         }
+    }
+
+    /**
+     * 返回已在扩展页导入的文件或目录的私有绝对路径；不存在时返回 null。
+     */
+    public static String getExtensionPath(String relativePath) {
+        Context context = AndroidHostBridge.applicationContext();
+        File entry = ExtensionCatalog.getImportedEntry(context, relativePath);
+        return entry == null ? null : entry.getAbsolutePath();
     }
 
     /**
@@ -593,6 +612,151 @@ public final class LuaEngine {
             copy(inputStream, outputStream);
         }
         return target;
+    }
+
+    /**
+     * 把 APK/JAR/DEX 放进私有 code cache。APK 中的 lib/<abi>/*.so 同时解出，既供
+     * DexClassLoader 查找，也保持旧 LuaEngine 调用方从 base.apk 推导 lib 路径的约定。
+     */
+    private static File stagePluginPackage(File source) throws IOException {
+        if (source == null || !source.isFile()) {
+            return null;
+        }
+        Context context = AndroidHostBridge.applicationContext();
+        if (context == null) {
+            return null;
+        }
+
+        File canonicalSource = source.getCanonicalFile();
+        File packagesRoot = new File(context.getCodeCacheDir(), "lua_apk_plugins/packages");
+        if (!packagesRoot.exists() && !packagesRoot.mkdirs()) {
+            throw new IOException("无法创建插件暂存目录：" + packagesRoot);
+        }
+
+        synchronized (APK_PLUGIN_LOCK) {
+            String packageKey = pluginCacheKey(canonicalSource);
+            File packageDirectory = new File(packagesRoot, packageKey);
+            File stagedApk = new File(packageDirectory, "base.apk");
+            if (isCurrentStagedPackage(stagedApk, canonicalSource)) {
+                return stagedApk;
+            }
+
+            File temporaryDirectory = new File(packagesRoot, packageKey + ".tmp");
+            deleteRecursively(temporaryDirectory);
+            if (!temporaryDirectory.mkdirs()) {
+                throw new IOException("无法创建插件临时目录：" + temporaryDirectory);
+            }
+
+            try {
+                File temporaryApk = new File(temporaryDirectory, "base.apk");
+                try (InputStream input = new FileInputStream(canonicalSource);
+                     OutputStream output = new FileOutputStream(temporaryApk, false)) {
+                    copy(input, output);
+                }
+                if (!temporaryApk.setLastModified(canonicalSource.lastModified())) {
+                    Log.w(TAG, "无法保留插件更新时间：" + canonicalSource);
+                }
+                try {
+                    extractNativeLibraries(temporaryApk, temporaryDirectory);
+                } catch (ZipException ignored) {
+                    // 原始 DEX 没有 ZIP 条目，仍可作为纯 Java 插件使用。
+                }
+
+                deleteRecursively(packageDirectory);
+                if (!temporaryDirectory.renameTo(packageDirectory)) {
+                    throw new IOException("无法完成插件暂存：" + canonicalSource.getName());
+                }
+                return new File(packageDirectory, "base.apk");
+            } catch (IOException | RuntimeException error) {
+                deleteRecursively(temporaryDirectory);
+                throw error;
+            }
+        }
+    }
+
+    private static boolean isCurrentStagedPackage(File stagedApk, File source) {
+        return stagedApk.isFile()
+                && stagedApk.length() == source.length()
+                && stagedApk.lastModified() == source.lastModified();
+    }
+
+    private static String pluginCacheKey(File source) {
+        String sourcePath = source.getAbsolutePath();
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(sourcePath.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                builder.append(Character.forDigit((value >>> 4) & 0x0f, 16));
+                builder.append(Character.forDigit(value & 0x0f, 16));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException ignored) {
+            return Integer.toHexString(sourcePath.hashCode());
+        }
+    }
+
+    private static void extractNativeLibraries(File packageFile, File packageDirectory) throws IOException {
+        try (ZipFile zipFile = new ZipFile(packageFile)) {
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String name = entry.getName();
+                if (entry.isDirectory() || !isNativeLibraryEntry(name)) {
+                    continue;
+                }
+                File destination = safePackageFile(packageDirectory, name);
+                File parent = destination.getParentFile();
+                if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+                    throw new IOException("无法创建 native 插件目录：" + destination);
+                }
+                try (InputStream input = zipFile.getInputStream(entry);
+                     OutputStream output = new FileOutputStream(destination, false)) {
+                    copy(input, output);
+                }
+                destination.setReadable(true, true);
+                destination.setExecutable(true, true);
+            }
+        }
+    }
+
+    private static boolean isNativeLibraryEntry(String name) {
+        if (name == null || !name.startsWith("lib/") || !name.endsWith(".so")) {
+            return false;
+        }
+        String[] pieces = name.split("/");
+        return pieces.length == 3
+                && !pieces[1].isEmpty()
+                && !pieces[2].isEmpty()
+                && pieces[1].indexOf('\\') < 0
+                && pieces[2].indexOf('\\') < 0;
+    }
+
+    private static File safePackageFile(File packageDirectory, String relativePath) throws IOException {
+        File root = packageDirectory.getCanonicalFile();
+        File candidate = new File(root, relativePath).getCanonicalFile();
+        if (!candidate.getPath().startsWith(root.getPath() + File.separator)) {
+            throw new IOException("APK native 库路径非法：" + relativePath);
+        }
+        return candidate;
+    }
+
+    private static void deleteRecursively(File target) throws IOException {
+        if (target == null || !target.exists()) {
+            return;
+        }
+        if (target.isDirectory()) {
+            File[] children = target.listFiles();
+            if (children == null) {
+                throw new IOException("无法读取插件缓存目录：" + target);
+            }
+            for (File child : children) {
+                deleteRecursively(child);
+            }
+        }
+        if (!target.delete()) {
+            throw new IOException("无法清理插件缓存：" + target);
+        }
     }
 
     private static void sendMailAsync(

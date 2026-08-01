@@ -144,6 +144,16 @@ public final class ExtensionCatalog {
         return file != null && file.isFile() && file.canRead() ? file : null;
     }
 
+    /**
+     * 返回已导入的文件或目录，供脚本运行时取得 private extension 路径。
+     *
+     * 不解析文件类型，也不加载其中的 native 代码；调用方负责自己的相对路径、ABI 与依赖顺序。
+     */
+    public static File getImportedEntry(Context context, String relativePath) {
+        File entry = getImportedPath(context, relativePath);
+        return entry != null && entry.exists() && entry.canRead() ? entry : null;
+    }
+
     private static boolean hasImportedEntry(Context context, String relativePath, boolean directory) {
         File entry = getImportedPath(context, relativePath);
         return entry != null && entry.canRead() && (directory ? entry.isDirectory() : entry.isFile());
