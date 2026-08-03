@@ -1,6 +1,14 @@
 -- 文件用途：脚本启动时加载的 Lua 引导层，负责切换 m/lr/cd API 到全局环境。
 -- 默认直接启用 m，因此普通脚本可调用 appIsFront()、getScreenPixels()、capture(path) 等函数。
 
+local m = require("xiaoyv.runtime.compat_extended")
+local lr = require("xiaoyv.runtime.compat_lr")
+local cd = require("xiaoyv.runtime.compat_cd")
+
+_G.m = m
+_G.lr = lr
+_G.cd = cd
+
 local exportedGlobals = {}
 
 local function clearExportedGlobals()
@@ -48,6 +56,8 @@ end
 _G.useApi = m.useApi
 _G.switchApi = m.useApi
 
--- 默认启用小鱼精灵 API。m/lr/cd 已由前面的运行时文件创建完成。
+-- 默认启用小鱼精灵 API。m/lr/cd 已由上面的 require 完成初始化。
 assert(m.useApi("m"))
 _G._host = nil
+
+return m

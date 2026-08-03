@@ -9,6 +9,10 @@
 - RootDaemon 由 `su -c app_process` 创建，监听仅限本机的认证 socket；`:engine` 只连接它，绝不执行 `su`。
 - 每次 Root 脚本会话由 RootDaemon 直接创建 uid=0 的 `EngineWorkerMain` 子进程。子进程继承
   RootDaemon 权限，不再次执行 `su`；脚本、FFI、JavaInterop、模型和用户 SO 全部留在该子进程。
+- 独立 `app_process` 不继承 Zygote 已完成的 Conscrypt JNI 注册。RootDaemon 为 Worker 保留 APK
+  native 目录和系统 Java native 搜索路径；Worker 先绝对加载 `libengine.so`，再由 bootstrap
+  `java.lang.Runtime` 加载 Conscrypt 的 `libjavacrypto.so`，之后才向控制进程注册 Binder。
+  当前最低支持 Android 7（API 24），统一使用 `Runtime.load0(Class,String)`。
 - RootDaemon 自身不加载 `libengine.so`、语言 VM、模型或用户 SO。它只监督 Worker，并继续承载
   截图、输入、系统控制和音量键等稳定 Root 能力。
 - RootDaemon 端口由当前 Android 应用 UID 映射生成，不同安装包使用不同回环端口。保留旧版

@@ -2,14 +2,19 @@
  * 文件用途：实现 Java NativeEngine 到 libengine.so 的 JNI 调用入口。
  */
 #include <jni.h>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 #include <android/bitmap.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
 
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <limits>
+#include <memory>
 #include <new>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -21,11 +26,42 @@
 #include "platform/imgui_renderer.h"
 #include "runtime/common/log_buffer.h"
 #include "runtime/lua/java_bridge.h"
+#include "runtime/lua/lua_module_source.h"
 
 namespace {
 
 constexpr const char* kLogTag = "小鱼精灵";
-Engine gEngine;
+constexpr const char* kLuaBootstrapModule = "xiaoyv.runtime.bootstrap";
+
+struct LuaRuntimeAssetSpec {
+    const char* moduleName;
+    const char* assetPath;
+};
+
+constexpr LuaRuntimeAssetSpec kLuaRuntimeAssets[] = {
+        {"xiaoyv.runtime.api_m", "runtime/api_m.lua"},
+        {"xiaoyv.runtime.compat_extended", "runtime/compat_extended.lua"},
+        {"xiaoyv.runtime.compat_lr", "runtime/compat_lr.lua"},
+        {"xiaoyv.runtime.compat_cd", "runtime/compat_cd.lua"},
+        {kLuaBootstrapModule, "runtime/bootstrap.lua"},
+        {"ltn12", "runtime/luasocket/ltn12.lua"},
+        {"mime", "runtime/luasocket/mime.lua"},
+        {"socket", "runtime/luasocket/socket.lua"},
+        {"socket.ftp", "runtime/luasocket/socket/ftp.lua"},
+        {"socket.headers", "runtime/luasocket/socket/headers.lua"},
+        {"socket.http", "runtime/luasocket/socket/http.lua"},
+        {"socket.smtp", "runtime/luasocket/socket/smtp.lua"},
+        {"socket.tp", "runtime/luasocket/socket/tp.lua"},
+        {"socket.url", "runtime/luasocket/socket/url.lua"},
+};
+
+Engine& engineInstance() {
+    // Engine 会在 nativeInit 中、runtime_api 的静态状态完成构造后才首次创建。
+    // 这样进程正常退出时会先析构 Engine，再析构它所使用的 runtime mutex，
+    // 避免跨编译单元的静态初始化顺序导致 destroyed mutex 崩溃。
+    static Engine instance;
+    return instance;
+}
 
 void logInfo(const char* message) {
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s", message);
@@ -47,20 +83,175 @@ std::string jStringToString(JNIEnv* env, jstring value) {
     return result;
 }
 
+void throwIllegalState(JNIEnv* env, const std::string& message) {
+    jclass exceptionClass = env->FindClass("java/lang/IllegalStateException");
+    if (exceptionClass == nullptr) {
+        return;
+    }
+    env->ThrowNew(exceptionClass, message.c_str());
+    env->DeleteLocalRef(exceptionClass);
+}
+
+bool readAssetSource(
+        AAssetManager* assetManager,
+        const char* assetPath,
+        std::string* source,
+        std::string* error) {
+    if (assetManager == nullptr || assetPath == nullptr || source == nullptr) {
+        if (error != nullptr) *error = "Lua 运行时 AssetManager 或路径为空";
+        return false;
+    }
+
+    std::unique_ptr<AAsset, void (*)(AAsset*)> asset(
+            AAssetManager_open(assetManager, assetPath, AASSET_MODE_STREAMING),
+            AAsset_close
+    );
+    if (asset == nullptr) {
+        if (error != nullptr) *error = "打开 Lua 运行时资源失败：" + std::string(assetPath);
+        return false;
+    }
+
+    off64_t assetSize = AAsset_getLength64(asset.get());
+    if (assetSize <= 0
+            || static_cast<uint64_t>(assetSize) > std::numeric_limits<std::size_t>::max()) {
+        if (error != nullptr) *error = "Lua 运行时资源为空或过大：" + std::string(assetPath);
+        return false;
+    }
+
+    source->assign(static_cast<std::size_t>(assetSize), '\0');
+    std::size_t offset = 0;
+    while (offset < source->size()) {
+        std::size_t remaining = source->size() - offset;
+        std::size_t requestSize = remaining > static_cast<std::size_t>(std::numeric_limits<int>::max())
+                ? static_cast<std::size_t>(std::numeric_limits<int>::max())
+                : remaining;
+        int readCount = AAsset_read(
+                asset.get(),
+                source->data() + offset,
+                requestSize
+        );
+        if (readCount <= 0) {
+            if (error != nullptr) *error = "读取 Lua 运行时资源失败：" + std::string(assetPath);
+            return false;
+        }
+        offset += static_cast<std::size_t>(readCount);
+    }
+    return true;
+}
+
+bool readLuaRuntimeConfig(
+        JNIEnv* env,
+        jobject assetManagerValue,
+        LuaRuntimeConfig* config,
+        std::string* error) {
+    if (assetManagerValue == nullptr || config == nullptr) {
+        if (error != nullptr) *error = "Lua 运行时 AssetManager 为空";
+        return false;
+    }
+
+    AAssetManager* assetManager = AAssetManager_fromJava(env, assetManagerValue);
+    if (assetManager == nullptr) {
+        if (error != nullptr) *error = "无法取得 Android AssetManager";
+        return false;
+    }
+
+    config->modules.clear();
+    config->modules.reserve(sizeof(kLuaRuntimeAssets) / sizeof(kLuaRuntimeAssets[0]));
+    config->bootstrapModule = kLuaBootstrapModule;
+    for (const LuaRuntimeAssetSpec& assetSpec : kLuaRuntimeAssets) {
+        std::string source;
+        if (!readAssetSource(assetManager, assetSpec.assetPath, &source, error)) {
+            return false;
+        }
+        config->modules.push_back({
+                assetSpec.moduleName,
+                "@" + std::string(assetSpec.assetPath),
+                std::move(source),
+        });
+    }
+    return true;
+}
+
 } // namespace
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_xiaoyv_engine_NativeEngine_nativeInit(JNIEnv* env, jclass clazz) {
+Java_com_xiaoyv_engine_NativeEngine_nativeLoadRootSystemLibrary(JNIEnv* env,
+                                                                jclass clazz,
+                                                                jstring path) {
     (void) clazz;
 
-    // 第一阶段只验证 native 库已经被正确加载。
-    // Lua Runtime 会在下一阶段接入，避免一次改动混入太多变量。
-    JavaVM* javaVm = nullptr;
-    env->GetJavaVM(&javaVm);
-    AndroidBridge::init(javaVm);
-    initializeLuaJavaBridge(javaVm);
+    // Root Worker 由独立 app_process 启动，没有从 Zygote 继承 Conscrypt 的 JNI 注册。
+    // 直接从应用 ClassLoader 调用 System.load 会落入应用 linker namespace，无法访问
+    // /system 或 Conscrypt APEX。改由 bootstrap Runtime 类作为调用方执行 load0，确保
+    // NativeLoader 使用系统命名空间并正常调用 libjavacrypto 的 JNI_OnLoad。
+    jclass runtimeClass = env->FindClass("java/lang/Runtime");
+    if (runtimeClass == nullptr) return;
 
-    gEngine.init();
+    jmethodID getRuntime = env->GetStaticMethodID(
+            runtimeClass,
+            "getRuntime",
+            "()Ljava/lang/Runtime;"
+    );
+    if (getRuntime == nullptr) return;
+
+    jobject runtime = env->CallStaticObjectMethod(runtimeClass, getRuntime);
+    if (env->ExceptionCheck() || runtime == nullptr) return;
+
+    jmethodID load = env->GetMethodID(
+            runtimeClass,
+            "load0",
+            "(Ljava/lang/Class;Ljava/lang/String;)V"
+    );
+    if (load != nullptr) {
+        env->CallVoidMethod(runtime, load, runtimeClass, path);
+    }
+    env->DeleteLocalRef(runtime);
+    env->DeleteLocalRef(runtimeClass);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xiaoyv_engine_NativeEngine_nativeInit(
+        JNIEnv* env,
+        jclass clazz,
+        jobject assetManager) {
+    (void) clazz;
+
+    // Worker 初始化时读取并深拷贝固定 runtime assets；每个脚本创建自己的 Lua VM，
+    // 再把这份只读配置注册为 package.preload。
+    try {
+        LuaRuntimeConfig runtimeConfig;
+        std::string configError;
+        if (!readLuaRuntimeConfig(
+                env,
+                assetManager,
+                &runtimeConfig,
+                &configError
+        )) {
+            if (!env->ExceptionCheck()) {
+                throwIllegalState(env, configError.empty() ? "初始化 Lua 运行时失败" : configError);
+            }
+            return;
+        }
+
+        JavaVM* javaVm = nullptr;
+        if (env->GetJavaVM(&javaVm) != JNI_OK || javaVm == nullptr) {
+            throwIllegalState(env, "初始化 Lua 运行时失败：无法取得 JavaVM");
+            return;
+        }
+        AndroidBridge::init(javaVm);
+        initializeLuaJavaBridge(javaVm);
+        engineInstance().init(std::move(runtimeConfig));
+    } catch (const std::exception& exception) {
+        if (!env->ExceptionCheck()) {
+            throwIllegalState(env, std::string("初始化 Lua 运行时失败：") + exception.what());
+        }
+        return;
+    } catch (...) {
+        if (!env->ExceptionCheck()) {
+            throwIllegalState(env, "初始化 Lua 运行时失败：native 异常");
+        }
+        return;
+    }
     logInfo("native engine initialized");
 }
 
@@ -68,17 +259,15 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_xiaoyv_engine_NativeEngine_nativeCallJson(JNIEnv* env,
                                                     jclass clazz,
                                                     jstring method,
-                                                    jstring paramsJson,
-                                                    jstring luaRuntimeBootstrap) {
+                                                    jstring paramsJson) {
     (void) clazz;
 
     // Java/HTTP/Service 只传 method + params；控制命令校验、任务控制和状态查询
     // 都在 libengine.so 内完成，保证 App、IDE 和后续控制端插件复用同一入口。
     std::string result = handleEngineCommand(
-            gEngine,
+            engineInstance(),
             jStringToString(env, method),
-            jStringToString(env, paramsJson),
-            jStringToString(env, luaRuntimeBootstrap)
+            jStringToString(env, paramsJson)
     );
     return env->NewStringUTF(result.c_str());
 }

@@ -90,6 +90,9 @@ test("lua-5.4-and-api-presence", function()
     assert(m.imeLib == nil)
     assert(imeLib == nil)
     assert(m.http == nil)
+    assert(host == nil)
+    assert(platformCall == nil)
+    assert(rawTouchDown == nil)
     return _VERSION
 end)
 

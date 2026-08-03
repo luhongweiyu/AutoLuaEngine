@@ -9,6 +9,8 @@
 #include <condition_variable>
 #include <mutex>
 
+#include "../runtime/lua/lua_module_source.h"
+
 class AlpkgPackage;
 class LuaRuntime;
 
@@ -29,9 +31,10 @@ public:
     /**
      * 初始化引擎。
      *
-     * 当前只记录初始化状态；后续会在这里挂载平台能力、日志通道和任务管理器。
+     * Lua runtime assets 在 Worker 初始化时一次性传入并由 Engine 持有；每个脚本 VM
+     * 都使用同一份只读模块配置注册 package.preload。
      */
-    void init();
+    void init(LuaRuntimeConfig luaRuntimeConfig);
 
     /**
      * 执行 Lua 文本。
@@ -44,7 +47,6 @@ public:
     /** 运行已经由 Java 校验路径并由 native 打开的 ALPKG 脚本包。 */
     std::string runLuaPackage(
             const std::shared_ptr<AlpkgPackage>& package,
-            const char* runtimeBootstrap,
             const std::string& workPath
     );
 
@@ -88,6 +90,7 @@ private:
     std::mutex runMutex_;
     std::mutex runtimeMutex_;
     mutable std::mutex taskMutex_;
+    LuaRuntimeConfig luaRuntimeConfig_;
     LuaRuntime* activeLuaRuntime_;
     int lastTaskId_;
     std::string lastStatus_;
@@ -97,7 +100,6 @@ private:
     std::string runLuaInternal(
             const std::shared_ptr<AlpkgPackage>& package,
             const char* code,
-            const char* runtimeBootstrap,
             const std::string& workPath
     );
 

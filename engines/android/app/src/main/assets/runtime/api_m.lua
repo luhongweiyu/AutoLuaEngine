@@ -381,5 +381,5 @@ function m.toast(text, durationMs)
     })
 end
 
--- 仅注册命名空间本身。具体函数全局导出由 bootstrap.lua 统一完成。
-_G.m = m
+-- 公开命名空间和一级全局函数统一由 bootstrap.lua 导出。
+return m

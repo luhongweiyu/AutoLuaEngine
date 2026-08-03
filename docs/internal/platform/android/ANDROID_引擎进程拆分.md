@@ -55,6 +55,7 @@ EngineWorkerCoordinator
   -> ActivityThread.systemMain().getSystemContext()
   -> createPackageContext(packageName)
   -> 绝对加载 nativeLibraryDir/libengine.so
+  -> bootstrap Runtime 加载系统 libjavacrypto.so
   -> EngineWorkerBridgeProvider.registerWorker(runId, oneTimeToken, binder)
 ```
 
@@ -63,6 +64,9 @@ Root 授权。Provider 只接受 root 或本应用 UID，并且 Root Binder 必�
 `runId` 和一次性随机令牌；旧 Worker 或其他进程不能覆盖当前会话。
 Root `app_process` 不属于 AMS 注册的应用进程，访问宿主 Provider 时由 `ContentProviderBridge`
 申请并及时释放 external provider 引用，避免依赖普通应用进程的 `ContentResolver` 身份。
+它也不会继承 Zygote 已完成的 Conscrypt JNI 注册。RootDaemon 启动 Worker 时同时保留 APK native
+目录和当前系统 Java native 搜索路径；Worker 先加载 `libengine.so`，再由 bootstrap
+`java.lang.Runtime` 在系统 linker namespace 中加载 `libjavacrypto.so`，完成后才注册 Binder。
 
 ### 非 Root
 
@@ -96,6 +100,10 @@ Worker 的 `log.drain` ID 每个进程从头开始，`EngineWorkerCoordinator` �
 正常结束调用 Worker 清理入口后退出进程；强停或 Binder 死亡由对应外壳回收：Root Worker 交给
 RootDaemon 的 `Process` 监督，本地 Worker 直接结束 `:worker`。进程退出后由内核统一回收 Java
 堆、语言堆、native 分配、SO 全局状态、线程、FD、模型、EGL 和纹理。
+
+JNI 的 `Engine` 使用函数内静态实例，在 runtime 全局同步状态完成构造后才首次创建。正常进程
+退出时因此会先析构 `Engine`，再析构它依赖的 mutex，不能改回跨编译单元的全局 `Engine`
+实例，否则静态析构顺序可能重新引入退出崩溃。
 
 ## 控制命令语义
 

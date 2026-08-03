@@ -4,14 +4,10 @@
 package com.xiaoyv.engine;
 
 import android.content.Context;
+import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.util.DisplayMetrics;
 import android.view.Surface;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Java 层统一 native 入口。
@@ -19,29 +15,9 @@ import java.nio.charset.StandardCharsets;
  * 后续所有 Java/Kotlin 到 C++ 引擎的调用都从这里走，避免 JNI 方法散落在各处。
  */
 public final class NativeEngine {
-    private static final String[] LUA_RUNTIME_ASSETS = {
-            "runtime/api_m.lua",
-            "runtime/compat_extended.lua",
-            "runtime/compat_lr.lua",
-            "runtime/compat_cd.lua",
-            "runtime/bootstrap.lua"
-    };
-    private static final String[][] LUA_RUNTIME_MODULE_ASSETS = {
-            {"ltn12", "runtime/luasocket/ltn12.lua"},
-            {"mime", "runtime/luasocket/mime.lua"},
-            {"socket", "runtime/luasocket/socket.lua"},
-            {"socket.ftp", "runtime/luasocket/socket/ftp.lua"},
-            {"socket.headers", "runtime/luasocket/socket/headers.lua"},
-            {"socket.http", "runtime/luasocket/socket/http.lua"},
-            {"socket.smtp", "runtime/luasocket/socket/smtp.lua"},
-            {"socket.tp", "runtime/luasocket/socket/tp.lua"},
-            {"socket.url", "runtime/luasocket/socket/url.lua"}
-    };
-
     private static boolean libraryLoaded;
     private static boolean initialized;
     private static Context appContext;
-    private static String luaRuntimeBootstrap;
 
     private NativeEngine() {
     }
@@ -62,6 +38,17 @@ public final class NativeEngine {
         libraryLoaded = true;
     }
 
+    /** 仅供独立 Root app_process 用 bootstrap ClassLoader 初始化系统 Java native。 */
+    static synchronized void loadRootSystemLibrary(String absolutePath) {
+        if (!libraryLoaded) {
+            throw new IllegalStateException("native 引擎尚未加载");
+        }
+        if (absolutePath == null || absolutePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("系统 native 库路径为空");
+        }
+        nativeLoadRootSystemLibrary(absolutePath);
+    }
+
     public static synchronized void init(Context context) {
         if (initialized) {
             return;
@@ -70,8 +57,7 @@ public final class NativeEngine {
         Context application = context.getApplicationContext();
         appContext = application == null ? context : application;
         AndroidHostBridge.init(appContext);
-        luaRuntimeBootstrap = loadLuaRuntimeBootstrap(appContext);
-        nativeInit();
+        nativeInit(appContext.getAssets());
         initialized = true;
     }
 
@@ -84,8 +70,7 @@ public final class NativeEngine {
     public static String callJson(String method, String paramsJson) {
         return nativeCallJson(
                 method == null ? "" : method,
-                paramsJson == null || paramsJson.trim().isEmpty() ? "{}" : paramsJson,
-                luaRuntimeBootstrap == null ? "" : luaRuntimeBootstrap
+                paramsJson == null || paramsJson.trim().isEmpty() ? "{}" : paramsJson
         );
     }
 
@@ -151,55 +136,19 @@ public final class NativeEngine {
         nativeEnqueueImGuiScroll(horizontal, vertical);
     }
 
+    private static native void nativeLoadRootSystemLibrary(String absolutePath);
+
     /**
-     * 从 assets/runtime 读取 Lua 运行时层。
+     * 初始化 native 引擎及固定 Lua 运行时模块。
      *
-     * C++ 只暴露 native _host 表；m/lr/cd/useApi 这些命名空间和兼容逻辑都放在
-     * Lua 层，后续补兼容函数时不需要改 native 代码。
+     * Java 只提供当前 APK 的 AssetManager；模块白名单、路径、读取和 package.preload 注册
+     * 全部由 native Lua runtime 统一管理。
      */
-    private static String loadLuaRuntimeBootstrap(Context context) {
-        StringBuilder builder = new StringBuilder();
-        for (String assetPath : LUA_RUNTIME_ASSETS) {
-            // compat_extended.lua 会为现有 HTTPS 入口包一层适配；必须先保留上游 loader。
-            if ("runtime/compat_extended.lua".equals(assetPath)) {
-                appendLuaRuntimeModules(context, builder);
-            }
-            builder.append("\n-- ").append(assetPath).append("\n");
-            builder.append(readAssetText(context, assetPath)).append('\n');
-        }
-        return builder.toString();
-    }
-
-    private static void appendLuaRuntimeModules(Context context, StringBuilder builder) {
-        for (String[] module : LUA_RUNTIME_MODULE_ASSETS) {
-            builder.append("\n-- ").append(module[1]).append("\n");
-            builder.append("package.preload[\"").append(module[0])
-                    .append("\"] = function(...)\n");
-            builder.append(readAssetText(context, module[1]));
-            builder.append("\nend\n");
-        }
-    }
-
-    private static String readAssetText(Context context, String assetPath) {
-        try (InputStream inputStream = context.getAssets().open(assetPath);
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096];
-            int readCount;
-            while ((readCount = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, readCount);
-            }
-            return outputStream.toString(StandardCharsets.UTF_8.name());
-        } catch (IOException exception) {
-            throw new IllegalStateException("读取 Lua 运行时资源失败：" + assetPath, exception);
-        }
-    }
-
-    private static native void nativeInit();
+    private static native void nativeInit(AssetManager assetManager);
 
     private static native String nativeCallJson(
             String method,
-            String paramsJson,
-            String luaRuntimeBootstrap
+            String paramsJson
     );
 
     private static native byte[] nativeGetScreenFrame();

@@ -32,13 +32,8 @@ public:
     LuaTaskScheduler(const LuaTaskScheduler&) = delete;
     LuaTaskScheduler& operator=(const LuaTaskScheduler&) = delete;
 
-    /**
-     * 执行根状态栈顶已经加载完成的初始化代码。
-     *
-     * 根状态只执行运行时引导，不执行用户主脚本，因此后续 Java 回调始终可以在空闲的
-     * 根状态上安全调用 Lua 函数。
-     */
-    std::string runBootstrap();
+    /** 在根状态调用 require(moduleName)，完成后根状态继续专用于共享全局和 Java 回调。 */
+    std::string runBootstrapModule(const std::string& moduleName);
 
     /**
      * 执行主脚本子状态栈顶的已加载函数，并在返回前停止、回收全部子线程。

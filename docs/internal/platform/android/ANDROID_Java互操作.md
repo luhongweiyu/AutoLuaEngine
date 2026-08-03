@@ -18,8 +18,11 @@ Lua import / Java userdata / Lua interface callback
 
 Root 模式的 JavaVM、`JavaInteropBridge`、APK/Dex ClassLoader、回调代理与 Lua VM 全部位于
 uid=0 的一次性 `EngineWorkerMain`。它通过 `ActivityThread.systemMain()` 取得 system Context，再
-创建本包 Context 用于 assets、资源、私有路径和类加载；非 Root 模式由 `:worker` Service 提供
-普通 Application Context。两种模式的 `import`、重载和返回规则相同，区别只在进程 UID。
+创建本包 Context 用于 assets、资源和私有路径；非 Root 模式由 `:worker` Service 提供普通
+Application Context。Root package Context 可能产生另一套 APK ClassLoader，因此宿主类统一优先
+使用实际承载 `EngineWorkerMain`、`JavaInteropBridge` 和 `LuaEngine` 的 ClassLoader，APK/Dex
+插件也以该加载器为父级，避免同一宿主类被加载两次并各自持有一份静态状态。两种模式的
+`import`、重载和返回规则相同，区别只在进程 UID。
 
 实际 Android 组件实例不搬进 Root Worker：脚本 UI、ImGui Surface、输入法和无障碍节点通过
 App UID 的 Provider/Binder 宿主访问。任意 Java/FFI/用户 SO 代码则仍在 Worker 本地执行。

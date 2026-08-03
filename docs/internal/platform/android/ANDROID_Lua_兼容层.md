@@ -6,22 +6,27 @@ AI 接手使用。公开参数和示例以 `docs/public/脚本文档/catalog.jso
 
 ## 加载顺序
 
-每个 Lua 状态按以下顺序执行运行时资源：
+每个 Lua VM 创建后，native 先把可信 runtime assets 以真实文件名编译并注册到
+`package.preload`。随后根状态只执行：
 
-```text
-api_m.lua
-compat_extended.lua
-compat_lr.lua
-compat_cd.lua
-bootstrap.lua
+```lua
+require("xiaoyv.runtime.bootstrap")
 ```
 
-- `api_m.lua` 只组装稳定 HostApi 和小鱼原生契约。
+- `bootstrap.lua` 通过 `require` 加载 `compat_extended`、`compat_lr` 和 `compat_cd`；
+  `compat_extended` 再加载 `api_m`。`package.loaded` 保证共享模块只执行一次。
+- `api_m.lua` 返回稳定 HostApi 和小鱼原生契约组成的 `m` 表，不直接导出全局变量。
 - `compat_extended.lua` 在同一个 `m` 表上增加兼容接口，并复用已经存在的截图、点阵字库、
   输入、输入法、线程和设备能力。
 - `compat_lr.lua` / `compat_cd.lua` 先保留各自必须不同的入口，再复制语义相同的 `m` 成员。
   `lr.findPic` 是当前明确的专属覆盖；默认 `m.findPic` 不得被改成懒人方向或返回形状。
-- `bootstrap.lua` 最后导出默认 `m` 一级成员，因此新增兼容函数在普通脚本里也可直接调用。
+- `bootstrap.lua` 集中写入 `_G.m`、`_G.lr`、`_G.cd` 并导出默认 `m` 一级成员，因此新增兼容
+  函数在普通脚本里也可直接调用。
+
+每个 asset 都是独立 Lua chunk，需要长期存在的文件内 `local` 由模块闭包保存，不跨文件泄漏。runtime
+初始化完成后，文本源码或 ALPKG 入口才在共享 `_G` 的主任务子状态单独加载；禁止重新把运行时
+源码与用户代码拼成一个 chunk。LuaSocket 的 Lua 模块也使用同一套 `package.preload` 注册机制，
+且必须在加载 `compat_extended` 前全部注册，以便 HTTPS 适配层捕获上游 `socket.http` loader。
 
 不要在各兼容文件直接散落 `_G.xxx = ...`。全局切换只能由 bootstrap 的 `useApi` /
 `switchApi` 管理。

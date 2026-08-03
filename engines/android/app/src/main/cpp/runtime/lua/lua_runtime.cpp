@@ -54,6 +54,7 @@ LuaRuntime::~LuaRuntime() {
 
 std::string LuaRuntime::runText(
         const char* code,
+        const LuaRuntimeConfig& runtimeConfig,
         bool (*shouldInterrupt)(void*),
         void* controlContext) {
     if (state_ == nullptr) {
@@ -66,6 +67,11 @@ std::string LuaRuntime::runText(
         return prepareError;
     }
 
+    std::string runtimeError = initializeRuntime(runtimeConfig);
+    if (!runtimeError.empty()) {
+        return runtimeError;
+    }
+
     int registryReference = LUA_NOREF;
     lua_State* executionState = createExecutionState(&registryReference);
     if (executionState == nullptr) {
@@ -73,7 +79,14 @@ std::string LuaRuntime::runText(
     }
 
     // 主脚本不在根状态运行，保证 Java 异步回调始终可以使用空闲根状态。
-    int loadStatus = luaL_loadstring(executionState, code == nullptr ? "" : code);
+    const char* source = code == nullptr ? "" : code;
+    int loadStatus = luaL_loadbufferx(
+            executionState,
+            source,
+            std::strlen(source),
+            "@user-script",
+            "t"
+    );
     if (loadStatus != LUA_OK) {
         const char* error = lua_tostring(executionState, -1);
         std::string message = error == nullptr ? "Lua 代码加载失败" : error;
@@ -87,7 +100,7 @@ std::string LuaRuntime::runText(
 
 std::string LuaRuntime::runPackage(
         const std::shared_ptr<AlpkgPackage>& package,
-        const char* runtimeBootstrap,
+        const LuaRuntimeConfig& runtimeConfig,
         bool (*shouldInterrupt)(void*),
         void* controlContext) {
     if (state_ == nullptr) {
@@ -105,27 +118,10 @@ std::string LuaRuntime::runPackage(
     }
     installPackageLoaders();
 
-    // 包内入口是预编译字节码。运行时引导只在根状态执行一次并立即返回，用户入口随后
-    // 在主任务子状态执行，根状态继续专用于共享全局和 Java 回调。
-    const char* bootstrap = runtimeBootstrap == nullptr ? "" : runtimeBootstrap;
-    int bootstrapStatus = luaL_loadbufferx(
-            state_,
-            bootstrap,
-            std::strlen(bootstrap),
-            "@xiaoyv-runtime",
-            "t"
-    );
-    if (bootstrapStatus != LUA_OK) {
-        const char* error = lua_tostring(state_, -1);
-        std::string message = error == nullptr ? "Lua 运行时引导加载失败" : error;
-        lua_pop(state_, 1);
+    std::string runtimeError = initializeRuntime(runtimeConfig);
+    if (!runtimeError.empty()) {
         package_.reset();
-        return "Lua 加载失败：" + message;
-    }
-    std::string bootstrapError = scheduler_->runBootstrap();
-    if (!bootstrapError.empty()) {
-        package_.reset();
-        return "Lua 执行失败：" + bootstrapError;
+        return runtimeError;
     }
 
     int registryReference = LUA_NOREF;
@@ -162,6 +158,56 @@ std::string LuaRuntime::prepareRun(bool (*shouldInterrupt)(void*), void* control
     // tickCount 表示整个脚本任务的运行时间，所有 native 子线程共享同一个起点。
     xiaoyv::api::runtimeMarkScriptStart();
     configureTaskState(state_);
+    return "";
+}
+
+std::string LuaRuntime::initializeRuntime(const LuaRuntimeConfig& runtimeConfig) {
+    if (runtimeConfig.modules.empty() || runtimeConfig.bootstrapModule.empty()) {
+        return "Lua 加载失败：Lua 运行时模块配置为空";
+    }
+
+    lua_getglobal(state_, "package");
+    if (!lua_istable(state_, -1)) {
+        lua_pop(state_, 1);
+        return "Lua 加载失败：package 表不可用";
+    }
+    lua_getfield(state_, -1, "preload");
+    if (!lua_istable(state_, -1)) {
+        lua_pop(state_, 2);
+        return "Lua 加载失败：package.preload 表不可用";
+    }
+
+    for (const LuaModuleSource& module : runtimeConfig.modules) {
+        lua_getfield(state_, -1, module.name.c_str());
+        bool alreadyRegistered = !lua_isnil(state_, -1);
+        lua_pop(state_, 1);
+        if (alreadyRegistered) {
+            lua_pop(state_, 2);
+            return "Lua 加载失败：运行时模块名称冲突：" + module.name;
+        }
+
+        int loadStatus = luaL_loadbufferx(
+                state_,
+                module.source.data(),
+                module.source.size(),
+                module.chunkName.c_str(),
+                "t"
+        );
+        if (loadStatus != LUA_OK) {
+            const char* error = lua_tostring(state_, -1);
+            std::string message = error == nullptr ? "模块源码加载失败" : error;
+            lua_pop(state_, 1);
+            lua_pop(state_, 2);
+            return "Lua 加载失败：" + module.name + "：" + message;
+        }
+        lua_setfield(state_, -2, module.name.c_str());
+    }
+    lua_pop(state_, 2);
+
+    std::string bootstrapError = scheduler_->runBootstrapModule(runtimeConfig.bootstrapModule);
+    if (!bootstrapError.empty()) {
+        return "Lua 执行失败：" + bootstrapError;
+    }
     return "";
 }
 

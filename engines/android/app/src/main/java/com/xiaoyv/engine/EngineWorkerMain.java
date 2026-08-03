@@ -31,6 +31,7 @@ public final class EngineWorkerMain {
                 Looper.prepareMainLooper();
             }
             Context context = createPackageContext(arguments.packageName);
+            NativeEngine.loadLibrary(arguments.nativeLibraryDirectory);
             prepareRootJavaRuntime();
             CountDownLatch shutdown = new CountDownLatch(1);
             endpoint = new EngineWorkerEndpoint(
@@ -81,16 +82,25 @@ public final class EngineWorkerMain {
     }
 
     private static void prepareRootJavaRuntime() {
-        File javaCrypto = new File("/system/lib64/libjavacrypto.so");
-        if (!javaCrypto.isFile()) {
-            javaCrypto = new File("/system/lib/libjavacrypto.so");
+        String[] candidates = {
+                "/apex/com.android.conscrypt/lib64/libjavacrypto.so",
+                "/system/lib64/libjavacrypto.so"
+        };
+        File javaCrypto = null;
+        for (String candidate : candidates) {
+            File file = new File(candidate);
+            if (file.isFile()) {
+                javaCrypto = file;
+                break;
+            }
         }
-        if (!javaCrypto.isFile()) return;
+        if (javaCrypto == null) {
+            throw new IllegalStateException("未找到 Android Java 加密运行库 libjavacrypto.so");
+        }
         try {
-            System.load(javaCrypto.getAbsolutePath());
+            NativeEngine.loadRootSystemLibrary(javaCrypto.getAbsolutePath());
         } catch (UnsatisfiedLinkError error) {
-            // 部分 Android 版本已由 RuntimeInit 注册 Conscrypt native；重复加载无需失败。
-            Log.d(TAG, "Root Java 加密运行库已由系统提供：" + error.getMessage());
+            throw new IllegalStateException("初始化 Root Java 加密运行库失败", error);
         }
     }
 

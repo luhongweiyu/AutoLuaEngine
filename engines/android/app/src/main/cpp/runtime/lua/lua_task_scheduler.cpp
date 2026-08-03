@@ -62,14 +62,21 @@ LuaTaskScheduler::~LuaTaskScheduler() {
     stopAndJoinAll();
 }
 
-std::string LuaTaskScheduler::runBootstrap() {
+std::string LuaTaskScheduler::runBootstrapModule(const std::string& moduleName) {
     enterVm(nullptr);
-    int callStatus = lua_pcall(rootState_, 0, 0, 0);
     std::string result;
-    if (callStatus != LUA_OK) {
-        const char* error = lua_tostring(rootState_, -1);
-        result = error == nullptr ? "Lua 运行时引导执行失败" : error;
+    lua_getglobal(rootState_, "require");
+    if (!lua_isfunction(rootState_, -1)) {
         lua_pop(rootState_, 1);
+        result = "Lua require 不可用";
+    } else {
+        lua_pushlstring(rootState_, moduleName.data(), moduleName.size());
+        int callStatus = lua_pcall(rootState_, 1, 0, 0);
+        if (callStatus != LUA_OK) {
+            const char* error = lua_tostring(rootState_, -1);
+            result = error == nullptr ? "Lua 运行时引导执行失败" : error;
+            lua_pop(rootState_, 1);
+        }
     }
     leaveVm();
     return result;

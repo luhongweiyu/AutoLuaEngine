@@ -51,9 +51,21 @@ final class RootWorkerSupervisor {
             );
             builder.environment().put("CLASSPATH", classPath);
             String oldLibraryPath = builder.environment().get("LD_LIBRARY_PATH");
+            String fallbackSystemLibraryPath =
+                    "/apex/com.android.conscrypt/lib64:/system/lib64:/vendor/lib64";
+            String systemLibraryPath = System.getProperty("java.library.path", "");
+            if (systemLibraryPath == null || systemLibraryPath.trim().isEmpty()) {
+                systemLibraryPath = fallbackSystemLibraryPath;
+            } else {
+                String conscryptLibraryPath = "/apex/com.android.conscrypt/lib64";
+                if (new File(conscryptLibraryPath).isDirectory()
+                        && !systemLibraryPath.contains(conscryptLibraryPath)) {
+                    systemLibraryPath = conscryptLibraryPath + ":" + systemLibraryPath;
+                }
+            }
             builder.environment().put(
                     "LD_LIBRARY_PATH",
-                    nativeLibraryDirectory
+                    nativeLibraryDirectory + ":" + systemLibraryPath
                             + (oldLibraryPath == null || oldLibraryPath.isEmpty()
                             ? ""
                             : ":" + oldLibraryPath)

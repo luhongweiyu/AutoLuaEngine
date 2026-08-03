@@ -898,6 +898,13 @@ public final class JavaInteropBridge {
      * 返回应用 ClassLoader，供系统类和插件类统一创建代理。
      */
     private static ClassLoader applicationClassLoader() {
+        // 独立 Root app_process 的 package Context 会创建另一套 APK ClassLoader。
+        // 优先复用实际承载引擎类的加载器，避免 AndroidHostBridge、LuaEngine 等宿主类
+        // 被加载两次并各自持有一份静态状态。
+        ClassLoader bridgeLoader = JavaInteropBridge.class.getClassLoader();
+        if (bridgeLoader != null) {
+            return bridgeLoader;
+        }
         Context context = AndroidHostBridge.applicationContext();
         if (context != null) {
             return context.getClassLoader();

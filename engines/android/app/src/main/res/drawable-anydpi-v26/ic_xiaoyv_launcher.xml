@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 8 及以上交给桌面按系统图标蒙版裁切完整品牌图。 -->
+<!-- 完整品牌图放在背景层，避免自适应图标把前景层放大后只剩锦鲤。 -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/xiaoyv_logo_background" />
-    <foreground android:drawable="@drawable/xiaoyv_brand_icon" />
+    <background android:drawable="@drawable/xiaoyv_brand_icon" />
+    <foreground android:drawable="@drawable/ic_xiaoyv_launcher_foreground" />
 </adaptive-icon>

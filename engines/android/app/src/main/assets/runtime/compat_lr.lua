@@ -1,6 +1,6 @@
 -- 文件用途：定义懒人精灵兼容命名空间 lr，并复用已落地的通用兼容能力。
 local host = assert(_G._host, "native host api is not registered")
-local m = assert(_G.m, "m api is not registered")
+local m = require("xiaoyv.runtime.compat_extended")
 
 local lr = {
     print = host.print,
@@ -47,4 +47,4 @@ lr.__compat = {
     status = "expanded",
 }
 
-_G.lr = lr
+return lr

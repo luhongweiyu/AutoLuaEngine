@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 
+#include "lua_module_source.h"
+
 class AlpkgPackage;
 class LuaTaskScheduler;
 
@@ -31,7 +33,12 @@ public:
      * @param shouldInterrupt 返回 true 时中断脚本执行；内部也可以等待暂停恢复。
      * @return 执行成功返回结果摘要，失败返回错误信息。
      */
-    std::string runText(const char* code, bool (*shouldInterrupt)(void*), void* controlContext);
+    std::string runText(
+            const char* code,
+            const LuaRuntimeConfig& runtimeConfig,
+            bool (*shouldInterrupt)(void*),
+            void* controlContext
+    );
 
     /**
      * 运行 ALPKG 包的入口字节码。
@@ -41,7 +48,7 @@ public:
      */
     std::string runPackage(
             const std::shared_ptr<AlpkgPackage>& package,
-            const char* runtimeBootstrap,
+            const LuaRuntimeConfig& runtimeConfig,
             bool (*shouldInterrupt)(void*),
             void* controlContext
     );
@@ -129,6 +136,7 @@ private:
     void registerHostApi();
 
     std::string prepareRun(bool (*shouldInterrupt)(void*), void* controlContext);
+    std::string initializeRuntime(const LuaRuntimeConfig& runtimeConfig);
     std::string executeLoadedChunk(struct lua_State* executionState, int registryReference);
     struct lua_State* createExecutionState(int* registryReference);
     void installPackageLoaders();

@@ -17,5 +17,4 @@ class Engine;
 std::string handleEngineCommand(
         Engine& engine,
         const std::string& method,
-        const std::string& paramsJson,
-        const std::string& luaRuntimeBootstrap);
+        const std::string& paramsJson);

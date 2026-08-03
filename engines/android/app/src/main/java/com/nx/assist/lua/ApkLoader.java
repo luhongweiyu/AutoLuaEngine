@@ -35,11 +35,15 @@ public final class ApkLoader {
 
         File packageFile = new File(apkPath);
         this.apkPath = packageFile.getAbsolutePath();
+        ClassLoader parent = LuaEngine.class.getClassLoader();
+        if (parent == null) {
+            parent = context.getClassLoader();
+        }
         this.classLoader = new DexClassLoader(
                 this.apkPath,
                 optimizedDirectory.getAbsolutePath(),
                 resolveNativeLibraryDirectory(packageFile),
-                context.getClassLoader()
+                parent
         );
     }
 

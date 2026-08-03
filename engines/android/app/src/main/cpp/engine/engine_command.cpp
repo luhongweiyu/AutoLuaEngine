@@ -159,8 +159,7 @@ std::string makeDeviceInfoJson() {
 }
 
 std::string runScript(Engine& engine,
-                      const JsonValue& params,
-                      const std::string& luaRuntimeBootstrap) {
+                      const JsonValue& params) {
     std::string language = params.stringOr("language", "lua");
     if (language != "lua") {
         throw CommandError(-32602, "当前只支持 Lua 脚本");
@@ -168,10 +167,7 @@ std::string runScript(Engine& engine,
 
     std::string code = requireString(params, "code");
     std::string workPath = params.stringOr("workPath");
-    std::string message = engine.runLuaText(
-            (luaRuntimeBootstrap + "\n" + code).c_str(),
-            workPath
-    );
+    std::string message = engine.runLuaText(code.c_str(), workPath);
     if (message == "已有脚本正在运行") {
         throw CommandError(-32000, "已有脚本正在运行");
     }
@@ -199,8 +195,7 @@ std::string runScript(Engine& engine,
  */
 std::string runPackageScript(
         Engine& engine,
-        const JsonValue& params,
-        const std::string& luaRuntimeBootstrap) {
+        const JsonValue& params) {
     std::string packagePath = requireString(params, "packagePath");
     std::string packageError;
     std::shared_ptr<AlpkgPackage> package = AlpkgPackage::open(packagePath, &packageError);
@@ -210,7 +205,6 @@ std::string runPackageScript(
 
     std::string message = engine.runLuaPackage(
             package,
-            luaRuntimeBootstrap.c_str(),
             params.stringOr("workPath")
     );
     if (message == "已有脚本正在运行") {
@@ -288,8 +282,7 @@ std::string deliverUiEventCommand(const JsonValue& params) {
 
 std::string commandResult(Engine& engine,
                           const std::string& method,
-                          const JsonValue& params,
-                          const std::string& luaRuntimeBootstrap) {
+                          const JsonValue& params) {
     if (method == "device.info") {
         return makeDeviceInfoJson();
     }
@@ -304,11 +297,11 @@ std::string commandResult(Engine& engine,
     }
 
     if (method == "script.run") {
-        return runScript(engine, params, luaRuntimeBootstrap);
+        return runScript(engine, params);
     }
 
     if (method == "script.runPackage") {
-        return runPackageScript(engine, params, luaRuntimeBootstrap);
+        return runPackageScript(engine, params);
     }
 
     if (method == "script.stop") {
@@ -372,8 +365,7 @@ std::string commandResult(Engine& engine,
 
 std::string handleEngineCommand(Engine& engine,
                                 const std::string& method,
-                                const std::string& paramsJson,
-                                const std::string& luaRuntimeBootstrap) {
+                                const std::string& paramsJson) {
     try {
         if (trim(method).empty()) {
             throw CommandError(-32600, "命令名称不能为空");
@@ -389,7 +381,7 @@ std::string handleEngineCommand(Engine& engine,
             throw CommandError(-32602, "参数必须是对象");
         }
 
-        return okRaw(commandResult(engine, method, params, luaRuntimeBootstrap));
+        return okRaw(commandResult(engine, method, params));
     } catch (const CommandError& error) {
         return errorJson(error.code(), error.what());
     } catch (const std::exception& error) {

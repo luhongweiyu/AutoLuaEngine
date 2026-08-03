@@ -16,6 +16,7 @@
 #include "../runtime/lua/alpkg_package.h"
 
 #include <sstream>
+#include <utility>
 
 namespace {
 
@@ -102,26 +103,29 @@ Engine::~Engine() {
     xiaoyv::api::runtimeSetScriptStopRequester(nullptr, nullptr);
 }
 
-void Engine::init() {
+void Engine::init(LuaRuntimeConfig luaRuntimeConfig) {
+    std::lock_guard<std::mutex> lock(runMutex_);
+    if (initialized_) {
+        return;
+    }
+    luaRuntimeConfig_ = std::move(luaRuntimeConfig);
     xiaoyv::api::runtimeSetScriptStopRequester(Engine::requestStopFromRuntime, this);
     initialized_ = true;
 }
 
 std::string Engine::runLuaText(const char* code, const std::string& workPath) {
-    return runLuaInternal(nullptr, code, nullptr, workPath);
+    return runLuaInternal(nullptr, code, workPath);
 }
 
 std::string Engine::runLuaPackage(
         const std::shared_ptr<AlpkgPackage>& package,
-        const char* runtimeBootstrap,
         const std::string& workPath) {
-    return runLuaInternal(package, nullptr, runtimeBootstrap, workPath);
+    return runLuaInternal(package, nullptr, workPath);
 }
 
 std::string Engine::runLuaInternal(
         const std::shared_ptr<AlpkgPackage>& package,
         const char* code,
-        const char* runtimeBootstrap,
         const std::string& workPath) {
     // 脚本任务必须在 native 层统一串行化。App、悬浮窗、HTTP 和后续插件都会
     // 进入同一个 libengine.so，如果只在某个 Java 入口加锁，其他入口仍会竞争
@@ -132,7 +136,7 @@ std::string Engine::runLuaInternal(
     }
 
     if (!initialized_) {
-        init();
+        return "Lua 执行失败：引擎尚未初始化";
     }
 
     stopRequested_.store(false);
@@ -165,8 +169,8 @@ std::string Engine::runLuaInternal(
     std::string result;
     try {
         result = package == nullptr
-                ? runtime.runText(code, Engine::shouldInterrupt, this)
-                : runtime.runPackage(package, runtimeBootstrap, Engine::shouldInterrupt, this);
+                ? runtime.runText(code, luaRuntimeConfig_, Engine::shouldInterrupt, this)
+                : runtime.runPackage(package, luaRuntimeConfig_, Engine::shouldInterrupt, this);
     } catch (...) {
         // activeLuaRuntime_ 只在 runtime 对象存活时有效。任何 native 异常向上返回前都要
         // 先解除注册，避免并发停止请求访问已经开始析构的运行时。

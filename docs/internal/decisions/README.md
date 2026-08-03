@@ -22,3 +22,4 @@
 - [0011：Android 本地扩展文件导入与按需加载](0011-Android本地扩展文件导入与按需加载.md)
 - [0012：Android 扩展目录包与相对路径](0012-Android扩展目录包与相对路径.md)
 - [0013：Android 一次性脚本 Worker 与 Root 权限边界](0013-Android一次性脚本Worker与Root权限边界.md)
+- [0014：Android Lua 运行时模块使用 require 加载](0014-Android Lua运行时模块使用require加载.md)

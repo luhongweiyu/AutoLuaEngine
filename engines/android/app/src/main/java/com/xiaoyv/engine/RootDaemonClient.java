@@ -131,10 +131,7 @@ final class RootDaemonClient {
                     + "\t" + encode(context.getApplicationInfo().nativeLibraryDir);
             RootDaemonProtocol.writeLine(socket.getOutputStream(), command);
             String response = RootDaemonProtocol.readLine(socket.getInputStream());
-            boolean currentResponse = RootDaemonProtocol.isOk(response, "workerStarted");
-            boolean legacyResponse = response != null
-                    && response.startsWith("OK\tworkerStarted\t");
-            if (!currentResponse && !legacyResponse) {
+            if (!RootDaemonProtocol.isOk(response, "workerStarted")) {
                 throw new IOException(response == null ? "Root Worker 无响应" : response);
             }
         }

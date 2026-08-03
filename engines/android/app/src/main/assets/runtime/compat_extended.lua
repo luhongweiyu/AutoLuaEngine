@@ -1,6 +1,6 @@
 -- 文件用途：补充懒人精灵/触动精灵常用的加密、网络、取色、触控、节点与工具兼容能力。
 local host = assert(_G._host, "native host api is not registered")
-local m = assert(_G.m, "m api is not registered")
+local m = require("xiaoyv.runtime.api_m")
 
 local function platformCall(operation, arguments)
     return host.platformCall(operation, arguments or {})
@@ -1487,3 +1487,5 @@ function nodeLib.closeAccessibility()
 end
 
 m.nodeLib = nodeLib
+
+return m
