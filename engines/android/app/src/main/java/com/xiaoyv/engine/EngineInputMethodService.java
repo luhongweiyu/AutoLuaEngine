@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * 该服务不绘制键盘，只在 m.ime.lock() 将它设为默认输入法后，使用当前
  * InputConnection.commitText 提交文本。因此中文、Emoji 和组合文本不再依赖 Root
- * 按键注入。脚本运行在同一个 :engine 进程，但仍统一切到主线程访问输入法对象。
+ * 按键注入。一次性脚本 Worker 通过宿主桥调用本服务；输入法对象仍只在主线程访问。
  */
 public final class EngineInputMethodService extends InputMethodService {
     private static final Object INSTANCE_LOCK = new Object();
@@ -30,7 +30,7 @@ public final class EngineInputMethodService extends InputMethodService {
     private Handler mainHandler;
 
     /**
-     * 输入法服务创建后登记当前实例，供 :engine 脚本进程同步调用。
+     * 输入法服务创建后登记当前实例，供一次性脚本 Worker 通过宿主桥同步调用。
      */
     @Override
     public void onCreate() {

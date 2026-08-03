@@ -41,8 +41,8 @@ import java.util.Map;
  * 窗口模型：对话框本身保持原生控件和输入能力，框外不产生暗幕、不关闭对话框，也不拦截
  * 原页面的触摸。
  *
- * Lua 运行在 :engine 进程。用户点击确认、取消或提交表单后，本服务仅投递 ui.event，
- * 不会在 Android UI 线程直接执行 Lua。
+ * Lua 运行在本次一次性脚本 Worker。用户点击确认、取消或提交表单后，本服务仅投递
+ * ui.event，不会在 Android UI 线程直接执行 Lua。
  */
 public final class ScriptDialogOverlayService extends Service {
     public static final String ACTION_SHOW = "com.xiaoyv.engine.action.SCRIPT_DIALOG_SHOW";

@@ -274,6 +274,17 @@ end)
 
 test("download-file", function()
     local path = workPath .. "/compat-download-" .. runId .. ".json"
+    local original = "keep-original-" .. runId
+    writeText(path, original)
+
+    local failed, failureError = downloadFile(
+        "http://127.0.0.1:18380/download-file-not-found",
+        path
+    )
+    assert(not failed, "HTTP 404 download unexpectedly succeeded")
+    assert(type(failureError) == "string" and #failureError > 0)
+    assert(readText(path) == original, "failed download replaced target")
+
     local ok, downloadError = downloadFile(healthUrl, path)
     assert(ok, downloadError)
     local body = readText(path)

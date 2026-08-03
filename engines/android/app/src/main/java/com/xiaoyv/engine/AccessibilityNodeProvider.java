@@ -1,5 +1,5 @@
 /**
- * 文件用途：把主进程无障碍节点能力安全转发给 :engine 脚本进程。
+ * 文件用途：把主进程无障碍节点能力安全转发给一次性脚本 Worker。
  */
 package com.xiaoyv.engine;
 

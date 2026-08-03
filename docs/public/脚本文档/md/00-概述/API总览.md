@@ -114,7 +114,7 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 找色 | `m.findColors` / `m.findColor` / `m.findMultiColor` / `m.findMultiColorAll` | 区域、颜色规则与方向 | 坐标、颜色或 table | 原生和兼容找色 |
 | 找色 | `m.isDisplayDead` / `m.findCircle` | 区域、等待时间或霍夫圆参数 | boolean 或圆形 table | 画面静止检测与圆形分析 |
 | 图像 / 运行时 | `cv.snapShot`、`cv.new/get/set*`、`cv.deletePtr`、`import("org.opencv.*")`、`ffi.cdef`、`ffi.load` | 见「图像 / OpenCV」和「运行时扩展」 | userdata、table 或标量 | OpenCV `Mat`、兼容值指针、Java API 与 CFFI（声明、结构体、数组、浮点、回调和可变参数） |
-| 无障碍 | 选择器、节点对象、`nodeLib.*` | 见「无障碍 / 节点自动化」 | selector、node、table 或状态 | 查询和操作 Android 无障碍节点 |
+| 无障碍 | 选择器、查询、节点信息、节点动作、`nodeLib.*` | 见「无障碍 / 节点自动化」 | selector、node、table 或状态 | 查询和操作 Android 无障碍节点 |
 
 `m.sleep`、`m.systemTime`、`m.tickCount`、`m.touchDown` 等同名成员与默认全局函数的参数、
 返回值一致；`m.ime` 是正式输入法模块，默认全局 `ime` 指向同一张表。`m.html` 是 `m.web`

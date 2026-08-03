@@ -42,7 +42,7 @@ final class NetworkPlatformBridge {
     /**
      * 脚本生命周期结束时立即释放尚未关闭的 WebSocket。
      *
-     * 会话表属于 :engine 进程，不能让上一个脚本的连接和回调事件泄漏到下一次运行。
+     * 会话表属于本次一次性脚本 Worker，不能让连接和回调事件泄漏到下一次运行。
      */
     static void closeAllWebSockets() {
         WebSocketSession[] sessions = WEB_SOCKETS.values().toArray(new WebSocketSession[0]);

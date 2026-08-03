@@ -19,7 +19,7 @@ final class RootWorkerSupervisor {
     private RootWorkerSupervisor() {
     }
 
-    static int start(
+    static void start(
             String runId,
             String token,
             String classPath,
@@ -64,7 +64,6 @@ final class RootWorkerSupervisor {
             drain(process.getInputStream(), "RootWorkerStdout");
             drain(process.getErrorStream(), "RootWorkerStderr");
             monitor(process, runId);
-            return processId(process);
         }
     }
 
@@ -130,12 +129,6 @@ final class RootWorkerSupervisor {
         }, name);
         thread.setDaemon(true);
         thread.start();
-    }
-
-    private static int processId(Process process) {
-        // Android 的 java.lang.Process API 不公开子进程 PID；Binder 握手完成后由 Worker
-        // 自己报告 PID，RootDaemon 监督只需要持有 Process 句柄。
-        return -1;
     }
 
     private static boolean isAlive(Process process) {

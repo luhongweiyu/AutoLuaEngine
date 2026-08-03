@@ -787,7 +787,7 @@ public final class MainActivity extends Activity {
         }
 
         statusDetailView.setText("正在读取状态...");
-        runEngineStatusQuery("正在读取状态...", "读取状态失败：", () -> {
+        runEngineStatusQuery("", "读取状态失败：", () -> {
             JSONObject deviceInfo = EngineLocalClient.call(this, "device.info", new JSONObject());
             JSONObject taskStatus = EngineLocalClient.call(this, "script.status", makeTaskIdParams(0));
             boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M

@@ -111,7 +111,7 @@ public final class RootDaemonMain {
                 if (parts.length == 7
                         && RootDaemonProtocol.START_WORKER_COMMAND.equals(parts[0])) {
                     try {
-                        int pid = RootWorkerSupervisor.start(
+                        RootWorkerSupervisor.start(
                                 parts[1],
                                 parts[2],
                                 decode(parts[3]),
@@ -119,10 +119,7 @@ public final class RootDaemonMain {
                                 decode(parts[5]),
                                 decode(parts[6])
                         );
-                        RootDaemonProtocol.writeLine(
-                                outputStream,
-                                "OK\tworkerStarted\t" + pid
-                        );
+                        RootDaemonProtocol.writeLine(outputStream, "OK\tworkerStarted");
                     } catch (Exception exception) {
                         RootDaemonProtocol.writeLine(
                                 outputStream,

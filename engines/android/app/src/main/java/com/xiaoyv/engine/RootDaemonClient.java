@@ -112,7 +112,7 @@ final class RootDaemonClient {
         }
     }
 
-    static int startWorker(
+    static void startWorker(
             Context context,
             String runId,
             String workerToken,
@@ -131,13 +131,11 @@ final class RootDaemonClient {
                     + "\t" + encode(context.getApplicationInfo().nativeLibraryDir);
             RootDaemonProtocol.writeLine(socket.getOutputStream(), command);
             String response = RootDaemonProtocol.readLine(socket.getInputStream());
-            if (response == null || !response.startsWith("OK\tworkerStarted\t")) {
+            boolean currentResponse = RootDaemonProtocol.isOk(response, "workerStarted");
+            boolean legacyResponse = response != null
+                    && response.startsWith("OK\tworkerStarted\t");
+            if (!currentResponse && !legacyResponse) {
                 throw new IOException(response == null ? "Root Worker 无响应" : response);
-            }
-            try {
-                return Integer.parseInt(response.substring("OK\tworkerStarted\t".length()));
-            } catch (NumberFormatException exception) {
-                return -1;
             }
         }
     }

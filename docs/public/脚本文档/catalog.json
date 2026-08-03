@@ -1730,17 +1730,17 @@
           {
             "name": "声明与库加载",
             "md": "md/18-运行时扩展/FFI/声明与库加载.md",
-            "cmd": "ffi.cdef / ffi.C / ffi.load"
+            "cmd": "声明与库加载：ffi.cdef / ffi.C / ffi.load"
           },
           {
             "name": "C 数据与类型",
             "md": "md/18-运行时扩展/FFI/C数据与类型.md",
-            "cmd": "ffi.new / ffi.cast / ffi.typeof / ffi.sizeof"
+            "cmd": "C 数据与类型：ffi.new / ffi.cast / ffi.typeof / ffi.sizeof / ffi.alignof / ffi.offsetof / ffi.istype / ffi.addressof / ffi.nullptr / ffi.string / ffi.copy / ffi.fill / ffi.tonumber / ffi.type / ffi.eval"
           },
           {
             "name": "生命周期与回调",
             "md": "md/18-运行时扩展/FFI/生命周期与回调.md",
-            "cmd": "ffi.gc / ffi.metatype / ffi.errno / ffi.cast(callback)"
+            "cmd": "生命周期与回调：ffi.gc / ffi.metatype / ffi.errno / ffi.cast(callback) / callback.set / callback.free"
           }
         ]
       }
@@ -1752,7 +1752,33 @@
       {
         "name": "节点自动化",
         "md": "md/19-无障碍/节点自动化.md",
-        "cmd": "selector / node / nodeLib.*"
+        "items": [
+          {
+            "name": "选择器",
+            "md": "md/19-无障碍/选择器.md",
+            "cmd": "选择器：id / text / desc / className / packageName / bounds"
+          },
+          {
+            "name": "查询与选择器动作",
+            "md": "md/19-无障碍/查询与选择器动作.md",
+            "cmd": "查询与动作：selector.findOne / findAll / findOnce / click / longClick"
+          },
+          {
+            "name": "节点信息",
+            "md": "md/19-无障碍/节点信息.md",
+            "cmd": "节点信息：node.id / text / bounds / childs / parent / toJson"
+          },
+          {
+            "name": "节点动作",
+            "md": "md/19-无障碍/节点动作.md",
+            "cmd": "节点动作：node.click / longClick / setText / scrollTo / setSelection / setProgress"
+          },
+          {
+            "name": "节点库",
+            "md": "md/19-无障碍/节点库.md",
+            "cmd": "节点库：nodeLib.getNodeXml / saveNode / lockNode / unlockNode / openAccessibility / closeAccessibility"
+          }
+        ]
       }
     ]
   }

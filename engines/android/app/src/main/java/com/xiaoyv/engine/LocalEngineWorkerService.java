@@ -9,7 +9,7 @@ import android.os.IBinder;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** 非 Root 外壳只提供 App UID；内核与 RootEngineWorkerMain 完全相同。 */
+/** 非 Root 外壳只提供 App UID；内核与 Root Worker 完全相同。 */
 public final class LocalEngineWorkerService extends Service {
     private final AtomicBoolean exitScheduled = new AtomicBoolean(false);
     private EngineWorkerEndpoint endpoint;

@@ -5,7 +5,6 @@ package com.xiaoyv.engine;
 
 import android.content.Context;
 import android.content.ComponentName;
-import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -117,7 +116,7 @@ public final class AndroidHostBridge {
     }
 
     public static boolean prepareRootRuntime() {
-        // :engine 只能检查主进程已经准备好的 RootDaemon，不能在脚本路径重新执行 su。
+        // 脚本 Worker 只能检查主进程已经准备好的 RootDaemon，不能在脚本路径重新执行 su。
         return RootDaemonClient.isReady(appContext);
     }
 
@@ -351,7 +350,7 @@ public final class AndroidHostBridge {
         return ScriptImGuiService.isSupported(appContext);
     }
 
-    /** 在 :engine 进程创建或替换 Dear ImGui 悬浮 Surface。 */
+    /** 请求常驻 :engine 控制进程创建或替换 Dear ImGui 悬浮 Surface。 */
     public static boolean showScriptImGui(String configJson) {
         return callUiHost(EngineUiHost.IMGUI_SHOW, 0, configJson, false);
     }

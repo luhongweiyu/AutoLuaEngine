@@ -3,7 +3,6 @@
  */
 package com.xiaoyv.engine;
 
-import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Rect;
@@ -105,7 +104,7 @@ final class AccessibilityNodePlatformBridge {
     }
 
     /**
-     * 由 :engine 进程在单次脚本结束后通知主进程清理节点快照。
+     * 由一次性脚本 Worker 在结束时通知主进程清理节点快照。
      *
      * 清理失败不应覆盖脚本原始结束状态；服务断开时还会再次执行本地兜底清理。
      */

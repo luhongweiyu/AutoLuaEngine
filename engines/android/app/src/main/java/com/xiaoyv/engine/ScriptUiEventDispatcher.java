@@ -1,5 +1,5 @@
 /**
- * 文件用途：将 App 主进程 UI 事件异步投递回 :engine 的 native UI 会话队列。
+ * 文件用途：将 App 主进程 UI 事件经常驻控制端异步投递给当前脚本 Worker。
  */
 package com.xiaoyv.engine;
 
@@ -17,8 +17,8 @@ import java.util.concurrent.Executors;
  * 脚本 UI 事件投递器。
  *
  * UI 线程绝不能直接执行 Lua。这里把点击、表单提交、网页消息等事件放到单独线程，
- * 经 EngineHttpServer 的 ui.event 命令写入 libengine.so 的会话队列，再由脚本线程
- * 的 waitEvent 读取。
+ * 经 EngineHttpServer 的 ui.event 命令转发给当前 Worker，写入 libengine.so 的
+ * 会话队列，再由脚本线程的 waitEvent 读取。
  */
 public final class ScriptUiEventDispatcher {
     private static final String TAG = "小鱼精灵";

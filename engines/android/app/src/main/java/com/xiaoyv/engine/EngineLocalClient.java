@@ -19,9 +19,8 @@ import java.nio.charset.StandardCharsets;
 /**
  * App 主进程访问本机引擎 HTTP 服务的小客户端。
  *
- * 这个类用于把 MainActivity 逐步改成“控制端”：它通过 JSON-RPC 查询日志和状态，
- * 而不是直接调用 NativeEngine。后续 EngineService 拆到 :engine 独立进程后，这条
- * 路径仍然成立。
+ * MainActivity 通过它调用常驻 :engine 控制端的 JSON-RPC，查询日志、状态并管理
+ * 一次性脚本 Worker，而不是直接进入 NativeEngine。
  */
 public final class EngineLocalClient {
     private static final int CONNECT_TIMEOUT_MS = 1000;
