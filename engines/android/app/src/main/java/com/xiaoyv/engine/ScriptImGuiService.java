@@ -35,22 +35,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Dear ImGui Android Surface 宿主。
  *
- * Service 与 LuaRuntime 同在 `:engine` 进程，但 Java 主线程只维护 WindowManager 和
- * Surface 生命周期。EGL、OpenGL、Dear ImGui 控件与纹理全部由 libengine.so 的独立
- * 渲染线程管理，Java 不使用原生控件伪装脚本控件。
+ * Service 位于常驻 `:engine` 控制进程，Java 主线程只维护 WindowManager 和 Surface
+ * 生命周期。Surface 与输入通过 Binder 交给本次一次性 Worker；EGL、OpenGL、Dear ImGui
+ * 控件与纹理仍全部位于 Worker 的 libengine.so。
  */
 public final class ScriptImGuiService extends Service {
     public static final String ACTION_SHOW = "com.xiaoyv.engine.action.IMGUI_SHOW";
     public static final String ACTION_UPDATE = "com.xiaoyv.engine.action.IMGUI_UPDATE";
     public static final String ACTION_CLOSE = "com.xiaoyv.engine.action.IMGUI_CLOSE";
+    public static final String ACTION_KEYBOARD = "com.xiaoyv.engine.action.IMGUI_KEYBOARD";
     private static final String EXTRA_CONFIG_JSON = "configJson";
+    private static final String EXTRA_KEYBOARD_VISIBLE = "keyboardVisible";
 
-    private static volatile ScriptImGuiService activeInstance;
     /**
-     * 标记 SHOW/UPDATE 已提交但 Service 可能尚未执行 onCreate 的短暂窗口。
-     *
-     * 关闭命令据此决定是否需要真正 startService，既不会漏掉与 SHOW 并发的关闭，也避免
-     * 普通非 ImGui 脚本结束时仅为了处理一个空 CLOSE 而创建 Service。
+     * 只在本 Service 所在的 :engine 控制进程记录实际 Surface 请求状态。
+     * Worker 进程不能读取或修改这份静态状态，只通过显式 Intent 发命令。
      */
     private static final AtomicBoolean surfaceRequested = new AtomicBoolean(false);
 
@@ -98,21 +97,9 @@ public final class ScriptImGuiService extends Service {
             return false;
         }
         if (!ACTION_CLOSE.equals(action)
+                && !ACTION_KEYBOARD.equals(action)
                 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(context)) {
-            return false;
-        }
-
-        if (ACTION_CLOSE.equals(action)) {
-            boolean hadPendingOrActive = surfaceRequested.getAndSet(false)
-                    || activeInstance != null;
-            if (!hadPendingOrActive) {
-                return true;
-            }
-        } else if (ACTION_SHOW.equals(action)) {
-            surfaceRequested.set(true);
-        } else if (ACTION_UPDATE.equals(action) && !surfaceRequested.get()) {
-            // UPDATE 只能修改一个已经请求显示的 Surface，不能在 CLOSE 后重新创建旧窗口。
             return false;
         }
 
@@ -123,27 +110,29 @@ public final class ScriptImGuiService extends Service {
             context.startService(intent);
             return true;
         } catch (RuntimeException exception) {
-            if (!ACTION_CLOSE.equals(action)) {
-                surfaceRequested.set(false);
-            }
             return false;
         }
     }
 
-    /** 渲染线程只在 WantTextInput 变化时调用；实际输入法操作切回 Android 主线程。 */
-    public static boolean setKeyboardVisible(boolean visible) {
-        ScriptImGuiService service = activeInstance;
-        if (service == null) {
-            return !visible;
+    /** Worker 与 Surface Service 不同进程，因此键盘状态也用显式 Intent 送达。 */
+    public static boolean sendKeyboardVisible(Context context, boolean visible) {
+        if (context == null) {
+            return false;
         }
-        service.mainHandler.post(() -> service.applyKeyboardVisible(visible));
-        return true;
+        Intent intent = new Intent(context, ScriptImGuiService.class);
+        intent.setAction(ACTION_KEYBOARD);
+        intent.putExtra(EXTRA_KEYBOARD_VISIBLE, visible);
+        try {
+            context.startService(intent);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
-        activeInstance = this;
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
     }
 
@@ -153,6 +142,10 @@ public final class ScriptImGuiService extends Service {
             return START_NOT_STICKY;
         }
         String action = intent.getAction();
+        if (ACTION_KEYBOARD.equals(action)) {
+            applyKeyboardVisible(intent.getBooleanExtra(EXTRA_KEYBOARD_VISIBLE, false));
+            return START_NOT_STICKY;
+        }
         if (ACTION_CLOSE.equals(action)) {
             closeRequested = true;
             surfaceRequested.set(false);
@@ -196,13 +189,10 @@ public final class ScriptImGuiService extends Service {
     @Override
     public void onDestroy() {
         if (rootView != null && !closeRequested) {
-            NativeEngine.notifyImGuiSurfaceFailure("ImGui Surface 服务被系统终止");
+            EngineWorkerCoordinator.notifyImGuiSurfaceFailure("ImGui Surface 服务被系统终止");
         }
         surfaceRequested.set(false);
         closeSurface();
-        if (activeInstance == this) {
-            activeInstance = null;
-        }
         super.onDestroy();
     }
 
@@ -215,7 +205,7 @@ public final class ScriptImGuiService extends Service {
     private void showSurface(JSONObject incoming) {
         config = incoming;
         if (windowManager == null) {
-            NativeEngine.notifyImGuiSurfaceFailure("系统窗口管理器不可用");
+            EngineWorkerCoordinator.notifyImGuiSurfaceFailure("系统窗口管理器不可用");
             return;
         }
         if (rootView != null) {
@@ -234,8 +224,8 @@ public final class ScriptImGuiService extends Service {
         surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                if (!NativeEngine.attachImGuiSurface(holder.getSurface())) {
-                    NativeEngine.notifyImGuiSurfaceFailure("ImGui Surface 附着失败");
+                if (!EngineWorkerCoordinator.attachImGuiSurface(holder.getSurface())) {
+                    EngineWorkerCoordinator.notifyImGuiSurfaceFailure("ImGui Surface 附着失败");
                 }
             }
 
@@ -246,7 +236,7 @@ public final class ScriptImGuiService extends Service {
 
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
-                NativeEngine.detachImGuiSurface();
+                EngineWorkerCoordinator.detachImGuiSurface();
             }
         });
         installPointerInput(surfaceView);
@@ -273,7 +263,7 @@ public final class ScriptImGuiService extends Service {
                 rootView.requestFocus();
             }
         } catch (RuntimeException exception) {
-            NativeEngine.notifyImGuiSurfaceFailure(
+            EngineWorkerCoordinator.notifyImGuiSurfaceFailure(
                     "创建 ImGui 悬浮窗口失败：" + exception.getClass().getSimpleName()
             );
             closeSurface();
@@ -309,7 +299,7 @@ public final class ScriptImGuiService extends Service {
                 applyKeyboardVisible(false);
             }
         } catch (RuntimeException ignored) {
-            NativeEngine.notifyImGuiSurfaceFailure("更新 ImGui 悬浮窗口失败");
+            EngineWorkerCoordinator.notifyImGuiSurfaceFailure("更新 ImGui 悬浮窗口失败");
             closeSurface();
         }
     }
@@ -379,7 +369,7 @@ public final class ScriptImGuiService extends Service {
                 pointerIndex = event.getActionIndex();
                 forwardedAction = MotionEvent.ACTION_UP;
             }
-            NativeEngine.enqueueImGuiTouch(
+            EngineWorkerCoordinator.enqueueImGuiTouch(
                     forwardedAction,
                     event.getPointerId(pointerIndex),
                     event.getX(pointerIndex),
@@ -395,7 +385,7 @@ public final class ScriptImGuiService extends Service {
                     || event.getActionMasked() != MotionEvent.ACTION_SCROLL) {
                 return false;
             }
-            NativeEngine.enqueueImGuiScroll(
+            EngineWorkerCoordinator.enqueueImGuiScroll(
                     event.getAxisValue(MotionEvent.AXIS_HSCROLL),
                     event.getAxisValue(MotionEvent.AXIS_VSCROLL)
             );
@@ -407,7 +397,7 @@ public final class ScriptImGuiService extends Service {
         if (event == null) {
             return;
         }
-        NativeEngine.enqueueImGuiKey(
+        EngineWorkerCoordinator.enqueueImGuiKey(
                 event.getAction(),
                 event.getKeyCode(),
                 event.getUnicodeChar(event.getMetaState()),
@@ -439,10 +429,10 @@ public final class ScriptImGuiService extends Service {
             try {
                 windowManager.removeViewImmediate(rootView);
             } catch (RuntimeException ignored) {
-                NativeEngine.detachImGuiSurface();
+                EngineWorkerCoordinator.detachImGuiSurface();
             }
         } else {
-            NativeEngine.detachImGuiSurface();
+            EngineWorkerCoordinator.detachImGuiSurface();
         }
         rootView = null;
         surfaceView = null;
@@ -481,7 +471,7 @@ public final class ScriptImGuiService extends Service {
                 @Override
                 public boolean commitText(CharSequence text, int newCursorPosition) {
                     if (text != null && text.length() > 0) {
-                        NativeEngine.enqueueImGuiText(text.toString());
+                        EngineWorkerCoordinator.enqueueImGuiText(text.toString());
                     }
                     return true;
                 }
@@ -490,8 +480,8 @@ public final class ScriptImGuiService extends Service {
                 public boolean deleteSurroundingText(int beforeLength, int afterLength) {
                     int count = Math.max(1, beforeLength);
                     for (int index = 0; index < count; index++) {
-                        NativeEngine.enqueueImGuiKey(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0, 0);
-                        NativeEngine.enqueueImGuiKey(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0, 0);
+                        EngineWorkerCoordinator.enqueueImGuiKey(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL, 0, 0);
+                        EngineWorkerCoordinator.enqueueImGuiKey(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL, 0, 0);
                     }
                     return true;
                 }
@@ -499,7 +489,7 @@ public final class ScriptImGuiService extends Service {
                 @Override
                 public boolean sendKeyEvent(KeyEvent event) {
                     if (event != null) {
-                        NativeEngine.enqueueImGuiKey(
+                        EngineWorkerCoordinator.enqueueImGuiKey(
                                 event.getAction(),
                                 event.getKeyCode(),
                                 event.getUnicodeChar(event.getMetaState()),
@@ -527,7 +517,7 @@ public final class ScriptImGuiService extends Service {
 
         @Override
         public boolean onKeyDown(int keyCode, KeyEvent event) {
-            NativeEngine.enqueueImGuiKey(
+            EngineWorkerCoordinator.enqueueImGuiKey(
                     event.getAction(),
                     keyCode,
                     event.getUnicodeChar(event.getMetaState()),
@@ -538,7 +528,7 @@ public final class ScriptImGuiService extends Service {
 
         @Override
         public boolean onKeyUp(int keyCode, KeyEvent event) {
-            NativeEngine.enqueueImGuiKey(
+            EngineWorkerCoordinator.enqueueImGuiKey(
                     event.getAction(),
                     keyCode,
                     event.getUnicodeChar(event.getMetaState()),

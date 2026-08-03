@@ -32,9 +32,11 @@ C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层
 只先参考 `T:\老项目` 中较新的项目实现，只有它不足以判断时才查看旧项目；历史代码不改变
 本项目的当前分层或权限边界。
 
-Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`，
-AndroidBridge 再通过 `:engine` 的认证 socket 请求主进程预先启动的 RootDaemon。脚本、JS、Go 和
-插件不会各自启动 `su`，也不需要感知 RootDaemon 的端口或令牌。
+Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`。
+Root 模式的 `libengine.so` 位于 RootDaemon 创建的 uid=0 一次性 Worker；截图、输入和系统控制等
+稳定 Root 能力仍由 Worker 通过认证 socket 请求常驻 RootDaemon。Lua、后续 JS/Go 和插件不会
+各自执行 `su`，也不需要感知 RootDaemon 的端口、令牌或 Worker 启动方式。非 Root Worker 保留
+相同 ABI，并按底层实际结果返回失败，不由控制层统一改写错误或选择备用路线。
 
 当前运行时 C ABI：
 

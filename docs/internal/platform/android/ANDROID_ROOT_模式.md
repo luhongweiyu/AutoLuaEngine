@@ -7,6 +7,10 @@
 - App 主进程在启动或切换到 Root 模式时，通过 `RootDaemonService` 启动一次 RootDaemon；启动前
   会先用已有令牌确认当前主进程持有的 daemon，已存在时不会再次执行 `su`。
 - RootDaemon 由 `su -c app_process` 创建，监听仅限本机的认证 socket；`:engine` 只连接它，绝不执行 `su`。
+- 每次 Root 脚本会话由 RootDaemon 直接创建 uid=0 的 `EngineWorkerMain` 子进程。子进程继承
+  RootDaemon 权限，不再次执行 `su`；脚本、FFI、JavaInterop、模型和用户 SO 全部留在该子进程。
+- RootDaemon 自身不加载 `libengine.so`、语言 VM、模型或用户 SO。它只监督 Worker，并继续承载
+  截图、输入、系统控制和音量键等稳定 Root 能力。
 - RootDaemon 端口由当前 Android 应用 UID 映射生成，不同安装包使用不同回环端口。保留旧版
   `com.autolua.engine` 或其他测试包时，不会抢占 小鱼精灵 的 RootDaemon 端口。
 - 未激活图片屏幕且 `engine_getScreenPixels` 缓存未命中时，通过当前 Android root 截图路线
@@ -30,9 +34,9 @@
   `device.info.rootRuntimeReady` 展示实时状态。初始化失败才会主动提示错误。
 - 失败时直接返回错误，不做路线兜底。
 
-强制停止 `:engine` 时，只会关闭引擎与 RootDaemon 的 socket。RootDaemon 仍由 App 主进程
-持有，因此下次运行脚本会直接重连，不会重新申请 Root 授权。关闭 Root 模式或 App 主进程结束
-时才关闭 RootDaemon。
+脚本正常结束、停止、崩溃或用户强停时只退出当前 Worker。`:engine` HTTP 控制端与 RootDaemon
+仍由 App 持有，因此下次运行直接创建新 Root Worker，不会重新申请 Root 授权。关闭 Root 模式
+或 App 主进程结束时才关闭 RootDaemon；后者退出前也会强停仍存活的子 Worker。
 
 非 Root 模式下，已启用的 `AutomationAccessibilityService` 接收同样的全局音量键事件。
 关闭“音量键控制”后，Root 订阅连接和无障碍按键处理都会立即停止生效。
@@ -41,6 +45,9 @@
 
 已完成的 Root 能力统一按 `core/api -> system_c_api -> 语言绑定` 分层；尚未实现的
 自动化能力继续按这一边界新增，不在 Java 或 Lua 层单独实现业务逻辑。
+
+Root 与非 Root 使用相同的 Worker 内核、API 和 C ABI。非 Root 模式不会隐藏 Root 类函数；调用
+进入同一实现并返回系统或底层桥的实际结果，不增加统一权限预判、错误重写、重试或回退。
 
 设备 API 的参数和 Lua 返回值见
 [脚本文档 · 设备](../../../public/脚本文档.md) /

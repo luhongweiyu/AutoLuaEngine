@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    小鱼精灵的侧身小鱼标志：左侧眼睛和嘴部明确头部方向，右侧分叉尾鳍保证小尺寸下仍能
-    一眼识别为鱼。白色主体、青色鳍和深蓝细节兼顾科技感与卡通亲和力。
+    悬浮按钮专用的小尺寸锦鲤标志。完整品牌画面不适合 28dp 显示，因此只保留与新 Logo
+    一致的橙金锦鲤轮廓和必要细节。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -10,30 +10,30 @@
     android:viewportHeight="108">
     <!-- 尾鳍放在身体下方，形成清晰的分叉轮廓。 -->
     <path
-        android:fillColor="#FF4FD7C8"
+        android:fillColor="#FFF59E0B"
         android:pathData="M77,43 L96,31 L91,48 L100,54 L91,60 L96,77 L77,65 Z" />
     <!-- 圆润身体在悬浮按钮的 28dp 尺寸下仍能保持清楚的轮廓。 -->
     <path
-        android:fillColor="#FFFFFFFF"
+        android:fillColor="#FFF97316"
         android:pathData="M16,54 C16,36.3 31.3,23 51,23 C69.8,23 84,36.5 84,54 C84,71.5 69.8,85 51,85 C31.3,85 16,71.7 16,54 Z" />
     <!-- 背鳍与胸鳍使用轻青色，保留科技感但不破坏整体识别。 -->
     <path
-        android:fillColor="#FF4FD7C8"
+        android:fillColor="#FFFBBF24"
         android:pathData="M54,24 C64,25 72,29 77,36 C68,35 61,37 55,42 Z" />
     <path
-        android:fillColor="#FFC4F5EF"
+        android:fillColor="#FFFFD58A"
         android:pathData="M53,55 C65,57 71,64 69,74 C61,70 55,65 49,59 Z" />
     <!-- 深蓝眼睛、嘴部和鳃线明确侧身小鱼的朝向。 -->
     <path
-        android:fillColor="#FF123A63"
+        android:fillColor="#FF2B2118"
         android:pathData="M33,45 C33,41.7 35.7,39 39,39 C42.3,39 45,41.7 45,45 C45,48.3 42.3,51 39,51 C35.7,51 33,48.3 33,45 Z" />
     <path
-        android:strokeColor="#FF123A63"
+        android:strokeColor="#FFFFF7E6"
         android:strokeWidth="2.6"
         android:strokeLineCap="round"
         android:pathData="M21,61 C24,63 28,63 31,61" />
     <path
-        android:strokeColor="#FF1479D1"
+        android:strokeColor="#FFFFE2A8"
         android:strokeWidth="3"
         android:strokeLineCap="round"
         android:pathData="M48,39 C43,46 43,61 48,68" />

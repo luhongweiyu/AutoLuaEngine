@@ -38,22 +38,37 @@ public final class NativeEngine {
             {"socket.url", "runtime/luasocket/socket/url.lua"}
     };
 
+    private static boolean libraryLoaded;
     private static boolean initialized;
     private static Context appContext;
     private static String luaRuntimeBootstrap;
 
-    static {
-        System.loadLibrary("engine");
+    private NativeEngine() {
     }
 
-    private NativeEngine() {
+    /**
+     * Local Worker 使用系统 nativeLibraryDir 搜索；Root app_process 必须传入安装目录并按
+     * 绝对路径加载。两种启动方式最终仍进入同一个 libengine.so。
+     */
+    public static synchronized void loadLibrary(String nativeLibraryDirectory) {
+        if (libraryLoaded) {
+            return;
+        }
+        if (nativeLibraryDirectory == null || nativeLibraryDirectory.trim().isEmpty()) {
+            System.loadLibrary("engine");
+        } else {
+            System.load(new java.io.File(nativeLibraryDirectory, "libengine.so").getAbsolutePath());
+        }
+        libraryLoaded = true;
     }
 
     public static synchronized void init(Context context) {
         if (initialized) {
             return;
         }
-        appContext = context.getApplicationContext();
+        loadLibrary(null);
+        Context application = context.getApplicationContext();
+        appContext = application == null ? context : application;
         AndroidHostBridge.init(appContext);
         luaRuntimeBootstrap = loadLuaRuntimeBootstrap(appContext);
         nativeInit();

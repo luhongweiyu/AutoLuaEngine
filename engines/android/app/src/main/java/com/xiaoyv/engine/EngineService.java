@@ -1,9 +1,8 @@
 /**
- * 文件用途：:engine 独立进程脚本服务，负责脚本任务、HTTP 服务和状态广播。
+ * 文件用途：:engine 常驻控制服务，负责一次性 Worker 会话、HTTP 和状态广播。
  */
 package com.xiaoyv.engine;
 
-import android.app.ActivityManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -14,15 +13,14 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Android 端脚本运行服务。
  *
  * Activity、悬浮窗和后续其他入口都只向这里发送运行/停止命令，避免每个界面
- * 自己创建脚本线程。该服务运行在 `:engine` 独立进程，和旧项目 NativeService
- * 的职责一致：主进程负责界面，引擎进程负责脚本、HTTP 协议和 root 运行层。
+ * 自己创建脚本线程。该服务运行在常驻 `:engine` 控制进程；真正的语言运行时、
+ * libengine.so、FFI 和扩展位于每次运行新建的 Root/非 Root Worker。
  */
 public final class EngineService extends Service {
     public static final String ACTION_RUN_SCRIPT_FILE =
@@ -53,6 +51,7 @@ public final class EngineService extends Service {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean restartRequested = new AtomicBoolean(false);
+    private final AtomicBoolean forceStopRequested = new AtomicBoolean(false);
     private volatile String activeScriptPath;
     private volatile String restartScriptPath;
 
@@ -71,6 +70,25 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
+    /**
+     * 从所有手机端控制入口运行当前选中的脚本。
+     *
+     * 主界面、悬浮控制和后续快捷入口共用这里的选择与格式校验，避免同一文件从不同入口
+     * 得到不同提示。服务收到 Intent 后仍会按磁盘真实状态做第二次校验。
+     */
+    public static RunRequestResult runSelectedScript(Context context) {
+        ScriptCatalog.ScriptItem item = ScriptCatalog.getSelectedScript(context);
+        if (item == null) {
+            return RunRequestResult.rejected("脚本目录为空，无法运行");
+        }
+        if (!item.runnable) {
+            return RunRequestResult.rejected("不支持运行该文件格式：" + item.fileName);
+        }
+
+        runScriptFile(context, item.filePath);
+        return RunRequestResult.started("已发送运行命令：" + item.fileName);
+    }
+
     public static void stopScript(Context context) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_STOP_SCRIPT);
@@ -78,11 +96,9 @@ public final class EngineService extends Service {
     }
 
     public static void forceStopEngineProcess(Context context) {
-        // 强制停止进程是脚本卡死时使用的硬控制：主进程先让 UI 立即回到
-        // 未运行状态，再直接结束 :engine 进程，不等待脚本或 HTTP 请求收尾。
-        broadcastStatus(context, STATE_FINISHED, "已强制停止引擎进程");
-        context.stopService(new Intent(context, EngineService.class));
-        killEngineProcessNow(context);
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_FORCE_STOP_ENGINE_PROCESS);
+        context.startService(intent);
     }
 
     public static void pauseScript(Context context) {
@@ -103,10 +119,29 @@ public final class EngineService extends Service {
         context.startService(intent);
     }
 
+    public static final class RunRequestResult {
+        public final boolean started;
+        public final String message;
+
+        private RunRequestResult(boolean started, String message) {
+            this.started = started;
+            this.message = message;
+        }
+
+        private static RunRequestResult started(String message) {
+            return new RunRequestResult(true, message);
+        }
+
+        private static RunRequestResult rejected(String message) {
+            return new RunRequestResult(false, message);
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
-        NativeEngine.init(getApplicationContext());
+        AndroidHostBridge.init(getApplicationContext());
+        EngineWorkerCoordinator.initialize(getApplicationContext());
         EngineHttpServer.start(getApplicationContext());
     }
 
@@ -128,11 +163,12 @@ public final class EngineService extends Service {
         }
 
         if (ACTION_FORCE_STOP_ENGINE_PROCESS.equals(intent.getAction())) {
-            broadcastStatus(STATE_FINISHED, "已强制停止引擎进程");
-            shutdownRuntime();
-            stopSelf();
-            android.os.Process.killProcess(android.os.Process.myPid());
-            return START_NOT_STICKY;
+            forceStopRequested.set(true);
+            restartRequested.set(false);
+            restartScriptPath = null;
+            EngineWorkerCoordinator.forceStop();
+            broadcastStatus(STATE_FINISHED, "已强制停止脚本 Worker");
+            return START_STICKY;
         }
 
         if (ACTION_PAUSE_SCRIPT.equals(intent.getAction())) {
@@ -165,11 +201,9 @@ public final class EngineService extends Service {
     }
 
     private void shutdownRuntime() {
-        NetworkPlatformBridge.closeAllWebSockets();
-        AccessibilityNodePlatformBridge.releaseScriptState(getApplicationContext());
-        AndroidHostBridge.closeAllScriptUi();
+        EngineUiHost.closeAll(getApplicationContext());
+        EngineWorkerCoordinator.shutdown();
         EngineHttpServer.stop();
-        RootHelperBridge.shutdown();
     }
 
     private void runScriptFileInternal(String scriptPath) {
@@ -194,6 +228,7 @@ public final class EngineService extends Service {
         }
 
         ScriptCatalog.setSelectedScript(this, item);
+        forceStopRequested.set(false);
         activeScriptPath = item.filePath;
         broadcastStatus(STATE_RUNNING, "脚本运行中：" + item.fileName);
 
@@ -229,11 +264,14 @@ public final class EngineService extends Service {
                 state = STATE_FAILED;
                 message = "脚本命令参数错误：" + exception.getMessage();
             } catch (RuntimeException exception) {
-                state = STATE_FAILED;
-                message = "脚本运行失败：" + exception.getMessage();
+                if (forceStopRequested.get()) {
+                    state = STATE_FINISHED;
+                    message = "已强制停止脚本 Worker";
+                } else {
+                    state = STATE_FAILED;
+                    message = "脚本运行失败：" + exception.getMessage();
+                }
             } finally {
-                NetworkPlatformBridge.closeAllWebSockets();
-                AccessibilityNodePlatformBridge.releaseScriptState(getApplicationContext());
                 activeScriptPath = null;
                 running.set(false);
             }
@@ -244,7 +282,7 @@ public final class EngineService extends Service {
                 restartScriptPath = null;
                 runScriptFileInternal(path);
             }
-        }, "EngineServiceLuaWorker");
+        }, "EngineServiceRunSession");
         worker.start();
     }
 
@@ -319,7 +357,8 @@ public final class EngineService extends Service {
 
     private static JSONObject callNativeCommand(String method, JSONObject params) {
         try {
-            JSONObject envelope = new JSONObject(NativeEngine.callJson(
+            JSONObject envelope = new JSONObject(EngineWorkerCoordinator.callJson(
+                    null,
                     method,
                     params == null ? "{}" : params.toString()
             ));
@@ -361,24 +400,4 @@ public final class EngineService extends Service {
         context.sendBroadcast(intent);
     }
 
-    private static void killEngineProcessNow(Context context) {
-        ActivityManager activityManager =
-                (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        if (activityManager == null) {
-            return;
-        }
-
-        List<ActivityManager.RunningAppProcessInfo> processes =
-                activityManager.getRunningAppProcesses();
-        if (processes == null) {
-            return;
-        }
-
-        String engineProcessName = context.getPackageName() + ":engine";
-        for (ActivityManager.RunningAppProcessInfo process : processes) {
-            if (engineProcessName.equals(process.processName)) {
-                android.os.Process.killProcess(process.pid);
-            }
-        }
-    }
 }

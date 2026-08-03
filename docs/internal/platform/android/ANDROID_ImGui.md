@@ -11,8 +11,8 @@
 
 - 使用开源 Dear ImGui 真实渲染，不用 Android 原生控件伪装 ImGui。
 - Dear ImGui、控件模型、事件队列和 C ABI 全部编入 `libengine.so`，不新增业务 SO。
-- 透明悬浮 Surface 由 `:engine` 进程中的 Android Service 提供；App 主进程仍只负责 App
-  页面和脚本控制悬浮按钮。
+- 透明悬浮 Surface 由常驻 `:engine` 控制进程中的 Android Service 提供，再通过 Binder 交给
+  本次 Root/非 Root Worker 的 EGL 渲染器；App 主进程仍只负责 App 页面和控制悬浮按钮。
 - Lua 公开全局 `imgui`，方法名称、参数顺序、索引规则和返回值尽量兼容懒人精灵。
 - 后续 JS、Go 绑定复用 `engine_imgui*` C ABI 和同一个事件队列，不复制控件逻辑。
 
@@ -48,8 +48,9 @@ Lua imgui.*
   -> runtime/lua/imgui_lua_api
   -> engine_imgui* C ABI
   -> core/api/imgui_api 控件模型与事件队列
-  -> platform/imgui_renderer Dear ImGui + EGL/OpenGL ES
-  -> :engine/ScriptImGuiService 提供透明 Surface、触摸和输入法
+  -> Worker 内 platform/imgui_renderer Dear ImGui + EGL/OpenGL ES
+  <-> IEngineWorker Binder
+  <-> :engine/ScriptImGuiService 提供透明 Surface、触摸和输入法
 ```
 
 渲染线程不得直接调用 Lua。点击、选择、滑块和关闭事件先进入 C++ 队列，再由 Lua 事件泵
@@ -57,8 +58,9 @@ Lua imgui.*
 
 ## C ABI 边界
 
-- 顶层 `EngineApi::abiVersion` 当前为 `20`；版本 18 在函数表尾部新增 `getImGuiApi`，
-  版本 20 在它后面追加 `findPicAll`。这不改变 ImGui 子表入口或任何既有字段位置。
+- 顶层 `EngineApi::abiVersion` 当前为 `21`；版本 18 在函数表尾部新增 `getImGuiApi`，
+  版本 20 在它后面追加 `findPicAll`，版本 21 再追加 `getYoloApi`。这不改变 ImGui 子表入口
+  或任何既有字段位置。
 - `EngineImGuiApi::abiVersion` 为 `1`，结构体字段只能在尾部追加。
 - `engine_getImGuiApi()` 与 `engine_getApi()->getImGuiApi()` 返回同一张进程级只读子函数表。
 - 每个子函数表成员都有对应的 `engine_imgui*` 直接导出；两种入口调用同一份核心实现。
@@ -121,7 +123,8 @@ Lua imgui.*
   子任务持续处理。
 - 同一脚本任务只维护一个 ImGui 框架和一个渲染 Surface；重复显示会更新窗口模式，不会
   创建多个渲染线程。
-- 脚本结束、停止、强停进程或 `close()` 都必须停止渲染、移除悬浮窗口并释放 Lua 回调。
+- 脚本结束、停止、强停 Worker 或 `close()` 都必须移除悬浮窗口；Worker 退出统一释放渲染
+  线程、EGL、纹理、句柄和语言回调。
 
 ## 并发与性能
 
@@ -135,7 +138,7 @@ Lua imgui.*
 
 ## 验收
 
-1. Android 四个 ABI 均能编译并只生成一个 `libengine.so` 业务库。
+1. 当前正式支持的 arm64-v8a 与 x86_64 均能编译，并各自只生成一个 `libengine.so` 业务库。
 2. Root 设备可显示中文窗口、按钮、输入框、组合框、表格、图片和图形。
 3. 触摸坐标、软键盘输入、按钮/选择/滑块/关闭回调可用，回调内更新控件不死锁。
 4. `show(true)` 可由按钮回调关闭并正常返回；`showWindow` 返回后回调仍可执行。

@@ -7,7 +7,7 @@
 
 ```text
 Lua import / Java userdata / Lua interface callback
-    -> libengine.so/runtime/lua/java_bridge.cpp
+    -> 本次 Root/非 Root Worker 的 libengine.so/runtime/lua/java_bridge.cpp
     -> JNI
     -> JavaInteropBridge 反射、重载匹配和类型转换
     -> Android Framework / Java 类 / APK 插件
@@ -15,6 +15,14 @@ Lua import / Java userdata / Lua interface callback
 
 固定自动化 API 继续使用 `core/api -> system_c_api -> 各语言绑定`。`import` 属于
 脚本运行时的动态对象能力，不为每个 Java 方法生成一条固定 C ABI。
+
+Root 模式的 JavaVM、`JavaInteropBridge`、APK/Dex ClassLoader、回调代理与 Lua VM 全部位于
+uid=0 的一次性 `EngineWorkerMain`。它通过 `ActivityThread.systemMain()` 取得 system Context，再
+创建本包 Context 用于 assets、资源、私有路径和类加载；非 Root 模式由 `:worker` Service 提供
+普通 Application Context。两种模式的 `import`、重载和返回规则相同，区别只在进程 UID。
+
+实际 Android 组件实例不搬进 Root Worker：脚本 UI、ImGui Surface、输入法和无障碍节点通过
+App UID 的 Provider/Binder 宿主访问。任意 Java/FFI/用户 SO 代码则仍在 Worker 本地执行。
 
 ## 文件职责
 
@@ -43,3 +51,6 @@ Java 反射、重载和类型转换集中在 `JavaInteropBridge`。JS 和 Go 接
 
 已在扩展页导入的文件或目录可通过 `LuaEngine.getExtensionPath(relativePath)` 取得私有绝对路径。
 该方法只解析安全相对路径，不猜测文件类型、ABI 或 native 依赖顺序；FFI 调用方自行决定加载次序。
+
+脚本会话结束时退出整个 Worker；JNI GlobalRef、ClassLoader、已加载 SO 和 Java/native 回调状态
+由进程退出统一回收，不跨下一次脚本运行复用。

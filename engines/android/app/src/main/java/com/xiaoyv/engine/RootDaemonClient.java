@@ -13,12 +13,13 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import android.util.Base64;
 
 /**
  * RootDaemon 客户端。
  *
- * :engine 进程只通过此类连接 App 主进程提前启动的 RootDaemon，绝不在脚本运行、截图或
- * 输入命令路径中拉起 su。认证令牌存放在 App 私有目录，其他应用无法读取。
+ * :engine 控制进程和本次 Worker 都只通过此类连接 App 主进程提前启动的 RootDaemon，绝不在
+ * 脚本、截图或输入命令路径中拉起 su。认证令牌存放在 App 私有目录，其他应用无法读取。
  */
 final class RootDaemonClient {
     private RootDaemonClient() {
@@ -105,6 +106,57 @@ final class RootDaemonClient {
             return RootDaemonProtocol.isOk(
                     RootDaemonProtocol.readLine(socket.getInputStream()),
                     "bye"
+            );
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    static int startWorker(
+            Context context,
+            String runId,
+            String workerToken,
+            String authority
+    ) throws IOException {
+        try (Socket socket = openAuthenticatedSocket(
+                context,
+                RootDaemonProtocol.CONNECT_TIMEOUT_MS
+        )) {
+            String command = RootDaemonProtocol.START_WORKER_COMMAND
+                    + "\t" + runId
+                    + "\t" + workerToken
+                    + "\t" + encode(context.getPackageCodePath())
+                    + "\t" + encode(context.getPackageName())
+                    + "\t" + encode(authority)
+                    + "\t" + encode(context.getApplicationInfo().nativeLibraryDir);
+            RootDaemonProtocol.writeLine(socket.getOutputStream(), command);
+            String response = RootDaemonProtocol.readLine(socket.getInputStream());
+            if (response == null || !response.startsWith("OK\tworkerStarted\t")) {
+                throw new IOException(response == null ? "Root Worker 无响应" : response);
+            }
+            try {
+                return Integer.parseInt(response.substring("OK\tworkerStarted\t".length()));
+            } catch (NumberFormatException exception) {
+                return -1;
+            }
+        }
+    }
+
+    static boolean stopWorker(Context context, String runId) {
+        if (context == null || runId == null || runId.isEmpty()) {
+            return false;
+        }
+        try (Socket socket = openAuthenticatedSocket(
+                context,
+                RootDaemonProtocol.CONNECT_TIMEOUT_MS
+        )) {
+            RootDaemonProtocol.writeLine(
+                    socket.getOutputStream(),
+                    RootDaemonProtocol.STOP_WORKER_COMMAND + "\t" + runId
+            );
+            return RootDaemonProtocol.isOk(
+                    RootDaemonProtocol.readLine(socket.getInputStream()),
+                    "workerStopped"
             );
         } catch (IOException exception) {
             return false;
@@ -218,6 +270,13 @@ final class RootDaemonClient {
                 0L,
                 error,
                 Collections.emptyList()
+        );
+    }
+
+    private static String encode(String value) {
+        return Base64.encodeToString(
+                value.getBytes(StandardCharsets.UTF_8),
+                Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP
         );
     }
 }

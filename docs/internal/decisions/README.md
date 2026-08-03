@@ -21,3 +21,4 @@
 - [0010：Android 可选 YOLO 运行时与多语言 C ABI](0010-Android可选YOLO运行时与多语言C-ABI.md)
 - [0011：Android 本地扩展文件导入与按需加载](0011-Android本地扩展文件导入与按需加载.md)
 - [0012：Android 扩展目录包与相对路径](0012-Android扩展目录包与相对路径.md)
+- [0013：Android 一次性脚本 Worker 与 Root 权限边界](0013-Android一次性脚本Worker与Root权限边界.md)

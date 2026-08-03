@@ -8,6 +8,7 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Binder;
 
 import org.json.JSONObject;
 
@@ -22,6 +23,12 @@ public final class AccessibilityNodeProvider extends ContentProvider {
     @Override
     public Bundle call(String method, String arg, Bundle extras) {
         Bundle result = new Bundle();
+        int callerUid = Binder.getCallingUid();
+        int appUid = getContext() == null ? -1 : getContext().getApplicationInfo().uid;
+        if (callerUid != 0 && callerUid != appUid) {
+            result.putString(RESPONSE_KEY, "{\"ok\":false,\"error\":\"无障碍节点调用方无权限\"}");
+            return result;
+        }
         try {
             JSONObject arguments = arg == null || arg.trim().isEmpty()
                     ? new JSONObject()

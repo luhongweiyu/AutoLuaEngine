@@ -17,9 +17,9 @@ import java.security.MessageDigest;
 /**
  * 由 `su -c app_process` 启动的常驻 RootDaemon。
  *
- * 它只监听 127.0.0.1，并要求随机令牌认证。App 主进程拥有它的生命周期；:engine 被强停后
- * 可以重新建立 socket 会话，但不会再次执行 su。截图仍使用“文本头 + 原始 RGBA”流，避免
- * 经过 Binder 或 Base64 造成整帧复制。
+ * 它只监听 127.0.0.1，并要求随机令牌认证。App 主进程拥有它的生命周期；脚本 Worker 退出后
+ * 可重新建立 socket 会话，但不会再次执行 su。RootDaemon 还监督一次性 root Worker，自身不
+ * 加载脚本或用户 SO。截图仍使用“文本头 + 原始 RGBA”流，避免整帧 Binder/Base64 复制。
  */
 public final class RootDaemonMain {
     private static volatile boolean running = true;
@@ -108,6 +108,41 @@ public final class RootDaemonMain {
                     return;
                 }
 
+                if (parts.length == 7
+                        && RootDaemonProtocol.START_WORKER_COMMAND.equals(parts[0])) {
+                    try {
+                        int pid = RootWorkerSupervisor.start(
+                                parts[1],
+                                parts[2],
+                                decode(parts[3]),
+                                decode(parts[4]),
+                                decode(parts[5]),
+                                decode(parts[6])
+                        );
+                        RootDaemonProtocol.writeLine(
+                                outputStream,
+                                "OK\tworkerStarted\t" + pid
+                        );
+                    } catch (Exception exception) {
+                        RootDaemonProtocol.writeLine(
+                                outputStream,
+                                "ERR\t" + safeMessage(exception)
+                        );
+                    }
+                    continue;
+                }
+
+                if (parts.length == 2
+                        && RootDaemonProtocol.STOP_WORKER_COMMAND.equals(parts[0])) {
+                    RootDaemonProtocol.writeLine(
+                            outputStream,
+                            RootWorkerSupervisor.stop(parts[1])
+                                    ? "OK\tworkerStopped"
+                                    : "ERR\tWorker 会话不匹配"
+                    );
+                    continue;
+                }
+
                 if (!RootHelperMain.dispatchCommand(outputStream, parts)) {
                     return;
                 }
@@ -165,6 +200,7 @@ public final class RootDaemonMain {
             return;
         }
         running = false;
+        RootWorkerSupervisor.shutdown();
         RootVolumeKeyEventSource.shutdown();
         if (serverSocket != null) {
             try {
@@ -173,6 +209,24 @@ public final class RootDaemonMain {
                 // accept 已经结束时无需重复处理。
             }
         }
+    }
+
+    private static String decode(String value) {
+        byte[] bytes = android.util.Base64.decode(
+                value,
+                android.util.Base64.URL_SAFE
+                        | android.util.Base64.NO_PADDING
+                        | android.util.Base64.NO_WRAP
+        );
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    private static String safeMessage(Exception exception) {
+        String message = exception.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            return "Root Worker 启动失败";
+        }
+        return message.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ');
     }
 
     /**

@@ -35,6 +35,8 @@ final class RootDaemonProtocol {
     static final String SHUTDOWN_COMMAND = "shutdown";
     static final String OWNER_PID_COMMAND = "ownerPid";
     static final String SUBSCRIBE_VOLUME_KEYS_COMMAND = "subscribeVolumeKeys";
+    static final String START_WORKER_COMMAND = "startWorker";
+    static final String STOP_WORKER_COMMAND = "stopWorker";
 
     private RootDaemonProtocol() {
     }

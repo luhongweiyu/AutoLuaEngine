@@ -178,9 +178,13 @@ final class DevicePlatformBridge {
                 return appVersionCode(context);
 
             case "system.readPasteboard":
-                return readPasteboard(context);
+                return AndroidHostBridge.readPasteboardFromController();
             case "system.writePasteboard":
-                writePasteboard(context, requireText(arguments, "text"));
+                if (!AndroidHostBridge.writePasteboardThroughController(
+                        requireText(arguments, "text")
+                )) {
+                    throw new IllegalStateException("写入剪切板失败");
+                }
                 return JSONObject.NULL;
             case "system.exec":
                 return executeRootCommand(requireString(arguments, "command"));
@@ -601,7 +605,7 @@ final class DevicePlatformBridge {
         return manager;
     }
 
-    private static String readPasteboard(Context context) {
+    static String readPasteboard(Context context) {
         ClipData primaryClip = clipboardManager(context).getPrimaryClip();
         if (primaryClip == null || primaryClip.getItemCount() == 0) {
             return "";
@@ -610,7 +614,7 @@ final class DevicePlatformBridge {
         return text == null ? "" : text.toString();
     }
 
-    private static void writePasteboard(Context context, String text) {
+    static void writePasteboard(Context context, String text) {
         clipboardManager(context).setPrimaryClip(ClipData.newPlainText(null, text));
     }
 
@@ -838,7 +842,7 @@ final class DevicePlatformBridge {
         if (EngineSettings.isRootModeEnabled(context) && RootDaemonClient.isReady(context)) {
             return 0;
         }
-        return AutomationAccessibilityService.isEnabled() ? 1 : -1;
+        return AndroidHostBridge.isAccessibilityEnabled() ? 1 : -1;
     }
 
     private static String requireString(JSONObject arguments, String name) {

@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
  * Android 引擎本地 HTTP 服务。
  *
  * 这个类只负责设备端口 HTTP、JSON-RPC 包装和 UI 状态广播。具体命令校验、
- * 脚本任务控制、root/截图/设备/应用 API 调度都统一交给 libengine.so，避免
+ * 脚本任务控制、root/截图/设备/应用 API 调度都统一交给本次 Worker 的 libengine.so，避免
  * Java 层和 native 层各维护一套业务分发。
  */
 public final class EngineHttpServer {
@@ -128,7 +128,7 @@ public final class EngineHttpServer {
         }
 
         if ("GET".equals(request.method) && "/tool/screenshot".equals(request.path)) {
-            byte[] frame = NativeEngine.getScreenFrame();
+            byte[] frame = EngineWorkerCoordinator.getScreenFrame(appContext);
             if (frame == null || frame.length < 12) {
                 return HttpResponse.json(500, makePlainError("读取设备截图失败"));
             }
@@ -169,7 +169,9 @@ public final class EngineHttpServer {
             }
 
             broadcastBeforeNativeCommand(method);
-            JSONObject nativeEnvelope = new JSONObject(NativeEngine.callJson(method, paramsJson));
+            JSONObject nativeEnvelope = new JSONObject(
+                    EngineWorkerCoordinator.callJson(appContext, method, paramsJson)
+            );
             if (!nativeEnvelope.optBoolean("ok", false)) {
                 broadcastNativeCommandError(
                         method,

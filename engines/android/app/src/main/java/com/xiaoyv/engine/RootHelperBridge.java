@@ -1,5 +1,5 @@
 /**
- * 文件用途：管理 :engine 到常驻 RootDaemon 的本地会话，用于高效执行 Root 能力。
+ * 文件用途：管理当前进程到常驻 RootDaemon 的本地会话，用于高效执行 Root 能力。
  */
 package com.xiaoyv.engine;
 
@@ -16,10 +16,10 @@ import java.net.Socket;
 import android.util.Base64;
 
 /**
- * App 引擎进程访问 root helper 的桥。
+ * 本次脚本 Worker 或 App UID 宿主访问 root helper 的桥。
  *
- * RootDaemon 由 App 主进程提前通过 `su -c app_process` 启动。:engine 这里只保持一个
- * 已认证 socket 会话；强停 :engine 只会断开本客户端，不会结束 RootDaemon 或重新执行 su。
+ * RootDaemon 由 App 主进程提前通过 `su -c app_process` 启动。每个调用进程各自保持一个
+ * 已认证 socket 会话；强停 Worker 只会断开本客户端，不会结束 RootDaemon 或重新执行 su。
  * 截图和输入注入都走该二进制安全通道，不为每个脚本命令拉起外部进程。
  */
 public final class RootHelperBridge {

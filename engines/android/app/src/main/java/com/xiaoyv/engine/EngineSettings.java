@@ -23,6 +23,7 @@ public final class EngineSettings {
     private static final String KEY_FLOATING_BUBBLE_Y = "floating_bubble_y";
     private static final String KEY_FLOATING_BUBBLE_HIDDEN = "floating_bubble_hidden";
     private static final String KEY_FLOATING_PANEL_EXPANDED = "floating_panel_expanded";
+    private static final String KEY_FLOATING_PERMISSION_PROMPTED = "floating_permission_prompted";
     private static final String KEY_ROOT_MODE_ENABLED = "root_mode_enabled";
     private static final String KEY_VOLUME_KEY_CONTROL_ENABLED = "volume_key_control_enabled";
     private static final int MIN_PORT = 1024;
@@ -117,6 +118,17 @@ public final class EngineSettings {
         preferences(context)
                 .edit()
                 .putBoolean(KEY_FLOATING_BUBBLE_HIDDEN, hidden)
+                .apply();
+    }
+
+    public static boolean hasPromptedFloatingPermission(Context context) {
+        return preferences(context).getBoolean(KEY_FLOATING_PERMISSION_PROMPTED, false);
+    }
+
+    public static void markFloatingPermissionPrompted(Context context) {
+        preferences(context)
+                .edit()
+                .putBoolean(KEY_FLOATING_PERMISSION_PROMPTED, true)
                 .apply();
     }
 

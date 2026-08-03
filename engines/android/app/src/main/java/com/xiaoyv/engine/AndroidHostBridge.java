@@ -4,7 +4,11 @@
 package com.xiaoyv.engine;
 
 import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.Settings;
 
 import java.nio.ByteBuffer;
 
@@ -21,7 +25,8 @@ public final class AndroidHostBridge {
     }
 
     public static void init(Context context) {
-        appContext = context.getApplicationContext();
+        Context application = context.getApplicationContext();
+        appContext = application == null ? context : application;
     }
 
     static Context appContext() {
@@ -39,7 +44,37 @@ public final class AndroidHostBridge {
     }
 
     public static boolean isAccessibilityEnabled() {
-        return AutomationAccessibilityService.isEnabled();
+        if (appContext == null) {
+            return false;
+        }
+        try {
+            if (Settings.Secure.getInt(
+                    appContext.getContentResolver(),
+                    Settings.Secure.ACCESSIBILITY_ENABLED,
+                    0
+            ) != 1) {
+                return false;
+            }
+            String enabled = Settings.Secure.getString(
+                    appContext.getContentResolver(),
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            );
+            if (enabled == null || enabled.isEmpty()) {
+                return false;
+            }
+            String expectedClass = AutomationAccessibilityService.class.getName();
+            for (String item : enabled.split(":")) {
+                ComponentName component = ComponentName.unflattenFromString(item);
+                if (component != null
+                        && appContext.getPackageName().equals(component.getPackageName())
+                        && expectedClass.equals(component.getClassName())) {
+                    return true;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // 系统设置不可读时按未启用返回，不改走其他探测路线。
+        }
+        return false;
     }
 
     public static int apiLevel() {
@@ -64,10 +99,9 @@ public final class AndroidHostBridge {
         if (appContext == null) {
             return false;
         }
-
-        EngineSettings.setRootModeEnabled(appContext, enabled);
-        RootDaemonService.setRootModeEnabled(appContext, enabled);
-        return true;
+        Bundle extras = new Bundle();
+        extras.putBoolean(EngineWorkerBridgeProvider.EXTRA_ENABLED, enabled);
+        return callControllerBoolean(EngineWorkerBridgeProvider.METHOD_SET_ROOT_MODE, extras);
     }
 
     public static boolean isRootAvailable() {
@@ -241,6 +275,32 @@ public final class AndroidHostBridge {
         return DevicePlatformBridge.call(appContext, operation, argumentsJson);
     }
 
+    static String readPasteboardFromController() {
+        if (appContext == null) return "";
+        try {
+            Bundle result = ContentProviderBridge.call(
+                    appContext,
+                    controllerUri(),
+                    EngineWorkerBridgeProvider.METHOD_READ_PASTEBOARD,
+                    null,
+                    null
+            );
+            return result == null ? "" : result.getString(EngineWorkerBridgeProvider.RESULT_TEXT, "");
+        } catch (RuntimeException exception) {
+            return "";
+        }
+    }
+
+    static boolean writePasteboardThroughController(String text) {
+        if (appContext == null) return false;
+        Bundle extras = new Bundle();
+        extras.putString(EngineWorkerBridgeProvider.EXTRA_TEXT, text == null ? "" : text);
+        return callControllerBoolean(
+                EngineWorkerBridgeProvider.METHOD_WRITE_PASTEBOARD,
+                extras
+        );
+    }
+
     /**
      * 在 App 主进程创建脚本原生对话框悬浮层。
      *
@@ -248,74 +308,42 @@ public final class AndroidHostBridge {
      * 框外触摸通过 FLAG_NOT_TOUCH_MODAL 继续交给下方应用。
      */
     public static boolean showScriptDialog(long sessionId, String specJson) {
-        return ScriptDialogOverlayService.sendCommand(
-                appContext,
-                ScriptDialogOverlayService.ACTION_SHOW,
-                sessionId,
-                specJson
-        );
+        return callUiHost(EngineUiHost.DIALOG_SHOW, sessionId, specJson, false);
     }
 
     /**
      * 在 App 主进程创建脚本 HUD。
      */
     public static boolean showScriptHud(long sessionId, String specJson) {
-        return ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_SHOW, sessionId, specJson);
+        return callUiHost(EngineUiHost.HUD_SHOW, sessionId, specJson, false);
     }
 
     /**
      * 更新已有脚本 HUD。
      */
     public static boolean updateScriptHud(long sessionId, String specJson) {
-        return ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_UPDATE, sessionId, specJson);
+        return callUiHost(EngineUiHost.HUD_UPDATE, sessionId, specJson, false);
     }
 
     /**
      * 在 App 主进程打开 HTML/WebView Activity。
      */
     public static boolean showScriptWeb(long sessionId, String specJson) {
-        if (appContext == null || sessionId <= 0) {
-            return false;
-        }
-        Intent intent = new Intent(appContext, ScriptWebActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra(ScriptUiProtocol.EXTRA_SESSION_ID, sessionId);
-        intent.putExtra(ScriptUiProtocol.EXTRA_SPEC_JSON, specJson == null ? "{}" : specJson);
-        try {
-            appContext.startActivity(intent);
-            return true;
-        } catch (RuntimeException exception) {
-            return false;
-        }
+        return callUiHost(EngineUiHost.WEB_SHOW, sessionId, specJson, false);
     }
 
     /**
      * 向指定 HTML 页面推送 JSON 消息。
      */
     public static boolean postScriptWebMessage(long sessionId, String messageJson) {
-        if (appContext == null || sessionId <= 0) {
-            return false;
-        }
-        ScriptUiProtocol.sendWebMessage(appContext, sessionId, messageJson);
-        return true;
+        return callUiHost(EngineUiHost.WEB_POST, sessionId, messageJson, false);
     }
 
     /**
      * 关闭一个脚本 UI 会话。网页 Activity 通过广播关闭，Dialog 和 HUD 由各自 Service 清理。
      */
     public static boolean closeScriptUi(long sessionId) {
-        if (appContext == null || sessionId <= 0) {
-            return false;
-        }
-        ScriptUiProtocol.sendClose(appContext, sessionId);
-        ScriptDialogOverlayService.sendCommand(
-                appContext,
-                ScriptDialogOverlayService.ACTION_CLOSE,
-                sessionId,
-                "{}"
-        );
-        ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_CLOSE, sessionId, "{}");
-        return true;
+        return callUiHost(EngineUiHost.UI_CLOSE, sessionId, "{}", false);
     }
 
     /** 返回设备是否声明 OpenGL ES 3，供 native imgui.isSupport() 快速检测。 */
@@ -325,55 +353,66 @@ public final class AndroidHostBridge {
 
     /** 在 :engine 进程创建或替换 Dear ImGui 悬浮 Surface。 */
     public static boolean showScriptImGui(String configJson) {
-        return ScriptImGuiService.sendCommand(
-                appContext,
-                ScriptImGuiService.ACTION_SHOW,
-                configJson
-        );
+        return callUiHost(EngineUiHost.IMGUI_SHOW, 0, configJson, false);
     }
 
     /** 更新独立 ImGui Surface 的位置和尺寸，不重建 EGLContext。 */
     public static boolean updateScriptImGui(String configJson) {
-        return ScriptImGuiService.sendCommand(
-                appContext,
-                ScriptImGuiService.ACTION_UPDATE,
-                configJson
-        );
+        return callUiHost(EngineUiHost.IMGUI_UPDATE, 0, configJson, false);
     }
 
     /** 关闭 ImGui Surface；服务不存在时该操作仍视为完成。 */
     public static boolean closeScriptImGui() {
-        if (appContext == null) {
-            return false;
-        }
-        ScriptImGuiService.sendCommand(
-                appContext,
-                ScriptImGuiService.ACTION_CLOSE,
-                "{}"
-        );
-        return true;
+        return callUiHost(EngineUiHost.IMGUI_CLOSE, 0, "{}", false);
     }
 
     /** 把 Dear ImGui 的 WantTextInput 状态转给当前输入代理。 */
     public static boolean setScriptImGuiKeyboardVisible(boolean visible) {
-        return ScriptImGuiService.setKeyboardVisible(visible);
+        return callUiHost(EngineUiHost.IMGUI_KEYBOARD, 0, "{}", visible);
     }
 
     /**
      * 强停引擎进程前关闭全部脚本界面，避免 UI 宿主留在屏幕上。
      */
     public static void closeAllScriptUi() {
-        if (appContext == null) {
-            return;
-        }
-        ScriptUiProtocol.sendCloseAll(appContext);
-        ScriptDialogOverlayService.sendCommand(
-                appContext,
-                ScriptDialogOverlayService.ACTION_CLOSE_ALL,
-                0,
-                "{}"
+        callUiHost(EngineUiHost.UI_CLOSE_ALL, 0, "{}", false);
+    }
+
+    private static boolean callUiHost(
+            String action,
+            long sessionId,
+            String payload,
+            boolean flag
+    ) {
+        if (appContext == null) return false;
+        Bundle extras = new Bundle();
+        extras.putString(EngineWorkerBridgeProvider.EXTRA_UI_ACTION, action);
+        extras.putLong(EngineWorkerBridgeProvider.EXTRA_SESSION_ID, sessionId);
+        extras.putString(
+                EngineWorkerBridgeProvider.EXTRA_PAYLOAD,
+                payload == null ? "{}" : payload
         );
-        ScriptHudService.sendCommand(appContext, ScriptHudService.ACTION_CLOSE_ALL, 0, "{}");
-        closeScriptImGui();
+        extras.putBoolean(EngineWorkerBridgeProvider.EXTRA_FLAG, flag);
+        return callControllerBoolean(EngineWorkerBridgeProvider.METHOD_UI_HOST, extras);
+    }
+
+    private static boolean callControllerBoolean(String method, Bundle extras) {
+        try {
+            Bundle result = ContentProviderBridge.call(
+                    appContext,
+                    controllerUri(),
+                    method,
+                    null,
+                    extras
+            );
+            return result != null
+                    && result.getBoolean(EngineWorkerBridgeProvider.RESULT_ACCEPTED, false);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static Uri controllerUri() {
+        return Uri.parse("content://" + appContext.getPackageName() + ".engineworker");
     }
 }

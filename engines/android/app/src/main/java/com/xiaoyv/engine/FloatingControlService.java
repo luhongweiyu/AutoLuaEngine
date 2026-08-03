@@ -355,19 +355,11 @@ public final class FloatingControlService extends Service {
     }
 
     private void runSelectedScriptFromPanel() {
-        ScriptCatalog.ScriptItem item = ScriptCatalog.getSelectedScript(this);
-        if (item == null) {
-            showToast("脚本目录为空");
-            return;
+        EngineService.RunRequestResult result = EngineService.runSelectedScript(this);
+        if (result.started) {
+            updateRunningState(EngineService.STATE_RUNNING);
         }
-        if (!item.runnable) {
-            showToast("当前只支持运行 Lua 文件：" + item.fileName);
-            return;
-        }
-
-        EngineService.runScriptFile(this, item.filePath);
-        updateRunningState(EngineService.STATE_RUNNING);
-        showToast("已发送运行命令：" + item.fileName);
+        showToast(result.message);
     }
 
     private void stopRunningScriptFromPanel() {
@@ -553,8 +545,9 @@ public final class FloatingControlService extends Service {
     private GradientDrawable makeBubbleDrawable() {
         int color = scriptRunning
                 ? Color.parseColor("#16A34A")
-                : Color.parseColor("#159FE6");
-        return makeOvalDrawable(color, Color.WHITE, 1);
+                : Color.WHITE;
+        int stroke = scriptRunning ? Color.WHITE : Color.parseColor("#F59E0B");
+        return makeOvalDrawable(color, stroke, 1);
     }
 
     private int dp(int value) {

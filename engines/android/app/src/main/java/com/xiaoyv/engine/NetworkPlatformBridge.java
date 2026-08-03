@@ -32,10 +32,6 @@ import okhttp3.WebSocketListener;
 import okio.ByteString;
 
 final class NetworkPlatformBridge {
-    private static final OkHttpClient CLIENT = new OkHttpClient.Builder()
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build();
     private static final AtomicLong NEXT_WEB_SOCKET_ID = new AtomicLong(1);
     private static final ConcurrentHashMap<Long, WebSocketSession> WEB_SOCKETS =
             new ConcurrentHashMap<>();
@@ -192,7 +188,7 @@ final class NetworkPlatformBridge {
         WebSocketSession session = new WebSocketSession(handle);
         WEB_SOCKETS.put(handle, session);
         try {
-            session.socket = CLIENT.newWebSocket(request, session);
+            session.socket = client().newWebSocket(request, session);
             return handle;
         } catch (RuntimeException exception) {
             WEB_SOCKETS.remove(handle, session);
@@ -258,11 +254,22 @@ final class NetworkPlatformBridge {
     }
 
     private static OkHttpClient timedClient(int timeoutSeconds) {
-        return CLIENT.newBuilder()
+        return client().newBuilder()
                 .callTimeout(timeoutSeconds, TimeUnit.SECONDS)
                 .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
                 .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
                 .writeTimeout(timeoutSeconds, TimeUnit.SECONDS)
+                .build();
+    }
+
+    private static OkHttpClient client() {
+        return ClientHolder.INSTANCE;
+    }
+
+    private static final class ClientHolder {
+        private static final OkHttpClient INSTANCE = new OkHttpClient.Builder()
+                .followRedirects(true)
+                .followSslRedirects(true)
                 .build();
     }
 

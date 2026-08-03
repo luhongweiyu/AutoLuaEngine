@@ -5,6 +5,8 @@ package com.xiaoyv.engine;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Bundle;
 
 /**
  * 输入法控制桥。
@@ -41,10 +43,13 @@ public final class EngineImeBridge {
      */
     public static boolean lock() {
         Context context = AndroidHostBridge.applicationContext();
-        if (context == null) {
-            return false;
-        }
+        return context != null
+                && callImeHost(context, EngineWorkerBridgeProvider.METHOD_IME_LOCK, null);
+    }
 
+    static boolean lockLocal() {
+        Context context = AndroidHostBridge.applicationContext();
+        if (context == null) return false;
         synchronized (LOCK) {
             SharedPreferences preferences = preferences(context);
             if (preferences.getBoolean(KEY_LOCKED, false)) {
@@ -72,13 +77,29 @@ public final class EngineImeBridge {
      */
     public static boolean setText(String text) {
         Context context = AndroidHostBridge.applicationContext();
-        if (context == null || !preferences(context).getBoolean(KEY_LOCKED, false)) {
-            return false;
-        }
-        return EngineInputMethodService.commitText(text);
+        if (context == null) return false;
+        Bundle extras = new Bundle();
+        extras.putString(EngineWorkerBridgeProvider.EXTRA_TEXT, text == null ? "" : text);
+        return callImeHost(context, EngineWorkerBridgeProvider.METHOD_IME_COMMIT, extras);
+    }
+
+    static boolean setTextLocal(String text) {
+        Context context = AndroidHostBridge.applicationContext();
+        return context != null
+                && preferences(context).getBoolean(KEY_LOCKED, false)
+                && EngineInputMethodService.commitText(text);
     }
 
     public static boolean deleteChar() {
+        Context context = AndroidHostBridge.applicationContext();
+        return context != null && callImeHost(
+                        context,
+                        EngineWorkerBridgeProvider.METHOD_IME_DELETE,
+                        null
+                );
+    }
+
+    static boolean deleteCharLocal() {
         Context context = AndroidHostBridge.applicationContext();
         return context != null
                 && preferences(context).getBoolean(KEY_LOCKED, false)
@@ -87,12 +108,30 @@ public final class EngineImeBridge {
 
     public static boolean finishInput() {
         Context context = AndroidHostBridge.applicationContext();
+        return context != null && callImeHost(
+                        context,
+                        EngineWorkerBridgeProvider.METHOD_IME_FINISH,
+                        null
+                );
+    }
+
+    static boolean finishInputLocal() {
+        Context context = AndroidHostBridge.applicationContext();
         return context != null
                 && preferences(context).getBoolean(KEY_LOCKED, false)
                 && EngineInputMethodService.finishInput();
     }
 
     public static boolean keyEvent(int action, int keyCode) {
+        Context context = AndroidHostBridge.applicationContext();
+        if (context == null) return false;
+        Bundle extras = new Bundle();
+        extras.putInt(EngineWorkerBridgeProvider.EXTRA_ACTION, action);
+        extras.putInt(EngineWorkerBridgeProvider.EXTRA_KEY_CODE, keyCode);
+        return callImeHost(context, EngineWorkerBridgeProvider.METHOD_IME_KEY, extras);
+    }
+
+    static boolean keyEventLocal(int action, int keyCode) {
         Context context = AndroidHostBridge.applicationContext();
         return context != null
                 && preferences(context).getBoolean(KEY_LOCKED, false)
@@ -104,10 +143,13 @@ public final class EngineImeBridge {
      */
     public static boolean unlock() {
         Context context = AndroidHostBridge.applicationContext();
-        if (context == null) {
-            return false;
-        }
+        return context != null
+                && callImeHost(context, EngineWorkerBridgeProvider.METHOD_IME_UNLOCK, null);
+    }
 
+    static boolean unlockLocal() {
+        Context context = AndroidHostBridge.applicationContext();
+        if (context == null) return false;
         synchronized (LOCK) {
             SharedPreferences preferences = preferences(context);
             if (!preferences.getBoolean(KEY_LOCKED, false)) {
@@ -141,5 +183,21 @@ public final class EngineImeBridge {
      */
     private static SharedPreferences preferences(Context context) {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+    }
+
+    private static boolean callImeHost(Context context, String method, Bundle extras) {
+        try {
+            Bundle result = ContentProviderBridge.call(
+                    context,
+                    Uri.parse("content://" + context.getPackageName() + ".engineworker"),
+                    method,
+                    null,
+                    extras
+            );
+            return result != null
+                    && result.getBoolean(EngineWorkerBridgeProvider.RESULT_ACCEPTED, false);
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 }

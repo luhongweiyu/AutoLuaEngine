@@ -38,6 +38,7 @@ import android.widget.RadioButton;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -78,7 +79,6 @@ public final class MainActivity extends Activity {
 
     private FrameLayout pageContainer;
     private TextView statusDetailView;
-    private TextView settingsPermissionView;
     private TextView[] navItems;
     private Button runButton;
     private Switch rootModeCheckBox;
@@ -86,7 +86,6 @@ public final class MainActivity extends Activity {
     private Switch volumeKeyControlCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
     private int currentTab = TAB_SCRIPT;
-    private String latestMessage = "就绪";
     private boolean scriptRunning;
     private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
         @Override
@@ -215,9 +214,6 @@ public final class MainActivity extends Activity {
         if (tabIndex == TAB_STATUS) {
             queryStatusSummary();
         }
-        if (tabIndex == TAB_SETTINGS) {
-            updateSettingsPermissionView();
-        }
     }
 
     private View createPageForTab(int tabIndex) {
@@ -310,8 +306,8 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), dp(4), dp(10), dp(4));
-        row.setMinimumHeight(dp(62));
+        row.setPadding(dp(12), dp(2), dp(8), dp(2));
+        row.setMinimumHeight(dp(50));
         row.setTag(item.filePath);
         updateScriptRowBackground(row, item.filePath);
         row.setClickable(true);
@@ -328,7 +324,7 @@ public final class MainActivity extends Activity {
         ));
         radioButton.setChecked(selectedScript != null && selectedScript.filePath.equals(item.filePath));
         radioButton.setOnClickListener(view -> selectScript(item));
-        row.addView(radioButton, new LinearLayout.LayoutParams(dp(40), dp(48)));
+        row.addView(radioButton, new LinearLayout.LayoutParams(dp(36), dp(40)));
 
         TextView nameView = createText(item.fileName, 14, COLOR_TEXT, true);
         nameView.setSingleLine(true);
@@ -350,7 +346,7 @@ public final class MainActivity extends Activity {
                 1.55f
         ));
 
-        row.addView(createOpenFileButton(item), new LinearLayout.LayoutParams(dp(44), dp(44)));
+        row.addView(createOpenFileButton(item), new LinearLayout.LayoutParams(dp(40), dp(40)));
         return row;
     }
 
@@ -359,6 +355,7 @@ public final class MainActivity extends Activity {
         LinearLayout page = createPageContent();
         scrollView.addView(page);
 
+        page.addView(createSectionLabel("当前状态"), matchWidthWrapContent());
         statusDetailView = createSmallText("正在读取状态...");
         statusDetailView.setTextSize(14);
         statusDetailView.setTextColor(COLOR_TEXT);
@@ -384,11 +381,8 @@ public final class MainActivity extends Activity {
         scrollView.addView(page);
 
         page.addView(createSectionLabel("本地扩展"), matchWidthWrapContent());
-        TextView hint = createSmallText(
-                "将文件或文件夹直接复制到 " + ExtensionCatalog.getExtensionDirectoryDisplayPath()
-                        + "。列表只显示最外层条目；导入文件夹会保留内部相对路径，脚本实际使用时才加载。"
-        );
-        hint.setPadding(dp(2), dp(6), dp(2), 0);
+        TextView hint = createSmallText("文件或文件夹放入共享扩展目录后，点击导入。");
+        hint.setPadding(dp(2), dp(4), dp(2), 0);
         page.addView(hint, matchWidthWrapContent());
 
         LinearLayout actions = createHorizontalRow();
@@ -402,7 +396,7 @@ public final class MainActivity extends Activity {
                 "刷新",
                 () -> showTab(TAB_EXTENSION)
         ), weightedButtonParams(1f, true));
-        page.addView(actions, topMarginParams(12));
+        page.addView(actions, topMarginParams(8));
 
         if (!ScriptCatalog.isScriptStorageAccessible(this)) {
             page.addView(createEmptyText("扩展目录未授权"), topMarginParams(36));
@@ -427,14 +421,14 @@ public final class MainActivity extends Activity {
                 list.addView(createSettingsDivider());
             }
         }
-        page.addView(list, topMarginParams(14));
+        page.addView(list, topMarginParams(10));
         return scrollView;
     }
 
     private View createExtensionRow(ExtensionCatalog.ExtensionItem item) {
         LinearLayout row = createHorizontalRow();
-        row.setPadding(dp(14), dp(9), dp(10), dp(9));
-        row.setMinimumHeight(dp(66));
+        row.setPadding(dp(12), dp(5), dp(8), dp(5));
+        row.setMinimumHeight(dp(52));
 
         LinearLayout textColumn = new LinearLayout(this);
         textColumn.setOrientation(LinearLayout.VERTICAL);
@@ -460,12 +454,13 @@ public final class MainActivity extends Activity {
 
         Button importButton = createSecondaryButton(
                 View.generateViewId(),
-                item.imported
-                        ? (item.directory ? "重新导入目录" : "重新导入")
-                        : (item.directory ? "导入目录" : "导入"),
+                item.imported ? "重新导入" : "导入",
                 () -> importExtension(item)
         );
-        row.addView(importButton, new LinearLayout.LayoutParams(dp(88), dp(44)));
+        importButton.setMinHeight(0);
+        importButton.setMinimumHeight(0);
+        importButton.setPadding(dp(6), 0, dp(6), 0);
+        row.addView(importButton, new LinearLayout.LayoutParams(dp(78), dp(34)));
         return row;
     }
 
@@ -533,14 +528,6 @@ public final class MainActivity extends Activity {
         storageGroup.addView(scriptStorageRow, matchWidthWrapContent());
         page.addView(storageGroup, topMarginParams(8));
 
-        page.addView(createSectionLabel("当前状态"), topMarginParams(22));
-        settingsPermissionView = createSmallText("");
-        settingsPermissionView.setTextSize(13);
-        settingsPermissionView.setTextColor(COLOR_TEXT);
-        settingsPermissionView.setPadding(dp(14), dp(12), dp(14), dp(12));
-        settingsPermissionView.setBackground(makeRoundDrawable(COLOR_SURFACE, dp(6), COLOR_LINE));
-        page.addView(settingsPermissionView, topMarginParams(8));
-        updateSettingsPermissionView();
         return scrollView;
     }
 
@@ -576,7 +563,7 @@ public final class MainActivity extends Activity {
         } else if (currentTab == TAB_STATUS) {
             queryStatusSummary();
         } else if (currentTab == TAB_SETTINGS) {
-            updateSettingsPermissionView();
+            showTab(TAB_SETTINGS);
         }
     }
 
@@ -593,19 +580,11 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        selectedScript = ScriptCatalog.getSelectedScript(this);
-        if (selectedScript == null) {
-            setMessage("脚本目录为空，无法运行");
-            return;
+        EngineService.RunRequestResult result = EngineService.runSelectedScript(this);
+        if (result.started) {
+            setRunningControls(true);
         }
-        if (!selectedScript.runnable) {
-            setMessage("当前文件不可运行：" + selectedScript.fileName);
-            return;
-        }
-
-        EngineService.runScriptFile(this, selectedScript.filePath);
-        setRunningControls(true);
-        setMessage("准备运行脚本：" + selectedScript.fileName);
+        setMessage(result.message);
     }
 
     private void stopRunningScriptFromRunButton() {
@@ -617,14 +596,12 @@ public final class MainActivity extends Activity {
         EngineSettings.setRootModeEnabled(this, enabled);
         RootDaemonService.setRootModeEnabled(this, enabled);
         setMessage(enabled ? "运行模式已切换为 Root 模式" : "运行模式已切换为无障碍优先");
-        updateSettingsPermissionView();
     }
 
     private void handleVolumeKeyControlChanged(CompoundButton button, boolean enabled) {
         EngineSettings.setVolumeKeyControlEnabled(this, enabled);
         RootDaemonService.syncVolumeKeyControl(this);
         setMessage(enabled ? "音量键控制已开启" : "音量键控制已关闭");
-        updateSettingsPermissionView();
     }
 
     private void handleFloatingChanged(CompoundButton button, boolean checked) {
@@ -636,7 +613,6 @@ public final class MainActivity extends Activity {
             stopService(new Intent(this, FloatingControlService.class));
             setMessage("悬浮按钮已隐藏");
         }
-        updateSettingsPermissionView();
     }
 
     private void setRunningControls(boolean running) {
@@ -719,12 +695,7 @@ public final class MainActivity extends Activity {
     private void startFloatingControl() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName())
-            );
-            startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION);
-            setMessage("请开启悬浮窗权限后再启动悬浮控制");
+            openFloatingPermissionSettings();
             return;
         }
 
@@ -742,12 +713,35 @@ public final class MainActivity extends Activity {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && !Settings.canDrawOverlays(this)) {
+            if (ScriptCatalog.isScriptStorageAccessible(this)
+                    && !EngineSettings.hasPromptedFloatingPermission(this)) {
+                EngineSettings.markFloatingPermissionPrompted(this);
+                showFirstFloatingPermissionPrompt();
+            }
             return;
         }
 
         Intent intent = new Intent(this, FloatingControlService.class);
         intent.setAction(FloatingControlService.ACTION_SHOW);
         startService(intent);
+    }
+
+    private void showFirstFloatingPermissionPrompt() {
+        new AlertDialog.Builder(this)
+                .setTitle("开启悬浮控制")
+                .setMessage("悬浮控制需要“显示在其他应用上层”权限。授权后会自动显示脚本控制按钮。")
+                .setNegativeButton("暂不开启", null)
+                .setPositiveButton("去开启", (dialog, which) -> openFloatingPermissionSettings())
+                .show();
+    }
+
+    private void openFloatingPermissionSettings() {
+        Intent intent = new Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName())
+        );
+        startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION);
+        setMessage("请开启悬浮窗权限");
     }
 
     private void openAccessibilitySettings() {
@@ -855,23 +849,6 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void updateSettingsPermissionView() {
-        if (settingsPermissionView == null) {
-            return;
-        }
-
-        boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                || Settings.canDrawOverlays(this);
-        settingsPermissionView.setText("Root 模式：" + formatEnabled(EngineSettings.isRootModeEnabled(this))
-                + "\n音量键控制：" + formatEnabled(EngineSettings.isVolumeKeyControlEnabled(this))
-                + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
-                + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
-                + "\n脚本存储权限："
-                + formatEnabled(ScriptCatalog.isScriptStorageAccessible(this))
-                + "\n脚本目录：" + ScriptCatalog.getScriptDirectoryDisplayPath(this)
-                + "\n调试端口：127.0.0.1:" + EngineSettings.getHttpPort(this));
-    }
-
     private boolean isFloatingControlVisible() {
         boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                 || Settings.canDrawOverlays(this);
@@ -948,6 +925,11 @@ public final class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                     || Settings.canDrawOverlays(this)) {
                 startFloatingControl();
+                if (floatingCheckBox != null) {
+                    floatingCheckBox.setOnCheckedChangeListener(null);
+                    floatingCheckBox.setChecked(true);
+                    floatingCheckBox.setOnCheckedChangeListener(this::handleFloatingChanged);
+                }
             } else {
                 setMessage("悬浮窗权限未开启");
                 if (floatingCheckBox != null) {
@@ -956,7 +938,6 @@ public final class MainActivity extends Activity {
                     floatingCheckBox.setOnCheckedChangeListener(this::handleFloatingChanged);
                 }
             }
-            updateSettingsPermissionView();
         }
     }
 
@@ -1041,7 +1022,10 @@ public final class MainActivity extends Activity {
     }
 
     private void setMessage(String message) {
-        latestMessage = message == null || message.isEmpty() ? "就绪" : message;
+        if (message == null || message.isEmpty() || "就绪".equals(message)) {
+            return;
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     private void configureSystemBars() {
@@ -1077,7 +1061,7 @@ public final class MainActivity extends Activity {
     private LinearLayout createListContent() {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(0, dp(4), 0, dp(4));
+        list.setPadding(0, dp(2), 0, dp(2));
         list.setBackgroundColor(COLOR_SURFACE);
         list.setLayoutParams(matchWidthWrapContent());
         return list;

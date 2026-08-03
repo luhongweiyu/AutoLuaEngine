@@ -44,7 +44,8 @@ final class AccessibilityNodePlatformBridge {
     static Object callThroughProvider(Context context, String operation, JSONObject arguments)
             throws Exception {
         Uri uri = Uri.parse("content://" + context.getPackageName() + ".accessibility");
-        Bundle bundle = context.getContentResolver().call(
+        Bundle bundle = ContentProviderBridge.call(
+                context,
                 uri,
                 operation,
                 arguments == null ? "{}" : arguments.toString(),

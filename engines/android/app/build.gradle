@@ -38,6 +38,10 @@ android {
     namespace "com.xiaoyv.engine"
     compileSdk 34
 
+    buildFeatures {
+        aidl true
+    }
+
     signingConfigs {
         xiaoyv {
             storeFile projectSigningStoreFile
@@ -71,6 +75,9 @@ android {
 
     packaging {
         jniLibs {
+            // Root app_process 没有 APK PathClassLoader 的 native 搜索路径，需要安装后可按
+            // applicationInfo.nativeLibraryDir 绝对加载同一份 libengine.so。
+            useLegacyPackaging = true
             // OpenCV 与 ONNX Runtime 的 Java API 仍随基础包保留；大体积 native 本体改由
             // /sdcard/xiaoyv/extensions 中用户导入的文件在脚本实际使用时按需加载。
             // onnxruntime4j_jni 是约数十 KB 的 Java 绑定 JNI 壳，保留在 APK 内以便官方
@@ -115,7 +122,9 @@ android {
 
 androidComponents {
     beforeVariants(selector().withBuildType("debug")) { variantBuilder ->
-        if (variantBuilder.productFlavors.any { it.second == "x64" }) {
+        def enableX64Debug = project.findProperty("xiaoyvEnableX64Debug")
+                ?.toString()?.toBoolean() ?: false
+        if (!enableX64Debug && variantBuilder.productFlavors.any { it.second == "x64" }) {
             variantBuilder.enable = false
         }
     }

@@ -86,7 +86,13 @@
             android:exported="false"
             android:process=":engine" />
 
-        <!-- Dear ImGui Surface 与 Lua 引擎运行在同一 :engine 进程，JNI 直接复用 libengine.so。 -->
+        <!-- 非 Root 模式每次运行使用独立 App UID Worker；结束后主动退出整个进程。 -->
+        <service
+            android:name=".LocalEngineWorkerService"
+            android:exported="false"
+            android:process=":worker" />
+
+        <!-- Surface 留在控制进程，通过 Binder 交给本次 Root/非 Root Worker 的 EGL 渲染器。 -->
         <service
             android:name=".ScriptImGuiService"
             android:exported="false"
@@ -128,7 +134,14 @@
         <provider
             android:name=".AccessibilityNodeProvider"
             android:authorities="${applicationId}.accessibility"
-            android:exported="false" />
+            android:exported="true" />
+
+        <!-- Root app_process 仅凭每次随机令牌在这里完成一次 Worker Binder 握手。 -->
+        <provider
+            android:name=".EngineWorkerBridgeProvider"
+            android:authorities="${applicationId}.engineworker"
+            android:exported="true"
+            android:process=":engine" />
     </application>
 
 </manifest>

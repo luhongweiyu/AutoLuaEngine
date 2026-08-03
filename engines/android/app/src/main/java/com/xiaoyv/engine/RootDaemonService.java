@@ -19,6 +19,7 @@ public final class RootDaemonService extends Service {
     private static final String ACTION_SHUTDOWN = "com.xiaoyv.engine.action.SHUTDOWN_ROOT_DAEMON";
     private static final String ACTION_SYNC_VOLUME_KEYS =
             "com.xiaoyv.engine.action.SYNC_ROOT_VOLUME_KEYS";
+    private static final String EXTRA_ROOT_MODE_ENABLED = "rootModeEnabled";
 
     private RootVolumeKeyMonitor volumeKeyMonitor;
 
@@ -32,7 +33,10 @@ public final class RootDaemonService extends Service {
         if (context == null) {
             return;
         }
-        sendAction(context, enabled ? ACTION_PREPARE : ACTION_SHUTDOWN);
+        Intent intent = new Intent(context, RootDaemonService.class);
+        intent.setAction(enabled ? ACTION_PREPARE : ACTION_SHUTDOWN);
+        intent.putExtra(EXTRA_ROOT_MODE_ENABLED, enabled);
+        context.startService(intent);
     }
 
     /**
@@ -74,6 +78,9 @@ public final class RootDaemonService extends Service {
         }
 
         if (ACTION_SHUTDOWN.equals(action)) {
+            if (intent.hasExtra(EXTRA_ROOT_MODE_ENABLED)) {
+                EngineSettings.setRootModeEnabled(getApplicationContext(), false);
+            }
             volumeKeyMonitor.stop();
             new Thread(() -> {
                 RootDaemonManager.shutdown(getApplicationContext());
@@ -91,6 +98,10 @@ public final class RootDaemonService extends Service {
         // 未知 Action 不具备 Root 初始化语义，直接忽略，避免任何意外入口触发 su。
         if (!ACTION_PREPARE.equals(action)) {
             return START_STICKY;
+        }
+
+        if (intent.hasExtra(EXTRA_ROOT_MODE_ENABLED)) {
+            EngineSettings.setRootModeEnabled(getApplicationContext(), true);
         }
 
         new Thread(() -> {

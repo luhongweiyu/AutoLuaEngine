@@ -1,235 +1,113 @@
-# Android 引擎独立进程拆分方案
+# Android 引擎进程拆分
 
-本文档记录 Android 引擎从“同进程服务化”演进到“脚本独立进程”的拆分方案。
+本文记录当前已经落地的“常驻控制端 + 一次性脚本 Worker”结构。长期决定见
+[0013：Android 一次性脚本 Worker 与 Root 权限边界](../../decisions/0013-Android一次性脚本Worker与Root权限边界.md)。
 
-## 1. 目标
-
-参考旧项目新版结构：
-
-```text
-主进程       MainService / UI / 悬浮窗 / 权限入口
-脚本进程 :sc NativeService / so / Lua 执行
-插件进程 :ps PluginService / 扩展能力
-```
-
-小鱼精灵 后续目标：
+## 进程结构
 
 ```text
-主进程
-├─ MainActivity
-├─ FloatingControlService
-└─ Root 模式和悬浮窗权限入口
+App 主进程（App UID，常驻）
+├─ MainActivity / FloatingControlService
+├─ AutomationAccessibilityService
+├─ Dialog / HUD / WebView 脚本 UI
+└─ RootDaemonService / RootDaemonManager
+       └─ su -c app_process -> RootDaemonMain（uid=0，常驻）
+                              ├─ 截图、触控、输入、系统命令、音量键
+                              └─ RootWorkerSupervisor
 
-引擎进程 :engine
-├─ EngineService
-├─ EngineHttpServer
-├─ NativeEngine
-└─ libengine.so / EngineCommand / LuaRuntime
+:engine 控制进程（App UID，常驻）
+├─ EngineService：运行会话、状态广播、停止/强停
+├─ EngineHttpServer：IDE/PC 的 HTTP/JSON-RPC
+├─ EngineWorkerCoordinator：选择外壳、Binder、日志和生命周期
+├─ EngineWorkerBridgeProvider：Root Worker 一次性握手及 App UID 宿主桥
+└─ ScriptImGuiService：透明 Surface、触摸、键盘和输入法代理
+
+本次 Worker（二选一，不并存）
+├─ Root：RootDaemon -> app_process -> EngineWorkerMain（uid=0）
+└─ 非 Root：LocalEngineWorkerService :worker（App UID）
+       └─ EngineWorkerEndpoint
+          ├─ NativeEngine / libengine.so
+          ├─ Lua 5.4；后续 JS / Go 使用同一外壳
+          ├─ core/api / system_c_api / 各语言绑定
+          ├─ JavaInterop / FFI / APK、Dex 与用户 SO
+          ├─ OpenCV / OCR / YOLO 可选扩展
+          └─ Dear ImGui EGL/渲染线程
 ```
 
-第一版暂不做插件进程。
+## 固定边界
 
-## 2. 为什么不能直接加 android:process
+- App 主进程不加载 `libengine.so`，只持有 Android 页面、Service 和无障碍对象。
+- `:engine` 不执行脚本、不加载用户 SO，也不执行 `su`；它是可连续连接的控制端。
+- RootDaemon 只加载项目内稳定 Root 实现，不加载脚本运行时、模型或任意扩展。
+- Root 与非 Root Worker 进入完全相同的 `EngineWorkerEndpoint -> NativeEngine`。公开函数、
+  参数、返回类型、C ABI 和语言绑定不因权限模式分叉。
+- 每次脚本结束、停止、崩溃或强停后退出 Worker。RootDaemon、App 主进程和 `:engine` 不退出。
 
-不能只在 `EngineService` 上直接加：
+## 启动路线
 
-```xml
-android:process=":engine"
-```
-
-原因：
-
-1. `MainActivity` 和 `FloatingControlService` 以前也会直接启动 `EngineHttpServer` 和 `NativeEngine`。
-2. 如果直接拆进程，主进程和引擎进程会各自加载一套 `libengine.so`，脚本、日志、图片句柄会分裂。
-3. Root 运行层和无障碍能力属于 Android 系统权限链路，需要明确跨进程访问方式。
-4. App 内日志入口不能再直接读主进程 native 日志，否则看到的不是引擎进程日志。
-
-## 3. 当前已完成
-
-已完成：
+### Root
 
 ```text
-MainActivity             -> EngineService.ensureStarted()
-FloatingControlService   -> EngineService.ensureStarted()
-EngineService.onCreate() -> NativeEngine.init() + EngineHttpServer.start()
-MainActivity 日志入口    -> EngineLocalClient -> log.drain
-MainActivity 设置入口    -> EngineLocalClient -> device.info / script.status
-EngineHttpServer         -> NativeEngine.callJson -> libengine.so
-EngineService 控制脚本   -> NativeEngine.callJson -> libengine.so
+EngineWorkerCoordinator
+  -> RootDaemonClient（既有认证 socket）
+  -> RootWorkerSupervisor
+  -> /system/bin/app_process ... EngineWorkerMain
+  -> ActivityThread.systemMain().getSystemContext()
+  -> createPackageContext(packageName)
+  -> 绝对加载 nativeLibraryDir/libengine.so
+  -> EngineWorkerBridgeProvider.registerWorker(runId, oneTimeToken, binder)
 ```
 
-也就是说，native 初始化和 HTTP JSON-RPC 服务启动已经收敛到 `EngineService`。
-App 主界面查看日志和引擎状态时，也已经通过本地 JSON-RPC 访问引擎，不再直接读取主进程 native 状态。
+RootDaemon 是 uid=0，子 Worker 直接继承 uid=0，不再次执行 `su`，因此重复运行脚本不会重复弹
+Root 授权。Provider 只接受 root 或本应用 UID，并且 Root Binder 必须同时匹配当前待连接的
+`runId` 和一次性随机令牌；旧 Worker 或其他进程不能覆盖当前会话。
+Root `app_process` 不属于 AMS 注册的应用进程，访问宿主 Provider 时由 `ContentProviderBridge`
+申请并及时释放 external provider 引用，避免依赖普通应用进程的 `ContentResolver` 身份。
 
-2026-06-25 已按旧项目方向完成第一版独立进程拆分：
+### 非 Root
 
 ```text
-主进程 com.xiaoyv.engine
-├─ MainActivity
-├─ FloatingControlService
-├─ RootDaemonService / RootDaemonManager
-└─ Root 模式和悬浮窗权限入口
-
-RootDaemon（uid=0）
-└─ RootDaemonMain：受认证的本机 Root 命令服务
-
-引擎进程 com.xiaoyv.engine:engine
-├─ EngineService
-├─ EngineHttpServer
-├─ NativeEngine
-├─ RootHelperBridge：到 RootDaemon 的已认证 socket 客户端
-└─ libengine.so / engine_command.cpp
+EngineWorkerCoordinator
+  -> bindService(LocalEngineWorkerService :worker)
+  -> EngineWorkerEndpoint
+  -> NativeEngine / libengine.so
 ```
 
-核心能力层仍然是 `libengine.so`。Lua/JS/Go 等语言绑定只做参数转换和返回值封装，
-脚本 API 的真实逻辑统一进入 `libengine.so/core/api`，对外复用通过 `system_c_api`
-C ABI。Java Service 只负责进程、权限、Android 系统桥接和 RootDaemon 生命周期。
+Local 外壳只改变 Linux UID 和启动方式，不删 API。Root 类调用仍进入原实现，由系统或底层桥按
+既有返回类型给出实际结果；控制层不统一改写错误、不重试、不切换备用路线。
 
-2026-07-09 已完成第二次边界收口：
+## 命令和大数据
 
-```text
-App 主进程
-├─ MainActivity：UI、脚本选择、Root 模式、悬浮窗权限、状态展示
-├─ FloatingControlService：悬浮按钮和控制面板
-├─ EngineLocalClient：通过本地 JSON-RPC 查询引擎
-└─ RootDaemonService：只在 Root 模式下准备或关闭 RootDaemon
+- `EngineService` 文件运行、HTTP JSON-RPC、停止、暂停和继续最终都调用当前
+  `IEngineWorker`。
+- JSON 参数与返回结果通过 `ParcelFileDescriptor` 管道传输，避免普通 Binder 事务的大小上限。
+- `/tool/screenshot` 的 XYVF RGBA 帧同样通过 FD 管道返回；HTTP 层只搬运数据。
+- ImGui 的 `Surface` 可直接作为 Parcelable 交给 Worker；触摸、键盘和文本事件通过 Binder
+  送回同一个 native 运行时。
+- Dialog、HUD、Web、输入法与无障碍节点保留在 App UID 进程，由受限 Provider/Intent 桥接。
+  Android UI 线程不能直接执行语言回调，事件仍进入 native 会话队列。
 
-:engine 进程
-├─ EngineService：进程壳、脚本文件读取、状态广播、强停进程
-├─ EngineHttpServer：HTTP/JSON-RPC 网络壳
-├─ NativeEngine：JNI 统一入口
-└─ libengine.so：脚本运行、任务状态、控制命令分发、core/api 和 C ABI 门面
-```
+## 日志与结束
 
-关键规则：
+Worker 的 `log.drain` ID 每个进程从头开始，`EngineWorkerCoordinator` 在控制进程为日志重新分配
+连续 ID，并最多保留最近 1000 条。脚本返回后先收取最后日志，再关闭 Worker，因此 IDE 可以在
+进程退出后继续读取刚结束脚本的输出。
 
-- Java HTTP 层不分发脚本 API 业务命令。
-- `EngineHttpServer` 只把 JSON-RPC 的 `method/params` 传给 `NativeEngine.callJson(...)`。
-- `EngineService` 运行、停止、暂停、继续、切换 Root 模式时，也走同一个 native 命令入口。
-- Root 授权和 `su -c app_process` 只由 App 主进程的 RootDaemonService 执行；`:engine` 从不执行 `su`。
-- 强停进程是硬控制，收到强停命令后直接释放 `:engine` 的服务资源并 kill 该进程；主进程和 RootDaemon 保持存活。
+正常结束调用 Worker 清理入口后退出进程；强停或 Binder 死亡由对应外壳回收：Root Worker 交给
+RootDaemon 的 `Process` 监督，本地 Worker 直接结束 `:worker`。进程退出后由内核统一回收 Java
+堆、语言堆、native 分配、SO 全局状态、线程、FD、模型、EGL 和纹理。
 
-验证记录：
+## 控制命令语义
 
-```text
-启动 MainActivity 后，EngineService 拉起 HTTP server。
-GET http://127.0.0.1:18382/health -> {"ok":true,"port":18380}
-```
+- 普通“停止”仍先调用 native `script.stop`，让脚本按既有中断点结束。
+- “强停引擎进程”保留原用户入口名称，但只强停当前 Worker；HTTP 控制端不掉线。
+- Root 模式切换后关闭当前空闲 Worker，下一次命令按新模式创建新进程。
+- 同一时刻只允许一个 Worker 会话，不实现多脚本并发进程池。
 
-其中 `18382` 是本机临时 adb forward 端口，Android 端实际端口仍是 `18380`。
+## 最低验收
 
-2026-07-09 在雷达模拟器 `emulator-5560` 验证：
-
-```text
-adb forward tcp:18380 tcp:18380
-GET /health -> {"ok":true,"port":18380}
-device.info -> platform=android, luaVersion=Lua 5.4, rootAvailable=true
-script.run -> print("你好 from native command") 成功输出中文日志和 Lua 版本
-log.drain -> 可读取 native 日志通道
-script.stop -> 可停止长循环脚本，任务状态变为 failed: script stopped
-```
-
-## 4. 当前运行路线
-
-### 4.1 主进程不直接调用 NativeEngine
-
-已完成：
-
-```text
-MainActivity.showRecentLogs() -> 已通过 EngineLocalClient 调用 log.drain
-MainActivity 设置页状态        -> 已通过 EngineLocalClient 调用 device.info / script.status
-MainActivity 运行/停止脚本     -> 发送 Intent 给 EngineService
-FloatingControlService 控制脚本 -> 发送 Intent 给 EngineService
-```
-
-主进程只通过协议或 Service 控制引擎，不直接加载脚本运行状态。
-
-### 4.2 脚本 API 能力边界
-
-物理屏幕来源下，`m.getScreenPixels()` 走：
-
-```text
-Lua -> HostApi -> system_c_api C ABI -> core/api/screen_api -> AndroidBridge -> RootScreenCaptureBridge -> RootHelperBridge
-    -> RootDaemonMain -> RootHelperMain
-```
-
-当前规则：
-
-- `screen_api` 位于 `libengine.so/core/api`，负责截图缓存、锁帧和 Root 截图分发。
-- `engine_getScreenPixels` 位于 `system_c_api`，只做 C ABI 参数检查和转发。
-- `m.setScreenPixels(path)` 经过 HostApi、C ABI 和 `image_api` 解码图片，再复制到固定屏幕
-  缓冲区；激活后读帧停在 `screen_api`，不会进入 Root 路线。
-- `m.restoreScreenPixels()` 使物理帧失效，后续第一次读取会把实时 Root 截图写回同一地址。
-- `RootHelperBridge` 只复用 `:engine` 到 RootDaemon 的已认证 socket；它不会探测 Root、启动 `su` 或创建特权进程。
-- 截图缓存由 `libengine.so` 按时间和锁帧状态管理。
-- HTTP 不传输大像素数据。
-
-### 4.3 EngineService 独立进程
-
-Manifest：
-
-```xml
-<service
-    android:name=".EngineService"
-    android:exported="false"
-    android:process=":engine" />
-```
-
-验收：
-
-```text
-adb shell ps -A | findstr xiaoyv
-```
-
-应能看到主进程和 `:engine` 进程。
-
-当前验证：
-
-```text
-u0_a51 ... com.xiaoyv.engine
-u0_a51 ... com.xiaoyv.engine:engine
-```
-
-### 4.4 脚本结束后的进程回收
-
-旧项目的 `NativeService` 脚本结束后会回收脚本进程。当前规则：
-
-```text
-脚本短任务结束 -> 保持 EngineService 存活，方便 IDE 连续运行
-严重崩溃恢复 -> 重启 :engine 进程
-用户手动强停进程 -> 直接 kill :engine，并释放 HTTP server / native runtime；RootDaemon 不退出
-```
-
-## 5. 当前不做
-
-- 插件进程
-- 多脚本并发进程池
-- 每次脚本运行都新建进程
-
-## 6. RootDaemon
-
-Root 特权边界已从引擎进程移到 App 主进程：
-
-```text
-MainActivity 打开 / Root 模式切换 / device.setRootModeEnabled
-    -> RootDaemonService（主进程）
-    -> RootDaemonManager
-    -> su -c app_process ... RootDaemonMain（uid=0）
-
-:engine 的 RootHelperBridge
-    -> 127.0.0.1:应用 UID 派生端口的认证 socket
-    -> RootDaemonMain
-    -> RootHelperMain 命令分发器
-```
-
-RootDaemon 只监听回环地址，客户端必须先提交随机令牌。令牌保存在 App 私有目录，RootDaemon
-会监视主进程 PID；主进程消失时主动退出，避免遗留特权服务。
-悬浮窗重建、音量键开关和 RootDaemonService 的系统重建只会重连已有 socket，不会创建
-daemon 或执行 `su`。
-
-截图仍使用“文本头 + 原始 RGBA 帧”协议；触摸、按键和输入法切换使用短文本命令。RootDaemon
-由截图和 Root 输入注入共同复用，`m.ime.lock()` / `m.ime.unlock()` 才按系统要求执行输入法
-切换命令，`m.ime.setText()` 不创建外部进程。
-
-在 RootDaemon 已就绪后，强停 `:engine` 只会断开该进程的 socket。下次运行脚本会重连同一个
-RootDaemon，不会再次触发 `su` 授权。
+1. Java/AIDL 与 arm64 Debug APK 可构建。
+2. Root 模式脚本 Worker 的 `/proc/<pid>/status` 或脚本 FFI 观察到 uid=0。
+3. 非 Root 模式使用 `:worker` 且 UID 为应用 UID；相同普通 API、UI 和日志路径可用。
+4. Root FFI 可加载需要 uid=0 的测试 SO；脚本结束后 Worker PID 消失，RootDaemon PID 不变。
+5. 连续运行/停止至少三次，没有遗留 Worker、ImGui Surface 或脚本 UI。

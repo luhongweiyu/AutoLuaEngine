@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 7 及以下使用的普通 Launcher 图标。 -->
+<!-- Android 7 及以下使用完整的锦鲤与金龙品牌图。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/xiaoyv_logo_background" />
-    <item android:drawable="@drawable/ic_xiaoyv_mark" />
+    <item
+        android:left="2dp"
+        android:top="2dp"
+        android:right="2dp"
+        android:bottom="2dp"
+        android:drawable="@drawable/xiaoyv_brand_icon" />
 </layer-list>
