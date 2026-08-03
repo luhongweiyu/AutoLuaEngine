@@ -235,8 +235,8 @@ public final class OcrPlatformBridge {
      * 使用扩展页已经导入的 PP-OCRv4 mobile 文件，再进入与自定义模型相同的加载路径。
      *
      * “内置”在脚本 API 中表示这组固定的 PP-OCRv4 mobile 文件名，并不表示它们被塞进基础
-     * APK。文件须由用户放入共享扩展目录并逐个导入；这里不检查文件内容、长度或 ABI，读取和
-     * 运行失败时直接返回底层错误。
+     * APK。文件须由用户放入共享扩展目录的 rapidocr 包并整体导入；这里不检查文件内容、
+     * 长度或 ABI，读取或运行失败时直接返回底层错误。
      */
     private static String loadBuiltin(JSONObject arguments) {
         String name = required(arguments, "name");

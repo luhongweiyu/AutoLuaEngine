@@ -16,8 +16,8 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | 全局 | `sleep(ms)` | `ms: integer` | `boolean` | 脚本延时，成功返回 `true` |
 | 全局 | `systemTime()` | 无 | `integer` | Unix 时间戳，单位毫秒 |
 | 全局 | `tickCount()` | 无 | `integer` | 当前脚本运行时间，单位毫秒 |
-| 全局 | `getRunEnvType()` | 无 | `integer` | `0` 为 Root，`1` 为无障碍，`-1` 为未就绪 |
 | 设备 | `m.appIsFront()`、`m.getBrand()`、`m.exec()` 等 | 见左侧「设备」分类 | 见设备文档 | 应用管理、硬件信息、系统控制和 Root 命令 |
+| 设备 | `m.getRunEnvType()`（可直接写 `getRunEnvType()`） | 无 | `integer` | `0` 为 Root，`1` 为无障碍，`-1` 为未就绪 |
 | 设备 | `m.readPasteboard()` | 无 | `string` 或 `nil, string` | 读取系统文本剪贴板；没有文本为空字符串，平台失败附带原因 |
 | 设备 | `m.writePasteboard(text[, kind])` | `text: string, kind: integer?` | 无 | 写入系统文本剪贴板；Android 的 `kind` 只能省略或为 `0` |
 | 设备 | `m.getScriptVersion()` | 无 | `integer` | 读取脚本工作目录的 `version` 整数 |

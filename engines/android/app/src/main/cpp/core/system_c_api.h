@@ -116,7 +116,7 @@ typedef struct EngineDeviceApi {
 /**
  * 可选 YOLO 运行时函数表。
  *
- * 模型文件始终是普通文件系统路径；当 APK 未打包 libxiaoyv_yolo.so 时 isAvailable 返回 0，
+ * 模型文件始终是普通文件系统路径；未导入 yolo/libxiaoyv_yolo.so 时 isAvailable 返回 0，
  * runtimeInfoJson 仍会返回 {"available":false,...}，不会影响其他引擎能力。
  */
 typedef struct EngineYoloApi {
@@ -343,7 +343,7 @@ const EngineApi* engine_getApi();
 /** 返回设备能力函数表，供插件、JS 和 Go 取得与 Lua 相同的设备 API。 */
 const EngineDeviceApi* engine_getDeviceApi();
 
-/** 返回可选 YOLO 函数表。无论 APK 是否携带 YOLO SO，函数表本身都存在。 */
+/** 返回可选 YOLO 函数表。无论用户是否已经导入 YOLO SO，函数表本身都存在。 */
 const EngineYoloApi* engine_getYoloApi();
 
 /**
@@ -690,7 +690,7 @@ const char* engine_ocrFindText(
 /** 返回最近一次 RapidOCR C ABI 失败原因。 */
 const char* engine_ocrLastError();
 
-/** 查询当前 APK 是否包含并可加载可选 YOLO SO；未打包时返回 0 但不设置错误。 */
+/** 查询已导入的 yolo/libxiaoyv_yolo.so 是否可尝试加载；未导入时返回 0 但不设置错误。 */
 int engine_yoloIsAvailable();
 
 /** 返回当前线程持有的 YOLO 运行时 JSON，例如 {"available":false} 或 NCNN 版本信息。 */

@@ -246,7 +246,7 @@ public final class AndroidHostBridge {
     }
 
     /**
-     * 调用可选 NCNN YOLO 平台实现。未打包 libxiaoyv_yolo.so 时返回可读的失败信封，
+     * 调用可选 NCNN YOLO 平台实现。未导入 yolo/libxiaoyv_yolo.so 时返回可读的失败信封，
      * 不影响普通引擎启动或其他功能。
      */
     public static String yoloCall(String operation, String argumentsJson) {

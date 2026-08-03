@@ -26,7 +26,8 @@
 ## 当前运行链路
 
 ```text
-Android APK -> JNI -> libengine.so -> Lua 5.4.8 -> HostApi -> HTTP JSON-RPC -> IDE 工具链
+IDE 工具链 -> HTTP JSON-RPC -> :engine 控制进程 -> 一次性 Worker
+            -> libengine.so -> Lua 5.4.8 -> HostApi / core API
 ```
 
 VSCode 与 `xiaoyv_tools.exe` 各自直连 Android 引擎。Qt 工具当前已支持设备原始帧截图、

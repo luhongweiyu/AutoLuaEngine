@@ -89,6 +89,7 @@ engine_findColorsLastError
 ```c
 engine_capture
 engine_findPic
+engine_findPicAll
 engine_clearImageCache
 engine_setImageCacheMaxBytes
 engine_imageLastError
@@ -152,6 +153,7 @@ engine_appIsFront
 engine_appIsRunning
 engine_frontAppName
 engine_getDisplayInfoJson
+engine_getOaid
 engine_getInstalledAppsJson
 engine_exec
 engine_exitScript
@@ -196,7 +198,9 @@ engine_imguiLastError
 
 ```c
 engine_getApi
+engine_getDeviceApi
 engine_getImGuiApi
+engine_getYoloApi
 ```
 
 Lua 当前通过 HostApi 暴露脚本函数，但 HostApi 只做 Lua 类型转换，并调用同一组
@@ -570,6 +574,7 @@ int engine_appIsFront(const char* packageName);
 int engine_appIsRunning(const char* packageName);
 const char* engine_frontAppName();
 const char* engine_getDisplayInfoJson();
+const char* engine_getOaid();
 const char* engine_getInstalledAppsJson();
 const char* engine_exec(const char* command, int isRet);
 int engine_exitScript();
@@ -599,6 +604,9 @@ const char* engine_deviceLastError();
   `writePasteboard(text[, kind])` 成功时不返回值，平台失败抛出 Lua 错误；`kind` 省略时
   为 `0`，Android 仅接受 `0`。
 - Android 12 及以上会限制后台访问系统剪贴板；系统不允许读取时，Lua 层可能得到空字符串。
+- `getOaid()`、`engine_getOaid()` 和 `EngineDeviceApi::getOaid` 的调用链已经保留，但 Android
+  端尚未接入 MSA 或 OEM OAID provider，当前 `device.oaid` 返回 JSON `null`，Lua 因而得到
+  `nil`。OAID 不是 Android Framework 标准字段，不能用 `ANDROID_ID` 冒充。
 - `engine_deviceCallJson(operation, argumentsJson)` 只接受 JSON 对象参数。成功返回 JSON 值
   文本，失败返回 `nullptr` 并写入 `engine_deviceLastError()`；它仍通过统一设备核心与 Android
   平台路由，不能成为绕过权限、生命周期或函数表版本的任意 JNI 通道。
@@ -779,7 +787,7 @@ imgui.*
 |---|---|---|
 | 加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 二进制 Lua 字符串；平台 JSON 边界仅内部 Base64 |
 | 网络 | `httpGet`、`httpPost`、文件传输、WebSocket、`require("socket")`、`require("socket.http")` | 项目 HTTP/WebSocket 阻塞调用释放 VM Gate；`downloadFile` 在目标同目录完整写入临时文件后替换，失败保留原目标；LuaSocket TCP/UDP 按上游同步超时语义执行；不导出 `m.http` |
-| 标准库 / FFI | Lua 5.4 `io`、`os`；`m.ffi`、全局 `ffi`、`require("ffi")` | 不复制标准库；FFI 由静态内置的 cffi-lua + libffi 提供声明、结构体、数组、浮点、回调和可变参数 C ABI；ARM64 已完成真实运行时验证，项目不要求逐 ABI 重复验收；外部库的 ABI、依赖与声明仍由调用方负责 |
+| 标准库 / FFI | Lua 5.4 `io`、`os`；`m.ffi`、全局 `ffi`、`require("ffi")` | 不复制标准库；FFI 由静态内置的 cffi-lua + libffi 提供声明、结构体、数组、浮点、回调和可变参数 C ABI；第一版只支持 `arm64-v8a` 与 `x86_64`，范围见 [0015](../decisions/0015-Android第一版ABI支持范围.md)；外部库的 ABI、依赖与声明仍由调用方负责 |
 | 触控 / 输入法 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`touchMoveEx`、`swipe`、`m.ime.*` | `m` 使用布尔缩放开关和 `touchUp([id,] x, y)`；缩放和三类基础触控均无返回；`m.ime` 是正式输入法模块 |
 | 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
 | 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |

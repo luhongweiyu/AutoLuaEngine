@@ -6,7 +6,7 @@ returns: "integer"
 
 **方法名称：** 获取运行环境类型。
 
-**语法：** `getRunEnvType()`
+**语法：** `m.getRunEnvType()` 或 `getRunEnvType()`
 
 **参数说明：** 无。
 
@@ -19,12 +19,13 @@ returns: "integer"
 `0` 为 Root，`1` 为无障碍，`-1` 为当前无可用运行环境。
 
 ```lua
-print(m.getRunEnvType())
+print(getRunEnvType())
 ```
 
 当前返回：
 
-- `m.getRunEnvType()` 无参数，返回类型为 `integer`。
+- `m.getRunEnvType()` 无参数，返回类型为 `integer`；默认启用 `m` API 时也可直接写
+  `getRunEnvType()`。
 - `0`：RootDaemon 已就绪。
 - `1`：无障碍运行环境已就绪。
 - `-1`：当前没有可用运行环境。

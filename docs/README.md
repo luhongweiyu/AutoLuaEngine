@@ -17,9 +17,10 @@
 ## AI 接手顺序
 
 1. 阅读仓库根目录的 [`AGENTS.md`](../AGENTS.md)。
-2. 阅读 [项目总计划](internal/项目总计划.md)，确认当前阶段和已完成范围。
-3. 阅读 [架构设计](internal/架构设计.md)，理解进程、语言绑定、设备能力和 IDE 工具边界。
-4. 按任务类型阅读下面的权威资料，不必无差别通读全部文件。
+2. 阅读 [AI 执行指南](internal/AI_执行指南.md)，确认本项目特有的架构、API 设计和文档同步边界。
+3. 按任务类型阅读下面的权威资料，不必先通读总计划、架构和全部平台文档。
+4. 只有全局架构、阶段规划或跨模块边界任务才同时阅读
+   [项目总计划](internal/项目总计划.md)和[架构设计](internal/架构设计.md)。
 5. 最后检查目标模块的源码、测试和局部 `README.md`；代码与测试是核实现状的最终证据。
 
 重要结论必须沉淀到仓库文档，不要求后续 AI 获得历史聊天记录。
@@ -28,21 +29,22 @@
 
 | 任务 | 必读文档 |
 |---|---|
-| 全局架构、能力规划 | [项目总计划](internal/项目总计划.md)、[架构设计](internal/架构设计.md)、[AI 执行指南](internal/AI_执行指南.md) |
+| AI 接手、修改方式与 API 设计基线 | [AI 执行指南](internal/AI_执行指南.md) |
+| 全局架构、能力规划 | [项目总计划](internal/项目总计划.md)、[架构设计](internal/架构设计.md) |
 | C ABI、脚本 API 分层 | [统一 API 契约](internal/contracts/API_契约.md) |
 | 插件 SO | [插件 SO API](internal/contracts/插件_SO_API.md) |
-| Android 引擎、Root、截图、Java、UI、ImGui、多线程、Lua 兼容层 | [`internal/platform/android/`](internal/platform/android/) 中对应说明 |
+| Android 引擎、Root、截图、Java、UI、ImGui、多线程、Lua 兼容层 | [Android 平台文档索引](internal/platform/android/README.md) |
 | IDE / 抓图取色器 | [工具说明](internal/ide/PC_抓图取色工具.md)、[行为契约](internal/contracts/PC_抓图取色器_行为契约.md) |
 | 构建或运行 | [构建与运行](internal/构建与运行.md) |
 | 官网与脚本 API 用法 | [宣传首页](public/index.html)、[公开脚本文档](public/脚本文档.md) 或 [交互式脚本文档](public/脚本文档.html) |
-| 当前需要用户配合的事项 | [用户待办事项](internal/用户待办事项.md) |
 | 历史原因 | [归档说明](archive/README.md)，只用于追溯 |
 
 ## 权威关系
 
 - `internal/contracts/` 定义必须保持稳定的行为和接口。
 - `internal/platform/` 说明这些契约当前如何实现，但不能擅自扩大公开能力。
-- `public/` 只解释用户可以依赖的用法；它必须来自已实现能力。
+- `public/` 解释当前可用 API，也可以发布 C ABI、扩展开发资料以及明确标注状态的未完成或
+  实验能力；不得把尚未闭环的能力写成已经可用。
 - `archive/` 不再维护为当前事实。
 - 如果文档与代码不一致，先用源码和测试确认实际行为，再同时修正相应契约与用户文档，
   不要只改其中一份来掩盖冲突。

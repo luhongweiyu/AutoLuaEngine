@@ -86,6 +86,7 @@ public final class MainActivity extends Activity {
     private Switch volumeKeyControlCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
     private int currentTab = TAB_SCRIPT;
+    private int statusQueryGeneration;
     private boolean scriptRunning;
     private final BroadcastReceiver engineStatusReceiver = new BroadcastReceiver() {
         @Override
@@ -823,6 +824,9 @@ public final class MainActivity extends Activity {
      */
     private void showRecentLogs() {
         showTab(TAB_STATUS);
+        if (statusDetailView != null) {
+            statusDetailView.setText("正在读取日志...");
+        }
         runEngineStatusQuery("正在读取日志...", "读取日志失败：", () -> {
             JSONObject result = EngineLocalClient.call(this, "log.drain", makeAfterIdParams(0));
             JSONArray entries = result.optJSONArray("entries");
@@ -888,6 +892,7 @@ public final class MainActivity extends Activity {
             String errorPrefix,
             EngineStatusTextLoader loader,
             StatusTextConsumer consumer) {
+        int queryGeneration = ++statusQueryGeneration;
         setMessage(loadingText);
         new Thread(() -> {
             String text;
@@ -899,6 +904,11 @@ public final class MainActivity extends Activity {
 
             String finalText = text;
             runOnUiThread(() -> {
+                // 状态摘要和日志共用一个展示区域，只允许最后发起的请求更新界面。
+                // 例如从悬浮窗进入日志页时，showTab 会先触发状态查询，旧结果不能覆盖日志。
+                if (queryGeneration != statusQueryGeneration || currentTab != TAB_STATUS) {
+                    return;
+                }
                 consumer.accept(finalText);
                 setMessage("就绪");
             });

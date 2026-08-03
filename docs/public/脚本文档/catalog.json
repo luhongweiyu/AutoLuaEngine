@@ -48,11 +48,6 @@
         "cmd": "tickCount"
       },
       {
-        "name": "运行环境类型",
-        "md": "md/01-全局/getRunEnvType.md",
-        "cmd": "getRunEnvType"
-      },
-      {
         "name": "导出命名空间",
         "md": "md/01-全局/useApi.md",
         "cmd": "useApi / switchApi"

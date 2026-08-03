@@ -1,8 +1,9 @@
 # 小鱼精灵公开文档
 
 宣传首页按长期产品范围介绍 JavaScript、Lua、Go 与 PC、Android、iOS。当前实现仍以
-Android + Lua 为第一版目标；这里的脚本文档只收录已经实现、脚本用户可以直接依赖的
-API，具体可用性以脚本文档和 GitHub Releases 为准。
+Android + Lua 为第一版目标。脚本文档包含当前可用 API，也可以包含 C ABI、扩展开发资料和
+明确标注状态的未完成或实验能力；只有标明当前可用的脚本接口才可直接依赖，具体可用性以
+函数页和 GitHub Releases 为准。
 
 ## 阅读入口
 

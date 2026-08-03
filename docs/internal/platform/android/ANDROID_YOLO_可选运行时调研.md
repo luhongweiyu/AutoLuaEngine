@@ -1,6 +1,6 @@
 # Android YOLO 可选运行时调研
 
-- 状态：CPU 可选运行时、内部 C ABI 与本地扩展导入链路已实现；公开脚本映射尚未决定
+- 状态：CPU 可选运行时、内部 C ABI 与本地扩展导入链路已实现；Lua 绑定尚未完成，公开形状尚未决定
 - 日期：2026-08-01
 
 本文保存已核对的来源、运行时装配和待用户决定的公开层边界，避免后续重复逆向或重新追查。
@@ -27,8 +27,8 @@
 - 2026-07-30：已在 x86_64 独立构建 `libxiaoyv_yolo.so`，剥离调试符号后约 13.6 MB；动态依赖仅为
   Android 系统的 `liblog.so`、`libm.so`、`libdl.so`、`libc.so`，不携带额外 `libncnn.so`。
 - 2026-07-30 曾验证旧的“构建时打进 APK”路径；该路径已被 0011 取代，不能作为当前分发行为依据。
-- 2026-08-01 已构建新的基础 APK，确认其中不含 `libxiaoyv_yolo.so`；本地扩展页、导入副本和脚本
-  按需加载仍需在设备上以实际 SO 继续验收。
+- 2026-08-01 已构建新的基础 APK，确认其中不含 `libxiaoyv_yolo.so`；本地扩展页、导入副本和
+  C ABI 按需加载仍需在设备上以实际 SO 继续验收。
 - 尚未对具体 `labels + param + bin` 模型做端到端检测验收：公开模型版本、blob 名称和最终公开语言
   调用形状尚待用户决定。因此当前只能称运行时、C ABI 与打包链路已验证，不能宣称某个模型的识别
   效果已经验收。
@@ -65,12 +65,27 @@ YoloV5.detect(bmp, false)
 但函数行写成了 `LuaEngine.detect(bmp,usegpu)`，存在文档命名不一致。因此它可作为兼容层形状的
 参考，不能直接决定小鱼正式 `m` API。
 
+2026-08-03 再次核对该在线页面，当前完整示例还确认了以下调用语义：
+
+- 脚本先 `import("com.nx.assist.lua.LuaEngine")` 和
+  `import("com.nx.assist.lua.YoloV5")`。
+- `YoloV5.init(result, param, bin)` 的 `result` 示例为 `result.txt`，实际承担标签文件路径；
+  现有内部 C ABI 将它命名为 `labelsPath`，但这不预先决定后续 Lua 公开参数名。
+- `YoloV5.detect(bitmap, false)` 接收 Java `Bitmap`，返回可由 JSON 库解码的数组字符串；调用方
+  负责回收截图 Bitmap。
+- 页面没有定义多模型、释放模型、检测文件、检测区域、阈值、线程、错误文本和 GPU 不可用时的
+  完整语义，且标题与函数行互相矛盾。
+
+因此这份文档值得用于核对 Lua 用户接口的参数顺序、Bitmap 生命周期和 JSON 结果字段，但不足以
+单独决定小鱼精灵的公开形状。最终设计还应比较触动精灵和本项目现有 `EngineYoloApi` 的命名模型、
+释放、屏幕/文件检测与错误语义；当前没有决定新增 Java `YoloV5` 包装类。
+
 ## 当前内部装配方式
 
 ```text
 用户文件 /sdcard/xiaoyv/extensions/yolo/libxiaoyv_yolo.so
   -> App 扩展页导入 yolo 目录（复制为私有只读副本，不加载）
-  -> 脚本中的 YOLO 模型加载 / 检测请求
+  -> Worker 中插件或后续语言绑定发起 YOLO 模型加载 / 检测请求
   -> libengine.so 的版本化 EngineYoloApi
   -> 私有 YoloRuntimeBridge
   -> libxiaoyv_yolo.so（按需加载，NCNN 静态链接）
@@ -91,12 +106,12 @@ YoloV5.detect(bmp, false)
 
 1. Lua、JS、Go 如何在 `EngineYoloApi` 之上提供各自自然的公开调用；内部 C ABI 不能反向约束
    `m` 的命名和参数形状。
-2. Lua 是否同时提供 `YoloV5` 兼容类；如提供，是否只作为迁移适配，而不替代 `m.yolo` 的
-   推荐用法。
+2. Lua 是否需要兼容旧 `YoloV5.init` / `detect` 调用形状；这只是后续迁移适配问题，不等于
+   当前必须新增 Java 公开 `YoloV5` 包装类，也不替代正式 `m` API 的设计。
 3. 模型管理采用旧的全局单模型流程（`init` / `detect`），还是由语言中立层按名称管理多个模型；
    前者迁移成本最低，后者更适合多模型、跨语言统一和显式释放。
 4. GPU 控制的未来形态；检测阈值、NMS 阈值、线程数与检测区域当前已作为内部 `options`，公开层
    是否直接暴露仍需由跨语言契约、旧项目与懒人/触动文档共同决定。
 
-在上述选择确定前，不得把 YOLO 加入公开函数目录或 `catalog.json`；内部 C ABI 契约以
-`API_契约.md` 为准。
+在上述选择确定前，可以在公开扩展/C ABI 资料中记录当前完成度，但不能把尚不存在的 Lua 调用
+加入函数目录或提供成可运行示例。内部 C ABI 契约以 `API_契约.md` 为准。

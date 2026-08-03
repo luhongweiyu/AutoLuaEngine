@@ -7,10 +7,10 @@
 
 namespace xiaoyv::api {
 
-/** 查询已打包的可选 YOLO 运行时信息；未打包不是错误，JSON 中 available 为 false。 */
+/** 查询已导入的可选 YOLO 运行时信息；未导入不是错误，JSON 中 available 为 false。 */
 bool 获取YOLO运行时信息(std::string* resultJson);
 
-/** 查询当前 APK 是否存在并可加载可选 YOLO SO。 */
+/** 查询 yolo/libxiaoyv_yolo.so 是否已经导入并可尝试加载。 */
 bool YOLO运行时可用(bool* available);
 
 /**
