@@ -116,9 +116,8 @@ C ABI 不传递 Lua、JS 或 Go 的函数对象。插件通过 `waitEvent` 消�
 
 ## YOLO 子表状态
 
-`EngineYoloApi` 和直接 `engine_yolo*` C ABI 已经存在；它不等于 Lua 用户接口。当前 Lua、JS、
-Go 都尚未提供公开 YOLO 绑定，也没有决定新增 Java `YoloV5` 包装类。插件可以在版本检查后
-直接使用 C ABI：
+`EngineYoloApi` 和直接 `engine_yolo*` C ABI 已经存在；Lua 已在其上提供 `m.yolo`，JS、Go
+仍未绑定，也没有新增 Java `YoloV5` 包装类。插件可以在版本检查后直接使用 C ABI：
 
 ```c
 if (api->abiVersion >= 21) {

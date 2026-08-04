@@ -14,12 +14,15 @@ require("xiaoyv.runtime.bootstrap")
 ```
 
 - `bootstrap.lua` 通过 `require` 加载 `compat_extended`、`compat_lr` 和 `compat_cd`；
-  `compat_extended` 再加载 `api_m`。`package.loaded` 保证共享模块只执行一次。
+  `compat_extended` 再加载 `api_m`。两份旧兼容命名空间完成成员复制后，bootstrap 单独加载
+  `yolo` 并只挂到 `m.yolo`。`package.loaded` 保证共享模块只执行一次。
 - `api_m.lua` 返回稳定 HostApi 和小鱼原生契约组成的 `m` 表，不直接导出全局变量。
 - `compat_extended.lua` 在同一个 `m` 表上增加兼容接口，并复用已经存在的截图、点阵字库、
   输入、输入法、线程和设备能力。
 - `compat_lr.lua` / `compat_cd.lua` 先保留各自必须不同的入口，再复制语义相同的 `m` 成员。
   `lr.findPic` 是当前明确的专属覆盖；默认 `m.findPic` 不得被改成懒人方向或返回形状。
+- `yolo.lua` 把 HostApi 的 C ABI 结果整理成正式 `m.yolo`；它必须晚于 `lr/cd` 加载，避免在
+  兼容层统一设计前自动产生 `lr.yolo` 或 `cd.yolo`。
 - `bootstrap.lua` 集中写入 `_G.m`、`_G.lr`、`_G.cd` 并导出默认 `m` 一级成员，因此新增兼容
   函数在普通脚本里也可直接调用。
 
@@ -98,6 +101,7 @@ compat_extended.lua
 | touch | 现有 InputApi + Lua 坐标换算 | 缩放只改变兼容入口坐标，底层始终使用真实画面 |
 | color | `color_compat_lua_api` + 现有截图缓存 + `PaddleOcr` | `0,0,0,0` 为全屏；Java Bitmap OCR 复用 ONNX 模型缓存，并在实际加载模型时按需加载已导入运行时 |
 | image / cv | 现有模板核心、`cv_compat_lua_api`、`OpenCvPlatformBridge`、`LuaEngine.snapShotMat` | 找图热路径不迁入 OpenCV；值指针用 native userdata，霍夫找圆和 Mat 使用官方 AAR，并在实际使用时按需加载已导入库 |
+| yolo | `host_api` + `runtime/yolo.lua` + `EngineYoloApi` | `m.yolo` 支持命名模型、默认模型、屏幕/图片检测和显式释放；可选 SO 按需加载，检测返回 Lua 数组；不自动复制到 `lr/cd` |
 | device / file | `PlatformUtilityBridge`、现有 DeviceApi | 操作型旧接口保持无返回；相对路径基于脚本工作目录；`getScriptVersion` 读取 `version` 文件 |
 | node | `AccessibilityNodePlatformBridge` | 节点用短期句柄；查询和动作都回到当前无障碍树 |
 
@@ -144,8 +148,9 @@ Java 侧为查询结果分配数值句柄，Lua 节点对象只保存句柄和�
 或固定成功值伪装。`setStopCallBack` 和 `LuaEngine.registerExitCallback` 属于通用脚本
 生命周期，已由当前 `LuaRuntime` 真实执行，不在排除范围。
 
-旧 `YoloV5` 与 `m.yolo` 尚未导出；但内部已具备可选 NCNN YOLO 运行时和语言中立 C ABI。公开层
-的已核对事实和待定边界见 [Android YOLO 可选运行时调研](ANDROID_YOLO_可选运行时调研.md)，它不构成当前公开能力。`createOcr/ocrText*` 是 Tesseract
+`m.yolo` 已作为正式小鱼接口导出；旧 Java/全局 `YoloV5` 仍不导出，`lr/cd` 也不会自动复制
+该成员。实现与模型边界见 [Android YOLO 可选运行时调研](ANDROID_YOLO_可选运行时调研.md)。
+`createOcr/ocrText*` 是 Tesseract
 句柄体系，当前 RapidOCR 没有同构句柄和白名单语义。因此两组暂不导出。`PaddleOcr` 的
 ONNX 路线已有真实等价实现；NCNN 加载入口为保持 Java 调用兼容而存在，但明确返回
 `false`，公开文档不得写成已支持 NCNN。

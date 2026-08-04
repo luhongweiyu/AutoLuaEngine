@@ -1,7 +1,7 @@
 # Android YOLO 可选运行时调研
 
-- 状态：CPU 可选运行时、内部 C ABI 与本地扩展导入链路已实现；Lua 绑定尚未完成，公开形状尚未决定
-- 日期：2026-08-01
+- 状态：CPU 可选运行时、内部 C ABI、本地扩展导入链路与 Lua `m.yolo` 已实现；JS、Go 后续
+- 日期：2026-08-04
 
 本文保存已核对的来源、运行时装配和待用户决定的公开层边界，避免后续重复逆向或重新追查。
 它不是公开脚本 API 契约；用户函数形状应在确定后单独加入公开文档。
@@ -9,8 +9,8 @@
 ## 当前结论
 
 1. `libengine.so` 当前始终带有版本化 `EngineYoloApi` / `engine_yolo*` 内部 C ABI；它通过
-   Java `YoloPlatformBridge` 查询和桥接可选 `libxiaoyv_yolo.so`。Lua `m.yolo`、`YoloV5` 兼容入口
-   和 JS / Go 的公开映射尚未导出。
+   Java `YoloPlatformBridge` 查询和桥接可选 `libxiaoyv_yolo.so`。Lua 已提供正式 `m.yolo`；
+   Java/全局 `YoloV5`、`lr/cd` 兼容入口和 JS / Go 映射没有导出。
 2. 用户已确定 ALPKG 只面向脚本和小型资源；YOLO 的 `param`、`bin`、标签等运行所需文件一律
    使用普通文件路径，不作为 ALPKG 输入，也不增加临时解包、复制或清理流程。现有 ALPKG 运行时
    不解压，且本来也不能直接作为 Android native linker 的库目录。
@@ -19,19 +19,23 @@
    检测真正发生时才按需加载它；查询运行时状态不执行 native 代码。
 4. `tools/build_android_yolo.ps1` 负责单独编译并复用 SO。Gradle 不会下载、编译或打包 NCNN/YOLO；
    App 不校验导入文件的签名、哈希、版本、ABI、文件名或依赖，加载错误由用户自行处理。
-5. 小鱼精灵是多语言平台，所有语言绑定和 native 插件都建立在 `EngineYoloApi` 之上；它不要求
-   Lua、JS 或 Go 各自装载可选库。
+5. 小鱼精灵是多语言平台，Lua 绑定和 native 插件都建立在 `EngineYoloApi` 之上；后续 JS、Go
+   也应复用同一入口，不各自装载可选库。
 
 ## 当前验证状态
 
 - 2026-07-30：已在 x86_64 独立构建 `libxiaoyv_yolo.so`，剥离调试符号后约 13.6 MB；动态依赖仅为
   Android 系统的 `liblog.so`、`libm.so`、`libdl.so`、`libc.so`，不携带额外 `libncnn.so`。
 - 2026-07-30 曾验证旧的“构建时打进 APK”路径；该路径已被 0011 取代，不能作为当前分发行为依据。
-- 2026-08-01 已构建新的基础 APK，确认其中不含 `libxiaoyv_yolo.so`；本地扩展页、导入副本和
-  C ABI 按需加载仍需在设备上以实际 SO 继续验收。
-- 尚未对具体 `labels + param + bin` 模型做端到端检测验收：公开模型版本、blob 名称和最终公开语言
-  调用形状尚待用户决定。因此当前只能称运行时、C ABI 与打包链路已验证，不能宣称某个模型的识别
-  效果已经验收。
+- 2026-08-04 已构建并安装 x86_64 基础 APK，确认 APK 不含 `libxiaoyv_yolo.so`；通过原有扩展页
+  导入同 ABI 的独立 SO 后，Root Worker 已验证按需加载。运行时报告 NCNN `1.0.20260730`。
+- 2026-08-04 已用固定提交
+  [`shaoshengsong/yolov5_62_export_ncnn@eb943dff`](https://github.com/shaoshengsong/yolov5_62_export_ncnn/tree/eb943dff15ec6239673d6a5dcfb482d22711ab1d)
+  的 `bus.jpg`、标签和模型文件完成 x86_64 设备端真实推理：默认输入 blob 为 `images`，输出
+  blob 为 `output/353/367`，返回 6 个结果并包含 `bus` 与 `person`。模型仓库未明确声明权重
+  许可，仅用于本地临时验收；模型文件不得提交、打包或随产品分发。
+- 上述验收覆盖整图图片检测、Lua 解包和 `release()`；检测区域坐标尚未用真实模型做独立设备验收，
+  因此区域语义仍只以代码和契约为依据，不能标成已完成的端到端能力。
 
 ## 已核对的旧实现
 
@@ -76,18 +80,18 @@ YoloV5.detect(bmp, false)
 - 页面没有定义多模型、释放模型、检测文件、检测区域、阈值、线程、错误文本和 GPU 不可用时的
   完整语义，且标题与函数行互相矛盾。
 
-因此这份文档值得用于核对 Lua 用户接口的参数顺序、Bitmap 生命周期和 JSON 结果字段，但不足以
-单独决定小鱼精灵的公开形状。最终设计还应比较触动精灵和本项目现有 `EngineYoloApi` 的命名模型、
-释放、屏幕/文件检测与错误语义；当前没有决定新增 Java `YoloV5` 包装类。
+因此这份文档用于确定 `init(labels, param, bin)` 的易记参数顺序和 `x/y/w/h/label/prob` 结果字段，
+但不直接复制 Bitmap、检测时 GPU 开关或 JSON 字符串返回。小鱼正式入口保留 `EngineYoloApi` 已有
+的命名模型、释放、屏幕/文件检测和错误语义；没有新增 Java `YoloV5` 包装类。
 
 ## 当前内部装配方式
 
 ```text
 用户文件 /sdcard/xiaoyv/extensions/yolo/libxiaoyv_yolo.so
   -> App 扩展页导入 yolo 目录（复制为私有只读副本，不加载）
-  -> Worker 中插件或后续语言绑定发起 YOLO 模型加载 / 检测请求
+  -> Worker 中 m.yolo、插件或后续语言绑定发起 YOLO 模型加载 / 检测请求
   -> libengine.so 的版本化 EngineYoloApi
-  -> 私有 YoloRuntimeBridge
+  -> 私有 YoloPlatformBridge
   -> libxiaoyv_yolo.so（按需加载，NCNN 静态链接）
   -> 普通文件系统中的模型 param / bin / 标签资源
 ```
@@ -99,19 +103,25 @@ YoloV5.detect(bmp, false)
   `yolo/libxiaoyv_yolo.so`；改名、放错 ABI 或缺依赖时，按需加载直接返回错误，不在导入阶段拦截。
 - `EngineYoloApi` 保留可用性查询：`available` 表示该相对路径文件已导入、可以尝试，`loaded` 表示当前
   引擎进程已实际加载。load/detect 失败通过同一 C ABI 错误文本返回，各语言绑定不各自处理 linker。
+- 已加载模型保存在本次一次性 Worker 进程中；脚本应在不再使用时显式 `release` 以尽早释放内存，
+  即使遗漏也不会跨 Worker 继承，进程退出后由系统统一回收。
+- load/detect 是释放 Lua VM Gate 后执行的同步 native 调用，其他 Lua 任务可以继续取得 Gate；普通
+  协作停止不会中断正在进行的一次加载或推理，最迟在 native 返回或控制端强制回收 Worker 时结束。
 - GPU 参数应保留为可选能力：先实现并验收 CPU，再在设备支持时启用 NCNN Vulkan；不支持或初始化
   失败时必须明确回退或报错，不能把 `useGpu=true` 静默当作 GPU 成功。
 
-## 用户待决定的公开层
+## Lua 公开层与剩余边界
 
-1. Lua、JS、Go 如何在 `EngineYoloApi` 之上提供各自自然的公开调用；内部 C ABI 不能反向约束
-   `m` 的命名和参数形状。
-2. Lua 是否需要兼容旧 `YoloV5.init` / `detect` 调用形状；这只是后续迁移适配问题，不等于
-   当前必须新增 Java 公开 `YoloV5` 包装类，也不替代正式 `m` API 的设计。
-3. 模型管理采用旧的全局单模型流程（`init` / `detect`），还是由语言中立层按名称管理多个模型；
-   前者迁移成本最低，后者更适合多模型、跨语言统一和显式释放。
-4. GPU 控制的未来形态；检测阈值、NMS 阈值、线程数与检测区域当前已作为内部 `options`，公开层
-   是否直接暴露仍需由跨语言契约、旧项目与懒人/触动文档共同决定。
+Lua 形状由 [0016：Android YOLO Lua 公开接口](../../decisions/0016-Android%20YOLO%20Lua公开接口.md)
+固定：高级入口按名称管理多个模型，`init/detect` 使用 `default` 简化常见流程；检测返回 Lua 数组，
+相对文件路径基于脚本工作目录。加载 options 与检测 options 分离，当前 CPU 后端对 GPU 请求明确
+报错。模块在 `lr/cd` 加载后才挂到 `m`，不自动扩展两套兼容命名空间。
 
-在上述选择确定前，可以在公开扩展/C ABI 资料中记录当前完成度，但不能把尚不存在的 Lua 调用
-加入函数目录或提供成可运行示例。内部 C ABI 契约以 `API_契约.md` 为准。
+仍未完成的范围只有：
+
+1. 使用真实模型对检测区域坐标做独立设备端验收。
+2. JS、Go 各自自然的语言绑定。
+3. GPU/Vulkan 后端、设备能力探测和加载/检测语义；不能把 `useGpu=true` 静默当作 CPU 成功。
+4. 若以后确实需要 Java Bitmap 或旧全局 `YoloV5` 迁移层，再单独定义对象生命周期和兼容范围。
+
+内部 C ABI 契约以 `API_契约.md` 为准，用户 Lua 用法以公开 YOLO 函数页为准。

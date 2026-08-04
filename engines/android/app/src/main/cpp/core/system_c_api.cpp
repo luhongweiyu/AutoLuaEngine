@@ -1260,7 +1260,7 @@ extern "C" const char* engine_ocrLastError() {
     return gOcrLastError.c_str();
 }
 
-/** 查询可选 YOLO SO 是否已随当前 APK 打包；未打包是正常的 false 结果。 */
+/** 查询可选 YOLO SO 是否已导入；未导入是正常的 false 结果。 */
 extern "C" int engine_yoloIsAvailable() {
     bool available = false;
     if (!xiaoyv::api::YOLO运行时可用(&available)) {
@@ -1271,7 +1271,7 @@ extern "C" int engine_yoloIsAvailable() {
     return available ? 1 : 0;
 }
 
-/** 返回可选 YOLO 运行时能力 JSON，即使 SO 未打包也会返回 available=false。 */
+/** 返回可选 YOLO 运行时能力 JSON，即使 SO 未导入也会返回 available=false。 */
 extern "C" const char* engine_yoloRuntimeInfoJson() {
     gYoloResult.clear();
     if (!xiaoyv::api::获取YOLO运行时信息(&gYoloResult)) {

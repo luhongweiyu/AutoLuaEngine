@@ -467,16 +467,19 @@ const char* engine_yoloLastError();
   `available` 表示 `yolo/libxiaoyv_yolo.so` 已导入、可尝试，`loaded` 表示当前引擎进程已经实际加载；模型加载或检测
   才触发加载，失败通过 `engine_yoloLastError()` 说明原因。
 - `labelsPath`、`paramPath`、`binPath` 和 `imagePath` 必须是 Android 可读的普通文件路径，不能来自
-  ALPKG。相同名称及相同模型配置的重复加载复用已加载模型；同名不同配置会明确失败，调用方先
+  ALPKG。相对路径基于当前脚本工作目录解析；没有脚本工作目录的插件调用保持调用方原路径。
+  相同名称及相同模型配置的重复加载复用已加载模型；同名不同配置会明确失败，调用方先
   `engine_yoloReleaseModel()` 后才能按新配置加载。
-- `optionsJson` 必须是 JSON 对象。内部当前支持 `input`、三个 `outputs` blob 名、`targetSize`、
-  `threads`、`probThreshold`、`nmsThreshold` 与 `useGpu`；第一阶段仅 CPU，`useGpu:true` 会明确失败。
+- `optionsJson` 必须是 JSON 对象且未知字段会失败。模型加载只接受 `input`、按 stride 8/16/32
+  排列的三个 `outputs` blob 名与 `useGpu`；单次检测只接受 `targetSize`、`threads`、
+  `probThreshold`、`nmsThreshold`。第一阶段仅 CPU，加载时 `useGpu:true` 会明确失败；检测期
+  出现 `useGpu` 也会失败，不能静默按 CPU 执行。
 - `engine_yoloDetectScreen()` 的区域采用左闭右开坐标，四个坐标均为 `0` 时检测完整截图；其结果和
   `engine_yoloDetectFile()` 一样是 `{ "items": [{ "x": number, "y": number, "w": number,
   "h": number, "label": string, "prob": number }] }` JSON。
   截图检测先取得一份原子 RGBA 副本，结果坐标相对完整截图；文件检测坐标相对该图片。
-- 所有 YOLO JSON 和错误字符串由当前线程持有，下一次同类调用可能覆盖内容。当前没有公开 Lua/JS/Go
-  映射；它们确定后才进入公开函数目录和 `catalog.json`。
+- 所有 YOLO JSON 和错误字符串由当前线程持有，下一次同类调用可能覆盖内容。Lua 已映射为
+  `m.yolo`，检测结果会解包为 Lua 数组；JS、Go 映射仍属于后续。
 
 ## 点阵字库 C ABI
 
@@ -736,6 +739,18 @@ m.ocr.release(name)
 m.ocr.isLoaded(name)
 m.ocr.read(name, imagePath[, options])
 m.ocr.findText(name, imagePath, text[, options])
+m.yolo.runtimeInfo()
+m.yolo.isAvailable()
+m.yolo.load(name, labelsPath, paramPath, binPath[, loadOptions])
+m.yolo.init(labelsPath, paramPath, binPath[, loadOptions])
+m.yolo.release([name])
+m.yolo.isLoaded([name])
+m.yolo.detectScreen(name[, detectOptions])
+m.yolo.detectScreen(name, left, top, right, bottom[, detectOptions])
+m.yolo.detectFile(name, imagePath[, detectOptions])
+m.yolo.detect()
+m.yolo.detect(detectOptions)
+m.yolo.detect(imagePath[, detectOptions])
 m.font.setDict(index, dictionary)
 m.font.addDict(index, dictionary)
 m.font.useDict(index)
@@ -770,6 +785,17 @@ m.web.close(handle)
 imgui.*
 ```
 
+YOLO Lua 规则：
+
+- `init(...)` 等价于 `load("default", ...)`；`detect(...)`、省略名称的 `release()` 和
+  `isLoaded()` 始终使用 `default`，不会选择最后加载的模型。
+- `detectScreen(name[, options])` 检测完整屏幕；区域重载使用左闭右开坐标，返回项坐标仍相对
+  完整屏幕。`detectFile` 的坐标相对原图片。
+- 检测成功返回裸 Lua 数组，每项为 `x/y/w/h:number`、`label:string`、`prob:number`；无命中是
+  空数组，失败为 `nil, errorMessage`。C ABI 的外层 `{items:...}` 不泄漏到 Lua。
+- `m.yolo` 只属于正式 `m`，默认全局 `yolo` 指向同一表；`lr/cd` 不自动复制该模块。
+- 当前接口接收屏幕或普通图片路径，不接收 Java `Bitmap`。相对模型/图片路径基于脚本工作目录。
+
 `imgui.*` 的每个固定方法都通过 `runtime/lua/imgui_lua_api` 转换参数，再调用同名语义的
 `engine_imgui*` 直接 C ABI；回调函数只保存在 Lua 绑定层，不进入跨语言函数表。
 
@@ -792,6 +818,7 @@ imgui.*
 | 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
 | 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |
 | OpenCV | `cv.snapShot`、`cv.new/get/set{Point,Point2f,Int,Double,Float,Long,Byte}`、`cv.deletePtr`、`import("org.opencv.*")` | `cv.snapShot` 返回真实 Mat；Android AAR 的 Java OpenCV API 通过通用 import 访问，首次使用会按需加载已导入的 `libc++_shared.so` 与 `libopencv_java4.so`；`cv.new*` 返回首地址为实际值的 native userdata，`deletePtr` 令其立即失效 |
+| YOLO | `m.yolo.runtimeInfo/isAvailable/load/init/release/isLoaded/detect*` | 可选 NCNN CPU 运行时；`init/detect` 固定使用 `default`，检测返回 `{x,y,w,h,label,prob}` 数组；加载与检测 options 分离；只挂到正式 `m`，不自动加入 `lr/cd` |
 | 节点 | 选择器、节点对象、`nodeLib.*` | Android 无障碍短期句柄；界面变化后重新查询 |
 
 `lr`、`cd` 是独立的旧脚本迁移命名空间。本轮不扩展或重定义它们的成员；后续兼容映射必须

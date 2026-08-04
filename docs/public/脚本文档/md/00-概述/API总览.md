@@ -91,6 +91,14 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | OCR | `m.ocr.isLoaded(name)` | `name: string` | `boolean` 或 `nil, string` | 查询模型名称是否已加载 |
 | OCR | `m.ocr.read(name, imagePath[, options])` | `name, imagePath: string, options: table?` | `table` 或 `nil, string` | 识别普通图片中的全部文字 |
 | OCR | `m.ocr.findText(name, imagePath, text[, options])` | `name, imagePath, text: string, options: table?` | `table` 或 `nil, string` | 在 OCR 结果中查找文字 |
+| YOLO | `m.yolo.runtimeInfo()` / `isAvailable()` | 无 | `table`、`boolean` 或 `nil, string` | 查询可选 YOLO 运行时的导入与加载状态 |
+| YOLO | `m.yolo.load(name, labelsPath, paramPath, binPath[, loadOptions])` | 路径与加载配置 | `boolean` 或 `nil, string` | 加载或复用命名 YOLOv5 NCNN 模型 |
+| YOLO | `m.yolo.init(labelsPath, paramPath, binPath[, loadOptions])` | 路径与加载配置 | `boolean` 或 `nil, string` | 使用固定名称 `default` 初始化单模型流程 |
+| YOLO | `m.yolo.release([name])` / `isLoaded([name])` | `name: string?` | `boolean` 或 `nil, string` | 释放或查询模型；省略名称时使用 `default` |
+| YOLO | `m.yolo.detectScreen(name[, detectOptions])` | 模型名称与检测配置 | `table` 或 `nil, string` | 检测完整当前屏幕 |
+| YOLO | `m.yolo.detectScreen(name, left, top, right, bottom[, detectOptions])` | 模型名称、区域与检测配置 | `table` 或 `nil, string` | 检测屏幕左闭右开区域，结果坐标仍相对完整屏幕 |
+| YOLO | `m.yolo.detectFile(name, imagePath[, detectOptions])` | 模型名称、图片路径与检测配置 | `table` 或 `nil, string` | 检测普通图片文件 |
+| YOLO | `m.yolo.detect()` / `detect(detectOptions)` / `detect(imagePath[, detectOptions])` | 默认模型与可选图片路径 | `table` 或 `nil, string` | 使用 `default` 模型检测屏幕或图片 |
 | 点阵字库 | `m.font.setDict(index, dictionary)` | `index: integer, dictionary: string` | `boolean` 或 `nil, string` | 设置可变尺寸点阵字库 |
 | 点阵字库 | `m.font.addDict(index, dictionary)` | `index: integer, dictionary: string` | `boolean` 或 `nil, string` | 向字库追加字形 |
 | 点阵字库 | `m.font.useDict(index)` | `index: integer` | `boolean` 或 `nil, string` | 选择当前 Lua native 线程的字库 |

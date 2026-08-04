@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64')]
-    [string[]]$Abi = @('arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'),
+    [string[]]$Abi = @('arm64-v8a', 'x86_64'),
     # Keep CMake/Ninja work directories local so Windows does not start cmd.exe in a UNC path.
     [string]$BuildCacheRoot = '',
     [switch]$Force

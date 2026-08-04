@@ -1473,6 +1473,60 @@
     ]
   },
   {
+    "name": "YOLO",
+    "items": [
+      {
+        "name": "概述",
+        "md": "md/20-YOLO/概述.md"
+      },
+      {
+        "name": "运行时信息",
+        "md": "md/20-YOLO/运行时信息.md",
+        "cmd": "m.yolo.runtimeInfo"
+      },
+      {
+        "name": "运行时可用",
+        "md": "md/20-YOLO/运行时可用.md",
+        "cmd": "m.yolo.isAvailable"
+      },
+      {
+        "name": "加载模型",
+        "md": "md/20-YOLO/加载模型.md",
+        "cmd": "m.yolo.load"
+      },
+      {
+        "name": "初始化默认模型",
+        "md": "md/20-YOLO/初始化默认模型.md",
+        "cmd": "m.yolo.init"
+      },
+      {
+        "name": "释放模型",
+        "md": "md/20-YOLO/释放模型.md",
+        "cmd": "m.yolo.release"
+      },
+      {
+        "name": "模型状态",
+        "md": "md/20-YOLO/模型状态.md",
+        "cmd": "m.yolo.isLoaded"
+      },
+      {
+        "name": "检测屏幕",
+        "md": "md/20-YOLO/检测屏幕.md",
+        "cmd": "m.yolo.detectScreen"
+      },
+      {
+        "name": "检测图片",
+        "md": "md/20-YOLO/检测图片.md",
+        "cmd": "m.yolo.detectFile"
+      },
+      {
+        "name": "简化检测",
+        "md": "md/20-YOLO/简化检测.md",
+        "cmd": "m.yolo.detect"
+      }
+    ]
+  },
+  {
     "name": "点阵字库",
     "items": [
       {

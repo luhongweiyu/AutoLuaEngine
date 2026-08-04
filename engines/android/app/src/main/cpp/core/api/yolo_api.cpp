@@ -12,6 +12,7 @@
 
 #include "../../engine/json_value.h"
 #include "../../platform/android_bridge.h"
+#include "runtime_api.h"
 #include "screen_api.h"
 
 namespace xiaoyv::api {
@@ -27,6 +28,22 @@ bool 设置YOLO错误(const std::string& error) {
 
 std::string 安全文本(const char* value) {
     return value == nullptr ? "" : value;
+}
+
+/** 模型和图片相对路径统一基于当前脚本工作目录解析。 */
+std::string 解析脚本普通路径(const char* value) {
+    std::string path = 安全文本(value);
+    if (path.empty() || path[0] == '/' || path.rfind("file://", 0) == 0) {
+        return path;
+    }
+    std::string workPath = runtimeScriptWorkPath();
+    if (workPath.empty()) {
+        return path;
+    }
+    if (workPath.back() != '/') {
+        workPath.push_back('/');
+    }
+    return workPath + path;
 }
 
 bool 解析选项(const char* optionsJson, JsonValue* options) {
@@ -236,9 +253,9 @@ bool 加载YOLO模型(
     if (!校验模型名称(name, &modelName)) {
         return false;
     }
-    const std::string labels = 安全文本(labelsPath);
-    const std::string param = 安全文本(paramPath);
-    const std::string bin = 安全文本(binPath);
+    const std::string labels = 解析脚本普通路径(labelsPath);
+    const std::string param = 解析脚本普通路径(paramPath);
+    const std::string bin = 解析脚本普通路径(binPath);
     if (labels.empty() || param.empty() || bin.empty()) {
         return 设置YOLO错误("YOLO labels、param 和 bin 路径不能为空");
     }
@@ -352,7 +369,7 @@ bool 检测图片YOLO(
     if (!校验模型名称(name, &modelName)) {
         return false;
     }
-    const std::string path = 安全文本(imagePath);
+    const std::string path = 解析脚本普通路径(imagePath);
     if (path.empty()) {
         return 设置YOLO错误("YOLO 图片路径不能为空");
     }

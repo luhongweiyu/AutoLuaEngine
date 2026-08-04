@@ -95,7 +95,7 @@ struct AndroidOcrCallResult {
 /**
  * 可选 YOLO 平台调用结果。
  *
- * 结构保持与 OCR 桥一致，但 YOLO 由单独的 libxiaoyv_yolo.so 承担；未打包该 SO 时 Java 会
+ * 结构保持与 OCR 桥一致，但 YOLO 由单独的 libxiaoyv_yolo.so 承担；未导入该 SO 时 Java 会
  * 返回正常 JSON 失败信封，而非让 libengine.so 直接链接或加载 NCNN。
  */
 struct AndroidYoloCallResult {

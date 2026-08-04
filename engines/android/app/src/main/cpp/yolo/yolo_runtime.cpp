@@ -218,7 +218,12 @@ bool generateProposals(
     if (proposals == nullptr) {
         return setError(error, "YOLO proposal 输出容器为空");
     }
-    if (feature.dims != 3 || feature.w <= 5 || feature.h <= 0 || feature.c <= 0 || feature.elemsize != 4U) {
+    const int expectedAnchorCount = static_cast<int>(anchors.size() / 2U);
+    if (feature.dims != 3
+            || feature.w <= 5
+            || feature.h <= 0
+            || feature.c != expectedAnchorCount
+            || feature.elemsize != 4U) {
         return setError(error, "YOLO 输出 blob 形状不支持；仅支持标准 YOLOv5 三尺度 float 输出");
     }
 
@@ -229,8 +234,7 @@ bool generateProposals(
         return setError(error, "YOLO 输出网格与输入尺寸不匹配；请确认模型输出 blob 配置");
     }
     const int classCount = feature.w - 5;
-    const int anchorCount = std::min(feature.c, static_cast<int>(anchors.size() / 2U));
-    for (int anchorIndex = 0; anchorIndex < anchorCount; ++anchorIndex) {
+    for (int anchorIndex = 0; anchorIndex < expectedAnchorCount; ++anchorIndex) {
         const float anchorWidth = anchors[static_cast<size_t>(anchorIndex) * 2U];
         const float anchorHeight = anchors[static_cast<size_t>(anchorIndex) * 2U + 1U];
         const ncnn::Mat channel = feature.channel(anchorIndex);

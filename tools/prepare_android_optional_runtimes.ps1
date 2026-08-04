@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet('arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64')]
-    [string[]]$Abi = @('arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'),
+    [string[]]$Abi = @('arm64-v8a', 'x86_64'),
     [string]$GradleCacheRoot = (Join-Path $env:USERPROFILE '.gradle/caches/modules-2/files-2.1'),
     [switch]$Force
 )

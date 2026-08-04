@@ -25,3 +25,4 @@
 - [0013：Android 一次性脚本 Worker 与 Root 权限边界](0013-Android一次性脚本Worker与Root权限边界.md)
 - [0014：Android Lua 运行时模块使用 require 加载](<0014-Android Lua运行时模块使用require加载.md>)
 - [0015：Android 第一版 ABI 支持范围](0015-Android第一版ABI支持范围.md)
+- [0016：Android YOLO Lua 公开接口](<0016-Android YOLO Lua公开接口.md>)

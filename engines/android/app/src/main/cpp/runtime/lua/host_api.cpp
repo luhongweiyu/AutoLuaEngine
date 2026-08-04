@@ -117,14 +117,14 @@ bool luaTableToJson(
         std::unordered_set<const void*>* visitingTables
 ) {
     if (depth > 32) {
-        *error = "UI 配置表嵌套层级过深";
+        *error = "配置表嵌套层级过深";
         return false;
     }
 
     int absoluteIndex = lua_absindex(state, index);
     const void* tablePointer = lua_topointer(state, absoluteIndex);
     if (tablePointer != nullptr && !visitingTables->insert(tablePointer).second) {
-        *error = "UI 配置表不能循环引用";
+        *error = "配置表不能循环引用";
         return false;
     }
 
@@ -165,7 +165,7 @@ bool luaTableToJson(
                 if (tablePointer != nullptr) {
                     visitingTables->erase(tablePointer);
                 }
-                *error = "UI 配置表的键只能是字符串或整数";
+                *error = "配置表的键只能是字符串或整数";
                 return false;
             }
 
@@ -222,7 +222,7 @@ bool luaValueToJson(
             } else {
                 lua_Number number = lua_tonumber(state, index);
                 if (!std::isfinite(static_cast<double>(number))) {
-                    *error = "UI 配置不能包含 NaN 或无穷大";
+                    *error = "配置不能包含 NaN 或无穷大";
                     return false;
                 }
                 json << std::setprecision(15) << static_cast<double>(number);
@@ -238,7 +238,7 @@ bool luaValueToJson(
         case LUA_TTABLE:
             return luaTableToJson(state, index, output, error, depth, visitingTables);
         default:
-            *error = "UI 配置只支持空值、布尔值、数字、字符串和表";
+            *error = "配置只支持空值、布尔值、数字、字符串和表";
             return false;
     }
 }
@@ -1028,7 +1028,7 @@ int luaPlatformCall(lua_State* state) {
     return pushCAbiJsonOrError(state, result.c_str(), error.c_str());
 }
 
-/** 把可选 Lua table OCR 配置转换为 C ABI JSON 对象。 */
+/** 把可选 Lua table 配置转换为 C ABI JSON 对象。 */
 bool luaOptionalOptionsJson(lua_State* state, int index, std::string* output, std::string* error) {
     if (output == nullptr || error == nullptr) {
         return false;
@@ -1270,6 +1270,178 @@ int luaOcrFindText(lua_State* state) {
     const char* response = engine_ocrFindText(name.c_str(), path.c_str(), text.c_str(), optionsJson.c_str());
     std::string resultJson = response == nullptr ? "" : response;
     std::string nativeError = engine_ocrLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    return pushCAbiJsonOrError(state, resultJson.c_str(), nativeError.c_str());
+}
+
+/** 查询可选 YOLO 运行时导入与加载状态。 */
+int luaYoloRuntimeInfo(lua_State* state) {
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    const char* response = engine_yoloRuntimeInfoJson();
+    std::string resultJson = response == nullptr ? "" : response;
+    std::string nativeError = engine_yoloLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    return pushCAbiJsonOrError(state, resultJson.c_str(), nativeError.c_str());
+}
+
+/** 查询 yolo/libxiaoyv_yolo.so 是否已经导入。 */
+int luaYoloIsAvailable(lua_State* state) {
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    bool available = engine_yoloIsAvailable() != 0;
+    std::string nativeError = engine_yoloLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    if (!available && !nativeError.empty()) {
+        lua_pushnil(state);
+        lua_pushstring(state, nativeError.c_str());
+        return 2;
+    }
+    lua_pushboolean(state, available ? 1 : 0);
+    return 1;
+}
+
+/** 加载或复用一个命名 YOLO 模型。 */
+int luaYoloLoad(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    std::string labelsPath = luaL_checkstring(state, 2);
+    std::string paramPath = luaL_checkstring(state, 3);
+    std::string binPath = luaL_checkstring(state, 4);
+    std::string optionsJson;
+    std::string error;
+    if (!luaOptionalOptionsJson(state, 5, &optionsJson, &error)) {
+        return luaL_argerror(state, 5, error.c_str());
+    }
+
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    bool loaded = engine_yoloLoadModel(
+            name.c_str(),
+            labelsPath.c_str(),
+            paramPath.c_str(),
+            binPath.c_str(),
+            optionsJson.c_str()) != 0;
+    std::string nativeError = engine_yoloLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    if (!loaded) {
+        lua_pushnil(state);
+        lua_pushstring(state, nativeError.empty() ? "YOLO 模型加载失败" : nativeError.c_str());
+        return 2;
+    }
+    lua_pushboolean(state, 1);
+    return 1;
+}
+
+/** 释放一个命名 YOLO 模型；不存在时返回 false。 */
+int luaYoloRelease(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool releasedGate = runtime != nullptr && runtime->releaseVmForBlocking();
+    bool releasedModel = engine_yoloReleaseModel(name.c_str()) != 0;
+    std::string nativeError = engine_yoloLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(releasedGate);
+    }
+    if (!releasedModel && !nativeError.empty()) {
+        lua_pushnil(state);
+        lua_pushstring(state, nativeError.c_str());
+        return 2;
+    }
+    lua_pushboolean(state, releasedModel ? 1 : 0);
+    return 1;
+}
+
+/** 查询一个命名 YOLO 模型是否已加载。 */
+int luaYoloIsLoaded(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    bool loaded = engine_yoloIsModelLoaded(name.c_str()) != 0;
+    std::string nativeError = engine_yoloLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    if (!loaded && !nativeError.empty()) {
+        lua_pushnil(state);
+        lua_pushstring(state, nativeError.c_str());
+        return 2;
+    }
+    lua_pushboolean(state, loaded ? 1 : 0);
+    return 1;
+}
+
+/** 检测当前屏幕；支持 name[, options] 或 name,left,top,right,bottom[,options]。 */
+int luaYoloDetectScreen(lua_State* state) {
+    int argumentCount = lua_gettop(state);
+    if (argumentCount != 1 && argumentCount != 2 && argumentCount != 5 && argumentCount != 6) {
+        return luaL_error(
+                state,
+                "detectScreen 需要 name[, options]，或 name、left、top、right、bottom[, options]");
+    }
+
+    std::string name = luaL_checkstring(state, 1);
+    int left = 0;
+    int top = 0;
+    int right = 0;
+    int bottom = 0;
+    int optionsIndex = 2;
+    if (argumentCount >= 5) {
+        left = luaCheckInt(state, 2, "left");
+        top = luaCheckInt(state, 3, "top");
+        right = luaCheckInt(state, 4, "right");
+        bottom = luaCheckInt(state, 5, "bottom");
+        optionsIndex = 6;
+    }
+
+    std::string optionsJson;
+    std::string error;
+    if (!luaOptionalOptionsJson(state, optionsIndex, &optionsJson, &error)) {
+        return luaL_argerror(state, optionsIndex, error.c_str());
+    }
+
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    const char* response = engine_yoloDetectScreen(
+            name.c_str(),
+            left,
+            top,
+            right,
+            bottom,
+            optionsJson.c_str());
+    std::string resultJson = response == nullptr ? "" : response;
+    std::string nativeError = engine_yoloLastError();
+    if (runtime != nullptr) {
+        runtime->reacquireVmAfterBlocking(released);
+    }
+    return pushCAbiJsonOrError(state, resultJson.c_str(), nativeError.c_str());
+}
+
+/** 检测普通图片文件。 */
+int luaYoloDetectFile(lua_State* state) {
+    std::string name = luaL_checkstring(state, 1);
+    std::string imagePath = luaL_checkstring(state, 2);
+    std::string optionsJson;
+    std::string error;
+    if (!luaOptionalOptionsJson(state, 3, &optionsJson, &error)) {
+        return luaL_argerror(state, 3, error.c_str());
+    }
+
+    LuaRuntime* runtime = LuaRuntime::fromState(state);
+    bool released = runtime != nullptr && runtime->releaseVmForBlocking();
+    const char* response = engine_yoloDetectFile(
+            name.c_str(),
+            imagePath.c_str(),
+            optionsJson.c_str());
+    std::string resultJson = response == nullptr ? "" : response;
+    std::string nativeError = engine_yoloLastError();
     if (runtime != nullptr) {
         runtime->reacquireVmAfterBlocking(released);
     }
@@ -1722,6 +1894,17 @@ void registerHostApi(lua_State* state) {
     setFunctionField(state, ocrTableIndex, "read", luaOcrRead);
     setFunctionField(state, ocrTableIndex, "findText", luaOcrFindText);
     lua_setfield(state, hostTableIndex, "ocr");
+
+    lua_newtable(state);
+    int yoloTableIndex = lua_gettop(state);
+    setFunctionField(state, yoloTableIndex, "runtimeInfo", luaYoloRuntimeInfo);
+    setFunctionField(state, yoloTableIndex, "isAvailable", luaYoloIsAvailable);
+    setFunctionField(state, yoloTableIndex, "load", luaYoloLoad);
+    setFunctionField(state, yoloTableIndex, "release", luaYoloRelease);
+    setFunctionField(state, yoloTableIndex, "isLoaded", luaYoloIsLoaded);
+    setFunctionField(state, yoloTableIndex, "detectScreen", luaYoloDetectScreen);
+    setFunctionField(state, yoloTableIndex, "detectFile", luaYoloDetectFile);
+    lua_setfield(state, hostTableIndex, "yolo");
 
     lua_newtable(state);
     int fontTableIndex = lua_gettop(state);

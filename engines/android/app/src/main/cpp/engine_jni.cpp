@@ -43,6 +43,7 @@ constexpr LuaRuntimeAssetSpec kLuaRuntimeAssets[] = {
         {"xiaoyv.runtime.compat_extended", "runtime/compat_extended.lua"},
         {"xiaoyv.runtime.compat_lr", "runtime/compat_lr.lua"},
         {"xiaoyv.runtime.compat_cd", "runtime/compat_cd.lua"},
+        {"xiaoyv.runtime.yolo", "runtime/yolo.lua"},
         {kLuaBootstrapModule, "runtime/bootstrap.lua"},
         {"ltn12", "runtime/luasocket/ltn12.lua"},
         {"mime", "runtime/luasocket/mime.lua"},

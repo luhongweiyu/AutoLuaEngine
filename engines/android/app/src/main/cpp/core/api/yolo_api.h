@@ -16,8 +16,8 @@ bool YOLO运行时可用(bool* available);
 /**
  * 加载普通文件路径上的 NCNN YOLOv5 模型。
  *
- * labelsPath、paramPath、binPath 都不能来自 ALPKG；optionsJson 可设置 input、outputs（三个
- * blob 名称）和 useGpu（当前 CPU 版会明确拒绝 true）。
+ * labelsPath、paramPath、binPath 都不能来自 ALPKG；相对路径基于当前脚本工作目录解析。
+ * optionsJson 可设置 input、outputs（三个 blob 名称）和 useGpu（当前 CPU 版会明确拒绝 true）。
  */
 bool 加载YOLO模型(
         const char* name,
@@ -49,7 +49,7 @@ bool 检测当前屏幕YOLO(
         std::string* resultJson
 );
 
-/** 解码一张普通图片文件后检测，结果坐标相对该图片。 */
+/** 解码一张普通图片文件后检测；相对路径基于脚本工作目录，结果坐标相对该图片。 */
 bool 检测图片YOLO(
         const char* name,
         const char* imagePath,

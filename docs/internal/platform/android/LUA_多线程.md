@@ -39,6 +39,7 @@ Lua 多线程是语言运行时能力，实现在 `libengine.so/runtime/lua`，�
 - `sleep`
 - `m.ui.waitEvent`、`m.hud.waitEvent`、`m.web.waitEvent`
 - 兼容层经 `_host.platformCall -> engine_deviceCallJson` 发起的阻塞 Android 平台调用
+- `m.ocr` 的模型加载、图片识别与找文字，以及 `m.yolo` 的运行时查询、模型管理和检测
 - Java 构造函数、字段、方法和接口回调边界
 
 截图、找色、点击、按键和日志属于短操作，执行期间保持 Gate。

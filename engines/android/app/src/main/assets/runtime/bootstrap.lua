@@ -5,6 +5,10 @@ local m = require("xiaoyv.runtime.compat_extended")
 local lr = require("xiaoyv.runtime.compat_lr")
 local cd = require("xiaoyv.runtime.compat_cd")
 
+-- YOLO 是正式 m API，不自动复制到尚未统一整理的 lr/cd 兼容命名空间。
+-- 因此必须在两份兼容模块取得 m 快照后再挂载。
+m.yolo = require("xiaoyv.runtime.yolo")
+
 _G.m = m
 _G.lr = lr
 _G.cd = cd

@@ -10,6 +10,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 /**
  * YOLO 可选运行时平台桥。
@@ -22,9 +23,9 @@ import java.nio.ByteBuffer;
 public final class YoloPlatformBridge {
     private static final String RUNTIME_FILE_NAME = "yolo/libxiaoyv_yolo.so";
     private static final Object LOAD_LOCK = new Object();
-    private static boolean nativeLoaded;
-    private static String nativeLoadError = "";
-    private static String nativeLoadedLibraryPath = "";
+    private static volatile boolean nativeLoaded;
+    private static volatile String nativeLoadError = "";
+    private static volatile String nativeLoadedLibraryPath = "";
 
     private YoloPlatformBridge() {
     }
@@ -92,6 +93,24 @@ public final class YoloPlatformBridge {
                 return failure("YOLO 模型名称不能为空");
             }
             JSONObject options = options(arguments);
+            if (options.has("useGpu")) {
+                return failure("YOLO detect options 不支持 useGpu；请在 load/init 时设置模型运行方式");
+            }
+            String unsupportedOption = firstUnsupportedOption(
+                    options,
+                    "targetSize",
+                    "threads",
+                    "probThreshold",
+                    "nmsThreshold"
+            );
+            if (!unsupportedOption.isEmpty()) {
+                return failure("YOLO detect options 不支持字段：" + unsupportedOption);
+            }
+            if (!integerOption(options, "targetSize") || !integerOption(options, "threads")
+                    || !numberOption(options, "probThreshold")
+                    || !numberOption(options, "nmsThreshold")) {
+                return failure("YOLO detect options 类型无效");
+            }
             int targetSize = options.optInt("targetSize", 640);
             int threads = options.optInt("threads", 2);
             float probabilityThreshold = (float) options.optDouble("probThreshold", 0.25D);
@@ -170,14 +189,32 @@ public final class YoloPlatformBridge {
         }
 
         JSONObject options = options(arguments);
+        String unsupportedOption = firstUnsupportedOption(options, "input", "outputs", "useGpu");
+        if (!unsupportedOption.isEmpty()) {
+            return failure("YOLO load options 不支持字段：" + unsupportedOption);
+        }
+        if (options.has("input") && !(options.get("input") instanceof String)) {
+            return failure("YOLO load options.input 必须是字符串");
+        }
+        if (options.has("useGpu") && !(options.get("useGpu") instanceof Boolean)) {
+            return failure("YOLO load options.useGpu 必须是布尔值");
+        }
         String input = options.optString("input", "images").trim();
         JSONArray outputs = options.optJSONArray("outputs");
         String output8 = "output";
         String output16 = "353";
         String output32 = "367";
+        if (options.has("outputs") && outputs == null) {
+            return failure("YOLO load options.outputs 必须是数组");
+        }
         if (outputs != null) {
             if (outputs.length() != 3) {
                 return failure("YOLO load options.outputs 必须恰好包含三个 blob 名称");
+            }
+            for (int index = 0; index < outputs.length(); index++) {
+                if (!(outputs.get(index) instanceof String)) {
+                    return failure("YOLO load options.outputs 必须只包含字符串");
+                }
             }
             output8 = outputs.optString(0, "").trim();
             output16 = outputs.optString(1, "").trim();
@@ -219,10 +256,10 @@ public final class YoloPlatformBridge {
                 nativeLoadError = result.error;
                 return false;
             }
-            nativeLoaded = true;
             nativeLoadError = "";
             nativeLoadedLibraryPath = result.loadedLibraryPath;
-            return nativeLoaded;
+            nativeLoaded = true;
+            return true;
         }
     }
 
@@ -244,6 +281,52 @@ public final class YoloPlatformBridge {
             throw new JSONException("options 必须是对象");
         }
         return value;
+    }
+
+    private static String firstUnsupportedOption(JSONObject options, String... allowedNames) {
+        Iterator<String> keys = options.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            boolean allowed = false;
+            for (String allowedName : allowedNames) {
+                if (allowedName.equals(key)) {
+                    allowed = true;
+                    break;
+                }
+            }
+            if (!allowed) {
+                return key;
+            }
+        }
+        return "";
+    }
+
+    private static boolean integerOption(JSONObject options, String key) throws JSONException {
+        if (!options.has(key)) {
+            return true;
+        }
+        Object value = options.get(key);
+        if (!(value instanceof Number)) {
+            return false;
+        }
+        double number = ((Number) value).doubleValue();
+        return !Double.isNaN(number)
+                && !Double.isInfinite(number)
+                && number == Math.rint(number)
+                && number >= Integer.MIN_VALUE
+                && number <= Integer.MAX_VALUE;
+    }
+
+    private static boolean numberOption(JSONObject options, String key) throws JSONException {
+        if (!options.has(key)) {
+            return true;
+        }
+        Object value = options.get(key);
+        if (!(value instanceof Number)) {
+            return false;
+        }
+        double number = ((Number) value).doubleValue();
+        return !Double.isNaN(number) && !Double.isInfinite(number);
     }
 
     /** 只允许普通文件路径；file:// 是普通文件路径的等价写法。 */

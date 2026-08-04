@@ -13,7 +13,7 @@ Root 或 Worker 名称直接当成公开脚本 API。
 | 应用、设备、系统控制、剪贴板与 OAID 路由 | [Android 设备 API](ANDROID_设备_API.md) |
 | Dialog、HUD、WebView 会话 | [Android 脚本 UI](ANDROID_脚本_UI.md) |
 | Dear ImGui Surface、渲染和事件 | [Android ImGui](ANDROID_ImGui.md) |
-| 可选 YOLO 运行时、C ABI 完成度与公开层待定项 | [Android YOLO 可选运行时调研](ANDROID_YOLO_可选运行时调研.md) |
+| 可选 YOLO 运行时、C ABI、Lua `m.yolo` 与模型验收边界 | [Android YOLO 可选运行时调研](ANDROID_YOLO_可选运行时调研.md) |
 
 行为和函数签名仍以[统一 API 契约](../../contracts/API_契约.md)为准；长期发布或维护决定见
 [项目决策记录](../../decisions/README.md)。
