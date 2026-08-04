@@ -143,6 +143,25 @@ final class EngineWorkerCoordinator {
         }
     }
 
+    /**
+     * 同步 App 主进程设置页已经确认的运行模式。
+     *
+     * SharedPreferences 不提供可靠的多进程缓存同步，因此必须在 :engine 内再写一次，并关闭
+     * 可能按旧 UID 创建的空闲 Worker，确保下一次运行按新模式重新创建。
+     */
+    static void syncRootMode(Context context, boolean enabled) {
+        initialize(context);
+        Context controllerContext;
+        synchronized (LOCK) {
+            controllerContext = appContext;
+        }
+        if (controllerContext == null) {
+            return;
+        }
+        EngineSettings.setRootModeEnabled(controllerContext, enabled);
+        shutdownCurrent(false);
+    }
+
     static void forceStop() {
         shutdownCurrent(true);
     }

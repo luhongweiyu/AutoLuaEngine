@@ -36,10 +36,6 @@ final class VolumeKeyController {
             return;
         }
 
-        ScriptCatalog.ScriptItem selectedScript = ScriptCatalog.getSelectedScript(appContext);
-        if (selectedScript == null || !selectedScript.runnable) {
-            return;
-        }
-        EngineService.runScriptFile(appContext, selectedScript.filePath);
+        EngineService.runSelectedScript(appContext);
     }
 }

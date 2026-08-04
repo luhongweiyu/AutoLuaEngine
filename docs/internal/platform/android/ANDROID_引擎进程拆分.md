@@ -10,9 +10,10 @@ App 主进程（App UID，常驻）
 ├─ MainActivity / FloatingControlService
 ├─ AutomationAccessibilityService
 ├─ Dialog / HUD / WebView 脚本 UI
+├─ MediaProjectionCaptureService（非 Root 授权会话、一个 VirtualDisplay）
 └─ RootDaemonService / RootDaemonManager
        └─ su -c app_process -> RootDaemonMain（uid=0，常驻）
-                              ├─ 截图、触控、输入、系统命令、音量键
+                              ├─ 触控、输入、系统命令、音量键
                               └─ RootWorkerSupervisor
 
 :engine 控制进程（App UID，常驻）
@@ -23,8 +24,8 @@ App 主进程（App UID，常驻）
 └─ ScriptImGuiService：透明 Surface、触摸、键盘和输入法代理
 
 本次 Worker（二选一，不并存）
-├─ Root：RootDaemon -> app_process -> EngineWorkerMain（uid=0）
-└─ 非 Root：LocalEngineWorkerService :worker（App UID）
+├─ Root：RootDaemon -> app_process -> EngineWorkerMain（uid=0，进程内 SurfaceControl 截图）
+└─ 非 Root：LocalEngineWorkerService :worker（App UID，ImageReader 截图 Surface）
        └─ EngineWorkerEndpoint
           ├─ NativeEngine / libengine.so
           ├─ Lua 5.4；后续 JS / Go 使用同一外壳
@@ -37,8 +38,14 @@ App 主进程（App UID，常驻）
 ## 固定边界
 
 - App 主进程不加载 `libengine.so`，只持有 Android 页面、Service 和无障碍对象。
+- 非 Root 的屏幕录制授权、前台服务和唯一 VirtualDisplay 由 App 主进程持有；一次性 Worker
+  只持有 ImageReader、帧处理线程和当前 Surface。
 - `:engine` 不执行脚本、不加载用户 SO，也不执行 `su`；它是可连续连接的控制端。
 - RootDaemon 只加载项目内稳定 Root 实现，不加载脚本运行时、模型或任意扩展。
+- Root Worker 的物理截图直接调用系统 Surface 隐藏接口并写入 native 固定缓冲，不经
+  RootDaemon socket；RootDaemon 继续承载输入、系统命令、音量键和 Worker 监督。
+- 非 Root Worker 通过 Binder 把 ImageReader Surface 附着到主进程的 VirtualDisplay，读取最新
+  RGBA Plane 并写入同一类 native 固定缓冲；它不能调用 Root 隐藏接口。
 - Root 与非 Root Worker 进入完全相同的 `EngineWorkerEndpoint -> NativeEngine`。公开函数、
   参数、返回类型、C ABI 和语言绑定不因权限模式分叉。
 - 每次脚本结束、停止、崩溃或强停后退出 Worker。RootDaemon、App 主进程和 `:engine` 不退出。
@@ -71,14 +78,29 @@ Root `app_process` 不属于 AMS 注册的应用进程，访问宿主 Provider �
 ### 非 Root
 
 ```text
+MainActivity（用户允许屏幕录制）
+  -> MediaProjectionCaptureService（App 主进程前台服务）
+  -> MediaProjection + 一个 VirtualDisplay
+
 EngineWorkerCoordinator
   -> bindService(LocalEngineWorkerService :worker)
   -> EngineWorkerEndpoint
   -> NativeEngine / libengine.so
+  -> MediaProjectionScreenCaptureBridge / ImageReader
+  -> IScreenCaptureHost.attachSurface
+  -> 既有 VirtualDisplay.setSurface
 ```
 
 Local 外壳只改变 Linux UID 和启动方式，不删 API。Root 类调用仍进入原实现，由系统或底层桥按
 既有返回类型给出实际结果；控制层不统一改写错误、不重试、不切换备用路线。
+
+打开 App 或切换运行模式不主动申请录屏。用户从主界面、悬浮控制或非 Root 音量键运行脚本时，
+若尚未授权，由 `MainActivity` 打开系统确认页，并在授权成功后恢复该次运行；Worker 或 HTTP
+调用不能替用户确认授权，也不能把远程运行请求改成界面跳转。授权成功后，App 主进程以前台
+服务持有 MediaProjection 会话。Android 14 的一次授权令牌不能
+用于反复创建 VirtualDisplay，因此同一授权会话只保留一个 VirtualDisplay；Worker 更换、退出
+或显示尺寸变化只替换/分离 Surface 并按需调整尺寸。系统收回授权、前台服务停止或用户切回
+Root 模式时释放整个会话，再次从本机入口运行非 Root 脚本时才重新申请。
 
 ## 命令和大数据
 
@@ -97,9 +119,11 @@ Worker 的 `log.drain` ID 每个进程从头开始，`EngineWorkerCoordinator` �
 连续 ID，并最多保留最近 1000 条。脚本返回后先收取最后日志，再关闭 Worker，因此 IDE 可以在
 进程退出后继续读取刚结束脚本的输出。
 
-正常结束调用 Worker 清理入口后退出进程；强停或 Binder 死亡由对应外壳回收：Root Worker 交给
-RootDaemon 的 `Process` 监督，本地 Worker 直接结束 `:worker`。进程退出后由内核统一回收 Java
-堆、语言堆、native 分配、SO 全局状态、线程、FD、模型、EGL 和纹理。
+正常结束调用 Worker 清理入口后退出进程；非 Root Worker 同时分离投屏 Surface、关闭
+ImageReader 并解绑截图宿主，但不结束 App 主进程持有的授权会话。强停或 Binder 死亡由对应
+外壳回收：Root Worker 交给 RootDaemon 的 `Process` 监督，本地 Worker 直接结束 `:worker`。
+进程退出后由内核统一回收 Java 堆、语言堆、native 分配、SO 全局状态、线程、FD、模型、EGL
+和纹理。
 
 JNI 的 `Engine` 使用函数内静态实例，在 runtime 全局同步状态完成构造后才首次创建。正常进程
 退出时因此会先析构 `Engine`，再析构它依赖的 mutex，不能改回跨编译单元的全局 `Engine`
@@ -119,3 +143,5 @@ JNI 的 `Engine` 使用函数内静态实例，在 runtime 全局同步状态完
 3. 非 Root 模式使用 `:worker` 且 UID 为应用 UID；相同普通 API、UI 和日志路径可用。
 4. Root FFI 可加载需要 uid=0 的测试 SO；脚本结束后 Worker PID 消失，RootDaemon PID 不变。
 5. 连续运行/停止至少三次，没有遗留 Worker、ImGui Surface 或脚本 UI。
+6. 非 Root 模式经用户允许屏幕录制后可以读取尺寸正确的 RGBA 帧；连续更换 Worker 只替换
+   ImageReader Surface，不为同一授权会话创建第二个 VirtualDisplay，也不重复申请授权。

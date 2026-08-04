@@ -19,7 +19,7 @@ import java.security.MessageDigest;
  *
  * 它只监听 127.0.0.1，并要求随机令牌认证。App 主进程拥有它的生命周期；脚本 Worker 退出后
  * 可重新建立 socket 会话，但不会再次执行 su。RootDaemon 还监督一次性 root Worker，自身不
- * 加载脚本或用户 SO。截图仍使用“文本头 + 原始 RGBA”流，避免整帧 Binder/Base64 复制。
+ * 加载脚本或用户 SO。截图由 uid=0 Worker 直接调用系统 Surface 接口，不经过此 socket。
  */
 public final class RootDaemonMain {
     private static volatile boolean running = true;

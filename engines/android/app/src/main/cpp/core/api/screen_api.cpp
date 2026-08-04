@@ -120,22 +120,22 @@ bool setErrorLocked(const std::string& error) {
  */
 bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
     if (!result.success) {
-        return setErrorLocked(result.error.empty() ? "Root 截图失败" : result.error);
+        return setErrorLocked(result.error.empty() ? "屏幕截图失败" : result.error);
     }
 
     if (result.width <= 0 || result.height <= 0) {
-        return setErrorLocked("Root 截图尺寸无效");
+        return setErrorLocked("屏幕截图尺寸无效");
     }
 
     long long expectedLength = static_cast<long long>(result.width)
             * static_cast<long long>(result.height)
             * static_cast<long long>(kPixelBytes);
     if (expectedLength <= 0 || expectedLength > std::numeric_limits<int>::max()) {
-        return setErrorLocked("Root 截图点阵缓冲过大");
+        return setErrorLocked("屏幕截图点阵缓冲过大");
     }
 
     if (result.pixelBytes < static_cast<size_t>(expectedLength)) {
-        return setErrorLocked("Root 截图点阵缓冲不完整");
+        return setErrorLocked("屏幕截图点阵缓冲不完整");
     }
 
     return true;
@@ -147,7 +147,14 @@ bool validateCaptureResultLocked(const ScreenCaptureResult& result) {
  * 图片屏幕关闭后，本函数会用实时帧覆盖同一个固定缓冲区。
  */
 bool refreshPhysicalScreenLocked() {
-    ScreenCaptureResult result = AndroidBridge::captureRootScreen(&gCapturePixels, &gCaptureCapacity);
+    // 图片屏幕会覆盖同一块固定缓冲。只有当前缓存仍是上一张物理帧时，平台层才可在
+    // 暂无新帧时直接复用 native 内容；图片屏幕还原后的第一次读取必须等新物理帧覆盖。
+    bool allowCachedNativeFrame = hasCachedFrameLocked();
+    ScreenCaptureResult result = AndroidBridge::captureScreen(
+            &gCapturePixels,
+            &gCaptureCapacity,
+            allowCachedNativeFrame
+    );
     if (!validateCaptureResultLocked(result)) {
         return false;
     }

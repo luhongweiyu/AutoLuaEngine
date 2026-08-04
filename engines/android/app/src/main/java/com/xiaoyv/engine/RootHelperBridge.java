@@ -8,9 +8,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.net.Socket;
 import android.util.Base64;
@@ -20,7 +17,8 @@ import android.util.Base64;
  *
  * RootDaemon 由 App 主进程提前通过 `su -c app_process` 启动。每个调用进程各自保持一个
  * 已认证 socket 会话；强停 Worker 只会断开本客户端，不会结束 RootDaemon 或重新执行 su。
- * 截图和输入注入都走该二进制安全通道，不为每个脚本命令拉起外部进程。
+ * 输入注入和系统命令走该通道，不为每个脚本命令拉起外部进程。截图由 uid=0 Worker
+ * 在本进程直接完成，不经过此 socket。
  */
 public final class RootHelperBridge {
     private static final Object LOCK = new Object();
@@ -43,59 +41,6 @@ public final class RootHelperBridge {
             } catch (IOException | RuntimeException exception) {
                 closeSessionLocked();
                 return false;
-            }
-        }
-    }
-
-    public static ScreenCaptureResult captureFrame(
-            int width,
-            int height,
-            ByteBuffer targetBuffer,
-            int targetCapacity
-    ) {
-        synchronized (LOCK) {
-            try {
-                RootHelperSession helper = ensureSessionLocked();
-                long startTime = System.nanoTime();
-                RootHelperResponse response = helper.request(
-                        "capture\t" + width + "\t" + height,
-                        5000,
-                        targetBuffer,
-                        targetCapacity
-                );
-                long durationMs = elapsedMillis(startTime);
-                if (!response.ok) {
-                    return ScreenCaptureResult.failure(response.message);
-                }
-
-                String[] fields = response.message.split("\t", 3);
-                if (fields.length != 3) {
-                    return ScreenCaptureResult.failure("Root 截图服务响应无效");
-                }
-
-                int frameWidth = parseInt(fields[0], 0);
-                int frameHeight = parseInt(fields[1], 0);
-                if (response.wroteToTargetBuffer) {
-                    return ScreenCaptureResult.successFromNativeBuffer(
-                            targetBuffer,
-                            response.pixelByteLength,
-                            frameWidth,
-                            frameHeight,
-                            "root-helper",
-                            durationMs
-                    );
-                }
-
-                return ScreenCaptureResult.successFromRgbaBytes(
-                        response.pixelBytes,
-                        frameWidth,
-                        frameHeight,
-                        "root-helper",
-                        durationMs
-                );
-            } catch (IOException | RuntimeException exception) {
-                closeSessionLocked();
-                return ScreenCaptureResult.failure("Root 截图服务执行失败：" + exception.getMessage());
             }
         }
     }
@@ -153,7 +98,7 @@ public final class RootHelperBridge {
                 RootHelperSession helper = ensureSessionLocked();
                 // exec 的阻塞时长由脚本命令本身决定；socket 使用无限等待，避免框架替用户
                 // 截断一个合法的长时间命令。
-                RootHelperResponse response = helper.request("exec\t" + encoded, 0, null, 0);
+                RootHelperResponse response = helper.request("exec\t" + encoded, 0);
                 if (!response.ok) {
                     return ShellResult.failure(response.message);
                 }
@@ -230,7 +175,7 @@ public final class RootHelperBridge {
         synchronized (LOCK) {
             try {
                 RootHelperSession helper = ensureSessionLocked();
-                RootHelperResponse response = helper.request(command, timeoutMs, null, 0);
+                RootHelperResponse response = helper.request(command, timeoutMs);
                 return response.ok && "true".equals(response.message);
             } catch (IOException | RuntimeException exception) {
                 closeSessionLocked();
@@ -246,7 +191,7 @@ public final class RootHelperBridge {
         synchronized (LOCK) {
             try {
                 RootHelperSession helper = ensureSessionLocked();
-                RootHelperResponse response = helper.request(command, timeoutMs, null, 0);
+                RootHelperResponse response = helper.request(command, timeoutMs);
                 return response.ok ? response.message : null;
             } catch (IOException | RuntimeException exception) {
                 closeSessionLocked();
@@ -262,7 +207,7 @@ public final class RootHelperBridge {
 
         closeSessionLocked();
         session = RootHelperSession.start();
-        RootHelperResponse response = session.request("ping", 2500, null, 0);
+        RootHelperResponse response = session.request("ping", 2500);
         if (!response.ok) {
             closeSessionLocked();
             throw new IOException(response.message);
@@ -277,29 +222,14 @@ public final class RootHelperBridge {
         }
     }
 
-    private static int parseInt(String value, int defaultValue) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException exception) {
-            return defaultValue;
-        }
-    }
-
-    private static long elapsedMillis(long startTime) {
-        long elapsedNanos = System.nanoTime() - startTime;
-        return Math.max(0L, elapsedNanos / 1_000_000L);
-    }
-
     private static final class RootHelperSession {
         private final Socket socket;
         private final BufferedWriter writer;
         private final InputStream rawReader;
-        private final ReadableByteChannel rawChannel;
 
         private RootHelperSession(Socket socket) throws IOException {
             this.socket = socket;
             this.rawReader = socket.getInputStream();
-            this.rawChannel = Channels.newChannel(rawReader);
             this.writer = new BufferedWriter(
                     new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8)
             );
@@ -316,18 +246,13 @@ public final class RootHelperBridge {
             return socket.isConnected() && !socket.isClosed();
         }
 
-        private RootHelperResponse request(
-                String command,
-                long timeoutMs,
-                ByteBuffer targetBuffer,
-                int targetCapacity
-        ) throws IOException {
+        private RootHelperResponse request(String command, long timeoutMs) throws IOException {
             writer.write(command);
             writer.write('\n');
             writer.flush();
 
             // 直接阻塞等待 socket 响应，避免旧轮询方案每条命令额外等待 0 到 10ms。
-            // 响应头及紧随其后的每次原始像素流读取都受 socket 超时保护。
+            // 每条文本响应都受当前命令自己的 socket 超时保护。
             socket.setSoTimeout(toSocketTimeout(timeoutMs));
             try {
                 String line = readLine(rawReader);
@@ -335,13 +260,7 @@ public final class RootHelperBridge {
                     return RootHelperResponse.error("RootDaemon 已关闭");
                 }
                 if (line.startsWith("OK\t")) {
-                    String message = line.substring(3);
-                    RootHelperPayload payload = readPixelBytesIfNeeded(
-                            message,
-                            targetBuffer,
-                            targetCapacity
-                    );
-                    return RootHelperResponse.ok(message, payload);
+                    return RootHelperResponse.ok(line.substring(3));
                 }
                 if (line.startsWith("ERR\t")) {
                     return RootHelperResponse.error(line.substring(4));
@@ -379,50 +298,6 @@ public final class RootHelperBridge {
                     : outputStream.toString(StandardCharsets.UTF_8.name());
         }
 
-        private RootHelperPayload readPixelBytesIfNeeded(
-                String message,
-                ByteBuffer targetBuffer,
-                int targetCapacity
-        ) throws IOException {
-            String[] fields = message.split("\t");
-            if (fields.length != 3) {
-                return RootHelperPayload.empty();
-            }
-
-            int byteLength = parseInt(fields[2], 0);
-            if (byteLength <= 0) {
-                return RootHelperPayload.empty();
-            }
-
-            if (targetBuffer != null
-                    && targetBuffer.isDirect()
-                    && targetCapacity >= byteLength
-                    && targetBuffer.capacity() >= byteLength) {
-                targetBuffer.position(0);
-                targetBuffer.limit(byteLength);
-                while (targetBuffer.hasRemaining()) {
-                    int readCount = rawChannel.read(targetBuffer);
-                    if (readCount < 0) {
-                        throw new IOException("Root 截图服务点阵流提前结束");
-                    }
-                }
-                targetBuffer.position(0);
-                targetBuffer.limit(targetBuffer.capacity());
-                return RootHelperPayload.nativeBuffer(byteLength);
-            }
-
-            byte[] bytes = new byte[byteLength];
-            int offset = 0;
-            while (offset < byteLength) {
-                int readCount = rawReader.read(bytes, offset, byteLength - offset);
-                if (readCount < 0) {
-                    throw new IOException("Root 截图服务点阵流提前结束");
-                }
-                offset += readCount;
-            }
-            return RootHelperPayload.bytes(bytes);
-        }
-
         private void close() {
             try {
                 socket.close();
@@ -435,49 +310,18 @@ public final class RootHelperBridge {
     private static final class RootHelperResponse {
         private final boolean ok;
         private final String message;
-        private final byte[] pixelBytes;
-        private final int pixelByteLength;
-        private final boolean wroteToTargetBuffer;
 
-        private RootHelperResponse(boolean ok, String message, RootHelperPayload payload) {
+        private RootHelperResponse(boolean ok, String message) {
             this.ok = ok;
             this.message = message == null ? "" : message;
-            RootHelperPayload actualPayload = payload == null ? RootHelperPayload.empty() : payload;
-            this.pixelBytes = actualPayload.pixelBytes;
-            this.pixelByteLength = actualPayload.pixelByteLength;
-            this.wroteToTargetBuffer = actualPayload.wroteToTargetBuffer;
         }
 
-        private static RootHelperResponse ok(String message, RootHelperPayload payload) {
-            return new RootHelperResponse(true, message, payload);
+        private static RootHelperResponse ok(String message) {
+            return new RootHelperResponse(true, message);
         }
 
         private static RootHelperResponse error(String message) {
-            return new RootHelperResponse(false, message, RootHelperPayload.empty());
-        }
-    }
-
-    private static final class RootHelperPayload {
-        private final byte[] pixelBytes;
-        private final int pixelByteLength;
-        private final boolean wroteToTargetBuffer;
-
-        private RootHelperPayload(byte[] pixelBytes, int pixelByteLength, boolean wroteToTargetBuffer) {
-            this.pixelBytes = pixelBytes == null ? new byte[0] : pixelBytes;
-            this.pixelByteLength = pixelByteLength;
-            this.wroteToTargetBuffer = wroteToTargetBuffer;
-        }
-
-        private static RootHelperPayload empty() {
-            return new RootHelperPayload(new byte[0], 0, false);
-        }
-
-        private static RootHelperPayload bytes(byte[] pixelBytes) {
-            return new RootHelperPayload(pixelBytes, pixelBytes == null ? 0 : pixelBytes.length, false);
-        }
-
-        private static RootHelperPayload nativeBuffer(int pixelByteLength) {
-            return new RootHelperPayload(new byte[0], pixelByteLength, true);
+            return new RootHelperResponse(false, message);
         }
     }
 

@@ -1,5 +1,5 @@
 /**
- * 文件用途：给 libengine.so 暴露 Android 平台状态、Root 初始化和 Root 截图入口。
+ * 文件用途：给 libengine.so 暴露 Android 平台状态、Root 初始化和物理截图入口。
  */
 package com.xiaoyv.engine;
 
@@ -125,22 +125,38 @@ public final class AndroidHostBridge {
     }
 
     /**
-     * Root 截图入口。
+     * 当前 Worker 的物理截图入口。
      *
      * C ABI 的 engine_getScreenPixels 只走这里，不在失败时切换到其他截图路线。
      */
-    public static ScreenCaptureResult captureRootScreen() {
-        return captureRootScreen(null, 0);
+    public static ScreenCaptureResult captureScreen() {
+        return captureScreen(null, 0, false);
     }
 
     /**
-     * Root 截图入口。
+     * 当前 Worker 的物理截图入口。
      *
-     * targetBuffer 来自 libengine.so 的截图缓存。容量足够时，Root helper 的像素流会
-     * 直接读入该 native 缓冲，避免在 Java 引擎进程里再分配整帧 byte[]。
+     * Root Worker 使用 SurfaceControl；App UID Worker 使用 MediaProjection/ImageReader。
+     * 两条路线都优先直接写入 libengine.so 的固定 native 缓冲。
      */
-    public static ScreenCaptureResult captureRootScreen(ByteBuffer targetBuffer, int targetCapacity) {
-        return RootScreenCaptureBridge.captureFrame(targetBuffer, targetCapacity);
+    public static ScreenCaptureResult captureScreen(ByteBuffer targetBuffer, int targetCapacity) {
+        return captureScreen(targetBuffer, targetCapacity, true);
+    }
+
+    public static ScreenCaptureResult captureScreen(
+            ByteBuffer targetBuffer,
+            int targetCapacity,
+            boolean allowCachedNativeFrame
+    ) {
+        if (android.os.Process.myUid() == 0) {
+            return RootScreenCaptureBridge.captureFrame(targetBuffer, targetCapacity);
+        }
+        MediaProjectionScreenCaptureBridge.initialize(appContext);
+        return MediaProjectionScreenCaptureBridge.captureFrame(
+                targetBuffer,
+                targetCapacity,
+                allowCachedNativeFrame
+        );
     }
 
     public static boolean touchDown(int id, int x, int y) {

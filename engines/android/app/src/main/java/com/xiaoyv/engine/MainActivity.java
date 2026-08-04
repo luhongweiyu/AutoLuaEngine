@@ -6,6 +6,7 @@ package com.xiaoyv.engine;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.media.projection.MediaProjectionManager;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
@@ -59,8 +60,13 @@ import androidx.core.content.FileProvider;
  * 控制引擎，避免 UI 进程直接持有脚本线程。
  */
 public final class MainActivity extends Activity {
+    static final String ACTION_AUTHORIZE_SCREEN_CAPTURE_AND_RUN =
+            "com.xiaoyv.engine.action.AUTHORIZE_SCREEN_CAPTURE_AND_RUN";
+    static final String EXTRA_PENDING_SCRIPT_PATH = "pendingScriptPath";
+    private static final String STATE_PENDING_SCRIPT_PATH = "pendingScriptPath";
     private static final int REQUEST_OVERLAY_PERMISSION = 1002;
     private static final int REQUEST_SCRIPT_STORAGE_PERMISSION = 1003;
+    private static final int REQUEST_SCREEN_CAPTURE_PERMISSION = 1004;
     private static final int TAB_SCRIPT = 0;
     private static final int TAB_MARKET = 1;
     private static final int TAB_EXTENSION = 2;
@@ -85,6 +91,7 @@ public final class MainActivity extends Activity {
     private Switch floatingCheckBox;
     private Switch volumeKeyControlCheckBox;
     private ScriptCatalog.ScriptItem selectedScript;
+    private String pendingScriptPath;
     private int currentTab = TAB_SCRIPT;
     private int statusQueryGeneration;
     private boolean scriptRunning;
@@ -100,17 +107,32 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         RootDaemonService.ensureForCurrentMode(this);
         EngineService.ensureStarted(this);
+        pendingScriptPath = savedInstanceState == null
+                ? null
+                : savedInstanceState.getString(STATE_PENDING_SCRIPT_PATH);
         selectedScript = null;
         configureSystemBars();
         setContentView(createContentView());
         showTab(TAB_SCRIPT);
-        ensureScriptStorageAccess();
+        if (ScriptCatalog.isScriptStorageAccessible(this)) {
+            completeScriptStorageSetup();
+        } else {
+            ensureScriptStorageAccess();
+        }
+        consumeScreenCaptureRunIntent(getIntent());
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        consumeScreenCaptureRunIntent(intent);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_PENDING_SCRIPT_PATH, pendingScriptPath);
     }
 
     @Override
@@ -595,8 +617,68 @@ public final class MainActivity extends Activity {
 
     private void handleRootModeChanged(CompoundButton button, boolean enabled) {
         EngineSettings.setRootModeEnabled(this, enabled);
+        EngineService.syncRootMode(this, enabled);
         RootDaemonService.setRootModeEnabled(this, enabled);
         setMessage(enabled ? "运行模式已切换为 Root 模式" : "运行模式已切换为无障碍优先");
+    }
+
+    static void requestNonRootScreenCaptureAndRun(Context context, String scriptPath) {
+        if (context == null || scriptPath == null || scriptPath.isEmpty()) {
+            return;
+        }
+        Intent intent = new Intent(context, MainActivity.class);
+        intent.setAction(ACTION_AUTHORIZE_SCREEN_CAPTURE_AND_RUN);
+        intent.putExtra(EXTRA_PENDING_SCRIPT_PATH, scriptPath);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        context.startActivity(intent);
+    }
+
+    private void consumeScreenCaptureRunIntent(Intent intent) {
+        if (intent == null || !ACTION_AUTHORIZE_SCREEN_CAPTURE_AND_RUN.equals(intent.getAction())) {
+            return;
+        }
+        String scriptPath = intent.getStringExtra(EXTRA_PENDING_SCRIPT_PATH);
+        intent.setAction(null);
+        intent.removeExtra(EXTRA_PENDING_SCRIPT_PATH);
+        if (scriptPath == null || scriptPath.isEmpty()) {
+            return;
+        }
+        pendingScriptPath = scriptPath;
+        ensureNonRootScreenCapture();
+    }
+
+    private void ensureNonRootScreenCapture() {
+        if (EngineSettings.isRootModeEnabled(this)) {
+            runPendingScript();
+            return;
+        }
+        if (MediaProjectionCaptureService.isProjectionReady()) {
+            runPendingScript();
+            return;
+        }
+        MediaProjectionManager manager = (MediaProjectionManager) getSystemService(
+                Context.MEDIA_PROJECTION_SERVICE
+        );
+        if (manager == null) {
+            pendingScriptPath = null;
+            setMessage("系统不支持非 Root 屏幕读取");
+            return;
+        }
+        startActivityForResult(
+                manager.createScreenCaptureIntent(),
+                REQUEST_SCREEN_CAPTURE_PERMISSION
+        );
+    }
+
+    private void runPendingScript() {
+        String scriptPath = pendingScriptPath;
+        pendingScriptPath = null;
+        if (scriptPath != null && !scriptPath.isEmpty()) {
+            EngineService.runScriptFile(this, scriptPath);
+            setMessage("已发送运行命令");
+        }
     }
 
     private void handleVolumeKeyControlChanged(CompoundButton button, boolean enabled) {
@@ -793,6 +875,7 @@ public final class MainActivity extends Activity {
             JSONObject taskStatus = EngineLocalClient.call(this, "script.status", makeTaskIdParams(0));
             boolean overlayEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                     || Settings.canDrawOverlays(this);
+            boolean nonRootScreenCaptureReady = MediaProjectionCaptureService.isProjectionReady();
             ScriptCatalog.ScriptItem currentScript = ScriptCatalog.getSelectedScript(this);
 
             return "设备：Android API " + deviceInfo.optInt("apiLevel", Build.VERSION.SDK_INT)
@@ -806,9 +889,18 @@ public final class MainActivity extends Activity {
                     + "\n任务状态：" + taskStatus.optString("status", "unknown")
                     + "\nRoot 模式：" + formatEnabled(deviceInfo.optBoolean("rootModeEnabled", true))
                     + "\nRoot 权限：" + formatEnabled(deviceInfo.optBoolean("rootAvailable", false))
+                    + "\n非 Root 屏幕读取："
+                    + formatScreenCaptureState(
+                            deviceInfo.optBoolean("rootModeEnabled", true),
+                            nonRootScreenCaptureReady
+                    )
                     + "\n无障碍服务：" + formatEnabled(AutomationAccessibilityService.isEnabled())
                     + "\n悬浮窗权限：" + formatEnabled(overlayEnabled)
-                    + "\n就绪状态：" + resolveReadyText(deviceInfo, overlayEnabled)
+                    + "\n就绪状态：" + resolveReadyText(
+                            deviceInfo,
+                            overlayEnabled,
+                            nonRootScreenCaptureReady
+                    )
                     + "\n当前脚本：" + (currentScript == null ? "未选择" : currentScript.fileName);
         }, text -> {
             if (statusDetailView != null) {
@@ -859,16 +951,30 @@ public final class MainActivity extends Activity {
         return overlayEnabled && !EngineSettings.isFloatingBubbleHidden(this);
     }
 
-    private String resolveReadyText(JSONObject deviceInfo, boolean overlayEnabled) {
+    private String resolveReadyText(
+            JSONObject deviceInfo,
+            boolean overlayEnabled,
+            boolean nonRootScreenCaptureReady
+    ) {
         boolean rootModeEnabled = deviceInfo.optBoolean("rootModeEnabled", true);
         boolean rootAvailable = deviceInfo.optBoolean("rootAvailable", false);
         if (rootModeEnabled && !rootAvailable) {
             return "Root 模式未就绪";
         }
+        if (!rootModeEnabled && !nonRootScreenCaptureReady) {
+            return "非 Root 屏幕读取未授权";
+        }
         if (!overlayEnabled) {
             return "悬浮窗未授权";
         }
         return "就绪";
+    }
+
+    private String formatScreenCaptureState(boolean rootModeEnabled, boolean ready) {
+        if (rootModeEnabled) {
+            return "不适用";
+        }
+        return ready ? "已授权" : "未授权";
     }
 
     private String formatEnabled(boolean enabled) {
@@ -928,6 +1034,19 @@ public final class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_SCRIPT_STORAGE_PERMISSION) {
             completeScriptStorageSetup();
+            return;
+        }
+
+        if (requestCode == REQUEST_SCREEN_CAPTURE_PERMISSION) {
+            if (resultCode == RESULT_OK && data != null) {
+                String scriptPath = pendingScriptPath;
+                pendingScriptPath = null;
+                MediaProjectionCaptureService.start(this, resultCode, data, scriptPath);
+                setMessage("非 Root 屏幕读取已授权，正在运行脚本");
+            } else {
+                pendingScriptPath = null;
+                setMessage("非 Root 屏幕读取未授权，截图功能不可用");
+            }
             return;
         }
 

@@ -33,10 +33,11 @@ C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层
 本项目的当前分层或权限边界。
 
 Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`。
-Root 模式的 `libengine.so` 位于 RootDaemon 创建的 uid=0 一次性 Worker；截图、输入和系统控制等
-稳定 Root 能力仍由 Worker 通过认证 socket 请求常驻 RootDaemon。Lua、后续 JS/Go 和插件不会
-各自执行 `su`，也不需要感知 RootDaemon 的端口、令牌或 Worker 启动方式。非 Root Worker 保留
-相同 ABI，并按底层实际结果返回失败，不由控制层统一改写错误或选择备用路线。
+Root 模式的 `libengine.so` 位于 RootDaemon 创建的 uid=0 一次性 Worker；截图在该 Worker 内直接
+调用系统 Surface 接口，输入和系统控制仍通过认证 socket 请求常驻 RootDaemon。Lua、后续
+JS/Go 和插件不会各自执行 `su`，也不需要感知 RootDaemon 的端口、令牌或 Worker 启动方式。
+非 Root Worker 保留相同 ABI；物理截图使用 App 主进程已授权的 MediaProjection 会话和 Worker
+ImageReader，其他 Root 类能力按底层实际结果返回。控制层不统一改写错误或在两条截图路线间回退。
 
 当前运行时 C ABI：
 
@@ -279,6 +280,10 @@ int engine_restoreScreenPixels();
 - 长度为 `width * height * 4`。
 - 内存由 `libengine.so` 持有，调用方只读、不释放。当前脚本内物理帧刷新、图片屏幕替换
   或还原会覆盖点阵内容但不更换地址；脚本任务结束后裸地址失效。
+- Android 按当前 Worker UID 选择物理帧源：uid=0 使用 Worker 内 SurfaceControl，App UID 使用
+  主进程 MediaProjection 会话连接 Worker ImageReader。两者都交付上述紧凑 RGBA，不改变 C ABI。
+- 非 Root 物理截图要求用户已在 App 中允许屏幕录制；未授权或授权失效时返回 `0` 和可读错误，
+  不自动申请授权，也不回退到 Root 路线。
 
 ## 图片屏幕
 
@@ -286,9 +291,9 @@ int engine_restoreScreenPixels();
 - 图片解码后复制到当前脚本任务的固定屏幕缓冲区，宽高不得超过当前物理屏幕，不缩放、
   不裁剪。
 - 激活期间 `engine_getScreenPixels`、找色、找图、点阵识字和 `engine_capture` 都读取固定图片，
-  完全绕过截图缓存时间和 Root 截图。
-- `engine_restoreScreenPixels` 关闭图片屏幕并使物理帧失效；下一次读取强制把实时 Root 截图
-  写入同一地址。没有图片屏幕时重复调用也返回 `1`。
+  完全绕过截图缓存时间和 Android 物理截图。
+- `engine_restoreScreenPixels` 关闭图片屏幕并使物理帧失效；下一次读取强制进入当前 Worker 的
+  Android 物理截图路线并写入同一地址。没有图片屏幕时重复调用也返回 `1`。
 - 替换、还原和物理帧刷新可以覆盖裸地址中的内容，但不会释放或更换地址。
 - 脚本正常结束、停止、`exitScript` 和错误退出共用任务清理路径，都会释放固定缓冲区并
   清除图片屏幕状态。
@@ -306,11 +311,12 @@ const char* engine_screenLastError();
 
 - 默认缓存时间为 `20ms`。
 - 缓存命中直接返回当前点阵。
-- 缓存过期重新截图并覆盖缓存。
+- 缓存过期请求当前 Android 物理截图路线刷新并覆盖缓存。非 Root 的 ImageReader 尚未投递新帧
+  时可保留最近一帧完整点阵，不把等待新投影帧伪装成另一条截图路线。
 - `engine_keepCapture()` 锁帧。
 - `engine_releaseCapture()` 取消锁帧。
-- 图片屏幕激活期间，上述设置仍被保留但不参与读帧；还原后继续生效，但第一次读取一定
-  获取实时物理帧。
+- 图片屏幕激活期间，上述设置仍被保留但不参与读帧；还原后继续生效，第一次读取一定进入
+  当前物理截图路线。
 - 脚本结束时释放固定缓冲区，并清除物理帧和图片屏幕的有效状态。
 
 ## 找色 C ABI

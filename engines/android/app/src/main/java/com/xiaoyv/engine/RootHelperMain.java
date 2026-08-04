@@ -1,16 +1,11 @@
 /**
- * 文件用途：RootDaemon 的特权命令分发器，执行截图、输入和输入法 Root 能力。
+ * 文件用途：RootDaemon 的特权命令分发器，执行输入和输入法等 Root 能力。
  */
 package com.xiaoyv.engine;
-
-import android.graphics.Bitmap;
-import android.util.DisplayMetrics;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 
@@ -18,18 +13,15 @@ import java.nio.charset.StandardCharsets;
  * RootDaemon 特权命令分发器。
  *
  * 此类不再作为独立进程入口。RootDaemonMain 负责受限的 loopback socket、客户端认证和
- * 生命周期；认证完成后把命令交给本类。截图使用“文本头 + 原始二进制帧”，避免 Base64
- * 造成整帧额外复制。普通脚本命令不会拉起外部 shell；只有输入法锁定或解锁时才按 Android
- * 系统要求执行一次 ime/settings 命令。
+ * 生命周期；认证完成后把命令交给本类。普通脚本命令不会拉起外部 shell；只有输入法锁定
+ * 或解锁时才按 Android 系统要求执行一次 ime/settings 命令。截图由 uid=0 Worker 直接完成。
  */
 public final class RootHelperMain {
     /**
-     * Root 注入器和截图缓冲属于进程内单例。RootDaemon 允许多个客户端连接，但同一时刻
-     * 只允许一个命令操作这些状态，避免二进制截图流与输入事件交叉。
+     * Root 注入器属于进程内单例。RootDaemon 允许多个客户端连接，但同一时刻只允许一个
+     * 命令操作这些状态。
      */
     private static final Object COMMAND_LOCK = new Object();
-    private static byte[] captureBytes;
-    private static ByteBuffer captureBuffer;
     private static final RootInputInjector INPUT_INJECTOR = new RootInputInjector();
 
     private RootHelperMain() {
@@ -55,11 +47,6 @@ public final class RootHelperMain {
             if ("exit".equals(parts[0])) {
                 writeLine(outputStream, "OK\tbye");
                 return false;
-            }
-
-            if ("capture".equals(parts[0])) {
-                handleCapture(outputStream, parts);
-                return true;
             }
 
             if ("touchDown".equals(parts[0])) {
@@ -115,47 +102,6 @@ public final class RootHelperMain {
             writeLine(outputStream, "ERR\tunknown command");
             return true;
         }
-    }
-
-    private static void handleCapture(OutputStream outputStream, String[] parts) throws Exception {
-        int width = parts.length >= 2 ? parseInt(parts[1], 0) : 0;
-        int height = parts.length >= 3 ? parseInt(parts[2], 0) : 0;
-        if (width <= 0 || height <= 0) {
-            DisplayMetrics metrics = RootHelperDisplayMetrics.read();
-            width = metrics.widthPixels;
-            height = metrics.heightPixels;
-        }
-
-        Bitmap bitmap = SurfaceScreenCaptureBridge.captureBitmapForRootHelper(width, height);
-        if (bitmap == null) {
-            writeLine(outputStream, "ERR\tRoot 截图服务返回了空位图");
-            return;
-        }
-        if (!Bitmap.Config.ARGB_8888.equals(bitmap.getConfig())) {
-            Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, false);
-            bitmap.recycle();
-            if (copy == null) {
-                writeLine(outputStream, "ERR\tRoot 截图服务复制硬件位图失败");
-                return;
-            }
-            bitmap = copy;
-        }
-
-        int bitmapWidth = bitmap.getWidth();
-        int bitmapHeight = bitmap.getHeight();
-        int pixelBytes = bitmapWidth * bitmapHeight * 4;
-        ByteBuffer pixels = ensureCaptureBuffer(pixelBytes);
-        bitmap.copyPixelsToBuffer(pixels);
-        bitmap.recycle();
-
-        writeLine(outputStream, "OK\t"
-                + bitmapWidth
-                + "\t"
-                + bitmapHeight
-                + "\t"
-                + pixelBytes);
-        outputStream.write(captureBytes, 0, pixelBytes);
-        outputStream.flush();
     }
 
     private static boolean handleTouchDown(String[] parts) {
@@ -450,23 +396,6 @@ public final class RootHelperMain {
         private boolean succeeded() {
             return exitCode == 0;
         }
-    }
-
-    /**
-     * 复用 root helper 进程内的整帧缓冲。
-     *
-     * Bitmap.copyPixelsToBuffer 每次都需要一个可写 Buffer。这里让 ByteBuffer 包在同一块
-     * byte[] 上，屏幕尺寸不变时不再反复分配整帧数组。
-     */
-    private static ByteBuffer ensureCaptureBuffer(int pixelBytes) {
-        if (captureBytes == null || captureBytes.length < pixelBytes) {
-            captureBytes = new byte[pixelBytes];
-            captureBuffer = ByteBuffer.wrap(captureBytes).order(ByteOrder.nativeOrder());
-        }
-
-        captureBuffer.clear();
-        captureBuffer.limit(pixelBytes);
-        return captureBuffer;
     }
 
     private static void writeLine(OutputStream outputStream, String text) throws Exception {

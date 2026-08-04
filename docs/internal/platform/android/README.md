@@ -6,7 +6,7 @@ Root 或 Worker 名称直接当成公开脚本 API。
 | 任务 | 说明 |
 |---|---|
 | 进程、Worker、Root/App UID、日志与退出 | [Android 引擎进程拆分](ANDROID_引擎进程拆分.md)、[Root 模式](ANDROID_ROOT_模式.md) |
-| 截图缓存、Root 截图与 RGBA 点阵 | [Android SO 截图核心](ANDROID_SO_截图核心.md) |
+| 截图缓存、Root/非 Root 截图与 RGBA 点阵 | [Android SO 截图核心](ANDROID_SO_截图核心.md) |
 | Lua runtime asset、`require`、兼容命名空间与平台 JSON 路由 | [Android Lua 兼容层](ANDROID_Lua_兼容层.md) |
 | Lua native 线程、VM Gate、等待与停止 | [Lua 多线程](LUA_多线程.md) |
 | `import`、Java 对象、回调与线程边界 | [Android Java 互操作](ANDROID_Java互操作.md) |

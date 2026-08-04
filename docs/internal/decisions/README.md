@@ -26,3 +26,5 @@
 - [0014：Android Lua 运行时模块使用 require 加载](<0014-Android Lua运行时模块使用require加载.md>)
 - [0015：Android 第一版 ABI 支持范围](0015-Android第一版ABI支持范围.md)
 - [0016：Android YOLO Lua 公开接口](<0016-Android YOLO Lua公开接口.md>)
+- [0017：Android Root Worker 进程内直接截图](<0017-Android Root Worker进程内直接截图.md>)
+- [0018：Android 非 Root MediaProjection 截图会话边界](<0018-Android 非Root MediaProjection截图会话边界.md>)

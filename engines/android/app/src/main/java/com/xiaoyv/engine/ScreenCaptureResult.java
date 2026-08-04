@@ -1,5 +1,5 @@
 /**
- * 文件用途：Root helper 截图结果数据结构，承载 RGBA 像素、尺寸、耗时和错误信息。
+ * 文件用途：Android 截图结果数据结构，承载 RGBA 像素、尺寸、耗时和错误信息。
  */
 package com.xiaoyv.engine;
 
@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 /**
  * 截图结果对象。
  *
- * Java 层把 Root helper 得到的原始 RGBA 像素直接交给 Native 层。
+ * Java 层把当前 Android 截图路线得到的原始 RGBA 像素直接交给 Native 层。
  */
 public final class ScreenCaptureResult {
     public final boolean success;
@@ -122,49 +122,6 @@ public final class ScreenCaptureResult {
         return new ScreenCaptureResult(
                 true,
                 null,
-                expectedLength,
-                width,
-                height,
-                width * 4,
-                4,
-                "rgba8888",
-                source,
-                captureDurationMs,
-                null
-        );
-    }
-
-    public static ScreenCaptureResult successFromRgbaBuffer(
-            ByteBuffer buffer,
-            int width,
-            int height,
-            String source,
-            long captureDurationMs
-    ) {
-        if (buffer == null || !buffer.isDirect()) {
-            return failure("截图点阵缓冲不是直接缓冲区");
-        }
-
-        if (width <= 0 || height <= 0) {
-            return failure("截图尺寸无效");
-        }
-
-        long expectedLengthLong = (long) width * (long) height * 4L;
-        if (expectedLengthLong > Integer.MAX_VALUE) {
-            return failure("截图点阵缓冲过大");
-        }
-
-        int expectedLength = (int) expectedLengthLong;
-        if (buffer.capacity() < expectedLength) {
-            return failure("截图点阵缓冲不完整");
-        }
-
-        buffer.position(0);
-        byte[] pixels = new byte[expectedLength];
-        buffer.get(pixels, 0, expectedLength);
-        return new ScreenCaptureResult(
-                true,
-                pixels,
                 expectedLength,
                 width,
                 height,

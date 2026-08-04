@@ -800,13 +800,13 @@ ScreenCaptureResult readScreenCaptureResult(
         size_t* targetCapacity
 ) {
     if (env == nullptr || resultObject == nullptr) {
-        return captureFailure("Root 截图返回结果为空");
+        return captureFailure("屏幕截图返回结果为空");
     }
 
     jclass resultClass = env->GetObjectClass(resultObject);
     if (resultClass == nullptr) {
         clearExceptionIfNeeded(env);
-        return captureFailure("Root 截图结果类不可用");
+        return captureFailure("屏幕截图结果类不可用");
     }
 
     jfieldID successField = env->GetFieldID(resultClass, "success", "Z");
@@ -833,7 +833,7 @@ ScreenCaptureResult readScreenCaptureResult(
             || closeMethod == nullptr) {
         clearExceptionIfNeeded(env);
         env->DeleteLocalRef(resultClass);
-        return captureFailure("Root 截图结果字段不可用");
+        return captureFailure("屏幕截图结果字段不可用");
     }
 
     ScreenCaptureResult result;
@@ -854,13 +854,13 @@ ScreenCaptureResult readScreenCaptureResult(
     if (result.success) {
         if (result.width <= 0 || result.height <= 0) {
             result.success = false;
-            result.error = "Root 截图尺寸无效";
+            result.error = "屏幕截图尺寸无效";
         } else if (result.pixelStride < 4) {
             result.success = false;
-            result.error = "Root 截图点阵步长不受支持";
+            result.error = "屏幕截图点阵步长不受支持";
         } else if (targetPixels == nullptr || targetCapacity == nullptr) {
             result.success = false;
-            result.error = "Root 截图目标缓冲不能为空";
+            result.error = "屏幕截图目标缓冲不能为空";
         } else {
             int compactRowStride = result.width * 4;
             size_t targetSize = static_cast<size_t>(compactRowStride)
@@ -873,10 +873,10 @@ ScreenCaptureResult readScreenCaptureResult(
             if (pixelsArray == nullptr) {
                 if (*targetPixels == nullptr || *targetCapacity < targetSize) {
                     result.success = false;
-                    result.error = "Root 截图原生缓冲小于返回帧";
+                    result.error = "屏幕截图原生缓冲小于返回帧";
                 } else if (result.pixelBytes < targetSize) {
                     result.success = false;
-                    result.error = "Root 截图原生缓冲不完整";
+                    result.error = "屏幕截图原生缓冲不完整";
                 } else {
                     result.pixelBytes = targetSize;
                     result.rowStride = compactRowStride;
@@ -884,19 +884,19 @@ ScreenCaptureResult readScreenCaptureResult(
                 }
             } else if (sourceLength <= 0) {
                 result.success = false;
-                result.error = "Root 截图点阵数组为空";
+                result.error = "屏幕截图点阵数组为空";
             } else if (static_cast<size_t>(sourceLength) < requiredSourceSize) {
                 result.success = false;
-                result.error = "Root 截图点阵缓冲不完整";
+                result.error = "屏幕截图点阵缓冲不完整";
             } else if (targetSize > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
                 result.success = false;
-                result.error = "Root 截图点阵缓冲过大，无法通过 JNI 复制";
+                result.error = "屏幕截图点阵缓冲过大，无法通过 JNI 复制";
             } else {
                 if (*targetPixels == nullptr) {
                     void* newBuffer = std::malloc(targetSize);
                     if (newBuffer == nullptr) {
                         result.success = false;
-                        result.error = "Root 截图原生缓冲内存不足";
+                        result.error = "屏幕截图原生缓冲内存不足";
                     } else {
                         *targetPixels = static_cast<unsigned char*>(newBuffer);
                         *targetCapacity = targetSize;
@@ -922,7 +922,7 @@ ScreenCaptureResult readScreenCaptureResult(
                     jbyte* sourceBytes = env->GetByteArrayElements(pixelsArray, nullptr);
                     if (sourceBytes == nullptr) {
                         result.success = false;
-                        result.error = "Root 截图点阵数组不可用";
+                        result.error = "屏幕截图点阵数组不可用";
                     } else {
                         const auto* source = reinterpret_cast<const unsigned char*>(sourceBytes);
                         for (int y = 0; y < result.height; ++y) {
@@ -956,7 +956,7 @@ ScreenCaptureResult readScreenCaptureResult(
             }
         }
     } else if (result.error.empty()) {
-        result.error = "Root 截图失败";
+        result.error = "屏幕截图失败";
     }
 
     env->CallVoidMethod(resultObject, closeMethod);
@@ -1111,15 +1111,19 @@ RootStatusResult AndroidBridge::rootStatus() {
     return status;
 }
 
-ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, size_t* capacity) {
+ScreenCaptureResult AndroidBridge::captureScreen(
+        unsigned char** pixels,
+        size_t* capacity,
+        bool allowCachedNativeFrame
+) {
     JNIEnv* env = getEnv();
     jmethodID methodId = staticMethod(
             env,
-            "captureRootScreen",
-            "(Ljava/nio/ByteBuffer;I)Lcom/xiaoyv/engine/ScreenCaptureResult;"
+            "captureScreen",
+            "(Ljava/nio/ByteBuffer;IZ)Lcom/xiaoyv/engine/ScreenCaptureResult;"
     );
     if (env == nullptr || methodId == nullptr) {
-        return captureFailure("Root 截图方法不可用");
+        return captureFailure("Android 截图方法不可用");
     }
 
     jobject targetBuffer = nullptr;
@@ -1142,13 +1146,14 @@ ScreenCaptureResult AndroidBridge::captureRootScreen(unsigned char** pixels, siz
             gBridgeClass,
             methodId,
             targetBuffer,
-            targetCapacity
+            targetCapacity,
+            allowCachedNativeFrame ? JNI_TRUE : JNI_FALSE
     );
     if (targetBuffer != nullptr) {
         env->DeleteLocalRef(targetBuffer);
     }
     if (clearExceptionIfNeeded(env)) {
-        return captureFailure("调用 Java Root 截图方法失败");
+        return captureFailure("调用 Java Android 截图方法失败");
     }
 
     ScreenCaptureResult result = readScreenCaptureResult(env, resultObject, pixels, capacity);

@@ -33,6 +33,9 @@ public final class RootDaemonService extends Service {
         if (context == null) {
             return;
         }
+        if (enabled) {
+            MediaProjectionCaptureService.stop(context);
+        }
         Intent intent = new Intent(context, RootDaemonService.class);
         intent.setAction(enabled ? ACTION_PREPARE : ACTION_SHUTDOWN);
         intent.putExtra(EXTRA_ROOT_MODE_ENABLED, enabled);

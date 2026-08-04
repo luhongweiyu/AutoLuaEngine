@@ -127,7 +127,11 @@ public:
     static bool prepareRootHelper();
     static RootStatusResult rootStatus();
 
-    static ScreenCaptureResult captureRootScreen(unsigned char** pixels, size_t* capacity);
+    static ScreenCaptureResult captureScreen(
+            unsigned char** pixels,
+            size_t* capacity,
+            bool allowCachedNativeFrame
+    );
     static AndroidImageDecodeResult decodeImageFile(const std::string& path);
     static AndroidImageDecodeResult decodeImageBytes(const unsigned char* data, size_t size);
     static bool saveRgbaImage(

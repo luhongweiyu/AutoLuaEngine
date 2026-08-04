@@ -153,6 +153,11 @@ final class EngineWorkerEndpoint extends IEngineWorker.Stub {
         } catch (Throwable ignored) {
             // App 宿主可能已经退出。
         }
+        try {
+            MediaProjectionScreenCaptureBridge.shutdown();
+        } catch (Throwable ignored) {
+            // Root Worker 不初始化非 Root 截图桥；本地宿主也可能已经退出。
+        }
         RootHelperBridge.shutdown();
         if (shutdownCallback != null) {
             shutdownCallback.onShutdown();

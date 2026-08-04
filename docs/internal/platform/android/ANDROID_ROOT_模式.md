@@ -1,6 +1,6 @@
 # Android Root 模式
 
-当前 Root 模式为已经完成的截图、Root 输入注入、输入法切换、设备系统控制和物理音量键监听服务。
+当前 Root 模式已完成 Worker 内直接截图、Root 输入注入、输入法切换、设备系统控制和物理音量键监听。
 
 ## 当前行为
 
@@ -14,11 +14,14 @@
   `java.lang.Runtime` 加载 Conscrypt 的 `libjavacrypto.so`，之后才向控制进程注册 Binder。
   当前最低支持 Android 7（API 24），统一使用 `Runtime.load0(Class,String)`。
 - RootDaemon 自身不加载 `libengine.so`、语言 VM、模型或用户 SO。它只监督 Worker，并继续承载
-  截图、输入、系统控制和音量键等稳定 Root 能力。
+  输入、系统控制和音量键等稳定 Root 能力。
 - RootDaemon 端口由当前 Android 应用 UID 映射生成，不同安装包使用不同回环端口。保留旧版
   `com.autolua.engine` 或其他测试包时，不会抢占 小鱼精灵 的 RootDaemon 端口。
-- 未激活图片屏幕且 `engine_getScreenPixels` 缓存未命中时，通过当前 Android root 截图路线
-  获取 RGBA 点阵；图片屏幕激活期间完全不进入 Root 截图路线。
+- 未激活图片屏幕且 `engine_getScreenPixels` 缓存未命中时，uid=0 Worker 在本进程直接调用
+  SurfaceControl 隐藏接口，并把 RGBA 点阵写入 `libengine.so` 的固定截图缓冲；图片屏幕激活
+  期间完全不进入 Root 截图路线。
+- Root 截图热路径不检查 RootDaemon 状态、不新建认证 socket，也不经 RootDaemon 传输整帧点阵。
+  首帧在 JNI 建立固定 native 缓冲，后续帧由 `Bitmap.copyPixelsToBuffer` 原地覆盖。
 - `touchDown`、`touchMove`、`touchUp`、`keyDown`、`keyUp`、`keyPress`、`inputText`
   通过 RootDaemon 注入，不为每条命令拉起 `input` 外部进程。
 - `engine_imeLock` / `engine_imeUnlock` 通过 RootDaemon 执行系统输入法切换；

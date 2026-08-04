@@ -35,10 +35,13 @@ public final class EngineService extends Service {
             "com.xiaoyv.engine.action.RESTART_SCRIPT";
     public static final String ACTION_FORCE_STOP_ENGINE_PROCESS =
             "com.xiaoyv.engine.action.FORCE_STOP_ENGINE_PROCESS";
+    public static final String ACTION_SYNC_ROOT_MODE =
+            "com.xiaoyv.engine.action.SYNC_ROOT_MODE";
     public static final String ACTION_STATUS =
             "com.xiaoyv.engine.action.STATUS";
 
     public static final String EXTRA_SCRIPT_PATH = "scriptPath";
+    public static final String EXTRA_ROOT_MODE_ENABLED = "rootModeEnabled";
     public static final String EXTRA_STATE = "state";
     public static final String EXTRA_MESSAGE = "message";
 
@@ -84,6 +87,11 @@ public final class EngineService extends Service {
         if (!item.runnable) {
             return RunRequestResult.rejected("不支持运行该文件格式：" + item.fileName);
         }
+        if (!EngineSettings.isRootModeEnabled(context)
+                && !MediaProjectionCaptureService.isProjectionReady()) {
+            MainActivity.requestNonRootScreenCaptureAndRun(context, item.filePath);
+            return RunRequestResult.rejected("请允许非 Root 屏幕读取后运行脚本");
+        }
 
         runScriptFile(context, item.filePath);
         return RunRequestResult.started("已发送运行命令：" + item.fileName);
@@ -98,6 +106,14 @@ public final class EngineService extends Service {
     public static void forceStopEngineProcess(Context context) {
         Intent intent = new Intent(context, EngineService.class);
         intent.setAction(ACTION_FORCE_STOP_ENGINE_PROCESS);
+        context.startService(intent);
+    }
+
+    /** 把主进程设置页的模式切换显式同步到常驻 :engine 进程。 */
+    public static void syncRootMode(Context context, boolean enabled) {
+        Intent intent = new Intent(context, EngineService.class);
+        intent.setAction(ACTION_SYNC_ROOT_MODE);
+        intent.putExtra(EXTRA_ROOT_MODE_ENABLED, enabled);
         context.startService(intent);
     }
 
@@ -168,6 +184,14 @@ public final class EngineService extends Service {
             restartScriptPath = null;
             EngineWorkerCoordinator.forceStop();
             broadcastStatus(STATE_FINISHED, "已强制停止脚本 Worker");
+            return START_STICKY;
+        }
+
+        if (ACTION_SYNC_ROOT_MODE.equals(intent.getAction())) {
+            EngineWorkerCoordinator.syncRootMode(
+                    getApplicationContext(),
+                    intent.getBooleanExtra(EXTRA_ROOT_MODE_ENABLED, false)
+            );
             return START_STICKY;
         }
 

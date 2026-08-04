@@ -1,5 +1,5 @@
 /**
- * 文件用途：基于系统隐藏 Surface 截图 API，为 Root helper 提供高速屏幕位图。
+ * 文件用途：基于系统隐藏 Surface 截图 API，在 Root Worker 内直接生成屏幕点阵。
  */
 package com.xiaoyv.engine;
 
@@ -20,8 +20,8 @@ import java.nio.ByteBuffer;
  * 这条路线参考旧项目的 NativeService 截图实现：优先直接请求系统当前显示内容，
  * 避免每帧执行 `su screencap` 带来的进程启动、stdout 大块传输和原始数据解析开销。
  *
- * 注意：这些都是 Android 隐藏 API，当前只作为 root helper/app_process 常驻进程内
- * 的截图实现使用，不作为普通 App 进程截图接口暴露。
+ * 注意：这些都是 Android 隐藏 API，当前只在 uid=0 的一次性 Worker 内使用，不作为普通
+ * App 进程截图接口暴露。
  */
 public final class SurfaceScreenCaptureBridge {
     private static final String SOURCE_SURFACE_CONTROL = "root-surface";
@@ -31,6 +31,13 @@ public final class SurfaceScreenCaptureBridge {
     }
 
     public static ScreenCaptureResult captureFrame() {
+        return captureFrame(null, 0);
+    }
+
+    public static ScreenCaptureResult captureFrame(
+            ByteBuffer targetBuffer,
+            int targetCapacity
+    ) {
         long startTime = System.nanoTime();
         DisplayMetrics metrics = readDisplayMetrics();
         if (metrics.widthPixels <= 0 || metrics.heightPixels <= 0) {
@@ -40,7 +47,13 @@ public final class SurfaceScreenCaptureBridge {
         try {
             Bitmap bitmap = captureBitmap(metrics.widthPixels, metrics.heightPixels);
             if (bitmap != null) {
-                return bitmapToResult(bitmap, SOURCE_SURFACE_CONTROL, elapsedMillis(startTime));
+                return bitmapToResult(
+                        bitmap,
+                        SOURCE_SURFACE_CONTROL,
+                        elapsedMillis(startTime),
+                        targetBuffer,
+                        targetCapacity
+                );
             }
         } catch (ReflectiveOperationException | RuntimeException exception) {
             return ScreenCaptureResult.failure("SurfaceControl 截图失败：" + exception.getMessage());
@@ -51,18 +64,19 @@ public final class SurfaceScreenCaptureBridge {
                     ? captureByScreenCapture()
                     : null;
             if (bitmap != null) {
-                return bitmapToResult(bitmap, SOURCE_SCREEN_CAPTURE, elapsedMillis(startTime));
+                return bitmapToResult(
+                        bitmap,
+                        SOURCE_SCREEN_CAPTURE,
+                        elapsedMillis(startTime),
+                        targetBuffer,
+                        targetCapacity
+                );
             }
         } catch (ReflectiveOperationException | RuntimeException exception) {
             return ScreenCaptureResult.failure("ScreenCapture 截图失败：" + exception.getMessage());
         }
 
         return ScreenCaptureResult.failure("当前系统隐藏截图接口不可用");
-    }
-
-    static Bitmap captureBitmapForRootHelper(int width, int height)
-            throws ReflectiveOperationException {
-        return captureBitmap(width, height);
     }
 
     private static Bitmap captureBitmap(int width, int height)
@@ -273,8 +287,19 @@ public final class SurfaceScreenCaptureBridge {
     private static ScreenCaptureResult bitmapToResult(
             Bitmap bitmap,
             String source,
-            long captureDurationMs
+            long captureDurationMs,
+            ByteBuffer targetBuffer,
+            int targetCapacity
     ) {
+        if (!Bitmap.Config.ARGB_8888.equals(bitmap.getConfig())) {
+            Bitmap softwareBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false);
+            bitmap.recycle();
+            if (softwareBitmap == null) {
+                return ScreenCaptureResult.failure("复制硬件截图位图失败");
+            }
+            bitmap = softwareBitmap;
+        }
+
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
         long pixelBytesLong = (long) width * (long) height * 4L;
@@ -283,17 +308,42 @@ public final class SurfaceScreenCaptureBridge {
             return ScreenCaptureResult.failure("截图尺寸过大");
         }
 
-        ByteBuffer buffer = ByteBuffer.allocateDirect((int) pixelBytesLong);
-        bitmap.copyPixelsToBuffer(buffer);
-        buffer.position(0);
-        bitmap.recycle();
-        return ScreenCaptureResult.successFromRgbaBuffer(
-                buffer,
-                width,
-                height,
-                source,
-                captureDurationMs
-        );
+        int pixelBytes = (int) pixelBytesLong;
+        try {
+            if (targetBuffer != null
+                    && targetBuffer.isDirect()
+                    && targetCapacity >= pixelBytes
+                    && targetBuffer.capacity() >= pixelBytes) {
+                targetBuffer.clear();
+                targetBuffer.limit(pixelBytes);
+                bitmap.copyPixelsToBuffer(targetBuffer);
+                targetBuffer.position(0);
+                targetBuffer.limit(targetBuffer.capacity());
+                return ScreenCaptureResult.successFromNativeBuffer(
+                        targetBuffer,
+                        pixelBytes,
+                        width,
+                        height,
+                        source,
+                        captureDurationMs
+                );
+            }
+
+            // 首帧尚无 native 缓冲，由 JNI 用这份点阵建立固定缓冲；后续帧原地覆盖。
+            byte[] pixels = new byte[pixelBytes];
+            bitmap.copyPixelsToBuffer(ByteBuffer.wrap(pixels));
+            return ScreenCaptureResult.successFromRgbaBytes(
+                    pixels,
+                    width,
+                    height,
+                    source,
+                    captureDurationMs
+            );
+        } catch (RuntimeException exception) {
+            return ScreenCaptureResult.failure("复制截图点阵失败：" + exception.getMessage());
+        } finally {
+            bitmap.recycle();
+        }
     }
 
     private static DisplayMetrics readDisplayMetrics() {

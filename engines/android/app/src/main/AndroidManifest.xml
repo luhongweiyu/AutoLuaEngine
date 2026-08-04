@@ -19,6 +19,8 @@
         android:maxSdkVersion="29" />
     <!-- Android 11 及以上保留脚本真实文件路径所需的特殊授权。 -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <application
         android:allowBackup="false"
@@ -68,6 +70,11 @@
         <service
             android:name=".FloatingControlService"
             android:exported="false" />
+
+        <service
+            android:name=".MediaProjectionCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <service
             android:name=".ScriptDialogOverlayService"
