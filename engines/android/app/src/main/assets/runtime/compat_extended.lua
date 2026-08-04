@@ -1131,11 +1131,6 @@ function m.setLogOff(disabled)
     logDisabled = disabled == true
 end
 
-function m.rnd(first, last)
-    return math.random(first, last)
-end
-
-m.getLrApi = m.getXiaoyvApi
 m.setSnapCacheTime = m.setCaptureCacheMs
 
 local function resolveWorkPath(path)

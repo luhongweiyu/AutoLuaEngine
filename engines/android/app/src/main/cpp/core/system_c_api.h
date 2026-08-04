@@ -159,7 +159,6 @@ typedef struct EngineApi {
     const char* (*getVersion)();
     const char* (*getCapabilitiesJson)();
     int (*print)(const char* text);
-    int (*logPrint)(const char* text);
     int (*sleep)(int durationMs);
     int (*sleepInterruptible)(
             int durationMs,
@@ -352,13 +351,6 @@ const EngineYoloApi* engine_getYoloApi();
  * 返回 1 表示成功，返回 0 表示失败。
  */
 int engine_print(const char* text);
-
-/**
- * 输出日志模块文本。
- *
- * 当前和 engine_print 同级别输出；保留独立入口方便后续区分 print 与 log。
- */
-int engine_logPrint(const char* text);
 
 /**
  * 不带中断检查的睡眠。

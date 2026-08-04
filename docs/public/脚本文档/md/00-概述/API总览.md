@@ -10,18 +10,29 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 小鱼精灵默认启用 `m` API。总览使用完整的 `m.xxx` 名称标识 API 归属和层级；函数详情页的
 语法与示例则使用实际推荐写法，例如直接调用 `appIsFront()`、`capture(path)` 或 `thread.newThread()`。
 
+常用脚本通常按“确认运行环境/应用 → 读取截图 → 找图或找色 → 输入操作 → 等待或循环”的顺序
+组织；交互式目录按这个顺序展示命令。扩展、模型和兼容入口放在各自分类的后段。
+
 | 分类 | 函数 | 参数类型 | 返回值类型 | 说明 |
 |---|---|---|---|---|
-| 全局 | `print(...)` | `...: any` | 无 | 输出到引擎日志 |
-| 全局 | `sleep(ms)` | `ms: integer` | `boolean` | 脚本延时，成功返回 `true` |
-| 全局 | `systemTime()` | 无 | `integer` | Unix 时间戳，单位毫秒 |
-| 全局 | `tickCount()` | 无 | `integer` | 当前脚本运行时间，单位毫秒 |
+| 日志 | `print(...)` / `printEx(...)` | `...: any` | 无 | 输出到引擎日志 |
+| 设备 | `sleep(ms)` | `ms: integer` | `boolean` | 脚本延时，成功返回 `true` |
+| 设备 | `systemTime()` | 无 | `integer` | Unix 时间戳，单位毫秒 |
+| 设备 | `tickCount()` | 无 | `integer` | 当前脚本运行时间，单位毫秒 |
 | 设备 | `m.appIsFront()`、`m.getBrand()`、`m.exec()` 等 | 见左侧「设备」分类 | 见设备文档 | 应用管理、硬件信息、系统控制和 Root 命令 |
 | 设备 | `m.getRunEnvType()`（可直接写 `getRunEnvType()`） | 无 | `integer` | `0` 为 Root，`1` 为无障碍，`-1` 为未就绪 |
 | 设备 | `m.readPasteboard()` | 无 | `string` 或 `nil, string` | 读取系统文本剪贴板；没有文本为空字符串，平台失败附带原因 |
 | 设备 | `m.writePasteboard(text[, kind])` | `text: string, kind: integer?` | 无 | 写入系统文本剪贴板；Android 的 `kind` 只能省略或为 `0` |
 | 设备 | `m.getScriptVersion()` | 无 | `integer` | 读取脚本工作目录的 `version` 整数 |
-| 全局 | `useApi(name)` / `switchApi(name)` | `name: string` | `boolean` 或 `nil, string` | 切换全局 API 命名空间 |
+| 日志 | `setLogOff(disabled)` | `disabled: boolean` | 无 | 关闭或恢复普通 `print` 输出 |
+| 设备 | `playAudio(path)` / `stopAudio()` / `scanImage(path)` | 文件路径 | 无 | 媒体播放、停止和图片媒体库扫描 |
+| 设备 | `zip(source, zipPath)` / `unZip(zipPath, output[, password[, charset]])` | 文件路径与可选解密参数 | 无 | 创建或解压 ZIP 文件 |
+| 设备 | `extractApkAssets(asset, output)` / `extractAssets(assetArchive, output[, pattern])` | assets 路径与输出路径 | 无 | 提取 APK 内置资源 |
+| 设备 | `setDpiToVir(dpi)` / `setDpiToRealy()` | `dpi: integer` | 无 | 设置或恢复显示密度 |
+| 设备 | `showControlBar(show)` / `setControlBarPosNew(x, y)` | 显示状态与相对坐标 | 无 | 控制小鱼精灵控制栏 |
+| 设备 | `restartScript()` / `setTimer(callback, delay, ...)` | 回调、毫秒和透传参数 | 无 | 重启脚本或延时执行回调 |
+| 设备 | `setRootEnvMode(enabled)` / `setAccessibilityEnvMode()` | `enabled: boolean` | 无 | 请求切换 Root 或无障碍运行环境 |
+| 概述 | `useApi(name)` / `switchApi(name)` | `name: string` | `boolean` 或 `nil, string` | 切换全局 API 命名空间 |
 | Java | `import(className)` | `className: string` | 无 | 导入 Java 类或包 |
 | Java | `LuaEngine.getContext()` | 无 | `userdata` | 返回 Android Application Context |
 | Java | `LuaEngine.httpGet(url, headers[, timeout])` | `url: string, headers: table, timeout: integer?` | `string?` | HTTP GET，超时单位秒 |
@@ -56,7 +67,6 @@ Lua 仍是动态语言，下面的类型是 API 契约：`integer` 表示整数�
 | ImGui | `imgui.setOnClick(...)` 等 | `handle: integer, callback: function?` | 无 | 在脚本运行环境中依次执行交互回调 |
 | 脚本包 | `m.read_alpkg_file(path)` | `path: string` | `string \| nil, string?` | 读取当前 `.alpkg` 的原始资源 |
 | 提示 | `m.toast(text[, durationMs])` | `text: any, durationMs: integer?` | `integer \| nil, string?` | 显示自动关闭的 HUD 提示 |
-| 日志 | `m.log.print(text)` | `text: string` | `boolean` | 输出日志文本 |
 | 输入 | `touchDown([id,] x, y)` | `id: integer?, x: integer, y: integer` | 无 | 按住不放，仅 Root 模式 |
 | 输入 | `touchMove([id,] x, y)` | `id: integer?, x: integer, y: integer` | 无 | 移动手指，仅 Root 模式 |
 | 输入 | `touchUp([id,] x, y)` | `id: integer?, x: integer, y: integer` | 无 | 在给定坐标抬起手指，仅 Root 模式 |

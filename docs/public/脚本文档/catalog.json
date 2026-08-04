@@ -1,6 +1,7 @@
 [
   {
     "name": "概述",
+    "order": 10,
     "items": [
       {
         "name": "简介",
@@ -15,6 +16,11 @@
         "md": "md/00-概述/命名空间与别名.md"
       },
       {
+        "name": "导出命名空间",
+        "md": "md/00-概述/useApi.md",
+        "cmd": "useApi / switchApi"
+      },
+      {
         "name": "API 总览",
         "md": "md/00-概述/API总览.md"
       },
@@ -25,38 +31,13 @@
     ]
   },
   {
-    "name": "全局",
-    "items": [
-      {
-        "name": "输出日志",
-        "md": "md/01-全局/print.md",
-        "cmd": "print"
-      },
-      {
-        "name": "脚本延时",
-        "md": "md/01-全局/sleep.md",
-        "cmd": "sleep"
-      },
-      {
-        "name": "系统时间戳",
-        "md": "md/01-全局/systemTime.md",
-        "cmd": "systemTime"
-      },
-      {
-        "name": "脚本运行时长",
-        "md": "md/01-全局/tickCount.md",
-        "cmd": "tickCount"
-      },
-      {
-        "name": "导出命名空间",
-        "md": "md/01-全局/useApi.md",
-        "cmd": "useApi / switchApi"
-      }
-    ]
-  },
-  {
     "name": "设备",
+    "order": 40,
     "items": [
+      {
+        "name": "概述",
+        "md": "md/02-设备/概述.md"
+      },
       {
         "name": "应用与脚本",
         "items": [
@@ -363,15 +344,125 @@
         ]
       },
       {
-        "name": "系统与文件扩展",
-        "md": "md/02-设备/系统与文件扩展.md",
-        "cmd": "zip / unZip / playAudio / setTimer"
-      }
-    ],
-    "md": "md/02-设备/概述.md"
+        "name": "脚本运行",
+        "items": [
+          {
+            "name": "脚本延时",
+            "md": "md/02-设备/脚本运行/sleep.md",
+            "cmd": "sleep"
+          },
+          {
+            "name": "系统时间戳",
+            "md": "md/02-设备/脚本运行/systemTime.md",
+            "cmd": "systemTime"
+          },
+          {
+            "name": "脚本运行时长",
+            "md": "md/02-设备/脚本运行/tickCount.md",
+            "cmd": "tickCount"
+          },
+          {
+            "name": "延时执行回调",
+            "md": "md/02-设备/系统与文件扩展/setTimer.md",
+            "cmd": "setTimer"
+          },
+          {
+            "name": "重启当前脚本",
+            "md": "md/02-设备/系统与文件扩展/restartScript.md",
+            "cmd": "restartScript"
+          },
+          {
+            "name": "设置 Root 环境",
+            "md": "md/02-设备/系统与文件扩展/setRootEnvMode.md",
+            "cmd": "setRootEnvMode"
+          },
+          {
+            "name": "启用无障碍环境",
+            "md": "md/02-设备/系统与文件扩展/setAccessibilityEnvMode.md",
+            "cmd": "setAccessibilityEnvMode"
+          }
+        ]
+      },
+      {
+        "name": "文件与资源",
+            "items": [
+              {
+                "name": "创建 ZIP",
+                "md": "md/02-设备/系统与文件扩展/zip.md",
+                "cmd": "zip"
+              },
+              {
+                "name": "解压 ZIP",
+                "md": "md/02-设备/系统与文件扩展/unZip.md",
+                "cmd": "unZip"
+              },
+              {
+                "name": "提取 APK assets",
+                "md": "md/02-设备/系统与文件扩展/extractApkAssets.md",
+                "cmd": "extractApkAssets"
+              },
+              {
+                "name": "提取 assets 压缩资源",
+                "md": "md/02-设备/系统与文件扩展/extractAssets.md",
+                "cmd": "extractAssets"
+              }
+            ]
+          },
+          {
+            "name": "媒体",
+            "items": [
+              {
+                "name": "播放音频",
+                "md": "md/02-设备/系统与文件扩展/playAudio.md",
+                "cmd": "playAudio"
+              },
+              {
+                "name": "停止音频",
+                "md": "md/02-设备/系统与文件扩展/stopAudio.md",
+                "cmd": "stopAudio"
+              },
+              {
+                "name": "扫描图片",
+                "md": "md/02-设备/系统与文件扩展/scanImage.md",
+                "cmd": "scanImage"
+              }
+            ]
+          },
+          {
+            "name": "显示与控制",
+            "items": [
+              {
+                "name": "设置虚拟 DPI",
+                "md": "md/02-设备/系统与文件扩展/setDpiToVir.md",
+                "cmd": "setDpiToVir"
+              },
+              {
+                "name": "恢复实际 DPI",
+                "md": "md/02-设备/系统与文件扩展/setDpiToRealy.md",
+                "cmd": "setDpiToRealy"
+              },
+              {
+                "name": "显示或隐藏控制栏",
+                "md": "md/02-设备/系统与文件扩展/showControlBar.md",
+                "cmd": "showControlBar"
+              },
+              {
+                "name": "设置控制栏位置",
+                "md": "md/02-设备/系统与文件扩展/setControlBarPosNew.md",
+                "cmd": "setControlBarPosNew"
+              }
+            ]
+          },
+          {
+            "name": "调试状态",
+            "md": "md/02-设备/系统与文件扩展/checkIsDebug.md",
+            "cmd": "checkIsDebug"
+          }
+    ]
   },
   {
     "name": "Java",
+    "order": 140,
     "items": [
       {
         "name": "概述与规则",
@@ -431,6 +522,7 @@
   },
   {
     "name": "多线程",
+    "order": 100,
     "items": [
       {
         "name": "模型与规则",
@@ -465,10 +557,19 @@
   },
   {
     "name": "界面",
+    "order": 120,
     "items": [
+      {
+        "name": "概述",
+        "md": "md/05-界面/概述.md"
+      },
       {
         "name": "弹窗",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/05-界面/弹窗/概述.md"
+          },
           {
             "name": "提示框",
             "md": "md/05-界面/弹窗/alert.md",
@@ -494,12 +595,15 @@
             "md": "md/05-界面/弹窗/form.md",
             "cmd": "m.ui.form"
           }
-        ],
-        "md": "md/05-界面/弹窗/概述.md"
+        ]
       },
       {
         "name": "HUD",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/05-界面/HUD/概述.md"
+          },
           {
             "name": "显示 HUD",
             "md": "md/05-界面/HUD/show.md",
@@ -525,12 +629,15 @@
             "md": "md/05-界面/HUD/toast.md",
             "cmd": "m.toast"
           }
-        ],
-        "md": "md/05-界面/HUD/概述.md"
+        ]
       },
       {
         "name": "HTML",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/05-界面/HTML/概述.md"
+          },
           {
             "name": "打开 HTML 页",
             "md": "md/05-界面/HTML/open.md",
@@ -555,12 +662,15 @@
             "name": "JavaScript bridge",
             "md": "md/05-界面/HTML/JS-bridge.md"
           }
-        ],
-        "md": "md/05-界面/HTML/概述.md"
+        ]
       },
       {
         "name": "底层UI",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/05-界面/底层UI/概述.md"
+          },
           {
             "name": "打开底层会话",
             "md": "md/05-界面/底层UI/open.md",
@@ -591,14 +701,13 @@
             "md": "md/05-界面/底层UI/closeAll.md",
             "cmd": "m.ui.closeAll"
           }
-        ],
-        "md": "md/05-界面/底层UI/概述.md"
+        ]
       }
-    ],
-    "md": "md/05-界面/概述.md"
+    ]
   },
   {
     "name": "ImGui",
+    "order": 180,
     "items": [
       {
         "name": "概述与完整示例",
@@ -610,8 +719,11 @@
       },
       {
         "name": "框架与窗口",
-        "md": "md/13-ImGui/框架与窗口.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/13-ImGui/框架与窗口.md"
+          },
           {
             "name": "检测支持状态",
             "md": "md/13-ImGui/框架与窗口/isSupport.md",
@@ -676,8 +788,11 @@
       },
       {
         "name": "布局与基础控件",
-        "md": "md/13-ImGui/布局与基础控件.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/13-ImGui/布局与基础控件.md"
+          },
           {
             "name": "垂直布局",
             "md": "md/13-ImGui/布局与基础控件/createVerticalLayout.md",
@@ -817,8 +932,11 @@
       },
       {
         "name": "选择控件与表格",
-        "md": "md/13-ImGui/选择控件与表格.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/13-ImGui/选择控件与表格.md"
+          },
           {
             "name": "创建组合框",
             "md": "md/13-ImGui/选择控件与表格/createComboBox.md",
@@ -918,8 +1036,11 @@
       },
       {
         "name": "图片、样式与图形",
-        "md": "md/13-ImGui/图片样式与图形.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/13-ImGui/图片样式与图形.md"
+          },
           {
             "name": "设置控件尺寸",
             "md": "md/13-ImGui/图片样式与图形/setWidgetSize.md",
@@ -1044,8 +1165,11 @@
       },
       {
         "name": "辅助、回调与生命周期",
-        "md": "md/13-ImGui/回调线程与生命周期.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/13-ImGui/回调线程与生命周期.md"
+          },
           {
             "name": "获取最近错误",
             "md": "md/13-ImGui/辅助方法/getLastError.md",
@@ -1067,6 +1191,7 @@
   },
   {
     "name": "脚本包",
+    "order": 130,
     "items": [
       {
         "name": "打包规则",
@@ -1081,16 +1206,23 @@
   },
   {
     "name": "日志",
+    "order": 30,
     "items": [
       {
         "name": "输出日志",
-        "md": "md/07-日志/log.print.md",
-        "cmd": "m.log.print"
+        "md": "md/07-日志/print.md",
+        "cmd": "print / printEx"
+      },
+      {
+        "name": "关闭普通日志",
+        "md": "md/07-日志/setLogOff.md",
+        "cmd": "setLogOff"
       }
     ]
   },
   {
     "name": "输入",
+    "order": 70,
     "items": [
       {
         "name": "概述",
@@ -1140,6 +1272,7 @@
   },
   {
     "name": "输入法",
+    "order": 90,
     "items": [
       {
         "name": "概述",
@@ -1169,6 +1302,7 @@
   },
   {
     "name": "图像",
+    "order": 50,
     "items": [
       {
         "name": "概述",
@@ -1205,7 +1339,7 @@
           {
             "name": "设置截图缓存时间",
             "md": "md/10-图像/截图与缓存/设置截图缓存时间.md",
-            "cmd": "m.setCaptureCacheMs"
+            "cmd": "m.setCaptureCacheMs / setCaptureCacheMs / setSnapCacheTime"
           },
           {
             "name": "缓存规则",
@@ -1255,8 +1389,11 @@
       },
       {
         "name": "兼容找图",
-        "md": "md/10-图像/兼容找图/概述.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/10-图像/兼容找图/概述.md"
+          },
           {
             "name": "多模板找图",
             "md": "md/10-图像/兼容找图/多模板找图.md",
@@ -1276,8 +1413,11 @@
       },
       {
         "name": "OpenCV",
-        "md": "md/10-图像/OpenCV/概述.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/10-图像/OpenCV/概述.md"
+          },
           {
             "name": "OpenCV 截图 Mat",
             "md": "md/10-图像/OpenCV/snapShot.md",
@@ -1329,6 +1469,7 @@
   },
   {
     "name": "找色",
+    "order": 60,
     "items": [
       {
         "name": "概述",
@@ -1418,6 +1559,7 @@
   },
   {
     "name": "扩展开发",
+    "order": 210,
     "items": [
       {
         "name": "对应关系",
@@ -1435,6 +1577,7 @@
   },
   {
     "name": "OCR",
+    "order": 160,
     "items": [
       {
         "name": "概述",
@@ -1474,6 +1617,7 @@
   },
   {
     "name": "YOLO",
+    "order": 170,
     "items": [
       {
         "name": "概述",
@@ -1528,6 +1672,7 @@
   },
   {
     "name": "点阵字库",
+    "order": 150,
     "items": [
       {
         "name": "概述",
@@ -1637,6 +1782,7 @@
   },
   {
     "name": "网络与通信",
+    "order": 110,
     "items": [
       {
         "name": "概述",
@@ -1699,8 +1845,11 @@
       },
       {
         "name": "LuaSocket",
-        "md": "md/16-网络与通信/LuaSocket/概述.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/16-网络与通信/LuaSocket/概述.md"
+          },
           {
             "name": "核心模块",
             "md": "md/16-网络与通信/LuaSocket/核心模块.md",
@@ -1757,6 +1906,7 @@
   },
   {
     "name": "安全与数据",
+    "order": 190,
     "items": [
       {
         "name": "加密",
@@ -1767,6 +1917,7 @@
   },
   {
     "name": "运行时扩展",
+    "order": 200,
     "items": [
       {
         "name": "Lua 标准库",
@@ -1774,8 +1925,11 @@
       },
       {
         "name": "FFI",
-        "md": "md/18-运行时扩展/FFI/概述.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/18-运行时扩展/FFI/概述.md"
+          },
           {
             "name": "声明与库加载",
             "md": "md/18-运行时扩展/FFI/声明与库加载.md",
@@ -1797,11 +1951,15 @@
   },
   {
     "name": "无障碍",
+    "order": 80,
     "items": [
       {
         "name": "节点自动化",
-        "md": "md/19-无障碍/节点自动化.md",
         "items": [
+          {
+            "name": "概述",
+            "md": "md/19-无障碍/节点自动化.md"
+          },
           {
             "name": "选择器",
             "md": "md/19-无障碍/选择器.md",

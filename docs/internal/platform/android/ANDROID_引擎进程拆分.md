@@ -1,7 +1,6 @@
 # Android 引擎进程拆分
 
-本文记录当前已经落地的“常驻控制端 + 一次性脚本 Worker”结构。长期决定见
-[0013：Android 一次性脚本 Worker 与 Root 权限边界](../../decisions/0013-Android一次性脚本Worker与Root权限边界.md)。
+本文记录当前已经落地的“常驻控制端 + 一次性脚本 Worker”结构。
 
 ## 进程结构
 

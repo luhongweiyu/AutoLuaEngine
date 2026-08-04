@@ -26,17 +26,17 @@ const EngineYoloApi* engine_getYoloApi();
 
 | 函数表 | 当前版本 | 最近变化 |
 |---|---:|---|
-| `EngineApi` | 21 | ABI 20 尾加 `findPicAll`；ABI 21 再尾加 `getYoloApi` |
+| `EngineApi` | 22 | ABI 21 预发布布局加入 `getYoloApi`；第一版发布前移除未使用的 `logPrint` |
 | `EngineDeviceApi` | 21 | ABI 19 尾加剪贴板；ABI 20 尾加 `callJson`；ABI 21 没有新增设备字段 |
 | `EngineImGuiApi` | 1 | 独立演进的 ImGui 子函数表 |
 | `EngineYoloApi` | 1 | ABI 21 引入的可选 YOLO 子函数表 |
 
-既有字段位置保持不变，所有函数表以后都只能在尾部追加。插件必须先检查顶层版本，再检查
-自己要访问的子表版本：
+当前 ABI 22 是第一版布局；ABI 21 仅是未发布的预览布局，不作为兼容目标。后续版本保持既有
+字段位置不变，只能在表尾追加。插件必须先检查顶层版本，再检查自己要访问的子表版本：
 
 ```c
 const EngineApi* api = engine_getApi();
-if (api == NULL || api->abiVersion < 12) {
+if (api == NULL || api->abiVersion < 22) {
     return;
 }
 
@@ -55,7 +55,7 @@ if (device == NULL || device->abiVersion < 12) {
 - 文本剪贴板：顶层和设备表均不低于 ABI 19。
 - `callJson`：顶层和设备表均不低于 ABI 20。
 - `findPicAll`：顶层 ABI 20。
-- `getYoloApi`：顶层 ABI 21，再检查 `EngineYoloApi::abiVersion`。
+- `getYoloApi`：当前顶层 ABI 22，再检查 `EngineYoloApi::abiVersion`。
 
 第一版 APK、插件 SO、FFI 外部库和可选 native 扩展只支持 `arm64-v8a`、`x86_64`。插件
 必须与设备所安装 APK 的 ABI 一致；导入成功不代表 linker 能加载 ABI 不匹配或缺依赖的 SO。
@@ -120,7 +120,7 @@ C ABI 不传递 Lua、JS 或 Go 的函数对象。插件通过 `waitEvent` 消�
 仍未绑定，也没有新增 Java `YoloV5` 包装类。插件可以在版本检查后直接使用 C ABI：
 
 ```c
-if (api->abiVersion >= 21) {
+if (api->abiVersion >= 22) {
     const EngineYoloApi* yolo = api->getYoloApi();
     if (yolo != NULL && yolo->abiVersion >= 1) {
         const char* runtimeJson = yolo->runtimeInfoJson();

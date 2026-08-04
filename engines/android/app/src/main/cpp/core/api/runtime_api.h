@@ -26,17 +26,10 @@ using RequestScriptStopCallback = bool (*)(void* context);
 /**
  * 写入 info 级脚本日志。
  *
- * 当前会同时写入 Android logcat 和 native 日志缓冲。print、log.print、后续
- * JS/Go 的 console/log 都应该复用这里，不在各语言绑定里重复实现日志输出。
+ * 当前会同时写入 Android logcat 和 native 日志缓冲。print、后续 JS/Go 的
+ * console/log 都应该复用这里，不在各语言绑定里重复实现日志输出。
  */
 void runtimePrint(const std::string& message);
-
-/**
- * runtimePrint 的语义化别名。
- *
- * 保留独立函数是为了后续区分 print 输出和日志模块输出时不改语言绑定层。
- */
-void runtimeLogPrint(const std::string& message);
 
 /**
  * 脚本延时。

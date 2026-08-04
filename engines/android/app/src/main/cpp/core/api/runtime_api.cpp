@@ -36,10 +36,6 @@ void runtimePrint(const std::string& message) {
     appendLogEntry("info", message);
 }
 
-void runtimeLogPrint(const std::string& message) {
-    runtimePrint(message);
-}
-
 bool runtimeSleep(long long durationMs, ShouldStopCallback shouldStop, void* stopContext) {
     if (durationMs < 0) {
         return false;

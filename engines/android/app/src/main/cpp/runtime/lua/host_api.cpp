@@ -390,13 +390,6 @@ int luaSetStopCallback(lua_State* state) {
     return 0;
 }
 
-int luaLogPrint(lua_State* state) {
-    const char* text = luaL_checkstring(state, 1);
-    engine_logPrint(text == nullptr ? "" : text);
-    lua_pushboolean(state, 1);
-    return 1;
-}
-
 /**
  * Lua 系统时间入口。
  *
@@ -1855,11 +1848,6 @@ void registerHostApi(lua_State* state) {
     registerColorCompatLuaApi(state, hostTableIndex);
     registerCvCompatLuaApi(state, hostTableIndex);
     registerFfiLuaApi(state, hostTableIndex);
-
-    lua_newtable(state);
-    int logTableIndex = lua_gettop(state);
-    setFunctionField(state, logTableIndex, "print", luaLogPrint);
-    lua_setfield(state, hostTableIndex, "log");
 
     lua_newtable(state);
     int screenTableIndex = lua_gettop(state);

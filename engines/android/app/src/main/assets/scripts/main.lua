@@ -8,7 +8,6 @@ local ok = m.sleep(1000)
 print("延时结果 =", ok)
 print("延时后的脚本运行时间 =", tickCount())
 
-m.log.print("m.log.print 调用正常")
 print("命名空间 m/lr/cd 已就绪 =", type(m), type(lr), type(cd))
 
 local switchOk, switchErr = useApi("lr")

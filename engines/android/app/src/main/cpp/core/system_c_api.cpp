@@ -23,22 +23,23 @@
 
 namespace {
 
-// 21 在 EngineApi 尾部加入独立 EngineYoloApi 函数表；既有字段位置保持不变。
-constexpr int kEngineAbiVersion = 21;
-// YOLO 子函数表独立演进；插件先检查 EngineApi >= 21，再检查它自己的版本。
+// 22 在第一版发布前移除未使用的 logPrint 字段；EngineYoloApi 仍独立演进。
+constexpr int kEngineAbiVersion = 22;
+constexpr int kEngineDeviceAbiVersion = 21;
+// YOLO 子函数表独立演进；插件先检查 EngineApi >= 22，再检查它自己的版本。
 constexpr int kEngineYoloAbiVersion = 1;
 constexpr unsigned char kEmptyAlpkgResourceData = 0;
 
 // 对外暴露当前 native 能力边界，方便 IDE、插件或脚本运行时确认可用能力。
 constexpr const char* kCapabilitiesJson =
         "{"
-        "\"abiVersion\":\"0.21\","
+        "\"abiVersion\":\"0.22\","
         "\"library\":\"libengine.so\","
         "\"core\":\"core/api + system_c_api\","
         "\"platform\":\"android\","
         "\"scriptBindings\":[\"lua\",\"js-reserved\",\"go-reserved\",\"plugin-reserved\"],"
         "\"pluginApi\":\"engine_getApi\","
-        "\"runtimeApi\":[\"engine_print\",\"engine_logPrint\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
+        "\"runtimeApi\":[\"engine_print\",\"engine_sleep\",\"engine_systemTime\",\"engine_tickCount\"],"
         "\"screenCapture\":[\"engine_getScreenPixels\",\"engine_setScreenPixels\",\"engine_restoreScreenPixels\",\"engine_capture\",\"engine_keepCapture\",\"engine_releaseCapture\",\"engine_setCaptureCacheMs\"],"
         "\"colorApi\":[\"engine_findColors\"],"
         "\"imageApi\":[\"engine_findPic\",\"engine_findPicAll\",\"engine_clearImageCache\",\"engine_setImageCacheMaxBytes\"],"
@@ -184,7 +185,7 @@ int deviceActionResult(const char* operation, const JsonValue& arguments) {
 }
 
 const EngineDeviceApi kEngineDeviceApi = {
-        kEngineAbiVersion,
+        kEngineDeviceAbiVersion,
         engine_appIsFront,
         engine_appIsRunning,
         engine_frontAppName,
@@ -262,7 +263,6 @@ const EngineApi kEngineApi = {
         engine_getVersion,
         engine_getCapabilitiesJson,
         engine_print,
-        engine_logPrint,
         engine_sleep,
         engine_sleepInterruptible,
         engine_systemTime,
@@ -379,17 +379,6 @@ extern "C" const EngineYoloApi* engine_getYoloApi() {
  */
 extern "C" int engine_print(const char* text) {
     xiaoyv::api::runtimePrint(text == nullptr ? "" : text);
-    gRuntimeLastError.clear();
-    return 1;
-}
-
-/**
- * 输出日志模块文本。
- *
- * 当前和 engine_print 同级别输出，保留独立入口方便后续区分 print 与 log。
- */
-extern "C" int engine_logPrint(const char* text) {
-    xiaoyv::api::runtimeLogPrint(text == nullptr ? "" : text);
     gRuntimeLastError.clear();
     return 1;
 }

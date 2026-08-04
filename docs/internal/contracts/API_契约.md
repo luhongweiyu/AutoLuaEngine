@@ -28,10 +28,6 @@ C ABI 统一使用 `engine_` 前缀，不带项目缩写，不暴露当前底层
 方便而自行设计不兼容的公开接口。确定后再把具体接口写入本契约、公开函数页、API 总览与
 `catalog.json`。
 
-选择 Android 系统接口时遵守[0004：Android 系统接口历史参考顺序](../decisions/0004-Android系统接口历史参考顺序.md)：
-只先参考 `T:\老项目` 中较新的项目实现，只有它不足以判断时才查看旧项目；历史代码不改变
-本项目的当前分层或权限边界。
-
 Android 的 Root 执行边界不属于 C ABI：固定 API 仍是 `libengine.so -> system_c_api -> AndroidBridge`。
 Root 模式的 `libengine.so` 位于 RootDaemon 创建的 uid=0 一次性 Worker；截图在该 Worker 内直接
 调用系统 Surface 接口，输入和系统控制仍通过认证 socket 请求常驻 RootDaemon。Lua、后续
@@ -43,7 +39,6 @@ ImageReader，其他 Root 类能力按底层实际结果返回。控制层不统
 
 ```c
 engine_print
-engine_logPrint
 engine_sleep
 engine_sleepInterruptible
 engine_systemTime
@@ -233,7 +228,6 @@ import("完整.Java.类名")
 
 ```c
 int engine_print(const char* text);
-int engine_logPrint(const char* text);
 int engine_sleep(int durationMs);
 int engine_sleepInterruptible(
         int durationMs,
@@ -248,7 +242,6 @@ const char* engine_runtimeLastError();
 说明：
 
 - `engine_print`：普通脚本输出。
-- `engine_logPrint`：日志模块输出。
 - `engine_sleep`：无中断上下文的睡眠。
 - `engine_sleepInterruptible`：带脚本停止回调的睡眠，Lua 的 `m.sleep` 当前使用它。
 - `engine_systemTime`：系统 Unix 毫秒时间戳。
@@ -465,8 +458,8 @@ const char* engine_yoloLastError();
 规则：
 
 - `EngineYoloApi` 是始终存在的语言中立子函数表；它由 `engine_getYoloApi()` 和
-  `engine_getApi()->getYoloApi()` 返回同一张只读表。顶层 `EngineApi` 需不低于 `21`，
-  `EngineYoloApi::abiVersion` 当前为 `1`；两张表以后各自只在尾部追加字段。
+  `engine_getApi()->getYoloApi()` 返回同一张只读表。顶层 `EngineApi` 需不低于 `22`，
+  `EngineYoloApi::abiVersion` 当前为 `1`；当前顶层 ABI 22 以后，两张表各自只在尾部追加字段。
 - `libxiaoyv_yolo.so` 是可选的独立 NCNN CPU 运行时，基础 APK 永不打包它。用户把它放到
   `/sdcard/xiaoyv/extensions/yolo/` 后在 App 扩展页导入 `yolo` 目录；导入只复制为私有只读副本，
   不校验签名、哈希、版本、ABI、文件名或依赖，也不加载代码。`engine_yoloRuntimeInfoJson()` 只查询状态：
@@ -595,11 +588,12 @@ const char* engine_deviceLastError();
 
 规则：
 
-- `EngineApi` 和 `EngineDeviceApi` 当前 `abiVersion` 都为 `21`。版本 19 在
+- `EngineApi` 当前 `abiVersion` 为 `22`，`EngineDeviceApi` 当前为 `21`。版本 19 在
   `EngineDeviceApi` 的 `lastError` 之后追加 `readPasteboard`、`writePasteboard`；版本 20
   在设备子表尾部追加 `callJson`，并在顶层 `EngineApi` 尾部追加 `findPicAll`；版本 21 再在
-  顶层尾部追加 `getYoloApi`。既有字段位置没有变化。函数表只能尾部追加字段；插件先检查所需
-  版本再访问新增字段，旧插件继续使用已有字段时保持可用。
+  顶层尾部追加 `getYoloApi`。ABI 21 是未发布的预览布局，ABI 22 在第一版发布前移除未使用的
+  `logPrint`；从 ABI 22 起既有字段位置不变，函数表只能尾部追加字段。插件通过 `EngineApi`
+  访问任何字段时先确认不低于 ABI 22，再检查子表或新增字段所需版本。
 - 结构化结果一律以 JSON 文本从 C ABI 返回；Lua HostApi 才转换为 table。
 - 设备字符串、JSON 和错误文本由调用线程持有，下一次设备调用可能覆盖内容。
 - `engine_exec` 只返回 shell 合并输出，不根据命令退出码改变成功状态；调用方自行判断。
@@ -671,8 +665,8 @@ const char* engine_imguiLastError();
 
 规则：
 
-- `EngineApi::abiVersion` 当前为 `21`。版本 18 在顶层函数表尾部追加 `getImGuiApi`，
-  版本 20 再在它后面追加 `findPicAll`，版本 21 再追加 `getYoloApi`；ImGui 子表本身仍要求调用方检查顶层版本不低于
+- `EngineApi::abiVersion` 当前为 `22`。版本 18 在顶层函数表尾部追加 `getImGuiApi`，
+  版本 20 再在它后面追加 `findPicAll`，版本 21 预发布布局再追加 `getYoloApi`；ImGui 子表本身仍要求调用方检查顶层版本不低于
   `18`，版本 18 及以前字段位置不变。
 - `EngineImGuiApi::abiVersion` 当前为 `1`。ImGui 子函数表同样只能在尾部追加字段；调用方
   必须先检查版本，再访问自己需要的字段。
@@ -725,7 +719,6 @@ ime.keyEvent(action, keyCode)
 m.sleep(ms)
 m.systemTime()
 m.tickCount()
-m.log.print(text)
 m.getScreenPixels()
 m.setScreenPixels(imagePath)
 m.restoreScreenPixels()
@@ -819,7 +812,7 @@ YOLO Lua 规则：
 |---|---|---|
 | 加密 | `cryptLib.aes_*`、`cryptLib.rsa_*` | 二进制 Lua 字符串；平台 JSON 边界仅内部 Base64 |
 | 网络 | `httpGet`、`httpPost`、文件传输、WebSocket、`require("socket")`、`require("socket.http")` | 项目 HTTP/WebSocket 阻塞调用释放 VM Gate；`downloadFile` 在目标同目录完整写入临时文件后替换，失败保留原目标；LuaSocket TCP/UDP 按上游同步超时语义执行；不导出 `m.http` |
-| 标准库 / FFI | Lua 5.4 `io`、`os`；`m.ffi`、全局 `ffi`、`require("ffi")` | 不复制标准库；FFI 由静态内置的 cffi-lua + libffi 提供声明、结构体、数组、浮点、回调和可变参数 C ABI；第一版只支持 `arm64-v8a` 与 `x86_64`，范围见 [0015](../decisions/0015-Android第一版ABI支持范围.md)；外部库的 ABI、依赖与声明仍由调用方负责 |
+| 标准库 / FFI | Lua 5.4 `io`、`os`；`m.ffi`、全局 `ffi`、`require("ffi")` | 不复制标准库；FFI 由静态内置的 cffi-lua + libffi 提供声明、结构体、数组、浮点、回调和可变参数 C ABI；第一版只支持 `arm64-v8a` 与 `x86_64`；外部库的 ABI、依赖与声明仍由调用方负责 |
 | 触控 / 输入法 | `setScreenScale`、`touchDown`、`touchMove`、`touchUp`、`tap`、`longTap`、`touchMoveEx`、`swipe`、`m.ime.*` | `m` 使用布尔缩放开关和 `touchUp([id,] x, y)`；缩放和三类基础触控均无返回；`m.ime` 是正式输入法模块 |
 | 图色 | 兼容取色、多点找色、找圆、字库和多模板入口 | 共用当前截图缓存；`m.findPic` 原生方向不变 |
 | 设备 / 文件 | 媒体、ZIP、assets、DPI、控制栏、重启、定时器、脚本版本、结束回调、环境切换 | 无返回旧接口失败时抛错，不返回固定成功值；结束码为 0/1/2 |

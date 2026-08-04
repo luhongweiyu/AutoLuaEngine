@@ -415,7 +415,6 @@ end)
 
 test("api-namespace-switch", function()
     assert(useApi("lr") == true)
-    assert(type(getLrApi) == "function")
     assert(useApi("cd") == true)
     assert(type(getXiaoyvApi) == "function")
     assert(useApi("m") == true)

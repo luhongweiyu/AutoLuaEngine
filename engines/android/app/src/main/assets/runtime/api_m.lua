@@ -87,7 +87,6 @@ local m = {
     readPasteboard = host.readPasteboard,
     writePasteboard = host.writePasteboard,
     vibrate = host.vibrate,
-    log = host.log,
     screen = host.screen,
     color = host.color,
     image = host.image,

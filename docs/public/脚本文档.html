@@ -587,6 +587,8 @@
       const h = decodeURIComponent(hash.replace(/^#/, "")).trim();
       if (!h) return null;
       const hLower = h.toLowerCase();
+      // 兼容早期“命令,Markdown 路径”形式的深链；当前链接只使用其中一个稳定标识。
+      const legacyPath = h.includes(",") ? h.slice(h.lastIndexOf(",") + 1).trim().replace(/\\/g, "/") : "";
       let found = null;
       function walk(list, parents) {
         for (const n of list) {
@@ -596,6 +598,10 @@
           const name = (n.name || "").toLowerCase();
           if (cmd && cmd === hLower) { found = chain; return true; }
           if (md && (md === h || md.endsWith("/" + h) || md === "md/" + h)) { found = chain; return true; }
+          if (legacyPath && (md === legacyPath || md.endsWith("/" + legacyPath) || md === "md/" + legacyPath)) {
+            found = chain;
+            return true;
+          }
           if (!n.cmd && name === hLower) { found = chain; return true; }
           if (n.items && walk(n.items, chain)) return true;
         }
@@ -845,8 +851,69 @@
       return false;
     }
 
+    // 目录按常用脚本的阅读路径展示；未列入的节点保持 catalog.json 原有顺序。
+    const CATEGORY_ORDER = new Map([
+      ["概述", 10], ["日志", 30], ["设备", 40], ["图像", 50],
+      ["找色", 60], ["输入", 70], ["无障碍", 80], ["输入法", 90], ["多线程", 100],
+      ["网络与通信", 110], ["界面", 120], ["脚本包", 130], ["Java", 140],
+      ["点阵字库", 150], ["OCR", 160], ["YOLO", 170], ["ImGui", 180],
+      ["安全与数据", 190], ["运行时扩展", 200], ["扩展开发", 210]
+    ]);
+    const GROUP_ORDER = new Map([
+      ["应用与脚本", 10], ["设备信息", 20], ["系统控制", 30], ["脚本运行", 40],
+      ["文件与资源", 50], ["媒体", 60], ["显示与控制", 70], ["调试状态", 80],
+      ["截图来源与缓存", 10],
+      ["保存截图", 20], ["模板找图", 30], ["兼容找图", 40], ["OpenCV", 50],
+      ["取色与转换", 10], ["比色与统计", 20], ["查找与分析", 30],
+      ["弹窗", 10], ["HUD", 20], ["HTML", 30], ["底层UI", 40],
+      ["项目 HTTP", 10], ["WebSocket", 20], ["LuaSocket", 30]
+    ]);
+    const COMMAND_ORDER = new Map([
+      ["useApi / switchApi", 20], ["print", 30], ["sleep", 40], ["systemTime", 50], ["tickCount", 60],
+      ["m.appIsFront", 50], ["m.appIsRunning", 60], ["m.runApp", 70], ["m.stopApp", 80],
+      ["m.frontAppName", 90], ["m.getCurrentActivity", 100], ["m.getRunEnvType", 110],
+      ["m.exec", 115], ["m.getDisplaySize", 120], ["m.getDisplayInfo", 130], ["m.getScreenPixels", 140],
+      ["m.keepCapture", 150], ["m.releaseCapture", 160], ["m.setCaptureCacheMs", 170],
+      ["m.capture", 180], ["m.snapShot", 190], ["m.findPic", 200], ["m.findPicAll", 210],
+      ["m.getPixelColor", 220], ["m.getScreenPixel", 230], ["m.cmpColor", 240],
+      ["m.cmpColorEx", 250], ["m.findColors", 260], ["m.findColor", 270],
+      ["m.findMultiColor", 280], ["m.findMultiColorAll", 290], ["m.getColorNum", 300],
+      ["tap", 310], ["longTap", 320], ["swipe", 330], ["touchDown", 340],
+      ["touchMove", 350], ["touchUp", 360], ["keyPress", 370], ["keyDown", 380],
+      ["keyUp", 390], ["inputText", 400], ["selector.findOne", 410],
+      ["selector.findAll", 420], ["node.click", 430], ["node.setText", 440],
+      ["m.ime.lock", 450], ["m.ime.setText", 460], ["m.ime.unlock", 470],
+      ["m.thread.newThread", 480], ["m.thread.beginThread", 490], ["thread:stopThread", 500],
+      ["m.httpGet", 510], ["m.httpPost", 520], ["m.downloadFile", 530], ["m.uploadFile", 540],
+      ["m.dialog.alert", 550], ["m.dialog.confirm", 560], ["m.toast", 570],
+      ["m.hud.show", 580], ["m.hud.update", 590], ["m.hud.hide", 600],
+      ["m.read_alpkg_file", 610], ["import", 620], ["m.font.setDict", 630],
+      ["m.font.addDict", 635], ["m.font.useDict", 640], ["m.font.getFontPixel", 645],
+      ["m.font.read", 650], ["m.font.findStr", 660], ["m.font.findStrEx", 670],
+      ["m.font.ocr", 680], ["m.font.ocrEx", 690], ["m.font.findStrFast", 700],
+      ["m.font.findStrFastEx", 710], ["m.ocr.loadBuiltin", 720], ["m.ocr.load", 730],
+      ["m.ocr.isLoaded", 740], ["m.ocr.read", 750], ["m.ocr.findText", 760],
+      ["m.ocr.release", 770], ["m.yolo.runtimeInfo", 780], ["m.yolo.isAvailable", 790],
+      ["m.yolo.init", 800], ["m.yolo.load", 810], ["m.yolo.isLoaded", 820],
+      ["m.yolo.detect", 830], ["m.yolo.detectScreen", 840], ["m.yolo.detectFile", 850],
+      ["m.yolo.release", 860]
+    ]);
+
+    function nodeOrder(node, depth, index) {
+      if (depth === 0) return node.order ?? CATEGORY_ORDER.get(node.name) ?? (1000 + index);
+      if (!node.cmd && /概述|规则/.test(node.name)) return 0;
+      if (node.cmd) {
+        const exact = COMMAND_ORDER.get(node.cmd);
+        if (exact !== undefined) return exact;
+        for (const [key, rank] of COMMAND_ORDER) {
+          if (node.cmd.includes(key)) return rank;
+        }
+      }
+      return GROUP_ORDER.get(node.name) ?? (1000 + index);
+    }
+
     function renderTree(nodes, parent, depth, q) {
-      nodes.forEach(node => {
+      nodes.slice().sort((a, b) => nodeOrder(a, depth, nodes.indexOf(a)) - nodeOrder(b, depth, nodes.indexOf(b))).forEach(node => {
         if (!matchesQuery(node, q)) return;
         const wrap = document.createElement("div");
         wrap.className = "node";

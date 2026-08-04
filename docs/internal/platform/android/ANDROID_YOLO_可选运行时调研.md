@@ -26,7 +26,6 @@
 
 - 2026-07-30：已在 x86_64 独立构建 `libxiaoyv_yolo.so`，剥离调试符号后约 13.6 MB；动态依赖仅为
   Android 系统的 `liblog.so`、`libm.so`、`libdl.so`、`libc.so`，不携带额外 `libncnn.so`。
-- 2026-07-30 曾验证旧的“构建时打进 APK”路径；该路径已被 0011 取代，不能作为当前分发行为依据。
 - 2026-08-04 已构建并安装 x86_64 基础 APK，确认 APK 不含 `libxiaoyv_yolo.so`；通过原有扩展页
   导入同 ABI 的独立 SO 后，Root Worker 已验证按需加载。运行时报告 NCNN `1.0.20260730`。
 - 2026-08-04 已用固定提交
@@ -112,8 +111,7 @@ YoloV5.detect(bmp, false)
 
 ## Lua 公开层与剩余边界
 
-Lua 形状由 [0016：Android YOLO Lua 公开接口](../../decisions/0016-Android%20YOLO%20Lua公开接口.md)
-固定：高级入口按名称管理多个模型，`init/detect` 使用 `default` 简化常见流程；检测返回 Lua 数组，
+Lua 公开形状固定如下：高级入口按名称管理多个模型，`init/detect` 使用 `default` 简化常见流程；检测返回 Lua 数组，
 相对文件路径基于脚本工作目录。加载 options 与检测 options 分离，当前 CPU 后端对 GPU 请求明确
 报错。模块在 `lr/cd` 加载后才挂到 `m`，不自动扩展两套兼容命名空间。
 
