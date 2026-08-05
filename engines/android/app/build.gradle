@@ -40,6 +40,7 @@ android {
 
     buildFeatures {
         aidl true
+        buildConfig true
     }
 
     signingConfigs {
@@ -107,12 +108,14 @@ android {
     productFlavors {
         arm64 {
             dimension "abi"
+            buildConfigField "String", "OPTIONAL_RUNTIME_ABI", '"arm64-v8a"'
             ndk {
                 abiFilters "arm64-v8a"
             }
         }
         x64 {
             dimension "abi"
+            buildConfigField "String", "OPTIONAL_RUNTIME_ABI", '"x86_64"'
             ndk {
                 abiFilters "x86_64"
             }

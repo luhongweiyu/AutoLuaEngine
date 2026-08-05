@@ -21,7 +21,8 @@ import java.util.Iterator;
  * 交付的紧凑 RGBA 直接缓冲，不读取 ALPKG。
  */
 public final class YoloPlatformBridge {
-    private static final String RUNTIME_FILE_NAME = "yolo/libxiaoyv_yolo.so";
+    private static final String RUNTIME_FILE_NAME =
+            "yolo/" + BuildConfig.OPTIONAL_RUNTIME_ABI + "/libxiaoyv_yolo.so";
     private static final Object LOAD_LOCK = new Object();
     private static volatile boolean nativeLoaded;
     private static volatile String nativeLoadError = "";

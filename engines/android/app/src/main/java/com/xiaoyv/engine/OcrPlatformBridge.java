@@ -45,7 +45,8 @@ import java.util.Map;
 public final class OcrPlatformBridge {
     private static final Object MODEL_LOCK = new Object();
     private static final Map<String, OcrModel> MODELS_BY_NAME = new HashMap<>();
-    private static final String ONNX_RUNTIME_FILE_NAME = "rapidocr/libonnxruntime.so";
+    private static final String ONNX_RUNTIME_FILE_NAME =
+            "rapidocr/" + BuildConfig.OPTIONAL_RUNTIME_ABI + "/libonnxruntime.so";
     private static final String BUILTIN_DET_FILE = "rapidocr/ch_PP-OCRv4_det_mobile.onnx";
     private static final String BUILTIN_REC_FILE = "rapidocr/ch_PP-OCRv4_rec_mobile.onnx";
     private static final String BUILTIN_CLS_FILE = "rapidocr/ch_ppocr_mobile_v2.0_cls_mobile.onnx";
